@@ -1,0 +1,14 @@
+type PendingWindow {
+    entity: Entity
+    window: Window.Component.Window
+    requested: Window.Component.Requested
+}
+
+var owner = Windows.Owner()
+
+func input_each(pending: PendingWindow) {
+    var opening = Window.Component.Opening()
+    opening.slot = owner.request(pending.window)
+    pending.entity.add_component(opening)
+    pending.entity.remove_component(Window.Component.Requested)
+}

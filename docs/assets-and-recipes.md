@@ -1,0 +1,141 @@
+# Assets and recipes
+
+A game never reads an artist's file at run time. A recipe turns source files into assets, by id, into a cache; the
+game names ids.
+
+## Assets are declared classes
+
+An asset format is a class. `Pack<T>` derives its binary codec from the class's attributes with a plural template,
+and `Field<T>` decides each attribute's encoding at compile time: `Integer`, `Long`, `Float`, `Double`, `Byte`, `Boolean`,
+`String`, lists of any of these or of classes, and nested classes. No format has a hand-written reader or writer.
+
+```gdscript
+# slop/asset/texture.spite
+var width = 0
+var height = 0
+var pixels = List<Integer>()
+```
+
+```gdscript
+var pack = Pack<Asset.Texture>()
+var bytes = Asset.Bytes()
+pack.encode(texture, bytes)
+var decoded = pack.decode(bytes)
+```
+
+A file starts with `SLOP` and the class's name, so a file is never read as the wrong format. A project declares its
+own formats the same way. `examples/asset_round_trip` checks one with every kind of field.
+
+## Recipes are code
+
+A recipe is a class in a `recipe/` folder with a `build()`. `cookbook.cook()` (`var cookbook = Recipes.Cookbook()`) finds every one (D115) and runs it when the
+program starts, so nobody has to remember a separate step.
+
+```gdscript
+# examples/click_counter_theme_plugin/theme/recipe/ui.spite
+var layers = Psd.Layers()
+
+func build() {
+    layers.open_in("../click_counter_theme_plugin/theme", "ui.buttons")
+    layers.texture("Plates/Primary/Normal", "ui.button.primary.normal")
+    layers.texture("Plates/Primary/Hover", "ui.button.primary.hover")
+    layers.texture("Plates/Primary/Pressed", "ui.button.primary.pressed")
+    layers.skip("Plates/Secondary/", "click_counter has one button, and it is primary")
+    layers.skip("Close/", "click_counter has no window to close")
+    layers.finish()
+}
+```
+
+The steps:
+
+| Step | Does |
+|---|---|
+| `Psd.Layers` | `open(id)`, `texture(layer path, id)`, `skip(prefix, reason)`, `finish()`, which refuses any layer nothing claimed |
+| `Recipes.Glsl` | `compile(root, id, stage)`: GLSL to SPIR-V with `glslangValidator`; the plugin names its own folder as the root |
+
+Any package can bring recipes along with its systems: the Vulkan plugin brings its shaders, a game brings its PSDs.
+
+## Everything is named by id
+
+An asset is named by its id everywhere, and a source file's path follows from the id: `ui.buttons` is
+`assets/ui/buttons.psd`, `shader.rectangles.vertex` is `assets/shader/rectangles/vertex.glsl` (dots are folders,
+the step supplies the extension). A recipe never writes a path, so no path can point outside the project, and the
+lookup can be redirected, which is what worktrees need. `Recipes.Sources` does it: `path_of(id, extension)` looks in
+the program's folder, then its base (below); `path_in(root, id, extension)` looks in one package's folder.
+
+## The cache binary
+
+Cooked assets live in one file, `<base>/.slop-cache/store.bin`, never as loose files. It is append-only and
+content-addressed: each record is keyed `id#fingerprint`, where the fingerprint is taken from the step's input.
+`Recipes.Cache`:
+
+| Call | Does |
+|---|---|
+| `is_current(id, fingerprint)` | whether the store already holds this exact input's output (then the step skips itself) |
+| `put(id, fingerprint, bytes)` | appends the output, unless an identical entry is there |
+| `read(id)` | the current output for an id, from the store |
+
+Beside it, `store.bin.index` lists every record's key, offset and length, so opening the store is one read, not a
+scan; if it is missing or disagrees with the store's size, the store is rescanned and the index rewritten.
+
+Each program keeps a small `.slop-index.json`: which fingerprint each id currently means for it. A second run
+builds nothing, and a program whose inputs another program already cooked builds nothing either.
+
+## Worktrees and shared cooking
+
+Mortaro's requirement: a worktree must be nearly free. Godot and Unreal copy every asset and all the code into a
+new worktree. A SlopEngine worktree holds only the files it changes: everything else loads from the original.
+
+- **Assets.** A program names its base by declaring `func base_folder(): String` in its `build.spite` (D155: a
+  package asks the program through a method it declares; slop falls back to "no base" with `has_function`). `Sources` looks in the
+  program first and the base second, so a changed PSD in the worktree wins and the rest are the base's. Cooking goes
+  into the base's store: unchanged inputs have the same fingerprint and are already there; a changed one appends a
+  new record beside the old, so the base and every worktree stay valid at once.
+- **Code.** A worktree is a folder whose entry loads its base (`load "../click_counter"`) and reopens only the
+  classes it changes (D156). Mortaro's workflow: agents make cheap worktrees like this for him to test, and approved
+  changes are merged into the real code.
+
+`click_counter_test` and `render_parity` already work this way over `click_counter`: both declare it as their `base_folder()`,
+and neither cooks anything once the game has.
+
+## Hot reload: change a source, see it in the game
+
+A running program picks up an artist's change without restarting and without a stutter. Two sides, joined only by
+the cache's files on disk:
+
+**The cook watches its sources.** While `cookbook.cook()` runs a recipe, every source file it opens (`Psd.Layers.open`,
+`Recipes.Glsl.compile`, or a recipe's own `cookbook.note_source(path)`) is recorded against it in
+`Recipes.Cookbook` with its `File.modified()` and `size()`. `Recipes.Watcher` holds the OS's change notifications
+for those folders and needs no thread: each tick it checks them with a zero wait (one cheap system call), and
+reports a change once they have been quiet for 100 ms, so a burst of writes is one change. `System.Recook`
+(`input`) then compares stamps and submits the stale recipes to the thread pool as a `Recipes.CookTask`; the frame
+thread only submits it and, once `finished`, drops the handle. The recipes append their new outputs to the cache binary and rewrite the program's index.
+
+**The engine watches the cooked binary it uses.** A `Render.Component.Textures` never touches the cook's in-memory
+cache: it keeps its own `Recipes.CacheReader` (a copy of the index), records the fingerprint each slot was loaded
+with, and subscribes a watcher to the cache's folders only once it has a texture loaded (with nothing loaded there
+is nothing to watch). When that watcher fires, `Render.System.WatchTextures` starts a `Render.ChangeCheck` on a
+worker: it reads the index fresh, compares the loaded slots' fingerprints, and returns the changed slots with their
+records; the frame thread swaps in the fresh reader and starts ordinary background loads. The Vulkan backend
+re-uploads a slot whose generation moved and retires the old image, view, memory and descriptor set once the frames
+using them have finished.
+
+`examples/hot_reload_test` cooks a texture from a one-line text file, rewrites it to red and then to blue while the
+app runs, and checks both the software canvas and Vulkan follow; the worst tick while re-cooking and reloading is
+2 ms.
+
+Known gaps: the watcher is Windows-only and interim (a standard-library file watcher that Spite's own hot reload
+would share is Mortaro's decision); and
+changing a recipe's *code* doesn't invalidate its cooked outputs, since fingerprints cover sources only.
+
+## Background loading
+
+A game names an asset; the engine loads it without stalling a frame. `Render.Component.Textures.request(id)` answers a
+slot at once. The first request for an id looks up where its record sits in the cache binary
+(an in-memory index, no disk access) and starts a `Parallel` job on its own thread: the job reads the record,
+decodes it with `Pack`, and lays the pixels out as raw bytes for the GPU. The frame thread never waits for it:
+`FinishTextureLoads` asks each job's thread whether it has finished with a zero-timeout wait and only then takes the
+result. The Vulkan backend stages each new texture with one `memcpy` and records its copy into the frame's own
+command buffer, so no upload waits on its own fence. Until
+the slot is ready, `DrawUi` skips it; the Vulkan backend uploads each slot once it is ready;
+`FinishTextureLoads` forgets finished jobs.

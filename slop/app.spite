@@ -1,0 +1,151 @@
+type Runnable {
+    name: String
+    placed_in: String
+    accesses: List<String>
+    run_once()
+}
+
+var phases = ["input", "after_input", "update", "prepare", "layout", "render", "after_render", "present", "last"]
+var runners = List<Runnable>()
+var stages = List<List<Runnable>>()
+var stage_phases = List<String>()
+var world = World()
+var program = Program()
+var frame_milliseconds = 16
+var parallel = true
+var release_budget = 4096
+var columns = Columns()
+
+func App() {
+    var quit_column = Column<Component.Quit>()
+    quit_column.insert(world.entity, Component.Quit())
+    var frame_column = Column<Component.Frame>()
+    frame_column.insert(world.entity, Component.Frame())
+    register_components()
+    add_systems()
+    phases.each(build_phase)
+}
+
+func register_component(component: Symbol<Component>) {
+    var column = Column<component.class>()
+    column.prepare_column()
+}
+
+func add_system(system: Symbol<System>) {
+    var runner = Runner<system.class>()
+    crash phases.contains(runner.placed_in)
+    runners.append(runner)
+}
+
+func build_phase(phase: String) {
+    var opened = false
+    var index = 0
+    while index < runners.count() {
+        if runners[index].placed_in == phase {
+            place(runners[index], phase, opened)
+            opened = true
+        }
+        index = index + 1
+    }
+}
+
+func place(runner: Runnable, phase: String, opened: Boolean) {
+    var stage = stages.last()
+    if not opened or conflicts(stage, runner) {
+        var fresh = List<Runnable>()
+        fresh.append(runner)
+        stages.append(fresh)
+        stage_phases.append(phase)
+    } else {
+        stage.append(runner)
+    }
+}
+
+func conflicts(stage: List<Runnable>, candidate: Runnable): Boolean {
+    var found = false
+    var index = 0
+    while not found and index < stage.count() {
+        found = shares_access(stage[index], candidate)
+        index = index + 1
+    }
+    return found
+}
+
+func shares_access(member: Runnable, candidate: Runnable): Boolean {
+    var shared = false
+    var index = 0
+    while not shared and index < candidate.accesses.count() {
+        shared = member.accesses.contains(candidate.accesses[index])
+        index = index + 1
+    }
+    return shared
+}
+
+func quit_requested(): Boolean {
+    var quits = Lookup<Component.Quit>()
+    var quit = quits.of(world.entity)
+    crash quit
+    return quit.requested
+}
+
+func run() {
+    while not quit_requested() {
+        tick()
+        program.sleep(frame_milliseconds)
+    }
+    tick()
+}
+
+func tick() {
+    var index = 0
+    while index < stages.count() {
+        run_stage(stages[index])
+        world.flush()
+        columns.stage_counter = columns.stage_counter + 1
+        var older_than = columns.stage_counter - stages.count() * 2
+        columns.trim_removals(older_than)
+        index = index + 1
+    }
+    columns.release_buried(release_budget)
+}
+
+func run_stage(stage: List<Runnable>) {
+    var threaded = parallel and stage.count() > 1
+    var running = List<Parallel<Nothing>>()
+    var last = stage.count() - 1
+    var index = 0
+    while threaded and index < last {
+        crash stage[index]
+        start_threaded(stage[index], running)
+        index = index + 1
+    }
+    while index < stage.count() {
+        stage[index].run_once()
+        index = index + 1
+    }
+    running.clear()
+}
+
+func start_threaded(runner: Runnable, running: List<Parallel<Nothing>>) {
+    var thread = Parallel(runner.run_once)
+    running.append(thread)
+}
+
+func describe(): String {
+    var lines = List<String>()
+    var index = 0
+    while index < stages.count() {
+        describe_stage(lines, index)
+        index = index + 1
+    }
+    return lines.join("\n")
+}
+
+func describe_stage(lines: List<String>, index: Integer) {
+    crash stages[index]
+    crash stage_phases[index]
+    var phase = stage_phases[index]
+    var names = stages[index].map_name()
+    var joined = names.join(", ")
+    lines.append("stage {index} ({phase}): {joined}")
+}

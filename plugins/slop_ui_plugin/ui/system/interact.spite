@@ -1,0 +1,77 @@
+type Pressable {
+    entity: Entity
+    button: Component.Button
+    layout: Component.ComputedLayout
+    clip: Component.ComputedClip
+}
+
+type Pointer {
+    mouse: Input.Component.Mouse
+}
+
+type Bars {
+    bars: Component.ComputedScrollbars
+    clip: Component.ComputedClip
+}
+
+func after_input_all(pressables: List<Pressable>, pointers: List<Pointer>, bars: List<Bars>) {
+    var index = 0
+    while index < pointers.count() {
+        interact_pointer(pressables, pointers[index], bars)
+        index = index + 1
+    }
+}
+
+func interact_pointer(pressables: List<Pressable>, pointer: Pointer, bars: List<Bars>) {
+    var mouse_left: Float = pointer.mouse.left
+    var mouse_top: Float = pointer.mouse.top
+    var on_bar = false
+    var index = 0
+    while index < bars.count() {
+        var bar = bars[index]
+        on_bar = on_bar or bar.bars.covers(mouse_left, mouse_top) and bar.clip.contains(mouse_left, mouse_top)
+        index = index + 1
+    }
+    index = 0
+    while index < pressables.count() {
+        interact(pressables[index], pointer, on_bar)
+        index = index + 1
+    }
+}
+
+func interact(pressable: Pressable, pointer: Pointer, on_bar: Boolean) {
+    var mouse = pointer.mouse
+    var owner = pressable.entity
+    var entity = owner.id
+    var layout = pressable.layout
+    var mouse_left: Float = mouse.left
+    var mouse_top: Float = mouse.top
+    var inside_x = mouse_left >= layout.left and mouse_left < layout.left + layout.width
+    var inside_y = mouse_top >= layout.top and mouse_top < layout.top + layout.height
+    var visible = pressable.clip.contains(mouse_left, mouse_top)
+    var hovered = inside_x and inside_y and visible and not on_bar
+    var hovered_before = Lookup<Ui.Component.Hovered>().has(entity)
+    var pressed_before = Lookup<Ui.Component.Pressed>().has(entity)
+    var clicked_before = Lookup<Ui.Component.Clicked>().has(entity)
+    var started_here = pressed_before or mouse.pressed and hovered
+    var pressed = started_here and mouse.down
+    var clicked = mouse.released and hovered and started_here
+    if clicked and not clicked_before {
+        var clicked_marker = Ui.Component.Clicked()
+        owner.add_component(clicked_marker)
+    } else if clicked_before and not clicked {
+        owner.remove_component(Ui.Component.Clicked)
+    }
+    if hovered and not hovered_before {
+        var hovered_marker = Ui.Component.Hovered()
+        owner.add_component(hovered_marker)
+    } else if hovered_before and not hovered {
+        owner.remove_component(Ui.Component.Hovered)
+    }
+    if pressed and not pressed_before {
+        var pressed_marker = Ui.Component.Pressed()
+        owner.add_component(pressed_marker)
+    } else if pressed_before and not pressed {
+        owner.remove_component(Ui.Component.Pressed)
+    }
+}

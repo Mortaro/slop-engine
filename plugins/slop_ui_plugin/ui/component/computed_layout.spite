@@ -1,0 +1,7 @@
+var left: Float = 0.0
+var top: Float = 0.0
+var width: Float = 0.0
+var height: Float = 0.0
+var order = -1
+var content_left: Float = 0.0
+var content_top: Float = 0.0

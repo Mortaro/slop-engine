@@ -1,0 +1,38 @@
+type Target {
+    draw_list: Render.Component.DrawList
+    textures: Render.Component.Textures
+    canvas: Component.Canvas
+}
+
+func after_render_each(target: Target) {
+    var draw_list = target.draw_list
+    var canvas = target.canvas
+    canvas.resize(draw_list.width, draw_list.height)
+    canvas.fill(draw_list.clear_color)
+    var index = 0
+    while index < draw_list.count {
+        fill(target, index)
+        index = index + 1
+    }
+}
+
+func fill(target: Target, index: Integer) {
+    var draw_list = target.draw_list
+    var left = draw_list.left_at(index)
+    var top = draw_list.top_at(index)
+    var width = draw_list.width_at(index)
+    var height = draw_list.height_at(index)
+    var color = draw_list.color_at(index)
+    var texture = draw_list.texture_at(index)
+    var clip_left = draw_list.clip_left_at(index)
+    var clip_top = draw_list.clip_top_at(index)
+    var clip_right = draw_list.clip_right_at(index)
+    var clip_bottom = draw_list.clip_bottom_at(index)
+    target.canvas.clip_to(clip_left, clip_top, clip_right, clip_bottom)
+    if texture < 0 {
+        target.canvas.fill_rectangle(left, top, width, height, color)
+    } else {
+        var image = target.textures.texture(texture)
+        target.canvas.blend_image(left, top, width, height, image)
+    }
+}

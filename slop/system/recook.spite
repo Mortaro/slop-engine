@@ -1,0 +1,10 @@
+var cookbook = Recipes.Cookbook()
+var cooking = Recipes.CookRun()
+
+func input_each() {
+    assert not cooking.busy()
+    var stale = cookbook.take_stale()
+    assert stale
+    assert stale.count() > 0
+    cooking.start(stale)
+}

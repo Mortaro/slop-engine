@@ -1,0 +1,6 @@
+enum Sizing {
+    'content_box'
+    'border_box'
+}
+
+var value: Sizing = 'content_box'

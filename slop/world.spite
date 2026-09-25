@@ -1,0 +1,121 @@
+singleton
+
+type Command {
+    apply()
+}
+
+var next_entity = 1
+var entity = 0
+var buffers = List<List<Command>>()
+var despawn_buffers = List<List<Integer>>()
+var runner_buffer = ThreadLocal<Integer>()
+var id_lock = Lock()
+var columns = Columns()
+
+func prepare() {
+    assert buffers.count() == 0
+    add_buffer()
+}
+
+func add_buffer(): Integer {
+    buffers.append(List<Command>())
+    despawn_buffers.append(List<Integer>())
+    return buffers.count() - 1
+}
+
+func register_runner(): Integer {
+    prepare()
+    return add_buffer()
+}
+
+func enter(buffer: Integer) {
+    prepare()
+    runner_buffer.set(buffer)
+}
+
+func current(): Integer {
+    prepare()
+    var buffer = runner_buffer.get()
+    if buffer {
+        return buffer
+    }
+    return 0
+}
+
+func as_entity(): Entity {
+    return Entity(entity)
+}
+
+func create_entity(): Entity {
+    var spawned = spawn()
+    return Entity(spawned)
+}
+
+func create_entity_from_bundle(bundle: Anything): Entity {
+    var made = create_entity()
+    var attributes = bundle.attributes
+    var index = 0
+    while index < attributes.count() {
+        add_bundle_attribute(made, attributes[index])
+        index = index + 1
+    }
+    return made
+}
+
+func add_bundle_attribute(made: Entity, attribute: Spite.Attribute) {
+    assert attribute.value
+    var command = AddComponent(made.id, attribute.value, attribute.name)
+    queue(command)
+}
+
+func spawn(): Integer {
+    prepare()
+    id_lock.lock()
+    var spawned = next_entity
+    next_entity = next_entity + 1
+    id_lock.unlock()
+    return spawned
+}
+
+func queue(command: Command) {
+    var buffer = current()
+    crash buffers[buffer]
+    buffers[buffer].append(command)
+}
+
+func despawn(despawned: Integer) {
+    var buffer = current()
+    crash despawn_buffers[buffer]
+    despawn_buffers[buffer].append(despawned)
+}
+
+func flush() {
+    prepare()
+    buffers.each(apply_buffer)
+    var despawned = List<Integer>()
+    var index = 0
+    while index < despawn_buffers.count() {
+        take_despawns(despawn_buffers[index], despawned)
+        index = index + 1
+    }
+    assert despawned.count() > 0
+    columns.remove_entities(despawned)
+}
+
+func apply_buffer(commands: List<Command>) {
+    var index = 0
+    while index < commands.count() {
+        commands[index].apply()
+        index = index + 1
+    }
+    commands.clear()
+}
+
+func take_despawns(pending: List<Integer>, despawned: List<Integer>) {
+    var index = 0
+    while index < pending.count() {
+        despawned.append(pending[index])
+        index = index + 1
+    }
+    pending.clear()
+}

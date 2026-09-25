@@ -1,0 +1,166 @@
+var width = 0
+var height = 0
+var clear_color = 0
+var count = 0
+var capacity = 0
+var rectangles: Long = 0
+var raw = Raw()
+var heap = Memory.Heap()
+var floats = TypedMemory<Float>()
+var font = Render.Font()
+var clip_left = -1000000000
+var clip_top = -1000000000
+var clip_right = 1000000000
+var clip_bottom = 1000000000
+
+func begin(new_width: Integer, new_height: Integer, new_clear_color: Integer) {
+    width = new_width
+    height = new_height
+    clear_color = new_clear_color
+    count = 0
+    unclip()
+}
+
+func stride(): Integer {
+    return 40
+}
+
+func clip_to(left: Integer, top: Integer, right: Integer, bottom: Integer) {
+    clip_left = left
+    clip_top = top
+    clip_right = right
+    clip_bottom = bottom
+}
+
+func unclip() {
+    clip_to(-1000000000, -1000000000, 1000000000, 1000000000)
+}
+
+func append_rectangle(
+    left: Integer,
+    top: Integer,
+    rectangle_width: Integer,
+    rectangle_height: Integer,
+    color: Integer,
+) {
+    grow()
+    var at = rectangles + count * stride()
+    floats.write_value(at, 0, left)
+    floats.write_value(at, 1, top)
+    floats.write_value(at, 2, rectangle_width)
+    floats.write_value(at, 3, rectangle_height)
+    raw.write_integer(at, 16, color)
+    raw.write_integer(at, 20, -1)
+    raw.write_integer(at, 24, clip_left)
+    raw.write_integer(at, 28, clip_top)
+    raw.write_integer(at, 32, clip_right)
+    raw.write_integer(at, 36, clip_bottom)
+    count = count + 1
+}
+
+func clip_left_at(index: Integer): Integer {
+    var offset = index * stride() + 24
+    return raw.read_integer(rectangles, offset)
+}
+
+func clip_top_at(index: Integer): Integer {
+    var offset = index * stride() + 28
+    return raw.read_integer(rectangles, offset)
+}
+
+func clip_right_at(index: Integer): Integer {
+    var offset = index * stride() + 32
+    return raw.read_integer(rectangles, offset)
+}
+
+func clip_bottom_at(index: Integer): Integer {
+    var offset = index * stride() + 36
+    return raw.read_integer(rectangles, offset)
+}
+
+func append_image(left: Integer, top: Integer, rectangle_width: Integer, rectangle_height: Integer, texture: Integer) {
+    append_rectangle(left, top, rectangle_width, rectangle_height, 16777215)
+    var at = rectangles + (count - 1) * stride()
+    raw.write_integer(at, 20, texture)
+}
+
+func texture_at(index: Integer): Integer {
+    var offset = index * stride() + 20
+    return raw.read_integer(rectangles, offset)
+}
+
+func grow() {
+    assert count == capacity
+    var grown = capacity * 2
+    if grown < 256 {
+        grown = 256
+    }
+    var bytes = grown * stride()
+    if rectangles == 0 {
+        rectangles = heap.allocate(bytes)
+    } else {
+        rectangles = heap.resize(rectangles, bytes)
+    }
+    capacity = grown
+}
+
+func left_at(index: Integer): Integer {
+    var at = rectangles + index * stride()
+    return floats.read_value(at, 0)
+}
+
+func top_at(index: Integer): Integer {
+    var at = rectangles + index * stride()
+    return floats.read_value(at, 1)
+}
+
+func width_at(index: Integer): Integer {
+    var at = rectangles + index * stride()
+    return floats.read_value(at, 2)
+}
+
+func height_at(index: Integer): Integer {
+    var at = rectangles + index * stride()
+    return floats.read_value(at, 3)
+}
+
+func color_at(index: Integer): Integer {
+    var offset = index * stride() + 16
+    return raw.read_integer(rectangles, offset)
+}
+
+func text_width(text: String, scale: Integer): Integer {
+    var length = text.length()
+    assert length > 0
+    return (length * 6 - 1) * scale
+}
+
+func append_text(text: String, left: Integer, top: Integer, scale: Integer, color: Integer) {
+    var index = 0
+    while index < text.length() {
+        var character = text.character_at(index)
+        append_glyph(character, left + index * 6 * scale, top, scale, color)
+        index = index + 1
+    }
+}
+
+func append_glyph(character: String, left: Integer, top: Integer, scale: Integer, color: Integer) {
+    var glyph = font.glyph(character)
+    var cell = 0
+    while cell < 35 {
+        append_cell(glyph, cell, left, top, scale, color)
+        cell = cell + 1
+    }
+}
+
+func append_cell(glyph: String, cell: Integer, left: Integer, top: Integer, scale: Integer, color: Integer) {
+    assert glyph.code_at(cell) == 35
+    var column = cell % 5
+    var row = cell / 5
+    append_rectangle(left + column * scale, top + row * scale, scale, scale, color)
+}
+
+func drop() {
+    assert rectangles != 0
+    heap.free(rectangles)
+}

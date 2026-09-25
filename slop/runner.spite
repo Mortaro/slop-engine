@@ -1,0 +1,196 @@
+generic $system_type
+
+enum Phase {
+    'input'
+    'after_input'
+    'update'
+    'prepare'
+    'layout'
+    'render'
+    'after_render'
+    'present'
+    'last'
+}
+
+var system: $system_type = null
+var name = ""
+var placed_in = ""
+var accesses = List<String>()
+var columns = Columns()
+var candidates = List<List<Integer>>()
+var chosen = List<Integer>()
+var position = 0
+var related = -1
+var skipping = false
+var last_run = -1
+var buffer = 0
+var argument_count = 0
+var streamed = -1
+var world = World()
+
+func Runner() {
+    name = columns.key(system.class)
+    buffer = world.register_runner()
+    classify_attributes(system)
+    place_phases_each()
+    place_phases_all()
+    crash placed_in != ""
+}
+
+func classify_attribute(attribute: Symbol<$system_type>, _system: $system_type) {
+    var key = columns.key(attribute.class)
+    var is_singleton = attribute.class.is_singleton()
+    assert is_singleton and key != "World"
+    accesses.append(key)
+}
+
+func place_phase_each(phase: Symbol<$system_type.phase_each>) {
+    crash placed_in == ""
+    placed_in = phase.name
+    prepare_arguments()
+}
+
+func prepare_argument(argument: Symbol<$system_type.phase_each>) {
+    var row = Row<argument.class>()
+    row.prepare()
+    var keys = row.component_keys()
+    note_accesses(keys)
+    argument_count = argument_count + 1
+}
+
+func place_phase_all(phase: Symbol<$system_type.phase_all>) {
+    crash placed_in == ""
+    placed_in = phase.name
+    prepare_every_arguments()
+}
+
+func prepare_every_argument(argument: Symbol<$system_type.phase_all>) {
+    var row = Row<argument.class.element_type>()
+    row.prepare()
+    var keys = row.component_keys()
+    note_accesses(keys)
+}
+
+func note_accesses(keys: List<String>) {
+    var index = 0
+    while index < keys.count() {
+        accesses.append(keys[index])
+        index = index + 1
+    }
+}
+
+func run_once() {
+    world.enter(buffer)
+    run_phases_each()
+    run_phases_all()
+    last_run = columns.stage_counter
+    world.enter(0)
+}
+
+func run_phase_each(phase: Symbol<$system_type.phase_each>) {
+    if argument_count == 1 {
+        begin_stream_arguments()
+        advance_stream_arguments()
+        while streamed >= 0 {
+            system.phase_each(row_arguments())
+            advance_stream_arguments()
+        }
+        return
+    }
+    candidates.clear()
+    gather_arguments()
+    var total = combinations()
+    var combination = 0
+    while combination < total {
+        choose(combination)
+        skipping = false
+        related = -1
+        position = 0
+        fill_arguments()
+        if not skipping {
+            position = 0
+            system.phase_each(row_arguments())
+            position = 0
+            store_arguments()
+        }
+        combination = combination + 1
+    }
+}
+
+func gather_argument(argument: Symbol<$system_type.phase_each>) {
+    var row = Row<argument.class>()
+    row.since = last_run
+    var found = row.candidates()
+    candidates.append(found)
+}
+
+func fill_argument(argument: Symbol<$system_type.phase_each>) {
+    var row = Row<argument.class>()
+    crash chosen[position]
+    var entity = chosen[position]
+    if related >= 0 and related != entity {
+        skipping = true
+    }
+    row.fill(entity)
+    related = row.related
+    position = position + 1
+}
+
+func row_argument(argument: Symbol<$system_type.phase_each>): argument.class {
+    var row = Row<argument.class>()
+    return row.current
+}
+
+func store_argument(argument: Symbol<$system_type.phase_each>) {
+    var row = Row<argument.class>()
+    crash chosen[position]
+    var entity = chosen[position]
+    row.store(entity)
+    position = position + 1
+}
+
+func run_phase_all(phase: Symbol<$system_type.phase_all>) {
+    system.phase_all(every_arguments())
+}
+
+func every_argument(argument: Symbol<$system_type.phase_all>): argument.class {
+    var row = Row<argument.class.element_type>()
+    row.since = last_run
+    return row.every()
+}
+
+func combinations(): Integer {
+    var total = 1
+    var index = 0
+    while index < candidates.count() {
+        total = total * candidates[index].count()
+        index = index + 1
+    }
+    return total
+}
+
+func choose(combination: Integer) {
+    chosen.clear()
+    var remaining = combination
+    var index = 0
+    while index < candidates.count() {
+        var count = candidates[index].count()
+        var picked = remaining % count
+        var entity = candidates[index][picked]
+        crash entity
+        chosen.append(entity)
+        remaining = remaining / count
+        index = index + 1
+    }
+}
+
+func begin_stream_argument(argument: Symbol<$system_type.phase_each>) {
+    var row = Row<argument.class>()
+    row.since = last_run
+    row.begin_stream()
+}
+
+func advance_stream_argument(argument: Symbol<$system_type.phase_each>) {
+    var row = Row<argument.class>()
+    streamed = row.advance()
+}

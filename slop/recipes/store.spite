@@ -1,0 +1,161 @@
+var path = ""
+var index_path = ""
+var offsets = Dictionary<Long>()
+var lengths = Dictionary<Long>()
+var end: Long = 0
+var scanned = false
+var raw = Raw()
+var heap = Memory.Heap()
+
+func Store(store_path: String) {
+    path = store_path
+    index_path = "{store_path}.index"
+}
+
+func has(key: String): Boolean {
+    scan()
+    return offsets.has(key)
+}
+
+func locate(key: String): Recipes.Record? {
+    scan()
+    assert offsets[key]
+    assert lengths[key]
+    var record = Recipes.Record()
+    record.path = path
+    record.offset = offsets[key]
+    record.length = lengths[key]
+    return record
+}
+
+func read(key: String): Asset.Bytes? {
+    var record = locate(key)
+    assert record
+    return record.read()
+}
+
+func write(key: String, data: Asset.Bytes) {
+    scan()
+    var record = Asset.Bytes()
+    record.write_text(key)
+    var data_length: Long = data.length
+    record.write_long(data_length)
+    record.write_bytes(data.address, data.length)
+    var start = append_bytes(path, record)
+    var header_length: Long = 4 + key.length() + 8
+    var data_offset = start + header_length
+    note(key, data_offset, data_length)
+    var entry = Asset.Bytes()
+    write_entry(entry, key)
+    append_bytes(index_path, entry)
+}
+
+func note(key: String, data_offset: Long, data_length: Long) {
+    offsets.set(key, data_offset)
+    lengths.set(key, data_length)
+    var record_end = data_offset + data_length
+    if record_end > end {
+        end = record_end
+    }
+}
+
+func write_entry(entry: Asset.Bytes, key: String) {
+    assert offsets[key]
+    assert lengths[key]
+    entry.write_text(key)
+    entry.write_long(offsets[key])
+    entry.write_long(lengths[key])
+}
+
+func append_bytes(file_path: String, bytes: Asset.Bytes): Long {
+    var file = File(file_path)
+    var count: Long = bytes.length
+    var start = file.append_bytes(bytes.address, count)
+    crash start
+    return start
+}
+
+func scan() {
+    assert not scanned
+    scanned = true
+    var size = store_size()
+    assert size > 0
+    var indexed = load_index()
+    assert not indexed or end != size
+    offsets = Dictionary<Long>()
+    lengths = Dictionary<Long>()
+    end = 0
+    scan_records()
+    rewrite_index()
+}
+
+func store_size(): Long {
+    var file = File(path)
+    var size = file.size()
+    if size {
+        return size
+    }
+    var nothing: Long = 0
+    return nothing
+}
+
+func load_index(): Boolean {
+    var index = Asset.Bytes()
+    var existing = File(index_path)
+    assert existing.exists()
+    assert index.read_file(index_path)
+    while index.remaining() > 0 {
+        var key = index.read_text()
+        var data_offset = index.read_long()
+        var data_length = index.read_long()
+        note(key, data_offset, data_length)
+    }
+    return true
+}
+
+func rewrite_index() {
+    var index = Asset.Bytes()
+    var keys = offsets.keys()
+    var position = 0
+    while position < keys.count() {
+        write_entry(index, keys[position])
+        position = position + 1
+    }
+    var saved = index.save(index_path)
+    crash saved
+}
+
+func scan_records() {
+    var file = File(path)
+    var header = heap.allocate(8)
+    var position: Long = 0
+    while position >= 0 {
+        position = read_record(file, header, position)
+    }
+    heap.free(header)
+}
+
+func read_record(file: File, header: Long, position: Long): Long {
+    var four: Long = 4
+    var eight: Long = 8
+    var got_key_length = file.read_bytes(position, four, header)
+    if got_key_length != four {
+        return -1
+    }
+    var key_length = raw.read_integer(header, 0)
+    var key_size: Long = key_length
+    var key_bytes = heap.allocate(key_length + 1)
+    var key_position = position + four
+    var got_key = file.read_bytes(key_position, key_size, key_bytes)
+    var key = raw.text(key_bytes, key_length)
+    heap.free(key_bytes)
+    var length_position = key_position + key_size
+    var got_data_length = file.read_bytes(length_position, eight, header)
+    if got_key != key_size or got_data_length != eight {
+        return -1
+    }
+    var data_length = raw.read_long(header, 0)
+    var data_offset = length_position + eight
+    note(key, data_offset, data_length)
+    return data_offset + data_length
+}

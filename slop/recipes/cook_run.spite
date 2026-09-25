@@ -1,0 +1,18 @@
+var running: Parallel<Nothing>? = null
+
+func busy(): Boolean {
+    if running {
+        if running.finished {
+            running = null
+        }
+    }
+    if running {
+        return true
+    }
+    return false
+}
+
+func start(stale: List<Integer>) {
+    var task = Recipes.CookTask(stale)
+    running = Parallel(task.run)
+}

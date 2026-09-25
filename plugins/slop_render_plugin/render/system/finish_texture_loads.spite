@@ -1,0 +1,7 @@
+type Loading {
+    textures: Component.Textures
+}
+
+func last_each(loading: Loading) {
+    loading.textures.finish_loads()
+}

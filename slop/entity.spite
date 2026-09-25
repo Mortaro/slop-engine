@@ -1,0 +1,20 @@
+var id = 0
+var world = World()
+
+func Entity(new_id: Integer) {
+    id = new_id
+}
+
+func add_component(component: Anything) {
+    var command = AddComponent(id, component, "")
+    world.queue(command)
+}
+
+func remove_component(component_class: Spite.Class) {
+    var command = RemoveComponent(id, component_class)
+    world.queue(command)
+}
+
+func remove() {
+    world.despawn(id)
+}

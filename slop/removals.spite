@@ -1,0 +1,100 @@
+var raw = Raw()
+var heap = Memory.Heap()
+var log: Long = 0
+var log_count = 0
+var log_start = 0
+var log_capacity = 0
+var last_removed: Long = 0
+var last_capacity = 0
+
+func note(entity: Integer, tick: Integer) {
+    grow_log()
+    var at = log_count * 16
+    var wide_entity: Long = entity
+    var wide_tick: Long = tick
+    raw.write_long(log, at, wide_entity)
+    raw.write_long(log, at + 8, wide_tick)
+    log_count = log_count + 1
+    grow_last(entity)
+    var stamp: Long = tick + 1
+    raw.write_long(last_removed, entity * 8, stamp)
+}
+
+func removed_since(entity: Integer, since: Integer): Boolean {
+    assert entity < last_capacity
+    var stamp = raw.read_long(last_removed, entity * 8)
+    return stamp > 0 and stamp - 1 >= since
+}
+
+func removed_entities(since: Integer): List<Integer> {
+    var found = List<Integer>()
+    var index = log_count - 1
+    while index >= log_start and tick_at(index) >= since {
+        var entity = entity_at(index)
+        found.append(entity)
+        index = index - 1
+    }
+    return found
+}
+
+func trim(older_than: Integer) {
+    while log_start < log_count and tick_at(log_start) < older_than {
+        log_start = log_start + 1
+    }
+    assert log_start > 0 and log_start * 2 >= log_count
+    var kept = log_count - log_start
+    raw.copy(log + log_start * 16, log, kept * 16)
+    log_count = kept
+    log_start = 0
+}
+
+func tick_at(index: Integer): Integer {
+    return raw.read_long(log, index * 16 + 8)
+}
+
+func entity_at(index: Integer): Integer {
+    return raw.read_long(log, index * 16)
+}
+
+func grow_log() {
+    assert log_count >= log_capacity
+    var grown = log_capacity * 2
+    if grown < 64 {
+        grown = 64
+    }
+    var bytes = grown * 16
+    if log == 0 {
+        log = heap.allocate(bytes)
+    } else {
+        log = heap.resize(log, bytes)
+    }
+    log_capacity = grown
+}
+
+func grow_last(entity: Integer) {
+    assert entity >= last_capacity
+    var grown = last_capacity * 2
+    if grown <= entity {
+        grown = entity + 64
+    }
+    var bytes = grown * 8
+    if last_removed == 0 {
+        last_removed = heap.allocate(bytes)
+    } else {
+        last_removed = heap.resize(last_removed, bytes)
+    }
+    var offset = last_capacity * 8
+    while offset < bytes {
+        raw.write_long(last_removed, offset, 0)
+        offset = offset + 8
+    }
+    last_capacity = grown
+}
+
+func drop() {
+    if log != 0 {
+        heap.free(log)
+    }
+    assert last_removed != 0
+    heap.free(last_removed)
+}

@@ -1,0 +1,8 @@
+enum Kind {
+    'visible'
+    'hidden'
+    'scroll'
+    'automatic'
+}
+
+var value: Kind = 'visible'

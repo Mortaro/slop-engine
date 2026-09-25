@@ -1,0 +1,24 @@
+var name = ""
+var path = ""
+var group = false
+var left = 0
+var top = 0
+var right = 0
+var bottom = 0
+var divider = 0
+var channels = List<Psd.Channel>()
+var mask_channel = 0
+var mask_left = 0
+var mask_top = 0
+var mask_right = 0
+var mask_bottom = 0
+var mask_default = 0
+var mask_enabled = false
+
+func width(): Integer {
+    return right - left
+}
+
+func height(): Integer {
+    return bottom - top
+}

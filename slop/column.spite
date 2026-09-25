@@ -1,0 +1,233 @@
+generic $component_type
+
+var typed = TypedMemory<$component_type>()
+var raw = Raw()
+var heap = Memory.Heap()
+var sample: $component_type = null
+var buried: Long = 0
+var buried_count = 0
+var buried_capacity = 0
+
+func prepare_column() {
+    var columns = Columns()
+    var name = columns.key(sample.class)
+    columns.header(name)
+    record_column(name)
+}
+
+func insert_object(entity: Integer, value: Anything) {
+    if value == $component_type {
+        insert(entity, value)
+    }
+}
+
+func insert(entity: Integer, value: $component_type) {
+    var columns = Columns()
+    var name = columns.key(value.class)
+    insert_keyed(entity, value, name)
+}
+
+func insert_keyed(entity: Integer, value: $component_type, name: String) {
+    var columns = Columns()
+    var column_header = columns.header(name)
+    record_column(name)
+    grow_rows(column_header, entity)
+    var fields = FieldCount<$component_type>()
+    if fields.is_marker(value) {
+        raw.write_long(column_header, 56, 1)
+    }
+    var existing = columns.row_of(column_header, entity)
+    var values = raw.read_long(column_header, 16)
+    if existing >= 0 {
+        replace_value(column_header, values, existing, value)
+    } else {
+        append(column_header, entity, value)
+    }
+}
+
+func replace_value(column_header: Long, values: Long, row: Integer, value: $component_type) {
+    var columns = Columns()
+    assert not columns.is_marker(column_header)
+    typed.release_value(values, row)
+    typed.write_value(values, row, value)
+}
+
+func record_column(name: String) {
+    var columns = Columns()
+    assert not columns.releasers.has(name)
+    columns.record_releaser(name, this)
+}
+
+func append(column_header: Long, entity: Integer, value: $component_type) {
+    var count = raw.read_long(column_header, 0)
+    grow_values(column_header, count + 1)
+    var values = raw.read_long(column_header, 16)
+    var entities = raw.read_long(column_header, 24)
+    var rows = raw.read_long(column_header, 32)
+    var ticks = raw.read_long(column_header, 48)
+    var columns = Columns()
+    if not columns.is_marker(column_header) {
+        typed.write_value(values, count, value)
+    }
+    raw.write_long(ticks, count * 8, columns.stage_counter)
+    raw.write_long(entities, count * 8, entity)
+    raw.write_long(rows, entity * 8, count + 1)
+    raw.write_long(column_header, 0, count + 1)
+}
+
+func grow_values(column_header: Long, wanted: Integer) {
+    var capacity = raw.read_long(column_header, 8)
+    assert wanted > capacity
+    var grown = capacity * 2
+    if grown < 16 {
+        grown = 16
+    }
+    var bytes = typed.value_bytes()
+    var values = raw.read_long(column_header, 16)
+    var entities = raw.read_long(column_header, 24)
+    var resized_values = resized(values, bytes * grown)
+    var resized_entities = resized(entities, grown * 8)
+    var ticks = raw.read_long(column_header, 48)
+    var resized_ticks = resized(ticks, grown * 8)
+    raw.write_long(column_header, 48, resized_ticks)
+    raw.write_long(column_header, 16, resized_values)
+    raw.write_long(column_header, 24, resized_entities)
+    raw.write_long(column_header, 8, grown)
+}
+
+func grow_rows(column_header: Long, entity: Integer) {
+    var capacity = raw.read_long(column_header, 40)
+    assert entity >= capacity
+    var grown = capacity * 2
+    if grown <= entity {
+        grown = entity + 64
+    }
+    var rows = raw.read_long(column_header, 32)
+    var resized_rows = resized(rows, grown * 8)
+    var slot = capacity
+    while slot < grown {
+        raw.write_long(resized_rows, slot * 8, 0)
+        slot = slot + 1
+    }
+    raw.write_long(column_header, 32, resized_rows)
+    raw.write_long(column_header, 40, grown)
+}
+
+func resized(address: Long, bytes: Long): Long {
+    if address == 0 {
+        return heap.allocate(bytes)
+    }
+    return heap.resize(address, bytes)
+}
+
+func get(entity: Integer, name: String): $component_type {
+    var columns = Columns()
+    var column_header = columns.header(name)
+    var row = columns.row_of(column_header, entity)
+    crash row >= 0
+    crash not columns.is_marker(column_header)
+    var values = raw.read_long(column_header, 16)
+    return typed.read_value(values, row)
+}
+
+func store(entity: Integer, value: $component_type) {
+    var columns = Columns()
+    var name = columns.key(value.class)
+    var column_header = columns.header(name)
+    var row = columns.row_of(column_header, entity)
+    crash row >= 0
+    var values = raw.read_long(column_header, 16)
+    var current = typed.read_value(values, row)
+    assert current != value
+    typed.release_value(values, row)
+    typed.write_value(values, row, value)
+}
+
+func remove_entity(column_header: Long, entity: Integer) {
+    var columns = Columns()
+    var row = columns.row_of(column_header, entity)
+    assert row >= 0
+    var count = raw.read_long(column_header, 0)
+    var last = count - 1
+    var values = raw.read_long(column_header, 16)
+    var entities = raw.read_long(column_header, 24)
+    var rows = raw.read_long(column_header, 32)
+    var marker = columns.is_marker(column_header)
+    var bytes = typed.value_bytes()
+    if not marker {
+        bury(values + bytes * row, bytes)
+    }
+    if row != last {
+        var moved_entity = raw.read_long(entities, last * 8)
+        move_value(values, row, last, marker)
+        var ticks = raw.read_long(column_header, 48)
+        var moved_tick = raw.read_long(ticks, last * 8)
+        raw.write_long(ticks, row * 8, moved_tick)
+        raw.write_long(entities, row * 8, moved_entity)
+        raw.write_long(rows, moved_entity * 8, row + 1)
+    }
+    raw.write_long(rows, entity * 8, 0)
+    raw.write_long(column_header, 0, last)
+}
+
+func move_value(values: Long, row: Integer, last: Integer, marker: Boolean) {
+    assert not marker
+    var bytes = typed.value_bytes()
+    raw.copy(values + bytes * last, values + bytes * row, bytes)
+}
+
+func bury(value: Long, bytes: Integer) {
+    if buried_count >= buried_capacity {
+        grow_buried(bytes)
+    }
+    raw.copy(value, buried + buried_count * bytes, bytes)
+    buried_count = buried_count + 1
+}
+
+func grow_buried(bytes: Integer) {
+    var grown = buried_capacity * 2
+    if grown < 64 {
+        grown = 64
+    }
+    buried = resized(buried, bytes * grown)
+    buried_capacity = grown
+}
+
+func release_buried(budget: Integer): Integer {
+    var released = 0
+    while released < budget and buried_count > 0 {
+        buried_count = buried_count - 1
+        typed.release_value(buried, buried_count)
+        released = released + 1
+    }
+    return released
+}
+
+func release_all(column_header: Long) {
+    release_buried(buried_count)
+    if buried != 0 {
+        heap.free(buried)
+        buried = 0
+    }
+    var marker = raw.read_long(column_header, 56) == 1
+    var count = raw.read_long(column_header, 0)
+    var values = raw.read_long(column_header, 16)
+    var row = 0
+    while not marker and row < count {
+        typed.release_value(values, row)
+        row = row + 1
+    }
+    var entities = raw.read_long(column_header, 24)
+    var rows = raw.read_long(column_header, 32)
+    var ticks = raw.read_long(column_header, 48)
+    free_block(ticks)
+    free_block(values)
+    free_block(entities)
+    free_block(rows)
+    raw.write_long(column_header, 0, 0)
+}
+
+func free_block(address: Long) {
+    assert address != 0
+    heap.free(address)
+}

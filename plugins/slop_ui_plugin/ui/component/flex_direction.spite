@@ -1,0 +1,8 @@
+enum Direction {
+    'row'
+    'row_reverse'
+    'column'
+    'column_reverse'
+}
+
+var value: Direction = 'row'

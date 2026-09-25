@@ -1,0 +1,85 @@
+# Performance
+
+## The numbers
+
+`spite stress --optimized`: 200,000 entities, `Move` and `Regenerate` in one parallel stage, 20 ticks.
+
+| Version | Average tick |
+|---|---|
+| first version: a dictionary lookup per attribute per entity | 302 ms parallel, 422 ms sequential |
+| column headers cached per system | 128 ms parallel, 133 ms sequential |
+| generic singletons real, singletons not reference counted, `type` rows | 65 ms parallel, 81 ms sequential |
+| per-runner command buffers, removal log per column | 48 ms |
+| a single-row system streams its driver column (one match per entity, no per-tick candidate list, no re-match to store) | about 44 ms (runs that overlap other builds on the machine reach 115 ms) |
+| thread pool and D183 singleton guards (today): one guarded `Row` call per entity | 108 ms until the guards stopped sharing cache lines (INSIGHTS bug 28); with the fix and D184, 46 ms parallel and 58 ms sequential |
+
+About 150 ns per entity per system: better, and still about two orders of magnitude from a native ECS.
+
+## Where the time goes
+
+- Every matched entity fills a row: each field is a typed read through `Slot<T>`, and a replaced component is written
+  back.
+- Every field counts, whether or not the system reads it; only markers are skipped. Skipping unread fields, never
+  writing back read-only ones, and scheduling by field instead of by class all need the compiler to say what a
+  function reads and writes (item 109 in the language's decisions file).
+- Each system in a stage runs on the program's one thread pool (D191); there is no parallel iteration inside one
+  system yet.
+- `Row<T>` is a singleton with per-iteration state, so the compiler guards it (D183). The runner makes one guarded
+  call per entity (`Row.advance()`: store the last entity, match and fill the next). Keep hot-path helpers such as
+  `Raw`, `ColumnHeader` and `Slot<T>` free of state: a singleton that writes its attributes, or holds a plain class
+  field, is guarded on every call.
+
+## What already helps
+
+- Column storage is raw memory, found once per system, not per entity.
+- `Column<T>`, `Slot<T>` and `Row<T>` are generic singletons, so there is no lookup by name on the hot path.
+- Markers have no values, fetches or write-backs.
+- zstd went from 1.15 s to 0.86 s on 261 MB when the bitwise functions (D117) replaced division by powers of two.
+
+## Where the time goes (estimated, 2026-09-25)
+
+About 150 ns per entity per system at 200,000 entities, where Bevy's simple iteration is around 1 ns. In order of
+likely cost:
+
+1. **Components are heap objects.** A column stores pointers (`TypedMemory<T>`), so iterating chases 800,000
+   scattered objects. Components stored as values inline in the column would fix locality and remove the next item.
+2. **Reference counting on every visit.** Fetch, the row assignment and store add 4 to 6 retains and releases per
+   component per system: about 3 to 5 million per tick.
+3. **Per-tick bookkeeping** (fixed for single-row systems): they stream the driver column and match each entity
+   once. Systems with several rows still build candidate lists for their combinations.
+4. **Per-frame scratch on the heap.** The layout's dictionaries and lists, and interpolated strings.
+
+The allocator and ownership proposal this fed (value components, per-tick arenas, per-runner command rings) is with
+the Spite language session for Mortaro to decide. The benchmarks to race are ecs_bench_suite's: `add_remove` and
+`schedule` look winnable now; `simple_iter` and `heavy_compute` need value columns; `frag_iter` favours Bevy's
+archetypes.
+
+## No stutters
+
+Mortaro's rule (2026-09-25): "i wanna build huge open world shit with this engine, we cant have anything be blocking,
+we cant have unreal engine like stutters". An open world streams all the time, so a frame may never wait for disk,
+for the GPU beyond its own frame, for a compiler, or for a lock, and no single frame may take on an unbounded
+amount of work.
+
+| Source of a hitch | Status |
+|---|---|
+| Reading an asset | **fixed**: a `Parallel` job reads and decodes it; the frame only polls the thread (zero-timeout wait) |
+| Uploading a texture | **fixed**: staged with one `memcpy`, copied inside the frame's own command buffer; no extra fence wait |
+| Shader and pipeline compilation (Unreal's PSO stutter) | **by design**: shaders are cooked by recipes, and every pipeline is created before the first frame. The rule is that no pipeline is ever created mid-game |
+| Whole-frame CPU/GPU sync | **fixed**: 2 frames in flight (`RenderVulkan.Frame`: command buffer, fence, acquire semaphore, vertex buffer, target, staging). A frame waits only for the fence of the frame 2 before it, which blocks only if the GPU is two whole frames behind. Growing a buffer or resizing no longer idles the device |
+| Upload bursts | **fixed**: at most `upload_budget_bytes` (8 MiB) are staged per frame (at least one texture, so a huge one still goes), and a draw whose texture isn't resident yet is skipped |
+| Thread start costs | open: a stage starts one OS thread per system per tick, and each load starts one. Needs D135's thread pool |
+| Freeing big object graphs | **fixed**: a removed component's value moves (as raw bytes, no reference-count change) into its column's buried buffer, and each tick frees at most `app.release_budget` (4,096) of them |
+| Despawning many entities | **improved**: removal records are per column in raw memory (a tick-ordered log and a per-entity "last removed" stamp, so `Removed<T>` checks are one read and trimming is O(trimmed)), despawns are applied a column at a time, and removal moves raw bytes. Despawning 200,000 entities (4 components each) in one tick: worst tick 480 ms before, 224 ms now; still too long for one frame. Streaming should unload a few thousand entities per frame; the rest is the ECS's per-operation cost that value columns address |
+| Cache index scan | **fixed**: `store.bin.index` mirrors every record (key, offset, length), so opening the store is one read. If the index is missing or disagrees with the store's size, the store is rescanned and the index rewritten |
+| Re-cooking a changed source | **fixed**: recipes re-run on a worker, and the engine checks its loaded textures on another; the worst tick while a texture is re-cooked and reloaded is 2 ms |
+| Texture decode format | open: textures are stored as a list of `Integer`s and converted to raw bytes on the worker. Should be GPU-ready bytes (and later block-compressed) in the store |
+| Spawning a streamed region | open: needs spawning spread over frames. `create_entity_from_bundle` walks the bundle reflectively and computes each component's column key as a string, so bulk spawning got 2x slower with the entity API (200,000 bodies: 520 ms to 950 ms); caching keys per class is the next step |
+| Layout | open: the whole UI tree is laid out every frame. Fine for menus; an in-world UI needs dirty-subtree layout |
+
+## Thread affinity
+
+None. Windows belong to a dedicated window thread (`Windows.Owner`), which also keeps pumping messages when a frame
+runs long; systems exchange requests and events with it through raw memory behind an SRW lock. Vulkan has no thread
+affinity. So every system can run on any thread, and a stage runs its last system on the calling thread instead of
+leaving it idle.

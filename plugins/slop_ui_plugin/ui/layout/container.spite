@@ -1,0 +1,16 @@
+var direction = 2
+var wrap = 0
+var justify = 0
+var align_items = 0
+var align_content = 0
+var row_gap = Ui.Length()
+var column_gap = Ui.Length()
+var grid = false
+
+func is_row(): Boolean {
+    return direction <= 1
+}
+
+func is_reversed(): Boolean {
+    return direction == 1 or direction == 3
+}

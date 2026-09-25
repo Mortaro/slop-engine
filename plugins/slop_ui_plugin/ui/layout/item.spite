@@ -1,0 +1,37 @@
+var entity = 0
+var alignment = 0
+var grow: Float = 0.0
+var shrink: Float = 1.0
+var base: Float = 0.0
+var hypothetical: Float = 0.0
+var target: Float = 0.0
+var minimum_main: Float = 0.0
+var maximum_main: Float = 1000000000.0
+var frozen = false
+var violation: Float = 0.0
+var main_definite = false
+var extras_main: Float = 0.0
+var extras_cross: Float = 0.0
+var margin_main_start: Float = 0.0
+var margin_main_end: Float = 0.0
+var auto_main_start = false
+var auto_main_end = false
+var margin_cross_start: Float = 0.0
+var margin_cross_end: Float = 0.0
+var auto_cross_start = false
+var auto_cross_end = false
+var cross_specified: Float? = null
+var cross: Float = 0.0
+var minimum_cross: Float = 0.0
+var maximum_cross: Float = 1000000000.0
+var cross_definite = false
+var main_position: Float = 0.0
+var cross_position: Float = 0.0
+
+func outer_main(size: Float): Float {
+    return size + extras_main + margin_main_start + margin_main_end
+}
+
+func outer_cross(): Float {
+    return cross + extras_cross + margin_cross_start + margin_cross_end
+}

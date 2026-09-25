@@ -1,0 +1,92 @@
+var file: Blend.File? = null
+var shape = Blend.Shape()
+var offset = 0
+var floats = TypedMemory<Float>()
+
+func field(name: String): Blend.Field {
+    crash shape.fields[name]
+    return shape.fields[name]
+}
+
+func has(name: String): Boolean {
+    return shape.fields.has(name)
+}
+
+func integer(name: String): Integer {
+    var described = field(name)
+    crash file
+    return file.integer_at(offset + described.offset)
+}
+
+func integer_at(name: String, index: Integer): Integer {
+    var described = field(name)
+    crash file
+    return file.integer_at(offset + described.offset + index * 4)
+}
+
+func short_integer(name: String): Integer {
+    var described = field(name)
+    crash file
+    var value = file.short_at(offset + described.offset)
+    if value >= 32768 {
+        value = value - 65536
+    }
+    return value
+}
+
+func small_integer(name: String): Integer {
+    var described = field(name)
+    crash file
+    return file.bytes.byte_at(offset + described.offset)
+}
+
+func float_at(name: String, index: Integer): Float {
+    var described = field(name)
+    crash file
+    var address = file.bytes.address + offset + described.offset + index * 4
+    return floats.read_value(address, 0)
+}
+
+func pointer(name: String): Long {
+    var described = field(name)
+    crash described.pointer
+    crash file
+    return file.long_at(offset + described.offset)
+}
+
+func text(name: String): String {
+    var described = field(name)
+    crash file
+    var start = offset + described.offset
+    var length = 0
+    while length < described.count and file.bytes.byte_at(start + length) != 0 {
+        length = length + 1
+    }
+    return file.text_at(start, length)
+}
+
+func inner(name: String): Blend.View {
+    var described = field(name)
+    crash file
+    var view = Blend.View()
+    view.file = file
+    view.shape = file.shape_named(described.type_name)
+    view.offset = offset + described.offset
+    return view
+}
+
+func follow(name: String): Blend.View? {
+    var address = pointer(name)
+    crash file
+    var block = file.block_at(address)
+    assert block
+    return file.view_of(block)
+}
+
+func element(index: Integer): Blend.View {
+    var view = Blend.View()
+    view.file = file
+    view.shape = shape
+    view.offset = offset + index * shape.size
+    return view
+}

@@ -1,0 +1,2 @@
+var vertical = true
+var grab: Float = 0.0

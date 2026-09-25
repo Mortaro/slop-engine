@@ -1,0 +1,75 @@
+var document = Psd.Document()
+var source = ""
+var fingerprint = ""
+var claimed = List<String>()
+var skipped = List<String>()
+var cache = Recipes.Cache()
+var sources = Recipes.Sources()
+var cookbook = Recipes.Cookbook()
+var console = Console()
+
+func open(id: String) {
+    var full_path = sources.path_of(id, "psd")
+    open_path(id, full_path)
+}
+
+func open_in(root: String, id: String) {
+    var full_path = sources.path_in(root, id, "psd")
+    open_path(id, full_path)
+}
+
+func open_path(id: String, full_path: String) {
+    cookbook.note_source(full_path)
+    source = id
+    document = Psd.Document()
+    document.open(full_path)
+    fingerprint = cache.fingerprint_bytes(document.bytes)
+    claimed.clear()
+    skipped.clear()
+}
+
+func texture(path: String, id: String) {
+    var layer = document.layers.find_by_path(path)
+    crash layer
+    crash not layer.group
+    claimed.append(path)
+    assert not cache.is_current(id, fingerprint)
+    var image = document.pixels_of(layer)
+    var pack = Pack<Asset.Texture>()
+    var bytes = Asset.Bytes()
+    pack.encode(image, bytes)
+    cache.put(id, fingerprint, bytes)
+    console.print("recipe: {source} {path} into {id}, {image.width} x {image.height}")
+}
+
+func skip(prefix: String, reason: String) {
+    crash reason != ""
+    skipped.append(prefix)
+}
+
+func finish() {
+    var index = 0
+    while index < document.layers.count() {
+        check_claimed(index)
+        index = index + 1
+    }
+}
+
+func check_claimed(index: Integer) {
+    crash document.layers[index]
+    var path = document.layers[index].path
+    assert not document.layers[index].group
+    var is_claimed = claimed.contains(path) or skipped_by_prefix(path)
+    crash is_claimed
+}
+
+func skipped_by_prefix(path: String): Boolean {
+    var index = 0
+    var found = false
+    while not found and index < skipped.count() {
+        var prefix: String = skipped[index]
+        found = path.starts_with(prefix)
+        index = index + 1
+    }
+    return found
+}

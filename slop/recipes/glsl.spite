@@ -1,0 +1,42 @@
+var cache = Recipes.Cache()
+var sources = Recipes.Sources()
+var cookbook = Recipes.Cookbook()
+var console = Console()
+var program = Program()
+
+func compile(root: String, id: String, stage: String) {
+    var source_path = sources.path_in(root, id, "glsl")
+    cookbook.note_source(source_path)
+    var source_file = File(source_path)
+    var text = source_file.read()
+    crash text
+    var fingerprint = cache.fingerprint("{stage}\n{text}")
+    assert not cache.is_current(id, fingerprint)
+    var output_path = cache.scratch_path(id)
+    var arguments = List<String>()
+    arguments.append("-V")
+    arguments.append("--target-env")
+    arguments.append("vulkan1.3")
+    arguments.append("-S")
+    arguments.append(stage)
+    arguments.append("-o")
+    arguments.append(output_path)
+    arguments.append(source_path)
+    var compiler_file = compiler_path()
+    var compiler = Process(compiler_file, arguments)
+    var status = compiler.run()
+    crash status == 0
+    var compiled = Asset.Bytes()
+    var loaded = compiled.read_file(output_path)
+    crash loaded
+    cache.put(id, fingerprint, compiled)
+    var c_runtime = DynamicLibrary("ucrtbase.dll", 'identity', "")
+    c_runtime.remove(output_path)
+    console.print("recipe: compiled {id} ({stage})")
+}
+
+func compiler_path(): String {
+    var sdk = program.environment("VULKAN_SDK")
+    crash sdk
+    return "{sdk}/Bin/glslangValidator.exe"
+}

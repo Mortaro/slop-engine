@@ -1,0 +1,7 @@
+enum Kind {
+    'normal_flow'
+    'relative'
+    'absolute'
+}
+
+var value: Kind = 'normal_flow'

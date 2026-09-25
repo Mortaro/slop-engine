@@ -1,0 +1,2303 @@
+var children = Dictionary<List<Integer>>()
+var created_layouts = Dictionary<Ui.Component.ComputedLayout>()
+var created_clips = Dictionary<Ui.Component.ComputedClip>()
+var created_ranges = Dictionary<Ui.Component.ScrollRange>()
+var created_scrollbars = Dictionary<Ui.Component.ComputedScrollbars>()
+var paint_order = 0
+var laid_out = Dictionary<Boolean>()
+var viewport_width: Float = 0.0
+var viewport_height: Float = 0.0
+var root_font_size: Float = 16.0
+var default_font_size: Float = 16.0
+var unbounded: Float = 1000000000.0
+var epsilon: Float = 0.001
+var maximum_depth = 64
+
+func clamp_size(value: Float, minimum: Float, maximum: Float): Float {
+    var clamped = value
+    if clamped > maximum {
+        clamped = maximum
+    }
+    if clamped < minimum {
+        clamped = minimum
+    }
+    return clamped
+}
+
+func larger(first: Float, second: Float): Float {
+    if first > second {
+        return first
+    }
+    return second
+}
+
+func smaller(first: Float, second: Float): Float {
+    if first < second {
+        return first
+    }
+    return second
+}
+
+func opposite(side: Integer): Integer {
+    return (side + 2) % 4
+}
+
+func layout_screen(entity: Integer) {
+    var box = read_box(entity, viewport_width, viewport_height)
+    var extras_horizontal = box.horizontal_extras()
+    var extras_vertical = box.vertical_extras()
+    var margins_horizontal = box.horizontal_margins()
+    var width = viewport_width - margins_horizontal - extras_horizontal
+    if box.width {
+        width = box.width
+    }
+    var positive_width = larger(width, 0.0)
+    var minimum_width = box.used_minimum_width()
+    width = clamp_size(positive_width, minimum_width, box.maximum_width)
+    center_screen(box, width, extras_horizontal)
+    var height = screen_height(entity, box, width)
+    var left = box.margin_at(3)
+    var top = box.margin_at(0)
+    var border_width = width + extras_horizontal
+    var border_height = height + extras_vertical
+    write_layout(entity, left, top, border_width, border_height)
+    var placement = Ui.Layout.Placement()
+    write_clip(entity, placement)
+    placement.left = left + box.border_at(3) + box.padding_at(3)
+    placement.top = top + box.border_at(0) + box.padding_at(0)
+    write_content_origin(entity, placement)
+    placement.block_width = viewport_width
+    placement.block_height = viewport_height
+    if box.position != 0 {
+        set_padding_block(placement, box, left, top, border_width, border_height)
+    }
+    apply_overflow(entity, box, left, top, border_width, border_height, placement)
+    var available = Ui.Layout.Available()
+    available.width = width
+    available.height = height
+    if box.height {
+        available.percent_height = height
+    }
+    available.minimum_height = box.used_minimum_height()
+    available.maximum_height = box.maximum_height
+    layout_content(entity, box, available, placement, 1)
+    record_scroll_range(entity, box, left, top, border_width, border_height)
+}
+
+func center_screen(box: Ui.Layout.Box, width: Float, extras_horizontal: Float) {
+    var auto_left = box.margin_auto_at(3)
+    var auto_right = box.margin_auto_at(1)
+    if auto_left and auto_right {
+        var free = viewport_width - width - extras_horizontal
+        var half = larger(free / 2.0, 0.0)
+        box.set_margin_at(3, half)
+    } else if auto_left {
+        var free = viewport_width - width - extras_horizontal - box.margin_at(1)
+        var positive = larger(free, 0.0)
+        box.set_margin_at(3, positive)
+    }
+}
+
+func screen_height(entity: Integer, box: Ui.Layout.Box, width: Float): Float {
+    var minimum = box.used_minimum_height()
+    if box.height {
+        return clamp_size(box.height, minimum, box.maximum_height)
+    }
+    var measured = measured_height(entity, box, width, 0)
+    return clamp_size(measured, minimum, box.maximum_height)
+}
+
+func set_padding_block(
+    placement: Ui.Layout.Placement,
+    box: Ui.Layout.Box,
+    left: Float,
+    top: Float,
+    border_width: Float,
+    border_height: Float,
+) {
+    placement.block_left = left + box.border_at(3)
+    placement.block_top = top + box.border_at(0)
+    placement.block_width = border_width - box.border_at(3) - box.border_at(1)
+    placement.block_height = border_height - box.border_at(0) - box.border_at(2)
+}
+
+func write_layout(entity: Integer, left: Float, top: Float, width: Float, height: Float) {
+    var layout = Lookup<Ui.Component.ComputedLayout>().of(entity)
+    if not layout {
+        layout = created_layouts["{entity}"]
+    }
+    crash layout
+    layout.left = left
+    layout.top = top
+    layout.width = width
+    layout.height = height
+    laid_out.set("{entity}", true)
+}
+
+func children_of(entity: Integer): List<Integer> {
+    var key = "{entity}"
+    if children[key] {
+        return children[key]
+    }
+    return List<Integer>()
+}
+
+func in_flow_children(entity: Integer, absolute: List<Integer>): List<Integer> {
+    var found = List<Integer>()
+    var orders = List<Integer>()
+    var all = children_of(entity)
+    var index = 0
+    while index < all.count() {
+        classify_child(all[index], found, orders, absolute)
+        index = index + 1
+    }
+    sort_by_order(found, orders)
+    return found
+}
+
+func classify_child(child: Integer, found: List<Integer>, orders: List<Integer>, absolute: List<Integer>) {
+    var displays = Lookup<Ui.Component.Display>()
+    var display = displays.of(child)
+    if display {
+        assert display.value != 'none'
+    }
+    var positions = Lookup<Ui.Component.Position>()
+    var position = positions.of(child)
+    var is_absolute = false
+    if position {
+        is_absolute = position.value == 'absolute'
+    }
+    if is_absolute {
+        absolute.append(child)
+    } else {
+        var order_value = order_of(child)
+        found.append(child)
+        orders.append(order_value)
+    }
+}
+
+func order_of(child: Integer): Integer {
+    var orders = Lookup<Ui.Component.Order>()
+    var order = orders.of(child)
+    if order {
+        return order.value
+    }
+    return 0
+}
+
+func sort_by_order(found: List<Integer>, orders: List<Integer>) {
+    var index = 1
+    while index < found.count() {
+        sink(found, orders, index)
+        index = index + 1
+    }
+}
+
+func sink(found: List<Integer>, orders: List<Integer>, start: Integer) {
+    var position = start
+    var moving = true
+    while moving and position > 0 {
+        crash orders[position]
+        crash orders[position - 1]
+        crash found[position]
+        crash found[position - 1]
+        moving = orders[position - 1] > orders[position]
+        if moving {
+            var order_value = orders[position]
+            var entity = found[position]
+            orders.set_at(position, orders[position - 1])
+            found.set_at(position, found[position - 1])
+            orders.set_at(position - 1, order_value)
+            found.set_at(position - 1, entity)
+            position = position - 1
+        }
+    }
+}
+
+func read_container(entity: Integer): Ui.Layout.Container {
+    var container = Ui.Layout.Container()
+    var displays = Lookup<Ui.Component.Display>()
+    var display = displays.of(entity)
+    var flex = false
+    if display {
+        flex = display.value == 'flex'
+    }
+    if flex {
+        container.direction = 0
+    }
+    if display {
+        container.grid = display.value == 'grid'
+    }
+    read_direction(entity, container)
+    read_container_alignment(entity, container)
+    var row_gaps = Lookup<Ui.Component.RowGap>()
+    var row_gap = row_gaps.of(entity)
+    if row_gap {
+        container.row_gap = row_gap.length
+    }
+    var column_gaps = Lookup<Ui.Component.ColumnGap>()
+    var column_gap = column_gaps.of(entity)
+    if column_gap {
+        container.column_gap = column_gap.length
+    }
+    return container
+}
+
+func read_direction(entity: Integer, container: Ui.Layout.Container) {
+    var directions = Lookup<Ui.Component.FlexDirection>()
+    var direction = directions.of(entity)
+    if direction {
+        container.direction = direction_code(direction)
+    }
+    var wraps = Lookup<Ui.Component.FlexWrap>()
+    var wrap = wraps.of(entity)
+    assert wrap
+    container.wrap = wrap_code(wrap)
+}
+
+func direction_code(direction: Ui.Component.FlexDirection): Integer {
+    if direction.value == 'row' {
+        return 0
+    } else if direction.value == 'row_reverse' {
+        return 1
+    } else if direction.value == 'column' {
+        return 2
+    }
+    return 3
+}
+
+func wrap_code(wrap: Ui.Component.FlexWrap): Integer {
+    if wrap.value == 'wrap' {
+        return 1
+    } else if wrap.value == 'wrap_reverse' {
+        return 2
+    }
+    return 0
+}
+
+func read_container_alignment(entity: Integer, container: Ui.Layout.Container) {
+    var justifications = Lookup<Ui.Component.JustifyContent>()
+    var justify = justifications.of(entity)
+    if justify {
+        container.justify = justify_code(justify)
+    }
+    var item_alignments = Lookup<Ui.Component.AlignItems>()
+    var align_items = item_alignments.of(entity)
+    if align_items {
+        container.align_items = align_items_code(align_items)
+    }
+    var content_alignments = Lookup<Ui.Component.AlignContent>()
+    var align_content = content_alignments.of(entity)
+    assert align_content
+    container.align_content = align_content_code(align_content)
+}
+
+func justify_code(justify: Ui.Component.JustifyContent): Integer {
+    if justify.value == 'flex_end' {
+        return 1
+    } else if justify.value == 'center' {
+        return 2
+    } else if justify.value == 'space_between' {
+        return 3
+    } else if justify.value == 'space_around' {
+        return 4
+    } else if justify.value == 'space_evenly' {
+        return 5
+    }
+    return 0
+}
+
+func align_items_code(alignment: Ui.Component.AlignItems): Integer {
+    if alignment.value == 'flex_start' {
+        return 1
+    } else if alignment.value == 'flex_end' {
+        return 2
+    } else if alignment.value == 'center' {
+        return 3
+    } else if alignment.value == 'baseline' {
+        return 4
+    }
+    return 0
+}
+
+func align_content_code(alignment: Ui.Component.AlignContent): Integer {
+    if alignment.value == 'flex_start' {
+        return 1
+    } else if alignment.value == 'flex_end' {
+        return 2
+    } else if alignment.value == 'center' {
+        return 3
+    } else if alignment.value == 'space_between' {
+        return 4
+    } else if alignment.value == 'space_around' {
+        return 5
+    } else if alignment.value == 'space_evenly' {
+        return 6
+    }
+    return 0
+}
+
+func align_self_code(alignment: Ui.Component.AlignSelf): Integer {
+    if alignment.value == 'stretch' {
+        return 0
+    } else if alignment.value == 'flex_start' {
+        return 1
+    } else if alignment.value == 'flex_end' {
+        return 2
+    } else if alignment.value == 'center' {
+        return 3
+    } else if alignment.value == 'baseline' {
+        return 4
+    }
+    return -1
+}
+
+func resolve_alignment(self_alignment: Integer, container_alignment: Integer): Integer {
+    if self_alignment < 0 {
+        return container_alignment
+    }
+    return self_alignment
+}
+
+func layout_content(
+    entity: Integer,
+    box: Ui.Layout.Box,
+    available: Ui.Layout.Available,
+    placement: Ui.Layout.Placement?,
+    depth: Integer,
+): Float {
+    if box.leaf {
+        if available.height {
+            return available.height
+        }
+        return clamp_size(box.content_height, available.minimum_height, available.maximum_height)
+    }
+    crash depth < maximum_depth
+    var container = read_container(entity)
+    if container.grid {
+        return layout_grid(entity, box, container, available, placement, depth)
+    }
+    var is_row = container.is_row()
+    var main_reverse = container.is_reversed()
+    var cross_reverse = container.wrap == 2
+    var multi_line = container.wrap != 0
+    var resolved_column_gap = resolve(container.column_gap, box.font_size, available.width)
+    var resolved_row_gap = resolve(container.row_gap, box.font_size, available.percent_height)
+    var column_gap = positive_or_zero(resolved_column_gap)
+    var row_gap = positive_or_zero(resolved_row_gap)
+    var main_gap = row_gap
+    var cross_gap = column_gap
+    var inner_main: Float? = available.height
+    var inner_cross: Float? = available.width
+    if is_row {
+        main_gap = column_gap
+        cross_gap = row_gap
+        inner_main = available.width
+        inner_cross = available.height
+    }
+    var main_start_side = main_start_of(is_row, main_reverse)
+    var cross_start_side = cross_start_of(is_row, cross_reverse)
+    var absolute = List<Integer>()
+    var ordered = in_flow_children(entity, absolute)
+    var items = List<Ui.Layout.Item>()
+    var index = 0
+    while index < ordered.count() {
+        var item = make_item(
+            ordered[index],
+            container,
+            available,
+            is_row,
+            multi_line,
+            inner_main,
+            main_start_side,
+            cross_start_side,
+            depth,
+        )
+        items.append(item)
+        index = index + 1
+    }
+    var break_limit = unbounded
+    if inner_main {
+        break_limit = inner_main
+    } else if not is_row {
+        break_limit = available.maximum_height
+    }
+    var lines = collect_lines(items, multi_line, main_gap, break_limit)
+    var used_main = main_size(items, lines, inner_main, main_gap, available)
+    resolve_all_lines(items, lines, used_main, main_gap)
+    cross_sizes(items, is_row, available, depth)
+    line_cross_sizes(items, lines, multi_line, is_row, inner_cross, available)
+    var used_cross = cross_size(lines, inner_cross, cross_gap, available)
+    align_lines(lines, multi_line, container, used_cross, cross_gap)
+    stretch_items(items, lines)
+    align_main(items, lines, container, used_main, main_gap)
+    var used_height = used_cross
+    if not is_row {
+        used_height = used_main
+    }
+    if placement {
+        place_children(
+            items,
+            available,
+            placement,
+            is_row,
+            main_reverse,
+            cross_reverse,
+            used_main,
+            used_cross,
+            inner_main,
+            depth,
+        )
+        place_all_absolute(
+            absolute,
+            container,
+            is_row,
+            main_reverse,
+            cross_reverse,
+            available.width,
+            used_height,
+            placement,
+            depth,
+        )
+    }
+    return used_height
+}
+
+func place_all_absolute(
+    absolute: List<Integer>,
+    container: Ui.Layout.Container,
+    is_row: Boolean,
+    main_reverse: Boolean,
+    cross_reverse: Boolean,
+    content_width: Float,
+    content_height: Float,
+    placement: Ui.Layout.Placement,
+    depth: Integer,
+) {
+    var index = 0
+    while index < absolute.count() {
+        place_absolute(
+            absolute[index],
+            container,
+            is_row,
+            main_reverse,
+            cross_reverse,
+            content_width,
+            content_height,
+            placement,
+            depth,
+        )
+        index = index + 1
+    }
+}
+
+func positive_or_zero(value: Float?): Float {
+    if value {
+        return larger(value, 0.0)
+    }
+    return 0.0
+}
+
+func main_start_of(is_row: Boolean, main_reverse: Boolean): Integer {
+    if is_row and main_reverse {
+        return 1
+    } else if is_row {
+        return 3
+    } else if main_reverse {
+        return 2
+    }
+    return 0
+}
+
+func cross_start_of(is_row: Boolean, cross_reverse: Boolean): Integer {
+    if is_row and cross_reverse {
+        return 2
+    } else if is_row {
+        return 0
+    } else if cross_reverse {
+        return 1
+    }
+    return 3
+}
+
+func make_item(
+    child: Integer,
+    container: Ui.Layout.Container,
+    available: Ui.Layout.Available,
+    is_row: Boolean,
+    multi_line: Boolean,
+    inner_main: Float?,
+    main_start_side: Integer,
+    cross_start_side: Integer,
+    depth: Integer,
+): Ui.Layout.Item {
+    var child_box = read_box(child, available.width, available.percent_height)
+    var item = Ui.Layout.Item()
+    item.entity = child
+    item.alignment = resolve_alignment(child_box.align_self, container.align_items)
+    item.grow = larger(child_box.grow, 0.0)
+    item.shrink = larger(child_box.shrink, 0.0)
+    var main_end_side = opposite(main_start_side)
+    var cross_end_side = opposite(cross_start_side)
+    item.margin_main_start = child_box.margin_at(main_start_side)
+    item.margin_main_end = child_box.margin_at(main_end_side)
+    item.auto_main_start = child_box.margin_auto_at(main_start_side)
+    item.auto_main_end = child_box.margin_auto_at(main_end_side)
+    item.margin_cross_start = child_box.margin_at(cross_start_side)
+    item.margin_cross_end = child_box.margin_at(cross_end_side)
+    item.auto_cross_start = child_box.margin_auto_at(cross_start_side)
+    item.auto_cross_end = child_box.margin_auto_at(cross_end_side)
+    fill_axes(item, child_box, is_row)
+    if not is_row {
+        item.cross = column_item_width(child, child_box, item, available.width, multi_line, depth)
+        item.cross_definite = true
+    }
+    base_size(child, child_box, item, is_row, inner_main, depth)
+    item.hypothetical = clamp_size(item.base, item.minimum_main, item.maximum_main)
+    return item
+}
+
+func fill_axes(item: Ui.Layout.Item, child_box: Ui.Layout.Box, is_row: Boolean) {
+    if is_row {
+        item.extras_main = child_box.horizontal_extras()
+        item.extras_cross = child_box.vertical_extras()
+        item.maximum_main = child_box.maximum_width
+        item.minimum_cross = child_box.used_minimum_height()
+        item.maximum_cross = child_box.maximum_height
+        item.cross_specified = child_box.height
+    } else {
+        item.extras_main = child_box.vertical_extras()
+        item.extras_cross = child_box.horizontal_extras()
+        item.maximum_main = child_box.maximum_height
+        item.minimum_cross = child_box.used_minimum_width()
+        item.maximum_cross = child_box.maximum_width
+        item.cross_specified = child_box.width
+    }
+}
+
+func base_size(
+    child: Integer,
+    child_box: Ui.Layout.Box,
+    item: Ui.Layout.Item,
+    is_row: Boolean,
+    inner_main: Float?,
+    depth: Integer,
+) {
+    var size_main: Float? = child_box.height
+    var minimum_main_specified: Float? = child_box.minimum_height
+    if is_row {
+        size_main = child_box.width
+        minimum_main_specified = child_box.minimum_width
+    }
+    var basis = resolve(child_box.basis, child_box.font_size, inner_main)
+    var content_main: Float? = null
+    if basis {
+        item.base = basis
+        if child_box.border_box {
+            item.base = larger(basis - item.extras_main, 0.0)
+        }
+        item.main_definite = true
+    } else if size_main {
+        item.base = size_main
+        item.main_definite = true
+    } else {
+        var measured = content_main_size(child, child_box, is_row, item.cross, depth)
+        content_main = measured
+        item.base = measured
+    }
+    if minimum_main_specified {
+        item.minimum_main = minimum_main_specified
+    } else {
+        item.minimum_main = automatic_minimum(child, child_box, item, is_row, size_main, content_main, depth)
+    }
+}
+
+func automatic_minimum(
+    child: Integer,
+    child_box: Ui.Layout.Box,
+    item: Ui.Layout.Item,
+    is_row: Boolean,
+    size_main: Float?,
+    content_main: Float?,
+    depth: Integer,
+): Float {
+    var content_minimum: Float = 0.0
+    if is_row {
+        content_minimum = intrinsic_content_width(child, child_box, true, depth + 1)
+    } else if content_main {
+        content_minimum = content_main
+    } else {
+        content_minimum = content_main_size(child, child_box, false, item.cross, depth)
+    }
+    var minimum = smaller(content_minimum, item.maximum_main)
+    if size_main {
+        minimum = smaller(minimum, size_main)
+    }
+    return minimum
+}
+
+func collect_lines(
+    items: List<Ui.Layout.Item>,
+    multi_line: Boolean,
+    main_gap: Float,
+    break_limit: Float,
+): List<Ui.Layout.Line> {
+    var lines = List<Ui.Layout.Line>()
+    assert items.count() > 0
+    var current = Ui.Layout.Line(0, 0)
+    lines.append(current)
+    var line_sum: Float = 0.0
+    var index = 0
+    while index < items.count() {
+        var outer = items[index].outer_main(items[index].hypothetical)
+        var with_gap = outer
+        if current.end > current.start {
+            with_gap = line_sum + main_gap + outer
+        }
+        var breaks = multi_line and current.end > current.start and with_gap > break_limit + epsilon
+        if breaks {
+            current = Ui.Layout.Line(index, index + 1)
+            lines.append(current)
+            line_sum = outer
+        } else {
+            current.end = index + 1
+            line_sum = with_gap
+        }
+        index = index + 1
+    }
+    return lines
+}
+
+func main_size(
+    items: List<Ui.Layout.Item>,
+    lines: List<Ui.Layout.Line>,
+    inner_main: Float?,
+    main_gap: Float,
+    available: Ui.Layout.Available,
+): Float {
+    if inner_main {
+        return inner_main
+    }
+    var longest: Float = 0.0
+    var index = 0
+    while index < lines.count() {
+        var sum = line_hypothetical_sum(items, lines[index], main_gap)
+        longest = larger(longest, sum)
+        index = index + 1
+    }
+    return clamp_size(longest, available.minimum_height, available.maximum_height)
+}
+
+func line_hypothetical_sum(items: List<Ui.Layout.Item>, line: Ui.Layout.Line, main_gap: Float): Float {
+    var count: Float = line.end - line.start
+    var sum = main_gap * (count - 1.0)
+    var index = line.start
+    while index < line.end {
+        crash items[index]
+        sum = sum + items[index].outer_main(items[index].hypothetical)
+        index = index + 1
+    }
+    return sum
+}
+
+func resolve_all_lines(items: List<Ui.Layout.Item>, lines: List<Ui.Layout.Line>, used_main: Float, main_gap: Float) {
+    var index = 0
+    while index < lines.count() {
+        resolve_flexible_lengths(items, lines[index], used_main, main_gap)
+        index = index + 1
+    }
+}
+
+func resolve_flexible_lengths(items: List<Ui.Layout.Item>, line: Ui.Layout.Line, container_main: Float, gap: Float) {
+    var count: Float = line.end - line.start
+    var gaps = gap * (count - 1.0)
+    var hypothetical_sum = gaps
+    var index = line.start
+    while index < line.end {
+        crash items[index]
+        hypothetical_sum = hypothetical_sum + items[index].outer_main(items[index].hypothetical)
+        index = index + 1
+    }
+    var growing = hypothetical_sum < container_main
+    index = line.start
+    while index < line.end {
+        crash items[index]
+        initial_freeze(items[index], growing)
+        index = index + 1
+    }
+    var initial_free = container_main - outer_sum(items, line, gaps)
+    var round = 0
+    var working = true
+    while working and round <= line.end - line.start {
+        working = flex_round(items, line, container_main, gaps, growing, initial_free)
+        round = round + 1
+    }
+}
+
+func initial_freeze(item: Ui.Layout.Item, growing: Boolean) {
+    item.target = item.hypothetical
+    var factor = item.shrink
+    if growing {
+        factor = item.grow
+    }
+    var grows_past = growing and item.base > item.hypothetical
+    var shrinks_past = not growing and item.base < item.hypothetical
+    item.frozen = factor == 0.0 or grows_past or shrinks_past
+}
+
+func flex_round(
+    items: List<Ui.Layout.Item>,
+    line: Ui.Layout.Line,
+    container_main: Float,
+    gaps: Float,
+    growing: Boolean,
+    initial_free: Float,
+): Boolean {
+    var factor_sum: Float = 0.0
+    var scaled_shrink_sum: Float = 0.0
+    var unfrozen = 0
+    var index = line.start
+    while index < line.end {
+        crash items[index]
+        if not items[index].frozen {
+            unfrozen = unfrozen + 1
+            factor_sum = factor_sum + factor_of(items[index], growing)
+            scaled_shrink_sum = scaled_shrink_sum + items[index].shrink * items[index].base
+        }
+        index = index + 1
+    }
+    assert unfrozen > 0
+    var remaining = container_main - outer_sum(items, line, gaps)
+    if factor_sum < 1.0 {
+        var limited = initial_free * factor_sum
+        if absolute_value(limited) < absolute_value(remaining) {
+            remaining = limited
+        }
+    }
+    index = line.start
+    while index < line.end {
+        crash items[index]
+        set_target(items[index], growing, remaining, factor_sum, scaled_shrink_sum)
+        index = index + 1
+    }
+    var total_violation: Float = 0.0
+    index = line.start
+    while index < line.end {
+        crash items[index]
+        total_violation = total_violation + clamp_target(items[index])
+        index = index + 1
+    }
+    index = line.start
+    while index < line.end {
+        crash items[index]
+        freeze_violators(items[index], total_violation)
+        index = index + 1
+    }
+    return true
+}
+
+func factor_of(item: Ui.Layout.Item, growing: Boolean): Float {
+    if growing {
+        return item.grow
+    }
+    return item.shrink
+}
+
+func set_target(item: Ui.Layout.Item, growing: Boolean, remaining: Float, factor_sum: Float, scaled_shrink_sum: Float) {
+    assert not item.frozen
+    if growing {
+        item.target = item.base + remaining * item.grow / factor_sum
+    } else if scaled_shrink_sum > 0.0 {
+        item.target = item.base + remaining * (item.shrink * item.base) / scaled_shrink_sum
+    } else {
+        item.target = item.base
+    }
+}
+
+func clamp_target(item: Ui.Layout.Item): Float {
+    assert not item.frozen
+    var bounded = clamp_size(item.target, item.minimum_main, item.maximum_main)
+    var clamped = larger(bounded, 0.0)
+    item.violation = clamped - item.target
+    item.target = clamped
+    return item.violation
+}
+
+func freeze_violators(item: Ui.Layout.Item, total_violation: Float) {
+    assert not item.frozen
+    if absolute_value(total_violation) < epsilon {
+        item.frozen = true
+    } else if total_violation > 0.0 and item.violation > 0.0 {
+        item.frozen = true
+    } else if total_violation < 0.0 and item.violation < 0.0 {
+        item.frozen = true
+    }
+}
+
+func absolute_value(value: Float): Float {
+    if value < 0.0 {
+        return 0.0 - value
+    }
+    return value
+}
+
+func outer_sum(items: List<Ui.Layout.Item>, line: Ui.Layout.Line, gaps: Float): Float {
+    var sum = gaps
+    var index = line.start
+    while index < line.end {
+        crash items[index]
+        var size = items[index].base
+        if items[index].frozen {
+            size = items[index].target
+        }
+        sum = sum + items[index].outer_main(size)
+        index = index + 1
+    }
+    return sum
+}
+
+func cross_sizes(items: List<Ui.Layout.Item>, is_row: Boolean, available: Ui.Layout.Available, depth: Integer) {
+    var index = 0
+    while index < items.count() {
+        cross_size_of(items[index], is_row, available, depth)
+        index = index + 1
+    }
+}
+
+func cross_size_of(item: Ui.Layout.Item, is_row: Boolean, available: Ui.Layout.Available, depth: Integer) {
+    if item.cross_specified {
+        item.cross = clamp_size(item.cross_specified, item.minimum_cross, item.maximum_cross)
+        item.cross_definite = true
+    } else if is_row {
+        var child_box = read_box(item.entity, available.width, available.percent_height)
+        var measured = measured_height(item.entity, child_box, item.target, depth)
+        item.cross = clamp_size(measured, item.minimum_cross, item.maximum_cross)
+    }
+}
+
+func line_cross_sizes(
+    items: List<Ui.Layout.Item>,
+    lines: List<Ui.Layout.Line>,
+    multi_line: Boolean,
+    is_row: Boolean,
+    inner_cross: Float?,
+    available: Ui.Layout.Available,
+) {
+    var index = 0
+    while index < lines.count() {
+        line_cross_of(items, lines[index], multi_line, is_row, inner_cross, available)
+        index = index + 1
+    }
+}
+
+func line_cross_of(
+    items: List<Ui.Layout.Item>,
+    line: Ui.Layout.Line,
+    multi_line: Boolean,
+    is_row: Boolean,
+    inner_cross: Float?,
+    available: Ui.Layout.Available,
+) {
+    if not multi_line {
+        if inner_cross {
+            line.cross = inner_cross
+            return
+        }
+    }
+    var largest: Float = 0.0
+    var index = line.start
+    while index < line.end {
+        crash items[index]
+        var outer = items[index].outer_cross()
+        largest = larger(largest, outer)
+        index = index + 1
+    }
+    line.cross = largest
+    if not multi_line and is_row {
+        line.cross = clamp_size(largest, available.minimum_height, available.maximum_height)
+    }
+}
+
+func cross_size(
+    lines: List<Ui.Layout.Line>,
+    inner_cross: Float?,
+    cross_gap: Float,
+    available: Ui.Layout.Available,
+): Float {
+    if inner_cross {
+        return inner_cross
+    }
+    var count: Float = lines.count()
+    var total = cross_gap * larger(count - 1.0, 0.0)
+    var index = 0
+    while index < lines.count() {
+        total = total + lines[index].cross
+        index = index + 1
+    }
+    return clamp_size(total, available.minimum_height, available.maximum_height)
+}
+
+func align_lines(
+    lines: List<Ui.Layout.Line>,
+    multi_line: Boolean,
+    container: Ui.Layout.Container,
+    used_cross: Float,
+    cross_gap: Float,
+) {
+    assert multi_line and lines.count() > 0
+    var count: Float = lines.count()
+    var lines_total = cross_gap * (count - 1.0)
+    var index = 0
+    while index < lines.count() {
+        lines_total = lines_total + lines[index].cross
+        index = index + 1
+    }
+    var free = used_cross - lines_total
+    var offset: Float = 0.0
+    var spacing: Float = 0.0
+    var mode = container.align_content
+    if mode == 0 and free > 0.0 {
+        index = 0
+        while index < lines.count() {
+            lines[index].cross = lines[index].cross + free / count
+            index = index + 1
+        }
+    } else if mode == 2 {
+        offset = free
+    } else if mode == 3 {
+        offset = free / 2.0
+    } else if mode == 4 and free > 0.0 and count > 1.0 {
+        spacing = free / (count - 1.0)
+    } else if mode == 5 and free > 0.0 {
+        spacing = free / count
+        offset = spacing / 2.0
+    } else if mode == 6 and free > 0.0 {
+        spacing = free / (count + 1.0)
+        offset = spacing
+    }
+    var position = offset
+    index = 0
+    while index < lines.count() {
+        lines[index].position = position
+        position = position + lines[index].cross + cross_gap + spacing
+        index = index + 1
+    }
+}
+
+func stretch_items(items: List<Ui.Layout.Item>, lines: List<Ui.Layout.Line>) {
+    var index = 0
+    while index < lines.count() {
+        stretch_line(items, lines[index])
+        index = index + 1
+    }
+}
+
+func stretch_line(items: List<Ui.Layout.Item>, line: Ui.Layout.Line) {
+    var index = line.start
+    while index < line.end {
+        crash items[index]
+        stretch_item(items[index], line)
+        index = index + 1
+    }
+}
+
+func stretch_item(item: Ui.Layout.Item, line: Ui.Layout.Line) {
+    assert item.alignment == 0 and not item.auto_cross_start and not item.auto_cross_end
+    assert not item.cross_specified
+    var stretched = line.cross - item.margin_cross_start - item.margin_cross_end - item.extras_cross
+    var positive = larger(stretched, 0.0)
+    item.cross = clamp_size(positive, item.minimum_cross, item.maximum_cross)
+    item.cross_definite = true
+}
+
+func align_main(
+    items: List<Ui.Layout.Item>,
+    lines: List<Ui.Layout.Line>,
+    container: Ui.Layout.Container,
+    used_main: Float,
+    main_gap: Float,
+) {
+    var index = 0
+    while index < lines.count() {
+        align_line_main(items, lines[index], container, used_main, main_gap)
+        index = index + 1
+    }
+}
+
+func align_line_main(
+    items: List<Ui.Layout.Item>,
+    line: Ui.Layout.Line,
+    container: Ui.Layout.Container,
+    used_main: Float,
+    main_gap: Float,
+) {
+    var count: Float = line.end - line.start
+    var used = main_gap * (count - 1.0)
+    var auto_margins: Float = 0.0
+    var index = line.start
+    while index < line.end {
+        crash items[index]
+        used = used + items[index].outer_main(items[index].target)
+        if items[index].auto_main_start {
+            auto_margins = auto_margins + 1.0
+        }
+        if items[index].auto_main_end {
+            auto_margins = auto_margins + 1.0
+        }
+        index = index + 1
+    }
+    var free = used_main - used
+    var offset: Float = 0.0
+    var spacing: Float = 0.0
+    var auto_share: Float = 0.0
+    var mode = container.justify
+    if auto_margins > 0.0 {
+        auto_share = larger(free, 0.0) / auto_margins
+    } else if mode == 1 {
+        offset = free
+    } else if mode == 2 {
+        offset = free / 2.0
+    } else if mode == 3 and free > 0.0 and count > 1.0 {
+        spacing = free / (count - 1.0)
+    } else if mode == 4 and free > 0.0 {
+        spacing = free / count
+        offset = spacing / 2.0
+    } else if mode == 5 and free > 0.0 {
+        spacing = free / (count + 1.0)
+        offset = spacing
+    }
+    var position = offset
+    index = line.start
+    while index < line.end {
+        crash items[index]
+        position = place_on_main(items[index], position, auto_share, main_gap, spacing)
+        align_cross(items[index], line)
+        index = index + 1
+    }
+}
+
+func place_on_main(item: Ui.Layout.Item, start: Float, auto_share: Float, main_gap: Float, spacing: Float): Float {
+    var position = start
+    if item.auto_main_start {
+        position = position + auto_share
+    } else {
+        position = position + item.margin_main_start
+    }
+    item.main_position = position
+    var end_margin = item.margin_main_end
+    if item.auto_main_end {
+        end_margin = auto_share
+    }
+    return position + item.target + item.extras_main + end_margin + main_gap + spacing
+}
+
+func align_cross(item: Ui.Layout.Item, line: Ui.Layout.Line) {
+    var cross_free = line.cross - item.outer_cross()
+    var cross_offset: Float = 0.0
+    if item.auto_cross_start and item.auto_cross_end {
+        cross_offset = larger(cross_free, 0.0) / 2.0
+    } else if item.auto_cross_start {
+        cross_offset = larger(cross_free, 0.0)
+    } else if not item.auto_cross_end {
+        cross_offset = alignment_offset(item.alignment, cross_free)
+    }
+    item.cross_position = line.position + cross_offset + item.margin_cross_start
+}
+
+func alignment_offset(alignment: Integer, free: Float): Float {
+    if alignment == 2 {
+        return free
+    } else if alignment == 3 {
+        return free / 2.0
+    }
+    return 0.0
+}
+
+func place_children(
+    items: List<Ui.Layout.Item>,
+    available: Ui.Layout.Available,
+    placement: Ui.Layout.Placement,
+    is_row: Boolean,
+    main_reverse: Boolean,
+    cross_reverse: Boolean,
+    used_main: Float,
+    used_cross: Float,
+    inner_main: Float?,
+    depth: Integer,
+) {
+    var index = 0
+    while index < items.count() {
+        place_item(
+            items[index],
+            available,
+            placement,
+            is_row,
+            main_reverse,
+            cross_reverse,
+            used_main,
+            used_cross,
+            inner_main,
+            depth,
+        )
+        index = index + 1
+    }
+}
+
+func place_item(
+    item: Ui.Layout.Item,
+    available: Ui.Layout.Available,
+    placement: Ui.Layout.Placement,
+    is_row: Boolean,
+    main_reverse: Boolean,
+    cross_reverse: Boolean,
+    used_main: Float,
+    used_cross: Float,
+    inner_main: Float?,
+    depth: Integer,
+) {
+    var child_box = read_box(item.entity, available.width, available.percent_height)
+    var border_main = item.target + item.extras_main
+    var border_cross = item.cross + item.extras_cross
+    var main_offset = item.main_position
+    if main_reverse {
+        main_offset = used_main - item.main_position - border_main
+    }
+    var cross_offset = item.cross_position
+    if cross_reverse {
+        cross_offset = used_cross - item.cross_position - border_cross
+    }
+    var left = placement.left + cross_offset
+    var top = placement.top + main_offset
+    var width = border_cross
+    var height = border_main
+    var content_width = item.cross
+    var content_height = item.target
+    var main_given = false
+    if inner_main {
+        main_given = true
+    }
+    var height_definite = main_given or item.main_definite
+    if is_row {
+        left = placement.left + main_offset
+        top = placement.top + cross_offset
+        width = border_main
+        height = border_cross
+        content_width = item.target
+        content_height = item.cross
+        height_definite = item.cross_definite
+    }
+    if child_box.position == 1 {
+        left = left + relative_offset(child_box, 3, 1)
+        top = top + relative_offset(child_box, 0, 2)
+    }
+    place(
+        item.entity,
+        child_box,
+        left,
+        top,
+        width,
+        height,
+        content_width,
+        content_height,
+        height_definite,
+        placement,
+        depth,
+    )
+}
+
+func relative_offset(child_box: Ui.Layout.Box, start: Integer, end: Integer): Float {
+    if child_box.has_inset(start) {
+        return child_box.inset_at(start)
+    } else if child_box.has_inset(end) {
+        return 0.0 - child_box.inset_at(end)
+    }
+    return 0.0
+}
+
+func place(
+    entity: Integer,
+    box: Ui.Layout.Box,
+    left: Float,
+    top: Float,
+    width: Float,
+    height: Float,
+    content_width: Float,
+    content_height: Float,
+    height_definite: Boolean,
+    inherited: Ui.Layout.Placement,
+    depth: Integer,
+) {
+    write_layout(entity, left, top, width, height)
+    write_clip(entity, inherited)
+    var placement = Ui.Layout.Placement()
+    placement.inherit_clip(inherited)
+    placement.left = left + box.border_at(3) + box.padding_at(3)
+    placement.top = top + box.border_at(0) + box.padding_at(0)
+    write_content_origin(entity, placement)
+    placement.block_left = inherited.block_left
+    placement.block_top = inherited.block_top
+    placement.block_width = inherited.block_width
+    placement.block_height = inherited.block_height
+    if box.position != 0 {
+        set_padding_block(placement, box, left, top, width, height)
+    }
+    apply_overflow(entity, box, left, top, width, height, placement)
+    var available = Ui.Layout.Available()
+    available.width = content_width
+    available.height = content_height
+    if height_definite {
+        available.percent_height = content_height
+    }
+    available.minimum_height = box.used_minimum_height()
+    available.maximum_height = box.maximum_height
+    layout_content(entity, box, available, placement, depth + 1)
+    record_scroll_range(entity, box, left, top, width, height)
+}
+
+func clips_horizontally(entity: Integer): Boolean {
+    var overflow = Lookup<Ui.Component.OverflowX>().of(entity)
+    assert overflow
+    return overflow.value != 'visible'
+}
+
+func clips_vertically(entity: Integer): Boolean {
+    var overflow = Lookup<Ui.Component.OverflowY>().of(entity)
+    assert overflow
+    return overflow.value != 'visible'
+}
+
+func apply_overflow(
+    entity: Integer,
+    box: Ui.Layout.Box,
+    left: Float,
+    top: Float,
+    width: Float,
+    height: Float,
+    placement: Ui.Layout.Placement,
+) {
+    var horizontal = clips_horizontally(entity)
+    var vertical = clips_vertically(entity)
+    if horizontal {
+        var padding_left = left + box.border_at(3)
+        var padding_right = left + width - box.border_at(1)
+        placement.clip_left = larger(placement.clip_left, padding_left)
+        placement.clip_right = smaller(placement.clip_right, padding_right)
+    }
+    if vertical {
+        var padding_top = top + box.border_at(0)
+        var padding_bottom = top + height - box.border_at(2)
+        placement.clip_top = larger(placement.clip_top, padding_top)
+        placement.clip_bottom = smaller(placement.clip_bottom, padding_bottom)
+    }
+    assert horizontal or vertical
+    var scroll = Lookup<Ui.Component.ScrollPosition>().of(entity)
+    assert scroll
+    placement.left = placement.left - scroll.left
+    placement.top = placement.top - scroll.top
+    if box.position != 0 {
+        placement.block_left = placement.block_left - scroll.left
+        placement.block_top = placement.block_top - scroll.top
+    }
+}
+
+func record_scroll_range(entity: Integer, box: Ui.Layout.Box, left: Float, top: Float, width: Float, height: Float) {
+    var horizontal = clips_horizontally(entity)
+    var vertical = clips_vertically(entity)
+    assert horizontal or vertical
+    var range = Lookup<Ui.Component.ScrollRange>().of(entity)
+    if not range {
+        range = created_ranges["{entity}"]
+    }
+    assert range
+    var scroll_left: Float = 0.0
+    var scroll_top: Float = 0.0
+    var scroll = Lookup<Ui.Component.ScrollPosition>().of(entity)
+    if scroll {
+        scroll_left = scroll.left
+        scroll_top = scroll.top
+    }
+    var content_right = left + box.border_at(3)
+    var content_bottom = top + box.border_at(0)
+    var children = children_of(entity)
+    var index = 0
+    while index < children.count() {
+        var child = layout_of(children[index])
+        if child {
+            content_right = larger(content_right, child.left + child.width + scroll_left)
+            content_bottom = larger(content_bottom, child.top + child.height + scroll_top)
+        }
+        index = index + 1
+    }
+    var padding_right = left + width - box.border_at(1)
+    var padding_bottom = top + height - box.border_at(2)
+    var needed_right = content_right + box.padding_at(1)
+    var needed_bottom = content_bottom + box.padding_at(2)
+    range.horizontal = larger(needed_right - padding_right, 0.0)
+    range.vertical = larger(needed_bottom - padding_bottom, 0.0)
+    if scroll {
+        scroll.left = smaller(scroll.left, range.horizontal)
+        scroll.top = smaller(scroll.top, range.vertical)
+    }
+    var padding_left = left + box.border_at(3)
+    var padding_top = top + box.border_at(0)
+    var padding_width = padding_right - padding_left
+    var padding_height = padding_bottom - padding_top
+    write_scrollbars(entity, range, scroll_left, scroll_top, padding_left, padding_top, padding_width, padding_height)
+}
+
+func horizontal_bar(overflow: Ui.Component.OverflowX, needed: Boolean): Boolean {
+    return overflow.value == 'scroll' or overflow.value == 'automatic' and needed
+}
+
+func write_scrollbars(
+    entity: Integer,
+    range: Ui.Component.ScrollRange,
+    scroll_left: Float,
+    scroll_top: Float,
+    padding_left: Float,
+    padding_top: Float,
+    padding_width: Float,
+    padding_height: Float,
+) {
+    var bars = Lookup<Ui.Component.ComputedScrollbars>().of(entity)
+    if not bars {
+        bars = created_scrollbars["{entity}"]
+    }
+    assert bars
+    bars.thickness = bar_thickness(entity)
+    var horizontal = Lookup<Ui.Component.OverflowX>().of(entity)
+    var vertical = Lookup<Ui.Component.OverflowY>().of(entity)
+    bars.vertical_shown = false
+    bars.horizontal_shown = false
+    if vertical {
+        bars.vertical_shown = bars.thickness > 0.0 and vertical_bar(vertical, range.vertical > 0.0)
+    }
+    if horizontal {
+        bars.horizontal_shown = bars.thickness > 0.0 and horizontal_bar(horizontal, range.horizontal > 0.0)
+    }
+    var corner: Float = 0.0
+    if bars.vertical_shown and bars.horizontal_shown {
+        corner = bars.thickness
+    }
+    bars.vertical_track_left = padding_left + padding_width - bars.thickness
+    bars.vertical_track_top = padding_top
+    bars.vertical_track_height = padding_height - corner
+    var vertical_thumb = thumb_length(bars.vertical_track_height, padding_height, range.vertical)
+    bars.vertical_thumb_height = vertical_thumb
+    bars.vertical_thumb_top = padding_top + thumb_offset(bars.vertical_track_height, vertical_thumb, scroll_top, range.vertical)
+    bars.horizontal_track_left = padding_left
+    bars.horizontal_track_top = padding_top + padding_height - bars.thickness
+    bars.horizontal_track_width = padding_width - corner
+    var horizontal_thumb = thumb_length(bars.horizontal_track_width, padding_width, range.horizontal)
+    bars.horizontal_thumb_width = horizontal_thumb
+    bars.horizontal_thumb_left = padding_left + thumb_offset(bars.horizontal_track_width, horizontal_thumb, scroll_left, range.horizontal)
+}
+
+func vertical_bar(overflow: Ui.Component.OverflowY, needed: Boolean): Boolean {
+    return overflow.value == 'scroll' or overflow.value == 'automatic' and needed
+}
+
+func bar_thickness(entity: Integer): Float {
+    var width = Lookup<Ui.Component.ScrollbarWidth>().of(entity)
+    if width {
+        if width.value == 'none' {
+            return 0.0
+        } else if width.value == 'thin' {
+            return 4.0
+        }
+    }
+    return 8.0
+}
+
+func thumb_length(track: Float, visible: Float, range: Float): Float {
+    if range <= 0.0 {
+        return track
+    }
+    var length = track * visible / (visible + range)
+    var shortest = smaller(16.0, track)
+    return clamp_size(length, shortest, track)
+}
+
+func thumb_offset(track: Float, thumb: Float, scrolled: Float, range: Float): Float {
+    assert range > 0.0
+    return (track - thumb) * scrolled / range
+}
+
+func layout_of(entity: Integer): Ui.Component.ComputedLayout? {
+    var layout = Lookup<Ui.Component.ComputedLayout>().of(entity)
+    if layout {
+        return layout
+    }
+    return created_layouts["{entity}"]
+}
+
+func write_content_origin(entity: Integer, placement: Ui.Layout.Placement) {
+    var layout = layout_of(entity)
+    crash layout
+    layout.content_left = placement.left
+    layout.content_top = placement.top
+}
+
+func write_clip(entity: Integer, inherited: Ui.Layout.Placement) {
+    var clip = Lookup<Ui.Component.ComputedClip>().of(entity)
+    if not clip {
+        clip = created_clips["{entity}"]
+    }
+    crash clip
+    clip.left = inherited.clip_left
+    clip.top = inherited.clip_top
+    clip.right = inherited.clip_right
+    clip.bottom = inherited.clip_bottom
+}
+
+func place_absolute(
+    entity: Integer,
+    container: Ui.Layout.Container,
+    is_row: Boolean,
+    main_reverse: Boolean,
+    cross_reverse: Boolean,
+    content_width: Float,
+    content_height: Float,
+    origin: Ui.Layout.Placement,
+    depth: Integer,
+) {
+    var box = read_box(entity, origin.block_width, origin.block_height)
+    var extras_horizontal = box.horizontal_extras()
+    var extras_vertical = box.vertical_extras()
+    var width = absolute_width(entity, box, origin, depth)
+    var height = absolute_height(entity, box, origin, width, depth)
+    var border_width = width + extras_horizontal
+    var border_height = height + extras_vertical
+    var outer_width = border_width + box.horizontal_margins()
+    var outer_height = border_height + box.vertical_margins()
+    var main_free = content_height - outer_height
+    var cross_free = content_width - outer_width
+    if is_row {
+        main_free = content_width - outer_width
+        cross_free = content_height - outer_height
+    }
+    var main_offset = static_main_offset(container.justify, main_free)
+    var alignment = resolve_alignment(box.align_self, container.align_items)
+    var cross_offset = alignment_offset(alignment, cross_free)
+    if main_reverse {
+        main_offset = main_free - main_offset
+    }
+    if cross_reverse {
+        cross_offset = cross_free - cross_offset
+    }
+    var static_left = origin.left + main_offset + box.margin_at(3)
+    var static_top = origin.top + cross_offset + box.margin_at(0)
+    if not is_row {
+        static_left = origin.left + cross_offset + box.margin_at(3)
+        static_top = origin.top + main_offset + box.margin_at(0)
+    }
+    var left = absolute_start(box, 3, 1, origin.block_left, origin.block_width, border_width, static_left)
+    var top = absolute_start(box, 0, 2, origin.block_top, origin.block_height, border_height, static_top)
+    place(entity, box, left, top, border_width, border_height, width, height, true, origin, depth)
+}
+
+func static_main_offset(justify: Integer, free: Float): Float {
+    if justify == 1 {
+        return free
+    } else if justify == 2 or justify == 4 or justify == 5 {
+        return free / 2.0
+    }
+    return 0.0
+}
+
+func absolute_width(entity: Integer, box: Ui.Layout.Box, origin: Ui.Layout.Placement, depth: Integer): Float {
+    var extras = box.horizontal_extras()
+    var margins = box.horizontal_margins()
+    var width: Float = 0.0
+    if box.width {
+        width = box.width
+    } else if box.has_inset(3) and box.has_inset(1) {
+        width = origin.block_width - box.inset_at(3) - box.inset_at(1) - margins - extras
+    } else {
+        var room = origin.block_width - given_inset(box, 3) - given_inset(box, 1) - margins - extras
+        var minimum = intrinsic_content_width(entity, box, true, depth + 1)
+        var maximum = intrinsic_content_width(entity, box, false, depth + 1)
+        var fitted = larger(minimum, room)
+        width = smaller(fitted, maximum)
+    }
+    var positive = larger(width, 0.0)
+    var minimum_width = box.used_minimum_width()
+    width = clamp_size(positive, minimum_width, box.maximum_width)
+    if box.has_inset(3) and box.has_inset(1) and box.width {
+        var free = origin.block_width - box.inset_at(3) - box.inset_at(1) - width - extras - margins
+        resolve_auto_margins(box, 3, 1, free)
+    }
+    return width
+}
+
+func absolute_height(
+    entity: Integer,
+    box: Ui.Layout.Box,
+    origin: Ui.Layout.Placement,
+    width: Float,
+    depth: Integer,
+): Float {
+    var extras = box.vertical_extras()
+    var margins = box.vertical_margins()
+    var height: Float = 0.0
+    if box.height {
+        height = box.height
+    } else if box.has_inset(0) and box.has_inset(2) {
+        height = origin.block_height - box.inset_at(0) - box.inset_at(2) - margins - extras
+    } else {
+        height = measured_height(entity, box, width, depth)
+    }
+    var positive = larger(height, 0.0)
+    var minimum_height = box.used_minimum_height()
+    height = clamp_size(positive, minimum_height, box.maximum_height)
+    if box.has_inset(0) and box.has_inset(2) and box.height {
+        var free = origin.block_height - box.inset_at(0) - box.inset_at(2) - height - extras - margins
+        resolve_auto_margins(box, 0, 2, free)
+    }
+    return height
+}
+
+func given_inset(box: Ui.Layout.Box, side: Integer): Float {
+    if box.has_inset(side) {
+        return box.inset_at(side)
+    }
+    return 0.0
+}
+
+func absolute_start(
+    box: Ui.Layout.Box,
+    start: Integer,
+    end: Integer,
+    block_start: Float,
+    block_size: Float,
+    border_size: Float,
+    static_start: Float,
+): Float {
+    if box.has_inset(start) {
+        return block_start + box.inset_at(start) + box.margin_at(start)
+    } else if box.has_inset(end) {
+        return block_start + block_size - box.inset_at(end) - box.margin_at(end) - border_size
+    }
+    return static_start
+}
+
+func resolve_auto_margins(box: Ui.Layout.Box, start: Integer, end: Integer, free: Float) {
+    var auto_start = box.margin_auto_at(start)
+    var auto_end = box.margin_auto_at(end)
+    if auto_start and auto_end and free >= 0.0 {
+        box.set_margin_at(start, free / 2.0)
+        box.set_margin_at(end, free / 2.0)
+    } else if auto_start and auto_end {
+        box.set_margin_at(end, free)
+    } else if auto_start {
+        box.set_margin_at(start, free)
+    } else if auto_end {
+        box.set_margin_at(end, free)
+    }
+}
+
+func measured_height(entity: Integer, box: Ui.Layout.Box, content_width: Float, depth: Integer): Float {
+    var available = Ui.Layout.Available()
+    available.width = content_width
+    available.minimum_height = box.used_minimum_height()
+    available.maximum_height = box.maximum_height
+    var no_placement: Ui.Layout.Placement? = null
+    return layout_content(entity, box, available, no_placement, depth + 1)
+}
+
+func content_main_size(entity: Integer, box: Ui.Layout.Box, is_row: Boolean, width: Float, depth: Integer): Float {
+    if is_row {
+        return intrinsic_content_width(entity, box, false, depth + 1)
+    }
+    var available = Ui.Layout.Available()
+    available.width = width
+    var no_placement: Ui.Layout.Placement? = null
+    return layout_content(entity, box, available, no_placement, depth + 1)
+}
+
+func column_item_width(
+    entity: Integer,
+    box: Ui.Layout.Box,
+    item: Ui.Layout.Item,
+    container_width: Float,
+    multi_line: Boolean,
+    depth: Integer,
+): Float {
+    var minimum = box.used_minimum_width()
+    if box.width {
+        return clamp_size(box.width, minimum, box.maximum_width)
+    }
+    var room = container_width - item.margin_cross_start - item.margin_cross_end - item.extras_cross
+    var stretches = item.alignment == 0 and not multi_line and not item.auto_cross_start and not item.auto_cross_end
+    if stretches {
+        var positive = larger(room, 0.0)
+        return clamp_size(positive, minimum, box.maximum_width)
+    }
+    var minimum_content_width = intrinsic_content_width(entity, box, true, depth + 1)
+    var maximum_content_width = intrinsic_content_width(entity, box, false, depth + 1)
+    var fitted = larger(minimum_content_width, room)
+    var chosen = smaller(maximum_content_width, fitted)
+    return clamp_size(chosen, minimum, box.maximum_width)
+}
+
+func intrinsic_content_width(entity: Integer, box: Ui.Layout.Box, minimum_content: Boolean, depth: Integer): Float {
+    if box.leaf {
+        return box.content_width
+    }
+    assert depth < maximum_depth
+    var container = read_container(entity)
+    if container.grid {
+        return grid_intrinsic_width(entity, box, container, depth)
+    }
+    var is_row = container.is_row()
+    var gap: Float = 0.0
+    if is_row {
+        var no_base: Float? = null
+        var resolved_gap = resolve(container.column_gap, box.font_size, no_base)
+        gap = positive_or_zero(resolved_gap)
+    }
+    var sum: Float = 0.0
+    var largest: Float = 0.0
+    var count: Float = 0.0
+    var absolute_children = List<Integer>()
+    var ordered = in_flow_children(entity, absolute_children)
+    var index = 0
+    while index < ordered.count() {
+        var contribution = width_contribution(ordered[index], minimum_content, depth)
+        sum = sum + contribution
+        largest = larger(largest, contribution)
+        count = count + 1.0
+        index = index + 1
+    }
+    if not is_row {
+        return largest
+    }
+    var gaps = gap * larger(count - 1.0, 0.0)
+    if minimum_content and container.wrap != 0 {
+        return largest
+    }
+    return sum + gaps
+}
+
+func width_contribution(child: Integer, minimum_content: Boolean, depth: Integer): Float {
+    var no_width: Float? = null
+    var no_height: Float? = null
+    var child_box = read_box(child, no_width, no_height)
+    var inner: Float = 0.0
+    if child_box.width {
+        inner = child_box.width
+    } else {
+        inner = intrinsic_content_width(child, child_box, minimum_content, depth + 1)
+    }
+    var minimum_width = child_box.used_minimum_width()
+    inner = clamp_size(inner, minimum_width, child_box.maximum_width)
+    return inner + child_box.horizontal_extras() + child_box.horizontal_margins()
+}
+
+func resolve(length: Ui.Length, font_size: Float, percent_base: Float?): Float? {
+    if length.unit == 'automatic' {
+        return null
+    } else if length.unit == 'pixels' {
+        return length.amount
+    } else if length.unit == 'em' {
+        return length.amount * font_size
+    } else if length.unit == 'root_em' {
+        return length.amount * root_font_size
+    } else if length.unit == 'viewport_width' {
+        return length.amount / 100.0 * viewport_width
+    } else if length.unit == 'viewport_height' {
+        return length.amount / 100.0 * viewport_height
+    }
+    assert length.unit != 'fraction'
+    assert percent_base
+    return length.amount / 100.0 * percent_base
+}
+
+func font_size_of(entity: Integer): Float {
+    var sizes = Lookup<Ui.Component.FontSize>()
+    var size = sizes.of(entity)
+    assert size
+    var no_base: Float? = null
+    var resolved = resolve(size.length, default_font_size, no_base)
+    assert resolved
+    return resolved
+}
+
+func read_box(entity: Integer, containing_width: Float?, containing_height: Float?): Ui.Layout.Box {
+    var box = Ui.Layout.Box()
+    box.font_size = default_font_size
+    var font_size = font_size_of(entity)
+    if font_size > 0.0 {
+        box.font_size = font_size
+    }
+    read_edges(entity, box, containing_width)
+    read_sizes(entity, box, containing_width, containing_height)
+    read_position(entity, box, containing_width, containing_height)
+    read_item(entity, box)
+    var contents = Lookup<Ui.Component.ContentSize>()
+    var content = contents.of(entity)
+    if content {
+        box.leaf = true
+        box.content_width = content.width
+        box.content_height = content.height
+    }
+    return box
+}
+
+func read_edges(entity: Integer, box: Ui.Layout.Box, containing_width: Float?) {
+    var paddings = Lookup<Ui.Component.Padding>()
+    var padding = paddings.of(entity)
+    if padding {
+        set_side(box.paddings, 0, padding.top, box.font_size, containing_width)
+        set_side(box.paddings, 1, padding.right, box.font_size, containing_width)
+        set_side(box.paddings, 2, padding.bottom, box.font_size, containing_width)
+        set_side(box.paddings, 3, padding.left, box.font_size, containing_width)
+    }
+    var borders = Lookup<Ui.Component.BorderWidth>()
+    var border = borders.of(entity)
+    var no_base: Float? = null
+    if border {
+        set_side(box.borders, 0, border.top, box.font_size, no_base)
+        set_side(box.borders, 1, border.right, box.font_size, no_base)
+        set_side(box.borders, 2, border.bottom, box.font_size, no_base)
+        set_side(box.borders, 3, border.left, box.font_size, no_base)
+    }
+    var margins = Lookup<Ui.Component.Margin>()
+    var margin = margins.of(entity)
+    assert margin
+    set_margin(box, 0, margin.top, containing_width)
+    set_margin(box, 1, margin.right, containing_width)
+    set_margin(box, 2, margin.bottom, containing_width)
+    set_margin(box, 3, margin.left, containing_width)
+}
+
+func set_side(sides: List<Float>, side: Integer, length: Ui.Length, font_size: Float, base: Float?) {
+    var resolved = resolve(length, font_size, base)
+    var value = positive_or_zero(resolved)
+    sides.set_at(side, value)
+}
+
+func set_margin(box: Ui.Layout.Box, side: Integer, length: Ui.Length, base: Float?) {
+    var is_auto = length.is_auto()
+    box.margin_autos.set_at(side, is_auto)
+    var resolved = resolve(length, box.font_size, base)
+    var value: Float = 0.0
+    if resolved {
+        value = resolved
+    }
+    box.margins.set_at(side, value)
+}
+
+func read_sizes(entity: Integer, box: Ui.Layout.Box, containing_width: Float?, containing_height: Float?) {
+    box.width = width_of(entity, box.font_size, containing_width)
+    box.height = height_of(entity, box.font_size, containing_height)
+    box.minimum_width = minimum_width_of(entity, box.font_size, containing_width)
+    box.minimum_height = minimum_height_of(entity, box.font_size, containing_height)
+    var maximum_width = maximum_width_of(entity, box.font_size, containing_width)
+    if maximum_width {
+        box.maximum_width = maximum_width
+    }
+    var maximum_height = maximum_height_of(entity, box.font_size, containing_height)
+    if maximum_height {
+        box.maximum_height = maximum_height
+    }
+    var sizings = Lookup<Ui.Component.BoxSizing>()
+    var sizing = sizings.of(entity)
+    if sizing {
+        box.border_box = sizing.value == 'border_box'
+    }
+    assert box.border_box
+    subtract_extras(box)
+}
+
+func width_of(entity: Integer, font_size: Float, base: Float?): Float? {
+    var widths = Lookup<Ui.Component.Width>()
+    var width = widths.of(entity)
+    assert width
+    return resolve(width.length, font_size, base)
+}
+
+func height_of(entity: Integer, font_size: Float, base: Float?): Float? {
+    var heights = Lookup<Ui.Component.Height>()
+    var height = heights.of(entity)
+    assert height
+    return resolve(height.length, font_size, base)
+}
+
+func minimum_width_of(entity: Integer, font_size: Float, base: Float?): Float? {
+    var sizes = Lookup<Ui.Component.MinimumWidth>()
+    var size = sizes.of(entity)
+    assert size
+    return resolve(size.length, font_size, base)
+}
+
+func minimum_height_of(entity: Integer, font_size: Float, base: Float?): Float? {
+    var sizes = Lookup<Ui.Component.MinimumHeight>()
+    var size = sizes.of(entity)
+    assert size
+    return resolve(size.length, font_size, base)
+}
+
+func maximum_width_of(entity: Integer, font_size: Float, base: Float?): Float? {
+    var sizes = Lookup<Ui.Component.MaximumWidth>()
+    var size = sizes.of(entity)
+    assert size
+    return resolve(size.length, font_size, base)
+}
+
+func maximum_height_of(entity: Integer, font_size: Float, base: Float?): Float? {
+    var sizes = Lookup<Ui.Component.MaximumHeight>()
+    var size = sizes.of(entity)
+    assert size
+    return resolve(size.length, font_size, base)
+}
+
+func subtract_extras(box: Ui.Layout.Box) {
+    var horizontal = box.horizontal_extras()
+    var vertical = box.vertical_extras()
+    if box.width {
+        box.width = larger(box.width - horizontal, 0.0)
+    }
+    if box.height {
+        box.height = larger(box.height - vertical, 0.0)
+    }
+    if box.minimum_width {
+        box.minimum_width = larger(box.minimum_width - horizontal, 0.0)
+    }
+    if box.minimum_height {
+        box.minimum_height = larger(box.minimum_height - vertical, 0.0)
+    }
+    box.maximum_width = larger(box.maximum_width - horizontal, 0.0)
+    box.maximum_height = larger(box.maximum_height - vertical, 0.0)
+}
+
+func read_position(entity: Integer, box: Ui.Layout.Box, containing_width: Float?, containing_height: Float?) {
+    var positions = Lookup<Ui.Component.Position>()
+    var position = positions.of(entity)
+    assert position
+    if position.value == 'relative' {
+        box.position = 1
+    } else if position.value == 'absolute' {
+        box.position = 2
+    }
+    assert box.position != 0
+    var insets = Lookup<Ui.Component.Inset>()
+    var inset = insets.of(entity)
+    assert inset
+    set_inset(box, 0, inset.top, containing_height)
+    set_inset(box, 1, inset.right, containing_width)
+    set_inset(box, 2, inset.bottom, containing_height)
+    set_inset(box, 3, inset.left, containing_width)
+}
+
+func set_inset(box: Ui.Layout.Box, side: Integer, length: Ui.Length, base: Float?) {
+    var resolved = resolve(length, box.font_size, base)
+    assert resolved
+    box.insets.set_at(side, resolved)
+    box.inset_given.set_at(side, true)
+}
+
+func read_item(entity: Integer, box: Ui.Layout.Box) {
+    var grows = Lookup<Ui.Component.FlexGrow>()
+    var grow = grows.of(entity)
+    if grow {
+        box.grow = grow.value
+    }
+    var shrinks = Lookup<Ui.Component.FlexShrink>()
+    var shrink = shrinks.of(entity)
+    if shrink {
+        box.shrink = shrink.value
+    }
+    var bases = Lookup<Ui.Component.FlexBasis>()
+    var basis = bases.of(entity)
+    if basis {
+        box.basis = basis.length
+    }
+    var alignments = Lookup<Ui.Component.AlignSelf>()
+    var align_self = alignments.of(entity)
+    box.align_self = -1
+    assert align_self
+    box.align_self = align_self_code(align_self)
+}
+
+func column_tracks(entity: Integer): List<Ui.Length> {
+    var template = Lookup<Ui.Component.GridTemplateColumns>().of(entity)
+    if template {
+        if template.tracks.count() > 0 {
+            return template.tracks
+        }
+    }
+    var single = List<Ui.Length>()
+    single.append(Ui.Length())
+    return single
+}
+
+func row_tracks(entity: Integer): List<Ui.Length> {
+    var template = Lookup<Ui.Component.GridTemplateRows>().of(entity)
+    if template {
+        return template.tracks
+    }
+    return List<Ui.Length>()
+}
+
+func track_at(tracks: List<Ui.Length>, index: Integer): Ui.Length {
+    if index < tracks.count() {
+        return tracks[index]
+    }
+    return Ui.Length()
+}
+
+func grid_intrinsic_width(entity: Integer, box: Ui.Layout.Box, container: Ui.Layout.Container, depth: Integer): Float {
+    var tracks = column_tracks(entity)
+    var columns = tracks.count()
+    var absolute_children = List<Integer>()
+    var items = in_flow_children(entity, absolute_children)
+    var no_base: Float? = null
+    var resolved_gap = resolve(container.column_gap, box.font_size, no_base)
+    var gap = positive_or_zero(resolved_gap)
+    var between: Float = columns - 1
+    var total: Float = gap * larger(between, 0.0)
+    var column = 0
+    while column < columns {
+        var track = track_at(tracks, column)
+        var fixed = resolve(track, box.font_size, no_base)
+        if fixed {
+            total = total + fixed
+        } else {
+            total = total + column_content_width(items, column, columns, depth)
+        }
+        column = column + 1
+    }
+    return total
+}
+
+func column_content_width(items: List<Integer>, column: Integer, columns: Integer, depth: Integer): Float {
+    var widest: Float = 0.0
+    var index = column
+    while index < items.count() {
+        var contribution = width_contribution(items[index], false, depth)
+        widest = larger(widest, contribution)
+        index = index + columns
+    }
+    return widest
+}
+
+func layout_grid(
+    entity: Integer,
+    box: Ui.Layout.Box,
+    container: Ui.Layout.Container,
+    available: Ui.Layout.Available,
+    placement: Ui.Layout.Placement?,
+    depth: Integer,
+): Float {
+    var absolute = List<Integer>()
+    var items = in_flow_children(entity, absolute)
+    var column_templates = column_tracks(entity)
+    var columns = column_templates.count()
+    var rows = (items.count() + columns - 1) / columns
+    var resolved_column_gap = resolve(container.column_gap, box.font_size, available.width)
+    var resolved_row_gap = resolve(container.row_gap, box.font_size, available.percent_height)
+    var column_gap = positive_or_zero(resolved_column_gap)
+    var row_gap = positive_or_zero(resolved_row_gap)
+    var widths = size_columns(items, column_templates, box, available.width, column_gap, depth)
+    var row_templates = row_tracks(entity)
+    var heights = size_rows(items, row_templates, widths, rows, box, available, row_gap, depth)
+    var row_gaps: Float = rows - 1
+    var used_height = sum_of(heights) + row_gap * larger(row_gaps, 0.0)
+    if available.height {
+        used_height = available.height
+    }
+    used_height = clamp_size(used_height, available.minimum_height, available.maximum_height)
+    if placement {
+        place_grid_items(items, widths, heights, column_gap, row_gap, available, placement, depth)
+        place_all_absolute(absolute, container, true, false, false, available.width, used_height, placement, depth)
+    }
+    return used_height
+}
+
+func sum_of(sizes: List<Float>): Float {
+    var total: Float = 0.0
+    var index = 0
+    while index < sizes.count() {
+        total = total + sizes[index]
+        index = index + 1
+    }
+    return total
+}
+
+func size_columns(
+    items: List<Integer>,
+    templates: List<Ui.Length>,
+    box: Ui.Layout.Box,
+    width: Float,
+    gap: Float,
+    depth: Integer,
+): List<Float> {
+    var columns = templates.count()
+    var sizes = List<Float>()
+    var fractions: Float = 0.0
+    var automatic_count: Float = 0.0
+    var between: Float = columns - 1
+    var used: Float = gap * larger(between, 0.0)
+    var column = 0
+    while column < columns {
+        var track = track_at(templates, column)
+        var fixed = resolve(track, box.font_size, width)
+        var size: Float = 0.0
+        if fixed {
+            size = fixed
+        } else if track.unit == 'fraction' {
+            fractions = fractions + track.amount
+        } else {
+            size = column_content_width(items, column, columns, depth)
+            automatic_count = automatic_count + 1.0
+        }
+        sizes.append(size)
+        used = used + size
+        column = column + 1
+    }
+    var free = larger(width - used, 0.0)
+    share_free_space(sizes, templates, free, fractions, automatic_count)
+    return sizes
+}
+
+func share_free_space(
+    sizes: List<Float>,
+    templates: List<Ui.Length>,
+    free: Float,
+    fractions: Float,
+    automatic_count: Float,
+) {
+    var index = 0
+    while index < sizes.count() {
+        var track = track_at(templates, index)
+        if fractions > 0.0 and track.unit == 'fraction' {
+            sizes.set_at(index, free * track.amount / fractions)
+        } else if fractions <= 0.0 and automatic_count > 0.0 and track.unit == 'automatic' {
+            sizes.set_at(index, sizes[index] + free / automatic_count)
+        }
+        index = index + 1
+    }
+}
+
+func size_rows(
+    items: List<Integer>,
+    templates: List<Ui.Length>,
+    widths: List<Float>,
+    rows: Integer,
+    box: Ui.Layout.Box,
+    available: Ui.Layout.Available,
+    gap: Float,
+    depth: Integer,
+): List<Float> {
+    var sizes = List<Float>()
+    var fractions: Float = 0.0
+    var automatic_count: Float = 0.0
+    var between: Float = rows - 1
+    var used: Float = gap * larger(between, 0.0)
+    var row = 0
+    while row < rows {
+        var track = track_at(templates, row)
+        var fixed = resolve(track, box.font_size, available.percent_height)
+        var size: Float = 0.0
+        if fixed {
+            size = fixed
+        } else if track.unit == 'fraction' and available.height {
+            fractions = fractions + track.amount
+        } else {
+            size = row_content_height(items, widths, row, depth)
+            automatic_count = automatic_count + 1.0
+        }
+        sizes.append(size)
+        used = used + size
+        row = row + 1
+    }
+    if available.height {
+        var free = larger(available.height - used, 0.0)
+        stretch_rows(sizes, templates, rows, free, fractions, automatic_count)
+    }
+    return sizes
+}
+
+func stretch_rows(
+    sizes: List<Float>,
+    templates: List<Ui.Length>,
+    rows: Integer,
+    free: Float,
+    fractions: Float,
+    automatic_count: Float,
+) {
+    var row_templates = List<Ui.Length>()
+    var row = 0
+    while row < rows {
+        var track = track_at(templates, row)
+        if track.unit == 'fraction' and fractions <= 0.0 {
+            track = Ui.Length()
+        }
+        row_templates.append(track)
+        row = row + 1
+    }
+    share_free_space(sizes, row_templates, free, fractions, automatic_count)
+}
+
+func row_content_height(items: List<Integer>, widths: List<Float>, row: Integer, depth: Integer): Float {
+    var columns = widths.count()
+    var tallest: Float = 0.0
+    var column = 0
+    while column < columns {
+        var index = row * columns + column
+        if index < items.count() {
+            crash widths[column]
+            var height = item_outer_height(items[index], widths[column], depth)
+            tallest = larger(tallest, height)
+        }
+        column = column + 1
+    }
+    return tallest
+}
+
+func item_outer_height(child: Integer, cell_width: Float, depth: Integer): Float {
+    var no_height: Float? = null
+    var child_box = read_box(child, cell_width, no_height)
+    var extras = child_box.vertical_extras() + child_box.vertical_margins()
+    if child_box.height {
+        return child_box.height + extras
+    }
+    var content_width = cell_width - child_box.horizontal_extras() - child_box.horizontal_margins()
+    if child_box.width {
+        content_width = child_box.width
+    }
+    var measured = measured_height(child, child_box, content_width, depth)
+    return measured + extras
+}
+
+func place_grid_items(
+    items: List<Integer>,
+    widths: List<Float>,
+    heights: List<Float>,
+    column_gap: Float,
+    row_gap: Float,
+    available: Ui.Layout.Available,
+    placement: Ui.Layout.Placement,
+    depth: Integer,
+) {
+    var columns = widths.count()
+    var index = 0
+    while index < items.count() {
+        var column = index % columns
+        var row = index / columns
+        var cell_left = placement.left + offset_of(widths, column, column_gap)
+        var cell_top = placement.top + offset_of(heights, row, row_gap)
+        crash widths[column]
+        crash heights[row]
+        place_grid_item(items[index], cell_left, cell_top, widths[column], heights[row], available, placement, depth)
+        index = index + 1
+    }
+}
+
+func offset_of(sizes: List<Float>, index: Integer, gap: Float): Float {
+    var offset: Float = 0.0
+    var position = 0
+    while position < index {
+        crash sizes[position]
+        offset = offset + sizes[position] + gap
+        position = position + 1
+    }
+    return offset
+}
+
+func place_grid_item(
+    child: Integer,
+    cell_left: Float,
+    cell_top: Float,
+    cell_width: Float,
+    cell_height: Float,
+    available: Ui.Layout.Available,
+    placement: Ui.Layout.Placement,
+    depth: Integer,
+) {
+    var child_box = read_box(child, available.width, available.percent_height)
+    var horizontal_extras = child_box.horizontal_extras()
+    var vertical_extras = child_box.vertical_extras()
+    var content_width = cell_width - horizontal_extras - child_box.horizontal_margins()
+    if child_box.width {
+        content_width = child_box.width
+    }
+    var minimum_width = child_box.used_minimum_width()
+    content_width = clamp_size(content_width, minimum_width, child_box.maximum_width)
+    var content_height = cell_height - vertical_extras - child_box.vertical_margins()
+    if child_box.height {
+        content_height = child_box.height
+    }
+    var minimum_height = child_box.used_minimum_height()
+    content_height = clamp_size(content_height, minimum_height, child_box.maximum_height)
+    var left = cell_left + child_box.margin_at(3)
+    var top = cell_top + child_box.margin_at(0)
+    if child_box.position == 1 {
+        left = left + relative_offset(child_box, 3, 1)
+        top = top + relative_offset(child_box, 0, 2)
+    }
+    var width = content_width + horizontal_extras
+    var height = content_height + vertical_extras
+    place(child, child_box, left, top, width, height, content_width, content_height, true, placement, depth)
+}
+
+func paint(entity: Integer, depth: Integer) {
+    crash depth < maximum_depth
+    var key = "{entity}"
+    assert laid_out.has(key)
+    var layout = layout_of(entity)
+    crash layout
+    layout.order = paint_order
+    paint_order = paint_order + 1
+    var stacked = children_by_z(entity)
+    var index = 0
+    while index < stacked.count() {
+        paint(stacked[index], depth + 1)
+        index = index + 1
+    }
+    var bars = bars_of(entity)
+    assert bars
+    bars.order = paint_order
+    paint_order = paint_order + 1
+}
+
+func bars_of(entity: Integer): Ui.Component.ComputedScrollbars? {
+    var bars = Lookup<Ui.Component.ComputedScrollbars>().of(entity)
+    if bars {
+        return bars
+    }
+    return created_scrollbars["{entity}"]
+}
+
+func z_of(entity: Integer): Integer {
+    var level = Lookup<Ui.Component.ZIndex>().of(entity)
+    if level {
+        return level.value
+    }
+    return 0
+}
+
+func children_by_z(entity: Integer): List<Integer> {
+    var children = children_of(entity)
+    var sorted = List<Integer>()
+    var levels = List<Integer>()
+    var index = 0
+    while index < children.count() {
+        var child = children[index]
+        var level = z_of(child)
+        var at = sorted.count()
+        while at > 0 and later_level(levels, at - 1, level) {
+            at = at - 1
+        }
+        sorted.insert(at, child)
+        levels.insert(at, level)
+        index = index + 1
+    }
+    return sorted
+}
+
+func later_level(levels: List<Integer>, at: Integer, level: Integer): Boolean {
+    crash levels[at]
+    return levels[at] > level
+}

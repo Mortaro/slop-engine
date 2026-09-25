@@ -1,0 +1,14 @@
+generic $counted_type
+
+var count = 0
+
+func is_marker(current: $counted_type): Boolean {
+    count = 0
+    count_fields(current)
+    return count == 0
+}
+
+func count_field(field: Symbol<$counted_type>, _current: $counted_type) {
+    assert field.name != ""
+    count = count + 1
+}

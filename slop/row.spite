@@ -1,0 +1,280 @@
+singleton
+
+generic $row_type
+
+var columns = Columns()
+var raw = Raw()
+var header_reader = ColumnHeader()
+var keys = List<String>()
+var headers = List<Long>()
+var rows = List<Integer>()
+var relation = -1
+var kinds = List<Integer>()
+var since = -1
+var related = -1
+var prepared = false
+var current: $row_type = null
+var cursor = 0
+var filled_entity = -1
+var stream_driver: Long = 0
+var stream_position = 0
+var stream_total = 0
+var stream_list = List<Integer>()
+
+func prepare() {
+    assert not prepared
+    prepared = true
+    describe_attributes(current)
+}
+
+func describe_attribute(attribute: Symbol<$row_type>, row: $row_type) {
+    var name = attribute.name
+    var key = columns.key(attribute.class)
+    var slot = Slot<attribute.class>()
+    var kind = slot.tracking_kind(row.attributes[attribute])
+    var fields = FieldCount<attribute.class>()
+    var marker = fields.is_marker(row.attributes[attribute])
+    if kind == 0 and key != "Entity" and marker {
+        kind = 3
+    }
+    kinds.append(kind)
+    if kind == 1 or kind == 2 {
+        key = slot.tracked_key(row.attributes[attribute])
+    } else if key == "Entity" and name == "entity" {
+        key = ""
+    } else if key == "Entity" {
+        key = "Entity.{name}"
+        relation = keys.count()
+    }
+    keys.append(key)
+    var header: Long = 0
+    if key != "" and kind != 2 {
+        header = columns.header(key)
+    }
+    headers.append(header)
+    rows.append(-1)
+}
+
+func component_keys(): List<String> {
+    var found = List<String>()
+    var index = 0
+    while index < keys.count() {
+        if keys[index] != "" {
+            found.append(keys[index])
+        }
+        index = index + 1
+    }
+    return found
+}
+
+func candidates(): List<Integer> {
+    var found = List<Integer>()
+    var driver = smallest_header()
+    if driver == 0 {
+        return removal_candidates()
+    }
+    var total = raw.read_long(driver, 0)
+    var row = 0
+    while row < total {
+        var entities = raw.read_long(driver, 24)
+        var entity = raw.read_long(entities, row * 8)
+        if matches(entity) {
+            found.append(entity)
+        }
+        row = row + 1
+    }
+    return found
+}
+
+func removal_candidates(): List<Integer> {
+    var found = List<Integer>()
+    var index = 0
+    while index < kinds.count() {
+        crash keys[index]
+        if kinds[index] == 2 {
+            found = columns.removed_entities(keys[index], since)
+        }
+        index = index + 1
+    }
+    var matching = List<Integer>()
+    var candidate = 0
+    while candidate < found.count() {
+        if matches(found[candidate]) {
+            matching.append(found[candidate])
+        }
+        candidate = candidate + 1
+    }
+    return matching
+}
+
+func smallest_header(): Long {
+    var smallest: Long = 0
+    var index = 0
+    while index < headers.count() {
+        smallest = smaller(smallest, headers[index])
+        index = index + 1
+    }
+    return smallest
+}
+
+func smaller(current_smallest: Long, candidate: Long): Long {
+    if candidate == 0 {
+        return current_smallest
+    }
+    if current_smallest == 0 {
+        return candidate
+    }
+    var current_count = raw.read_long(current_smallest, 0)
+    var candidate_count = raw.read_long(candidate, 0)
+    if candidate_count < current_count {
+        return candidate
+    }
+    return current_smallest
+}
+
+func matches(entity: Integer): Boolean {
+    var index = 0
+    var all = true
+    while all and index < headers.count() {
+        all = find_row(index, entity)
+        index = index + 1
+    }
+    return all
+}
+
+func find_row(index: Integer, entity: Integer): Boolean {
+    crash headers[index]
+    crash kinds[index]
+    crash keys[index]
+    var header = headers[index]
+    if kinds[index] == 2 {
+        rows.set_at(index, -1)
+        return columns.removed_since(keys[index], entity, since)
+    }
+    if header == 0 {
+        rows.set_at(index, -1)
+        return true
+    }
+    var capacity = raw.read_long(header, 40)
+    assert entity < capacity
+    var sparse = raw.read_long(header, 32)
+    var stored = raw.read_long(sparse, entity * 8)
+    rows.set_at(index, stored - 1)
+    assert stored > 0
+    return kinds[index] != 1 or header_reader.added_tick(header, stored - 1) >= since
+}
+
+func begin_stream() {
+    stream_position = 0
+    filled_entity = -1
+    stream_driver = smallest_header()
+    if stream_driver == 0 {
+        stream_list = removal_candidates()
+        stream_total = stream_list.count()
+    } else {
+        stream_total = raw.read_long(stream_driver, 0)
+    }
+}
+
+func next_match(): Integer {
+    while stream_position < stream_total {
+        var entity = stream_entity(stream_position)
+        stream_position = stream_position + 1
+        if matches(entity) {
+            return entity
+        }
+    }
+    return -1
+}
+
+func advance(): Integer {
+    if filled_entity >= 0 {
+        store(filled_entity)
+        filled_entity = -1
+    }
+    var entity = next_match()
+    if entity >= 0 {
+        fill_matched(entity)
+    }
+    return entity
+}
+
+func stream_entity(position: Integer): Integer {
+    if stream_driver == 0 {
+        crash stream_list[position]
+        return stream_list[position]
+    }
+    var entities = raw.read_long(stream_driver, 24)
+    return raw.read_long(entities, position * 8)
+}
+
+func fill_matched(entity: Integer) {
+    filled_entity = entity
+    cursor = 0
+    related = -1
+    fill_attributes(current, entity)
+}
+
+func fill(entity: Integer) {
+    fill_into(current, entity)
+}
+
+func fill_into(row: $row_type, entity: Integer) {
+    var found = matches(entity)
+    crash found
+    filled_entity = entity
+    cursor = 0
+    related = -1
+    fill_attributes(row, entity)
+}
+
+func fill_attribute(attribute: Symbol<$row_type>, row: $row_type, entity: Integer) {
+    var position = cursor
+    cursor = cursor + 1
+    var slot = Slot<attribute.class>()
+    crash headers[position]
+    crash rows[position]
+    crash kinds[position]
+    var header = headers[position]
+    var found = rows[position]
+    assert kinds[position] != 3
+    row.attributes[attribute] = slot.fetch(entity, row.attributes[attribute], header, found)
+    if position == relation {
+        related = slot.entity_of(row.attributes[attribute])
+    }
+}
+
+func store(entity: Integer) {
+    if entity != filled_entity {
+        var found = matches(entity)
+        crash found
+    }
+    cursor = 0
+    store_attributes(current, entity)
+}
+
+func store_attribute(attribute: Symbol<$row_type>, row: $row_type, _entity: Integer) {
+    var position = cursor
+    cursor = cursor + 1
+    var slot = Slot<attribute.class>()
+    crash headers[position]
+    crash rows[position]
+    var header = headers[position]
+    var found = rows[position]
+    crash kinds[position]
+    assert header != 0 and position != relation and kinds[position] == 0
+    slot.store(row.attributes[attribute], header, found)
+}
+
+func every(): List<$row_type> {
+    var found = candidates()
+    var every_row = List<$row_type>()
+    var index = 0
+    while index < found.count() {
+        var row: $row_type = null
+        fill_into(row, found[index])
+        every_row.append(row)
+        index = index + 1
+    }
+    return every_row
+}

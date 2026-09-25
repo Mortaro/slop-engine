@@ -1,0 +1,14 @@
+var cookbook = Recipes.Cookbook()
+var stale = List<Integer>()
+
+func CookTask(stale_recipes: List<Integer>) {
+    stale = stale_recipes
+}
+
+func run() {
+    var index = 0
+    while index < stale.count() {
+        cookbook.rebuild(stale[index])
+        index = index + 1
+    }
+}

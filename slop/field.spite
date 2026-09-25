@@ -1,0 +1,55 @@
+generic $field_type
+
+func write(value: $field_type, bytes: Asset.Bytes) {
+    if $field_type == Integer {
+        bytes.write_integer(value)
+    } else if $field_type == Long {
+        bytes.write_long(value)
+    } else if $field_type == Float {
+        bytes.write_float(value)
+    } else if $field_type == Double {
+        bytes.write_double(value)
+    } else if $field_type == Byte {
+        bytes.write_byte(value)
+    } else if $field_type == Boolean {
+        var flag = 0
+        if value {
+            flag = 1
+        }
+        bytes.write_byte(flag)
+    } else if $field_type == String {
+        bytes.write_text(value)
+    } else if $field_type == List {
+        var list_field = ListField<$field_type>()
+        list_field.write(value, bytes)
+    } else {
+        var pack = Pack<$field_type>()
+        pack.write(value, bytes)
+    }
+}
+
+func read(bytes: Asset.Bytes): $field_type {
+    if $field_type == Integer {
+        return bytes.read_integer()
+    } else if $field_type == Long {
+        return bytes.read_long()
+    } else if $field_type == Float {
+        return bytes.read_float()
+    } else if $field_type == Double {
+        return bytes.read_double()
+    } else if $field_type == Byte {
+        return bytes.read_byte()
+    } else if $field_type == Boolean {
+        return bytes.read_byte() == 1
+    } else if $field_type == String {
+        return bytes.read_text()
+    } else if $field_type == List {
+        var list_field = ListField<$field_type>()
+        return list_field.read(bytes)
+    } else {
+        var value: $field_type = null
+        var pack = Pack<$field_type>()
+        pack.read_into(value, bytes)
+        return value
+    }
+}

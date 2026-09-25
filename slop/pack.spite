@@ -1,0 +1,48 @@
+generic $value_type
+
+var sample: $value_type = null
+
+func save(value: $value_type, path: String): Boolean {
+    var bytes = Asset.Bytes()
+    encode(value, bytes)
+    return bytes.save(path)
+}
+
+func encode(value: $value_type, bytes: Asset.Bytes) {
+    bytes.write_text("SLOP")
+    bytes.write_text(sample.class.name)
+    write(value, bytes)
+}
+
+func read_file(path: String): $value_type? {
+    var bytes = Asset.Bytes()
+    assert bytes.read_file(path)
+    return decode(bytes)
+}
+
+func decode(bytes: Asset.Bytes): $value_type? {
+    var magic = bytes.read_text()
+    var kind = bytes.read_text()
+    assert magic == "SLOP" and kind == sample.class.name
+    var value: $value_type = null
+    read_into(value, bytes)
+    return value
+}
+
+func write(value: $value_type, bytes: Asset.Bytes) {
+    write_attributes(value, bytes)
+}
+
+func write_attribute(attribute: Symbol<$value_type>, value: $value_type, bytes: Asset.Bytes) {
+    var field = Field<attribute.class>()
+    field.write(value.attributes[attribute], bytes)
+}
+
+func read_into(value: $value_type, bytes: Asset.Bytes) {
+    read_attributes(value, bytes)
+}
+
+func read_attribute(attribute: Symbol<$value_type>, value: $value_type, bytes: Asset.Bytes) {
+    var field = Field<attribute.class>()
+    value.attributes[attribute] = field.read(bytes)
+}

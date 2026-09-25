@@ -1,0 +1,78 @@
+singleton
+
+generic $slot_type
+
+var raw = Raw()
+var typed = TypedMemory<$slot_type>()
+var header_reader = ColumnHeader()
+
+func tracking_kind(current: $slot_type): Integer {
+    if $slot_type.has_function("tracking_kind") {
+        return current.tracking_kind()
+    }
+    return 0
+}
+
+func tracked_key(current: $slot_type): String {
+    if $slot_type.has_function("tracked_key") {
+        return current.tracked_key()
+    }
+    return ""
+}
+
+func fetch(entity: Integer, current: $slot_type, column_header: Long, row: Integer): $slot_type {
+    if $slot_type.has_function("fill_from") {
+        current.fill_from(column_header, row)
+        return current
+    }
+    if $slot_type == Entity {
+        if column_header == 0 {
+            current.id = entity
+            return current
+        }
+    }
+    assert column_header != 0
+    var entities = raw.read_long(column_header, 24)
+    crash raw.read_long(entities, row * 8) == entity
+    if header_reader.is_marker(column_header) {
+        return current
+    }
+    var values = raw.read_long(column_header, 16)
+    return typed.read_value(values, row)
+}
+
+func store(current: $slot_type, column_header: Long, row: Integer) {
+    if $slot_type.has_function("fill_from") {
+        crash row >= -1
+    } else if $slot_type == Entity {
+        crash row >= 0
+    } else {
+        store_component(current, column_header, row)
+    }
+}
+
+func store_component(current: $slot_type, column_header: Long, row: Integer) {
+    assert column_header != 0
+    var values = raw.read_long(column_header, 16)
+    var stored = typed.read_value(values, row)
+    assert stored != current
+    typed.release_value(values, row)
+    typed.write_value(values, row, current)
+}
+
+func entity_of(value: $slot_type): Integer {
+    if $slot_type == Entity {
+        return value.id
+    }
+    return -1
+}
+
+func insert(entity: Integer, value: $slot_type, name: String) {
+    var columns = Columns()
+    var key = columns.key(value.class)
+    if $slot_type == Entity {
+        key = "Entity.{name}"
+    }
+    var column = Column<$slot_type>()
+    column.insert_keyed(entity, value, key)
+}

@@ -1,0 +1,97 @@
+var raw = Raw()
+var heap = Memory.Heap()
+var floats = TypedMemory<Float>()
+var address: Long = 0
+var offset = 0
+var capacity = 0
+var alignment = 4
+var owned = List<Long>()
+var children = List<Structure>()
+
+func Structure(bytes: Integer) {
+    capacity = bytes
+    address = heap.allocate(bytes)
+    var zero_offset = 0
+    while zero_offset < bytes {
+        raw.write_byte(address, zero_offset, 0)
+        zero_offset = zero_offset + 1
+    }
+}
+
+func align(bytes: Integer) {
+    if bytes > alignment {
+        alignment = bytes
+    }
+    var remainder = offset % bytes
+    if remainder != 0 {
+        offset = offset + bytes - remainder
+    }
+    crash offset + bytes <= capacity
+}
+
+func append_integer(value: Integer) {
+    align(4)
+    raw.write_integer(address, offset, value)
+    offset = offset + 4
+}
+
+func append_long(value: Long) {
+    align(8)
+    raw.write_long(address, offset, value)
+    offset = offset + 8
+}
+
+func append_float(value: Float) {
+    align(4)
+    floats.write_value(address + offset, 0, value)
+    offset = offset + 4
+}
+
+func append_pointer(child: Structure) {
+    children.append(child)
+    append_long(child.address)
+}
+
+func append_text(text: String) {
+    var length = text.length()
+    var bytes = heap.allocate(length + 1)
+    var index = 0
+    while index < length {
+        var code = text.code_at(index)
+        raw.write_byte(bytes, index, code)
+        index = index + 1
+    }
+    raw.write_byte(bytes, length, 0)
+    owned.append(bytes)
+    append_long(bytes)
+}
+
+func size(): Integer {
+    var remainder = offset % alignment
+    if remainder == 0 {
+        return offset
+    }
+    return offset + alignment - remainder
+}
+
+func read_integer(at: Integer): Integer {
+    return raw.read_integer(address, at)
+}
+
+func read_long(at: Long): Long {
+    return raw.read_long(address, at)
+}
+
+func drop() {
+    var index = 0
+    while index < owned.count() {
+        free_owned(index)
+        index = index + 1
+    }
+    heap.free(address)
+}
+
+func free_owned(index: Integer) {
+    crash owned[index]
+    heap.free(owned[index])
+}

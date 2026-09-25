@@ -1,0 +1,36 @@
+var folder = ""
+var index_file = ""
+var ids = List<String>()
+var known = List<String>()
+var reader: Recipes.CacheReader? = null
+var changed = List<Integer>()
+var records = List<Recipes.Record>()
+
+func ChangeCheck(cache_folder: String, index_path: String, loaded: List<String>, fingerprints: List<String>) {
+    folder = cache_folder
+    index_file = index_path
+    ids = loaded
+    known = fingerprints
+}
+
+func run() {
+    var fresh = Recipes.CacheReader(folder, index_file)
+    fresh.read_index()
+    var index = 0
+    while index < ids.count() {
+        compare(fresh, index)
+        index = index + 1
+    }
+    reader = fresh
+}
+
+func compare(fresh: Recipes.CacheReader, index: Integer) {
+    crash ids[index]
+    crash known[index]
+    var fingerprint = fresh.fingerprint_of(ids[index])
+    assert fingerprint != "" and fingerprint != known[index]
+    var record = fresh.locate(ids[index])
+    assert record
+    changed.append(index)
+    records.append(record)
+}

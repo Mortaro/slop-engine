@@ -1,0 +1,13 @@
+type Target {
+    window: Window.Component.Window
+    swapchain: Component.Swapchain
+    renderer: Component.Renderer
+    draw_list: Render.Component.DrawList
+    textures: Render.Component.Textures
+}
+
+func present_each(target: Target) {
+    var renderer = target.renderer
+    assert not target.window.closed and renderer.device != 0
+    renderer.draw_to(target.draw_list, target.textures, target.swapchain)
+}

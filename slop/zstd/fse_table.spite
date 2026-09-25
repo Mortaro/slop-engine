@@ -1,0 +1,158 @@
+var raw = Raw()
+var heap = Memory.Heap()
+var powers = Zstd.Powers()
+var accuracy = 0
+var size = 0
+var symbols: Long = 0
+var bits: Long = 0
+var baselines: Long = 0
+
+func allocate_table(new_accuracy: Integer) {
+    release_table()
+    accuracy = new_accuracy
+    size = powers.of(accuracy)
+    symbols = heap.allocate(size * 4)
+    bits = heap.allocate(size * 4)
+    baselines = heap.allocate(size * 4)
+}
+
+func release_table() {
+    assert symbols != 0
+    heap.free(symbols)
+    heap.free(bits)
+    heap.free(baselines)
+    symbols = 0
+}
+
+func symbol_at(state: Integer): Integer {
+    return raw.read_integer(symbols, state * 4)
+}
+
+func bits_at(state: Integer): Integer {
+    return raw.read_integer(bits, state * 4)
+}
+
+func baseline_at(state: Integer): Integer {
+    return raw.read_integer(baselines, state * 4)
+}
+
+func build_rle(symbol: Integer) {
+    allocate_table(0)
+    raw.write_integer(symbols, 0, symbol)
+    raw.write_integer(bits, 0, 0)
+    raw.write_integer(baselines, 0, 0)
+}
+
+func build(normalized: List<Integer>, new_accuracy: Integer) {
+    allocate_table(new_accuracy)
+    var next_state = List<Integer>()
+    var high_threshold = size - 1
+    var symbol = 0
+    while symbol < normalized.count() {
+        var probability = normalized[symbol]
+        if probability == -1 {
+            raw.write_integer(symbols, high_threshold * 4, symbol)
+            high_threshold = high_threshold - 1
+            next_state.append(1)
+        } else {
+            next_state.append(probability)
+        }
+        symbol = symbol + 1
+    }
+    spread(normalized, high_threshold)
+    var state = 0
+    while state < size {
+        finish_state(state, next_state)
+        state = state + 1
+    }
+}
+
+func spread(normalized: List<Integer>, high_threshold: Integer) {
+    var step = size / 2 + size / 8 + 3
+    var position = 0
+    var symbol = 0
+    while symbol < normalized.count() {
+        var count = normalized[symbol]
+        var placed = 0
+        while placed < count {
+            raw.write_integer(symbols, position * 4, symbol)
+            position = (position + step) % size
+            while position > high_threshold {
+                position = (position + step) % size
+            }
+            placed = placed + 1
+        }
+        symbol = symbol + 1
+    }
+}
+
+func finish_state(state: Integer, next_state: List<Integer>) {
+    var symbol = symbol_at(state)
+    crash next_state[symbol]
+    var next = next_state[symbol]
+    next_state.set_at(symbol, next + 1)
+    var number_of_bits = accuracy - powers.highest_bit(next)
+    var baseline = powers.of(number_of_bits) * next - size
+    raw.write_integer(bits, state * 4, number_of_bits)
+    raw.write_integer(baselines, state * 4, baseline)
+}
+
+func read_description(reader: Zstd.BitReader, maximum_symbol: Integer): Integer {
+    var new_accuracy = reader.read_forward(4) + 5
+    var remaining = powers.of(new_accuracy) + 1
+    var threshold = powers.of(new_accuracy)
+    var number_of_bits = new_accuracy + 1
+    var normalized = List<Integer>()
+    while remaining > 1 and normalized.count() <= maximum_symbol {
+        var maximum = threshold * 2 - 1 - remaining
+        var low = reader.peek_forward(number_of_bits - 1)
+        var count: Long = 0
+        if low < maximum {
+            count = low
+            reader.bit_position = reader.bit_position + number_of_bits - 1
+        } else {
+            count = reader.read_forward(number_of_bits)
+            if count >= threshold {
+                count = count - maximum
+            }
+        }
+        var probability = count - 1
+        normalized.append(probability)
+        if probability < 0 {
+            remaining = remaining + probability
+        } else {
+            remaining = remaining - probability
+        }
+        if probability == 0 {
+            read_zero_repeats(reader, normalized)
+        }
+        while remaining < threshold {
+            number_of_bits = number_of_bits - 1
+            threshold = threshold / 2
+        }
+    }
+    crash remaining == 1
+    build(normalized, new_accuracy)
+    return reader.forward_bytes_used()
+}
+
+func read_zero_repeats(reader: Zstd.BitReader, normalized: List<Integer>) {
+    var repeat = reader.read_forward(2)
+    append_zeros(normalized, repeat)
+    while repeat == 3 {
+        repeat = reader.read_forward(2)
+        append_zeros(normalized, repeat)
+    }
+}
+
+func append_zeros(normalized: List<Integer>, count: Long) {
+    var index = 0
+    while index < count {
+        normalized.append(0)
+        index = index + 1
+    }
+}
+
+func drop() {
+    release_table()
+}

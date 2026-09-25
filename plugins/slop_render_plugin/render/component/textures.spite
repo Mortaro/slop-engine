@@ -1,0 +1,192 @@
+var ids = List<String>()
+var textures = List<Asset.Texture>()
+var raws = List<Asset.Bytes>()
+var ready = List<Boolean>()
+var generations = List<Integer>()
+var seen_changes = 0
+var loads = List<Parallel<Render.LoadedTexture>>()
+var load_slots = List<Integer>()
+var sources = Recipes.Sources()
+var reader: Recipes.CacheReader? = null
+var loaded_fingerprints = List<String>()
+var watcher: Recipes.Watcher? = null
+var check: Render.ChangeCheck? = null
+var check_thread: Parallel<Nothing>? = null
+
+func request(id: String): Integer {
+    var index = 0
+    var found = -1
+    while found < 0 and index < ids.count() {
+        if ids[index] == id {
+            found = index
+        }
+        index = index + 1
+    }
+    if found >= 0 {
+        return found
+    }
+    return start_loading(id)
+}
+
+func start_loading(id: String): Integer {
+    var slot = textures.count()
+    ids.append(id)
+    textures.append(Asset.Texture())
+    raws.append(Asset.Bytes())
+    ready.append(false)
+    generations.append(0)
+    loaded_fingerprints.append("")
+    load_slot(id, slot)
+    subscribe()
+    return slot
+}
+
+func opened_reader(): Recipes.CacheReader {
+    if reader {
+        return reader
+    }
+    var cache_folder = sources.cache_folder()
+    var index_path = sources.index_path()
+    var created = Recipes.CacheReader(cache_folder, index_path)
+    created.read_index()
+    reader = created
+    return created
+}
+
+func subscribe() {
+    assert not watcher and ids.count() > 0
+    var folders = List<String>()
+    var cache_folder = sources.cache_folder()
+    folders.append(cache_folder)
+    var build = Build()
+    folders.append(build.program)
+    var started = Recipes.Watcher()
+    started.start(folders)
+    watcher = started
+}
+
+func check_for_changes() {
+    if check_thread {
+        finish_check()
+        return
+    }
+    assert watcher
+    assert watcher.take_change()
+    start_check()
+}
+
+func start_check() {
+    var loaded = List<String>()
+    var fingerprints = List<String>()
+    var index = 0
+    while index < ids.count() {
+        crash loaded_fingerprints[index]
+        loaded.append(ids[index])
+        fingerprints.append(loaded_fingerprints[index])
+        index = index + 1
+    }
+    var cache_folder = sources.cache_folder()
+    var index_path = sources.index_path()
+    var task = Render.ChangeCheck(cache_folder, index_path, loaded, fingerprints)
+    var started = Parallel(task.run)
+    check = task
+    check_thread = started
+}
+
+func finish_check() {
+    var thread = check_thread
+    crash thread
+    assert thread.finished
+    check_thread = null
+    var task = check
+    crash task
+    reader = task.reader
+    var index = 0
+    while index < task.changed.count() {
+        crash task.records[index]
+        reload_slot(task.changed[index], task.records[index])
+        index = index + 1
+    }
+    check = null
+}
+
+func reload_slot(slot: Integer, record: Recipes.Record) {
+    crash ids[slot]
+    var fingerprint = opened_reader().fingerprint_of(ids[slot])
+    loaded_fingerprints.set_at(slot, fingerprint)
+    load_record(record, slot)
+}
+
+func slot_of(id: String): Integer {
+    var index = 0
+    while index < ids.count() {
+        if ids[index] == id {
+            return index
+        }
+        index = index + 1
+    }
+    return -1
+}
+
+func generation(slot: Integer): Integer {
+    crash generations[slot]
+    return generations[slot]
+}
+
+func load_slot(id: String, slot: Integer) {
+    var opened = opened_reader()
+    var record = opened.locate(id)
+    crash record
+    var fingerprint = opened.fingerprint_of(id)
+    loaded_fingerprints.set_at(slot, fingerprint)
+    load_record(record, slot)
+}
+
+func load_record(record: Recipes.Record, slot: Integer) {
+    var job = Render.TextureLoad(record)
+    var loading = Parallel(job.run)
+    loads.append(loading)
+    load_slots.append(slot)
+}
+
+func finish_loads() {
+    var index = loads.count() - 1
+    while index >= 0 {
+        finish_if_done(index)
+        index = index - 1
+    }
+}
+
+func finish_if_done(index: Integer) {
+    crash loads[index]
+    crash load_slots[index]
+    var slot = load_slots[index]
+    var loading = loads[index]
+    assert loading.finished
+    var loaded: Render.LoadedTexture = loading
+    textures.set_at(slot, loaded.texture)
+    raws.set_at(slot, loaded.raw)
+    ready.set_at(slot, true)
+    crash generations[slot]
+    generations.set_at(slot, generations[slot] + 1)
+    loads.remove_at(index)
+    load_slots.remove_at(index)
+}
+
+func is_ready(slot: Integer): Boolean {
+    return ready[slot] == true
+}
+
+func all_ready(): Boolean {
+    return not ready.contains(false)
+}
+
+func texture(slot: Integer): Asset.Texture {
+    crash textures[slot]
+    return textures[slot]
+}
+
+func raw(slot: Integer): Asset.Bytes {
+    crash raws[slot]
+    return raws[slot]
+}

@@ -1,0 +1,65 @@
+type Editing {
+    focused: Component.Focused
+    input: Component.TextInput
+    caret: Component.Caret
+    text: Component.Text
+}
+
+type Keys {
+    keyboard: Input.Component.Keyboard
+}
+
+var keys = Input.Key()
+
+func after_input_each(editing: Editing, typing: Keys) {
+    var strokes = typing.keyboard.strokes
+    var index = 0
+    while index < strokes.count() {
+        apply_stroke(editing, strokes[index])
+        index = index + 1
+    }
+    editing.text.text = editing.input.value
+}
+
+func apply_stroke(editing: Editing, stroke: Input.Event) {
+    if stroke.kind == 'character_typed' {
+        insert_typed(editing, stroke.character)
+    } else {
+        apply_key(editing, stroke.key)
+    }
+}
+
+func apply_key(editing: Editing, key: Integer) {
+    var value = editing.input.value
+    var caret = editing.caret
+    var length = value.length()
+    if key == keys.backspace and caret.index > 0 {
+        var before = value.slice(0, caret.index - 1)
+        var after = value.slice(caret.index, length)
+        editing.input.value = before + after
+        caret.index = caret.index - 1
+    } else if key == keys.delete and caret.index < length {
+        var before = value.slice(0, caret.index)
+        var after = value.slice(caret.index + 1, length)
+        editing.input.value = before + after
+    } else if key == keys.left and caret.index > 0 {
+        caret.index = caret.index - 1
+    } else if key == keys.right and caret.index < length {
+        caret.index = caret.index + 1
+    } else if key == keys.home {
+        caret.index = 0
+    } else if key == keys.end {
+        caret.index = length
+    }
+}
+
+func insert_typed(editing: Editing, typed: String) {
+    assert typed != ""
+    var value = editing.input.value
+    var caret = editing.caret
+    var before = value.slice(0, caret.index)
+    var length = value.length()
+    var after = value.slice(caret.index, length)
+    editing.input.value = before + typed + after
+    caret.index = caret.index + typed.length()
+}

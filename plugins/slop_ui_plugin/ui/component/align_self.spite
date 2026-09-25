@@ -1,0 +1,10 @@
+enum Alignment {
+    'automatic'
+    'stretch'
+    'flex_start'
+    'flex_end'
+    'center'
+    'baseline'
+}
+
+var value: Alignment = 'automatic'

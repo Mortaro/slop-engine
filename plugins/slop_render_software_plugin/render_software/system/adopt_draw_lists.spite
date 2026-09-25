@@ -1,0 +1,9 @@
+type NewTarget {
+    entity: Entity
+    draw_list: Added<Render.Component.DrawList>
+}
+
+func render_each(created: NewTarget) {
+    var canvas = Component.Canvas()
+    created.entity.add_component(canvas)
+}

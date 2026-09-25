@@ -1,0 +1,5 @@
+var width: Float = 0.0
+var height: Float? = null
+var percent_height: Float? = null
+var minimum_height: Float = 0.0
+var maximum_height: Float = 1000000000.0

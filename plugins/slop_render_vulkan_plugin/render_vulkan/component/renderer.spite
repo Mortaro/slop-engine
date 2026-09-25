@@ -1,0 +1,1508 @@
+var instance: Long = 0
+var physical_device: Long = 0
+var device: Long = 0
+var queue: Long = 0
+var queue_family = 0
+var command_pool: Long = 0
+var frames = List<RenderVulkan.Frame>()
+var frame = RenderVulkan.Frame()
+var frame_number = 0
+var frames_in_flight = 2
+var upload_budget_bytes = 8388608
+var staged_bytes = 0
+var presentation_semaphores = List<Long>()
+var shader_vertex: Long = 0
+var shader_fragment: Long = 0
+var pipeline_layout: Long = 0
+var pipeline: Long = 0
+var descriptor_layout: Long = 0
+var descriptor_pool: Long = 0
+var sampler: Long = 0
+var texture_images = List<Long>()
+var texture_memories = List<Long>()
+var texture_views = List<Long>()
+var texture_sets = List<Long>()
+var texture_generations = List<Integer>()
+var created_memory: Long = 0
+var pending_images = List<Long>()
+var pending_stagings = List<Long>()
+var pending_staging_memories = List<Long>()
+var pending_widths = List<Integer>()
+var pending_heights = List<Integer>()
+var surfaces = List<Long>()
+var swapchains = List<Long>()
+var device_name = ""
+var validation = false
+var raw = Raw()
+var cache = Recipes.Cache()
+var build = Build()
+var console = Console()
+
+func ensure() {
+    assert instance == 0
+    create_instance()
+    choose_physical_device()
+    create_device()
+    create_commands()
+    create_pipeline()
+    console.print("vulkan: {device_name}, validation {validation}")
+}
+
+func vulkan_version(): Integer {
+    return 4194304 + 3 * 4096
+}
+
+func create_instance() {
+    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
+    var application = Structure(64)
+    application.append_integer(0)
+    application.append_long(0)
+    application.append_text("SlopEngine")
+    application.append_integer(1)
+    application.append_text("SlopEngine")
+    application.append_integer(1)
+    var version = vulkan_version()
+    application.append_integer(version)
+    var extensions = Structure(16)
+    extensions.append_text("VK_KHR_surface")
+    extensions.append_text("VK_KHR_win32_surface")
+    var layers = Structure(8)
+    layers.append_text("VK_LAYER_KHRONOS_validation")
+    var layer_count = 1
+    if build.optimized {
+        layer_count = 0
+    }
+    var creation = Structure(64)
+    creation.append_integer(1)
+    creation.append_long(0)
+    creation.append_integer(0)
+    creation.append_pointer(application)
+    creation.append_integer(layer_count)
+    creation.append_pointer(layers)
+    creation.append_integer(2)
+    creation.append_pointer(extensions)
+    var created = Structure(8)
+    var no_allocator: Long = 0
+    var result = vulkan.vkCreateInstance(creation.address, no_allocator, created.address)
+    validation = result == 0 and layer_count == 1
+    if result == -6 {
+        raw.write_integer(creation.address, 32, 0)
+        result = vulkan.vkCreateInstance(creation.address, no_allocator, created.address)
+    }
+    crash result == 0
+    instance = created.read_long(0)
+}
+
+func choose_physical_device() {
+    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
+    var count = Structure(8)
+    var no_devices: Long = 0
+    vulkan.vkEnumeratePhysicalDevices(instance, count.address, no_devices)
+    var device_count = count.read_integer(0)
+    crash device_count > 0
+    var devices = Structure(device_count * 8)
+    vulkan.vkEnumeratePhysicalDevices(instance, count.address, devices.address)
+    var index = 0
+    var best_score = -1
+    while index < device_count {
+        var candidate = devices.read_long(index * 8)
+        var score = device_score(candidate)
+        if score > best_score {
+            best_score = score
+            physical_device = candidate
+        }
+        index = index + 1
+    }
+    crash best_score >= 0
+    var properties = Structure(1024)
+    vulkan.vkGetPhysicalDeviceProperties(physical_device, properties.address)
+    var name_address = properties.address + 20
+    device_name = raw.terminated_text(name_address)
+}
+
+func device_score(candidate: Long): Integer {
+    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
+    var properties = Structure(1024)
+    vulkan.vkGetPhysicalDeviceProperties(candidate, properties.address)
+    var api_version = properties.read_integer(0)
+    assert api_version >= vulkan_version()
+    var family = graphics_family(candidate)
+    assert family >= 0
+    var device_type = properties.read_integer(16)
+    if device_type == 2 {
+        return 2
+    } else if device_type == 1 {
+        return 1
+    }
+    return 0
+}
+
+func graphics_family(candidate: Long): Integer {
+    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
+    var count = Structure(8)
+    var no_families: Long = 0
+    vulkan.vkGetPhysicalDeviceQueueFamilyProperties(candidate, count.address, no_families)
+    var family_count = count.read_integer(0)
+    var families = Structure(family_count * 24 + 8)
+    vulkan.vkGetPhysicalDeviceQueueFamilyProperties(candidate, count.address, families.address)
+    var index = 0
+    var found = -1
+    while found < 0 and index < family_count {
+        var flags = families.read_integer(index * 24)
+        var presents = vulkan.vkGetPhysicalDeviceWin32PresentationSupportKHR(candidate, index)
+        if flags % 2 == 1 and presents != 0 {
+            found = index
+        }
+        index = index + 1
+    }
+    return found
+}
+
+func create_device() {
+    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
+    queue_family = graphics_family(physical_device)
+    var priorities = Structure(8)
+    priorities.append_float(1.0)
+    var queue_creation = Structure(48)
+    queue_creation.append_integer(2)
+    queue_creation.append_long(0)
+    queue_creation.append_integer(0)
+    queue_creation.append_integer(queue_family)
+    queue_creation.append_integer(1)
+    queue_creation.append_pointer(priorities)
+    var dynamic_rendering = Structure(24)
+    dynamic_rendering.append_integer(1000044003)
+    dynamic_rendering.append_long(0)
+    dynamic_rendering.append_integer(1)
+    var extensions = Structure(8)
+    extensions.append_text("VK_KHR_swapchain")
+    var creation = Structure(80)
+    creation.append_integer(3)
+    creation.append_pointer(dynamic_rendering)
+    creation.append_integer(0)
+    creation.append_integer(1)
+    creation.append_pointer(queue_creation)
+    creation.append_integer(0)
+    creation.append_long(0)
+    creation.append_integer(1)
+    creation.append_pointer(extensions)
+    creation.append_long(0)
+    var created = Structure(8)
+    var no_allocator: Long = 0
+    var result = vulkan.vkCreateDevice(physical_device, creation.address, no_allocator, created.address)
+    crash result == 0
+    device = created.read_long(0)
+    var queue_handle = Structure(8)
+    vulkan.vkGetDeviceQueue(device, queue_family, 0, queue_handle.address)
+    queue = queue_handle.read_long(0)
+}
+
+func create_commands() {
+    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
+    var no_allocator: Long = 0
+    var pool_creation = Structure(24)
+    pool_creation.append_integer(39)
+    pool_creation.append_long(0)
+    pool_creation.append_integer(2)
+    pool_creation.append_integer(queue_family)
+    var created = Structure(8)
+    var pool_result = vulkan.vkCreateCommandPool(device, pool_creation.address, no_allocator, created.address)
+    crash pool_result == 0
+    command_pool = created.read_long(0)
+    var index = 0
+    while index < frames_in_flight {
+        var made = RenderVulkan.Frame()
+        made.command_buffer = allocate_command_buffer()
+        made.fence = create_fence()
+        made.image_ready = create_semaphore()
+        frames.append(made)
+        index = index + 1
+    }
+    crash frames[0]
+    frame = frames[0]
+}
+
+func allocate_command_buffer(): Long {
+    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
+    var allocation = Structure(32)
+    allocation.append_integer(40)
+    allocation.append_long(0)
+    allocation.append_long(command_pool)
+    allocation.append_integer(0)
+    allocation.append_integer(1)
+    var created = Structure(8)
+    var buffer_result = vulkan.vkAllocateCommandBuffers(device, allocation.address, created.address)
+    crash buffer_result == 0
+    return created.read_long(0)
+}
+
+func begin_frame() {
+    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
+    var slot = frame_number % frames_in_flight
+    frame_number = frame_number + 1
+    crash frames[slot]
+    frame = frames[slot]
+    var fences = Structure(8)
+    fences.append_long(frame.fence)
+    var forever: Long = -1
+    var wait_result = vulkan.vkWaitForFences(device, 1, fences.address, 1, forever)
+    crash wait_result == 0
+    vulkan.vkResetFences(device, 1, fences.address)
+    release_in_flight(frame)
+}
+
+func wait_frame() {
+    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
+    var fences = Structure(8)
+    fences.append_long(frame.fence)
+    var forever: Long = -1
+    var wait_result = vulkan.vkWaitForFences(device, 1, fences.address, 1, forever)
+    crash wait_result == 0
+}
+
+func create_fence(): Long {
+    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
+    var no_allocator: Long = 0
+    var creation = Structure(24)
+    creation.append_integer(8)
+    creation.append_long(0)
+    var signalled = 1
+    creation.append_integer(signalled)
+    var created = Structure(8)
+    var result = vulkan.vkCreateFence(device, creation.address, no_allocator, created.address)
+    crash result == 0
+    return created.read_long(0)
+}
+
+func create_semaphore(): Long {
+    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
+    var no_allocator: Long = 0
+    var creation = Structure(24)
+    creation.append_integer(9)
+    creation.append_long(0)
+    creation.append_integer(0)
+    var created = Structure(8)
+    var result = vulkan.vkCreateSemaphore(device, creation.address, no_allocator, created.address)
+    crash result == 0
+    return created.read_long(0)
+}
+
+func create_shader(id: String): Long {
+    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
+    var code = cache.read(id)
+    crash code
+    var length = code.length
+    crash length > 0 and length % 4 == 0
+    var words = Structure(length)
+    raw.copy(code.address, words.address, length)
+    var creation = Structure(40)
+    creation.append_integer(16)
+    creation.append_long(0)
+    creation.append_integer(0)
+    creation.append_long(length)
+    creation.append_pointer(words)
+    var created = Structure(8)
+    var no_allocator: Long = 0
+    var result = vulkan.vkCreateShaderModule(device, creation.address, no_allocator, created.address)
+    crash result == 0
+    return created.read_long(0)
+}
+
+func create_pipeline() {
+    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
+    var no_allocator: Long = 0
+    shader_vertex = create_shader("shader.rectangles.vertex")
+    shader_fragment = create_shader("shader.rectangles.fragment")
+    create_descriptors()
+    var set_layouts = Structure(8)
+    set_layouts.append_long(descriptor_layout)
+    var push_range = Structure(12)
+    push_range.append_integer(1)
+    push_range.append_integer(0)
+    push_range.append_integer(8)
+    var layout_creation = Structure(48)
+    layout_creation.append_integer(30)
+    layout_creation.append_long(0)
+    layout_creation.append_integer(0)
+    layout_creation.append_integer(1)
+    layout_creation.append_pointer(set_layouts)
+    layout_creation.append_integer(1)
+    layout_creation.append_pointer(push_range)
+    var created = Structure(8)
+    var layout_result = vulkan.vkCreatePipelineLayout(device, layout_creation.address, no_allocator, created.address)
+    crash layout_result == 0
+    pipeline_layout = created.read_long(0)
+    var description = pipeline_description()
+    var no_cache: Long = 0
+    var result = vulkan.vkCreateGraphicsPipelines(
+        device,
+        no_cache,
+        1,
+        description.address,
+        no_allocator,
+        created.address,
+    )
+    crash result == 0
+    pipeline = created.read_long(0)
+    var white = Asset.Bytes()
+    white.write_integer(-1)
+    stage_pixels(0, 1, 1, white, 0)
+}
+
+func create_descriptors() {
+    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
+    var no_allocator: Long = 0
+    var binding = Structure(24)
+    binding.append_integer(0)
+    binding.append_integer(1)
+    binding.append_integer(1)
+    binding.append_integer(16)
+    binding.append_long(0)
+    var layout_creation = Structure(32)
+    layout_creation.append_integer(32)
+    layout_creation.append_long(0)
+    layout_creation.append_integer(0)
+    layout_creation.append_integer(1)
+    layout_creation.append_pointer(binding)
+    var created = Structure(8)
+    var layout_result = vulkan.vkCreateDescriptorSetLayout(
+        device,
+        layout_creation.address,
+        no_allocator,
+        created.address,
+    )
+    crash layout_result == 0
+    descriptor_layout = created.read_long(0)
+    var pool_size = Structure(8)
+    pool_size.append_integer(1)
+    pool_size.append_integer(1024)
+    var pool_creation = Structure(40)
+    pool_creation.append_integer(33)
+    pool_creation.append_long(0)
+    var free_descriptor_set = 1
+    pool_creation.append_integer(free_descriptor_set)
+    pool_creation.append_integer(1024)
+    pool_creation.append_integer(1)
+    pool_creation.append_pointer(pool_size)
+    var pool_result = vulkan.vkCreateDescriptorPool(device, pool_creation.address, no_allocator, created.address)
+    crash pool_result == 0
+    descriptor_pool = created.read_long(0)
+    create_sampler()
+}
+
+func create_sampler() {
+    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
+    var no_allocator: Long = 0
+    var creation = Structure(80)
+    creation.append_integer(31)
+    creation.append_long(0)
+    creation.append_integer(0)
+    creation.append_integer(0)
+    creation.append_integer(0)
+    creation.append_integer(0)
+    creation.append_integer(2)
+    creation.append_integer(2)
+    creation.append_integer(2)
+    creation.append_float(0.0)
+    creation.append_integer(0)
+    creation.append_float(1.0)
+    creation.append_integer(0)
+    creation.append_integer(0)
+    creation.append_float(0.0)
+    creation.append_float(0.0)
+    creation.append_integer(0)
+    creation.append_integer(0)
+    var created = Structure(8)
+    var result = vulkan.vkCreateSampler(device, creation.address, no_allocator, created.address)
+    crash result == 0
+    sampler = created.read_long(0)
+}
+
+func ensure_slots(count: Integer) {
+    while texture_sets.count() < count {
+        texture_sets.append(0)
+        texture_images.append(0)
+        texture_memories.append(0)
+        texture_views.append(0)
+        texture_generations.append(0)
+    }
+}
+
+func ensure_textures(textures: Render.Component.Textures) {
+    var wanted = textures.textures.count() + 1
+    ensure_slots(wanted)
+    staged_bytes = 0
+    var slot = 0
+    while slot < textures.textures.count() {
+        upload_if_ready(textures, slot)
+        slot = slot + 1
+    }
+}
+
+func upload_if_ready(textures: Render.Component.Textures, slot: Integer) {
+    crash texture_sets[slot + 1]
+    crash texture_generations[slot + 1]
+    var generation = textures.generation(slot)
+    var outdated = texture_sets[slot + 1] == 0 or texture_generations[slot + 1] != generation
+    assert outdated and textures.is_ready(slot)
+    var texture = textures.texture(slot)
+    var raw = textures.raw(slot)
+    var within_budget = staged_bytes + raw.length <= upload_budget_bytes
+    assert staged_bytes == 0 or within_budget
+    staged_bytes = staged_bytes + raw.length
+    stage_pixels(slot + 1, texture.width, texture.height, raw, generation)
+}
+
+func stage_pixels(index: Integer, width: Integer, height: Integer, pixels: Asset.Bytes, generation: Integer) {
+    ensure_slots(index + 1)
+    retire_slot(index)
+    var bytes = width * height * 4
+    crash pixels.length == bytes
+    var transfer_source = 1
+    var staging = create_buffer(bytes, transfer_source)
+    var staging_memory = host_memory_for(staging)
+    var mapped = map(staging_memory, bytes)
+    raw.copy(pixels.address, mapped, bytes)
+    var image = create_texture_image(width, height)
+    pending_images.append(image)
+    pending_stagings.append(staging)
+    pending_staging_memories.append(staging_memory)
+    pending_widths.append(width)
+    pending_heights.append(height)
+    var view = create_view(image, 37)
+    var set = allocate_texture_set(view)
+    texture_images.set_at(index, image)
+    texture_memories.set_at(index, created_memory)
+    texture_views.set_at(index, view)
+    texture_sets.set_at(index, set)
+    texture_generations.set_at(index, generation)
+}
+
+func retire_slot(index: Integer) {
+    crash texture_sets[index]
+    crash texture_images[index]
+    crash texture_memories[index]
+    crash texture_views[index]
+    assert texture_sets[index] != 0
+    frame.retired_sets.append(texture_sets[index])
+    frame.retired_images.append(texture_images[index])
+    frame.retired_memories.append(texture_memories[index])
+    frame.retired_views.append(texture_views[index])
+    texture_sets.set_at(index, 0)
+}
+
+func record_uploads() {
+    var index = 0
+    while index < pending_images.count() {
+        record_upload(index)
+        index = index + 1
+    }
+    index = 0
+    while index < pending_stagings.count() {
+        crash pending_staging_memories[index]
+        frame.in_flight_stagings.append(pending_stagings[index])
+        frame.in_flight_staging_memories.append(pending_staging_memories[index])
+        index = index + 1
+    }
+    pending_images.clear()
+    pending_stagings.clear()
+    pending_staging_memories.clear()
+    pending_widths.clear()
+    pending_heights.clear()
+}
+
+func record_upload(index: Integer) {
+    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
+    crash pending_images[index]
+    crash pending_stagings[index]
+    crash pending_widths[index]
+    crash pending_heights[index]
+    var image = pending_images[index]
+    barrier(image, 0, 4096, 0, 7, 1, 4096)
+    var region = Structure(56)
+    region.append_long(0)
+    region.append_integer(0)
+    region.append_integer(0)
+    append_color_layers(region)
+    region.append_integer(0)
+    region.append_integer(0)
+    region.append_integer(0)
+    region.append_integer(pending_widths[index])
+    region.append_integer(pending_heights[index])
+    region.append_integer(1)
+    vulkan.vkCmdCopyBufferToImage(frame.command_buffer, pending_stagings[index], image, 7, 1, region.address)
+    barrier(image, 4096, 32, 7, 5, 4096, 128)
+}
+
+func release_in_flight(finished: RenderVulkan.Frame) {
+    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
+    var no_allocator: Long = 0
+    var index = 0
+    while index < finished.in_flight_stagings.count() {
+        crash finished.in_flight_staging_memories[index]
+        vulkan.vkDestroyBuffer(device, finished.in_flight_stagings[index], no_allocator)
+        vulkan.vkFreeMemory(device, finished.in_flight_staging_memories[index], no_allocator)
+        index = index + 1
+    }
+    finished.in_flight_stagings.clear()
+    finished.in_flight_staging_memories.clear()
+    release_retired(finished)
+}
+
+func release_retired(finished: RenderVulkan.Frame) {
+    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
+    var no_allocator: Long = 0
+    var index = 0
+    while index < finished.retired_sets.count() {
+        crash finished.retired_images[index]
+        crash finished.retired_memories[index]
+        crash finished.retired_views[index]
+        var sets = Structure(8)
+        sets.append_long(finished.retired_sets[index])
+        vulkan.vkFreeDescriptorSets(device, descriptor_pool, 1, sets.address)
+        vulkan.vkDestroyImageView(device, finished.retired_views[index], no_allocator)
+        vulkan.vkDestroyImage(device, finished.retired_images[index], no_allocator)
+        vulkan.vkFreeMemory(device, finished.retired_memories[index], no_allocator)
+        index = index + 1
+    }
+    finished.retired_sets.clear()
+    finished.retired_images.clear()
+    finished.retired_memories.clear()
+    finished.retired_views.clear()
+}
+
+func append_color_layers(structure: RenderVulkan.Structure) {
+    structure.append_integer(1)
+    structure.append_integer(0)
+    structure.append_integer(0)
+    structure.append_integer(1)
+}
+
+func create_texture_image(width: Integer, height: Integer): Long {
+    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
+    var no_allocator: Long = 0
+    var creation = Structure(96)
+    creation.append_integer(14)
+    creation.append_long(0)
+    creation.append_integer(0)
+    creation.append_integer(1)
+    creation.append_integer(37)
+    creation.append_integer(width)
+    creation.append_integer(height)
+    creation.append_integer(1)
+    creation.append_integer(1)
+    creation.append_integer(1)
+    creation.append_integer(1)
+    creation.append_integer(0)
+    creation.append_integer(6)
+    creation.append_integer(0)
+    creation.append_integer(0)
+    creation.append_long(0)
+    creation.append_integer(0)
+    var created = Structure(8)
+    var result = vulkan.vkCreateImage(device, creation.address, no_allocator, created.address)
+    crash result == 0
+    var image = created.read_long(0)
+    var requirements = Structure(24)
+    vulkan.vkGetImageMemoryRequirements(device, image, requirements.address)
+    var device_local = 1
+    var image_memory = allocate_memory(requirements, device_local)
+    var no_offset: Long = 0
+    var bind_result = vulkan.vkBindImageMemory(device, image, image_memory, no_offset)
+    crash bind_result == 0
+    created_memory = image_memory
+    return image
+}
+
+func allocate_texture_set(view: Long): Long {
+    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
+    var layouts = Structure(8)
+    layouts.append_long(descriptor_layout)
+    var allocation = Structure(40)
+    allocation.append_integer(34)
+    allocation.append_long(0)
+    allocation.append_long(descriptor_pool)
+    allocation.append_integer(1)
+    allocation.append_pointer(layouts)
+    var created = Structure(8)
+    var result = vulkan.vkAllocateDescriptorSets(device, allocation.address, created.address)
+    crash result == 0
+    var set = created.read_long(0)
+    var image_information = Structure(24)
+    image_information.append_long(sampler)
+    image_information.append_long(view)
+    image_information.append_integer(5)
+    var write = Structure(64)
+    write.append_integer(35)
+    write.append_long(0)
+    write.append_long(set)
+    write.append_integer(0)
+    write.append_integer(0)
+    write.append_integer(1)
+    write.append_integer(1)
+    write.append_pointer(image_information)
+    write.append_long(0)
+    write.append_long(0)
+    var no_copies: Long = 0
+    vulkan.vkUpdateDescriptorSets(device, 1, write.address, 0, no_copies)
+    return set
+}
+
+func pipeline_description(): RenderVulkan.Structure {
+    var formats = Structure(4)
+    formats.append_integer(44)
+    var rendering = Structure(40)
+    rendering.append_integer(1000044002)
+    rendering.append_long(0)
+    rendering.append_integer(0)
+    rendering.append_integer(1)
+    rendering.append_pointer(formats)
+    rendering.append_integer(0)
+    rendering.append_integer(0)
+    var description = Structure(160)
+    description.append_integer(28)
+    description.append_pointer(rendering)
+    description.append_integer(0)
+    description.append_integer(2)
+    var stages = shader_stages()
+    description.append_pointer(stages)
+    var vertex_input = vertex_input_state()
+    description.append_pointer(vertex_input)
+    var assembly = Structure(32)
+    assembly.append_integer(20)
+    assembly.append_long(0)
+    assembly.append_integer(0)
+    assembly.append_integer(3)
+    assembly.append_integer(0)
+    description.append_pointer(assembly)
+    description.append_long(0)
+    var viewport = Structure(48)
+    viewport.append_integer(22)
+    viewport.append_long(0)
+    viewport.append_integer(0)
+    viewport.append_integer(1)
+    viewport.append_long(0)
+    viewport.append_integer(1)
+    viewport.append_long(0)
+    description.append_pointer(viewport)
+    var rasterization = rasterization_state()
+    description.append_pointer(rasterization)
+    var multisample = Structure(48)
+    multisample.append_integer(24)
+    multisample.append_long(0)
+    multisample.append_integer(0)
+    multisample.append_integer(1)
+    multisample.append_integer(0)
+    multisample.append_float(0.0)
+    multisample.append_long(0)
+    multisample.append_integer(0)
+    multisample.append_integer(0)
+    description.append_pointer(multisample)
+    description.append_long(0)
+    var blend = blend_state()
+    description.append_pointer(blend)
+    var dynamic_states = Structure(8)
+    dynamic_states.append_integer(0)
+    dynamic_states.append_integer(1)
+    var dynamic = Structure(32)
+    dynamic.append_integer(27)
+    dynamic.append_long(0)
+    dynamic.append_integer(0)
+    dynamic.append_integer(2)
+    dynamic.append_pointer(dynamic_states)
+    description.append_pointer(dynamic)
+    description.append_long(pipeline_layout)
+    description.append_long(0)
+    description.append_integer(0)
+    description.append_long(0)
+    description.append_integer(-1)
+    return description
+}
+
+func shader_stages(): RenderVulkan.Structure {
+    var stages = Structure(96)
+    stages.append_integer(18)
+    stages.append_long(0)
+    stages.append_integer(0)
+    stages.append_integer(1)
+    stages.append_long(shader_vertex)
+    stages.append_text("main")
+    stages.append_long(0)
+    stages.append_integer(18)
+    stages.append_long(0)
+    stages.append_integer(0)
+    stages.append_integer(16)
+    stages.append_long(shader_fragment)
+    stages.append_text("main")
+    stages.append_long(0)
+    return stages
+}
+
+func vertex_input_state(): RenderVulkan.Structure {
+    var binding = Structure(12)
+    binding.append_integer(0)
+    binding.append_integer(40)
+    binding.append_integer(1)
+    var attributes = Structure(48)
+    attributes.append_integer(0)
+    attributes.append_integer(0)
+    attributes.append_integer(109)
+    attributes.append_integer(0)
+    attributes.append_integer(1)
+    attributes.append_integer(0)
+    attributes.append_integer(98)
+    attributes.append_integer(16)
+    attributes.append_integer(2)
+    attributes.append_integer(0)
+    attributes.append_integer(108)
+    attributes.append_integer(24)
+    var state = Structure(48)
+    state.append_integer(19)
+    state.append_long(0)
+    state.append_integer(0)
+    state.append_integer(1)
+    state.append_pointer(binding)
+    state.append_integer(3)
+    state.append_pointer(attributes)
+    return state
+}
+
+func rasterization_state(): RenderVulkan.Structure {
+    var state = Structure(64)
+    state.append_integer(23)
+    state.append_long(0)
+    state.append_integer(0)
+    state.append_integer(0)
+    state.append_integer(0)
+    state.append_integer(0)
+    state.append_integer(0)
+    state.append_integer(0)
+    state.append_integer(0)
+    state.append_float(0.0)
+    state.append_float(0.0)
+    state.append_float(0.0)
+    state.append_float(1.0)
+    return state
+}
+
+func blend_state(): RenderVulkan.Structure {
+    var attachment = Structure(32)
+    attachment.append_integer(1)
+    attachment.append_integer(6)
+    attachment.append_integer(7)
+    attachment.append_integer(0)
+    attachment.append_integer(1)
+    attachment.append_integer(7)
+    attachment.append_integer(0)
+    attachment.append_integer(15)
+    var state = Structure(64)
+    state.append_integer(26)
+    state.append_long(0)
+    state.append_integer(0)
+    state.append_integer(0)
+    state.append_integer(0)
+    state.append_integer(1)
+    state.append_pointer(attachment)
+    state.append_float(0.0)
+    state.append_float(0.0)
+    state.append_float(0.0)
+    state.append_float(0.0)
+    return state
+}
+
+func memory_type(bits: Integer, wanted: Integer): Integer {
+    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
+    var properties = Structure(528)
+    vulkan.vkGetPhysicalDeviceMemoryProperties(physical_device, properties.address)
+    var count = properties.read_integer(0)
+    var index = 0
+    var found = -1
+    var remaining_bits: Long = bits
+    if remaining_bits < 0 {
+        remaining_bits = remaining_bits + 4294967296
+    }
+    while found < 0 and index < count {
+        var flags = properties.read_integer(4 + index * 8)
+        var allowed = remaining_bits % 2 == 1
+        if allowed and has_flags(flags, wanted) {
+            found = index
+        }
+        remaining_bits = remaining_bits / 2
+        index = index + 1
+    }
+    crash found >= 0
+    return found
+}
+
+func has_flags(flags: Integer, wanted: Integer): Boolean {
+    var bit = 1
+    var all = true
+    while bit <= wanted {
+        var wanted_bit = wanted / bit % 2 == 1
+        var present_bit = flags / bit % 2 == 1
+        all = all and (present_bit or not wanted_bit)
+        bit = bit * 2
+    }
+    return all
+}
+
+func allocate_memory(requirements: RenderVulkan.Structure, wanted: Integer): Long {
+    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
+    var size = requirements.read_long(0)
+    var bits = requirements.read_integer(16)
+    var type_index = memory_type(bits, wanted)
+    var allocation = Structure(32)
+    allocation.append_integer(5)
+    allocation.append_long(0)
+    allocation.append_long(size)
+    allocation.append_integer(type_index)
+    var created = Structure(8)
+    var no_allocator: Long = 0
+    var result = vulkan.vkAllocateMemory(device, allocation.address, no_allocator, created.address)
+    crash result == 0
+    return created.read_long(0)
+}
+
+func create_buffer(bytes: Integer, usage: Integer): Long {
+    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
+    var creation = Structure(56)
+    creation.append_integer(12)
+    creation.append_long(0)
+    creation.append_integer(0)
+    creation.append_long(bytes)
+    creation.append_integer(usage)
+    creation.append_integer(0)
+    creation.append_integer(0)
+    creation.append_long(0)
+    var created = Structure(8)
+    var no_allocator: Long = 0
+    var result = vulkan.vkCreateBuffer(device, creation.address, no_allocator, created.address)
+    crash result == 0
+    return created.read_long(0)
+}
+
+func host_memory_for(buffer: Long): Long {
+    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
+    var requirements = Structure(24)
+    vulkan.vkGetBufferMemoryRequirements(device, buffer, requirements.address)
+    var host_visible_and_coherent = 6
+    var buffer_memory = allocate_memory(requirements, host_visible_and_coherent)
+    var no_offset: Long = 0
+    var result = vulkan.vkBindBufferMemory(device, buffer, buffer_memory, no_offset)
+    crash result == 0
+    return buffer_memory
+}
+
+func map(buffer_memory: Long, bytes: Integer): Long {
+    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
+    var mapped = Structure(8)
+    var no_offset: Long = 0
+    var size: Long = bytes
+    var result = vulkan.vkMapMemory(device, buffer_memory, no_offset, size, 0, mapped.address)
+    crash result == 0
+    return mapped.read_long(0)
+}
+
+func ensure_rectangle_capacity(count: Integer) {
+    assert count >= frame.rectangle_capacity
+    release_rectangle_buffer()
+    frame.rectangle_capacity = count * 2
+    if frame.rectangle_capacity < 1024 {
+        frame.rectangle_capacity = 1024
+    }
+    var bytes = frame.rectangle_capacity * 20
+    var vertex_buffer_usage = 128
+    frame.rectangle_buffer = create_buffer(bytes, vertex_buffer_usage)
+    frame.rectangle_memory = host_memory_for(frame.rectangle_buffer)
+    frame.rectangle_mapped = map(frame.rectangle_memory, bytes)
+}
+
+func release_rectangle_buffer() {
+    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
+    var no_allocator: Long = 0
+    assert frame.rectangle_buffer != 0
+    vulkan.vkDestroyBuffer(device, frame.rectangle_buffer, no_allocator)
+    vulkan.vkFreeMemory(device, frame.rectangle_memory, no_allocator)
+    frame.rectangle_buffer = 0
+}
+
+func ensure_target(width: Integer, height: Integer) {
+    assert width != frame.target_width or height != frame.target_height
+    release_target()
+    frame.target_width = width
+    frame.target_height = height
+    create_target_image()
+    create_target_view()
+    create_readback()
+}
+
+func create_target_image() {
+    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
+    var no_allocator: Long = 0
+    var creation = Structure(96)
+    creation.append_integer(14)
+    creation.append_long(0)
+    creation.append_integer(0)
+    creation.append_integer(1)
+    creation.append_integer(44)
+    creation.append_integer(frame.target_width)
+    creation.append_integer(frame.target_height)
+    creation.append_integer(1)
+    creation.append_integer(1)
+    creation.append_integer(1)
+    creation.append_integer(1)
+    creation.append_integer(0)
+    creation.append_integer(17)
+    creation.append_integer(0)
+    creation.append_integer(0)
+    creation.append_long(0)
+    creation.append_integer(0)
+    var created = Structure(8)
+    var result = vulkan.vkCreateImage(device, creation.address, no_allocator, created.address)
+    crash result == 0
+    frame.target_image = created.read_long(0)
+    var requirements = Structure(24)
+    vulkan.vkGetImageMemoryRequirements(device, frame.target_image, requirements.address)
+    var device_local = 1
+    frame.target_memory = allocate_memory(requirements, device_local)
+    var no_offset: Long = 0
+    var bind_result = vulkan.vkBindImageMemory(device, frame.target_image, frame.target_memory, no_offset)
+    crash bind_result == 0
+}
+
+func create_target_view() {
+    frame.target_view = create_view(frame.target_image, 44)
+}
+
+func create_view(image: Long, format: Integer): Long {
+    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
+    var no_allocator: Long = 0
+    var creation = Structure(80)
+    creation.append_integer(15)
+    creation.append_long(0)
+    creation.append_integer(0)
+    creation.append_long(image)
+    creation.append_integer(1)
+    creation.append_integer(format)
+    var field = 0
+    while field < 4 {
+        creation.append_integer(0)
+        field = field + 1
+    }
+    append_color_range(creation)
+    var created = Structure(8)
+    var result = vulkan.vkCreateImageView(device, creation.address, no_allocator, created.address)
+    crash result == 0
+    return created.read_long(0)
+}
+
+func append_color_range(structure: RenderVulkan.Structure) {
+    structure.append_integer(1)
+    structure.append_integer(0)
+    structure.append_integer(1)
+    structure.append_integer(0)
+    structure.append_integer(1)
+}
+
+func create_readback() {
+    frame.readback_bytes = frame.target_width * frame.target_height * 4
+    var transfer_destination = 2
+    frame.readback_buffer = create_buffer(frame.readback_bytes, transfer_destination)
+    frame.readback_memory = host_memory_for(frame.readback_buffer)
+    frame.readback_mapped = map(frame.readback_memory, frame.readback_bytes)
+}
+
+func release_target() {
+    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
+    var no_allocator: Long = 0
+    assert frame.target_image != 0
+    vulkan.vkDestroyImageView(device, frame.target_view, no_allocator)
+    vulkan.vkDestroyImage(device, frame.target_image, no_allocator)
+    vulkan.vkFreeMemory(device, frame.target_memory, no_allocator)
+    vulkan.vkDestroyBuffer(device, frame.readback_buffer, no_allocator)
+    vulkan.vkFreeMemory(device, frame.readback_memory, no_allocator)
+    frame.target_image = 0
+}
+
+func barrier(
+    image: Long,
+    source_access: Integer,
+    destination_access: Integer,
+    old_layout: Integer,
+    new_layout: Integer,
+    source_stage: Integer,
+    destination_stage: Integer,
+) {
+    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
+    var description = Structure(72)
+    description.append_integer(45)
+    description.append_long(0)
+    description.append_integer(source_access)
+    description.append_integer(destination_access)
+    description.append_integer(old_layout)
+    description.append_integer(new_layout)
+    description.append_integer(-1)
+    description.append_integer(-1)
+    description.append_long(image)
+    append_color_range(description)
+    var no_barriers: Long = 0
+    vulkan.vkCmdPipelineBarrier(
+        frame.command_buffer,
+        source_stage,
+        destination_stage,
+        0,
+        0,
+        no_barriers,
+        0,
+        no_barriers,
+        1,
+        description.address,
+    )
+}
+
+func record_rectangles(draw_list: Render.Component.DrawList) {
+    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
+    ensure_target(draw_list.width, draw_list.height)
+    ensure_rectangle_capacity(draw_list.count)
+    var bytes = draw_list.count * draw_list.stride()
+    raw.copy(draw_list.rectangles, frame.rectangle_mapped, bytes)
+    barrier(frame.target_image, 0, 256, 0, 2, 1, 1024)
+    var attachment = Structure(72)
+    attachment.append_integer(1000044001)
+    attachment.append_long(0)
+    attachment.append_long(frame.target_view)
+    attachment.append_integer(2)
+    attachment.append_integer(0)
+    attachment.append_long(0)
+    attachment.append_integer(0)
+    attachment.append_integer(1)
+    attachment.append_integer(0)
+    append_clear_color(attachment, draw_list.clear_color)
+    var rendering = Structure(80)
+    rendering.append_integer(1000044000)
+    rendering.append_long(0)
+    rendering.append_integer(0)
+    rendering.append_integer(0)
+    rendering.append_integer(0)
+    rendering.append_integer(frame.target_width)
+    rendering.append_integer(frame.target_height)
+    rendering.append_integer(1)
+    rendering.append_integer(0)
+    rendering.append_integer(1)
+    rendering.append_pointer(attachment)
+    rendering.append_long(0)
+    rendering.append_long(0)
+    vulkan.vkCmdBeginRendering(frame.command_buffer, rendering.address)
+    vulkan.vkCmdBindPipeline(frame.command_buffer, 0, pipeline)
+    record_viewport()
+    var buffers = Structure(8)
+    buffers.append_long(frame.rectangle_buffer)
+    var offsets = Structure(8)
+    offsets.append_long(0)
+    vulkan.vkCmdBindVertexBuffers(frame.command_buffer, 0, 1, buffers.address, offsets.address)
+    var first = 0
+    while first < draw_list.count {
+        first = record_run(draw_list, first)
+    }
+    vulkan.vkCmdEndRendering(frame.command_buffer)
+    barrier(frame.target_image, 256, 2048, 2, 6, 1024, 4096)
+}
+
+func record_run(draw_list: Render.Component.DrawList, first: Integer): Integer {
+    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
+    var texture = draw_list.texture_at(first)
+    var last = first + 1
+    while last < draw_list.count and draw_list.texture_at(last) == texture {
+        last = last + 1
+    }
+    var set_index = texture + 1
+    crash texture_sets[set_index]
+    if texture_sets[set_index] == 0 {
+        return last
+    }
+    var sets = Structure(8)
+    sets.append_long(texture_sets[set_index])
+    var no_offsets: Long = 0
+    vulkan.vkCmdBindDescriptorSets(frame.command_buffer, 0, pipeline_layout, 0, 1, sets.address, 0, no_offsets)
+    var count = last - first
+    vulkan.vkCmdDraw(frame.command_buffer, 6, count, 0, first)
+    return last
+}
+
+func append_clear_color(structure: RenderVulkan.Structure, color: Integer) {
+    var red: Float = color / 65536 % 256
+    var green: Float = color / 256 % 256
+    var blue: Float = color % 256
+    structure.append_float(red / 255.0)
+    structure.append_float(green / 255.0)
+    structure.append_float(blue / 255.0)
+    structure.append_float(1.0)
+}
+
+func record_viewport() {
+    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
+    var viewport = Structure(24)
+    viewport.append_float(0.0)
+    viewport.append_float(0.0)
+    viewport.append_float(frame.target_width)
+    viewport.append_float(frame.target_height)
+    viewport.append_float(0.0)
+    viewport.append_float(1.0)
+    vulkan.vkCmdSetViewport(frame.command_buffer, 0, 1, viewport.address)
+    var scissor = Structure(16)
+    scissor.append_integer(0)
+    scissor.append_integer(0)
+    scissor.append_integer(frame.target_width)
+    scissor.append_integer(frame.target_height)
+    vulkan.vkCmdSetScissor(frame.command_buffer, 0, 1, scissor.address)
+    var size = Structure(8)
+    size.append_float(frame.target_width)
+    size.append_float(frame.target_height)
+    vulkan.vkCmdPushConstants(frame.command_buffer, pipeline_layout, 1, 0, 8, size.address)
+}
+
+func begin_commands() {
+    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
+    vulkan.vkResetCommandBuffer(frame.command_buffer, 0)
+    var begin = Structure(32)
+    begin.append_integer(42)
+    begin.append_long(0)
+    begin.append_integer(1)
+    begin.append_long(0)
+    var result = vulkan.vkBeginCommandBuffer(frame.command_buffer, begin.address)
+    crash result == 0
+}
+
+func submit(wait_for_image: Boolean, frame_done: Long) {
+    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
+    var end_result = vulkan.vkEndCommandBuffer(frame.command_buffer)
+    crash end_result == 0
+    var buffers = Structure(8)
+    buffers.append_long(frame.command_buffer)
+    var waits = Structure(8)
+    waits.append_long(frame.image_ready)
+    var wait_stages = Structure(4)
+    wait_stages.append_integer(4096)
+    var signals = Structure(8)
+    signals.append_long(frame_done)
+    var semaphore_count = 0
+    if wait_for_image {
+        semaphore_count = 1
+    }
+    var submission = Structure(80)
+    submission.append_integer(4)
+    submission.append_long(0)
+    submission.append_integer(semaphore_count)
+    submission.append_pointer(waits)
+    submission.append_pointer(wait_stages)
+    submission.append_integer(1)
+    submission.append_pointer(buffers)
+    submission.append_integer(semaphore_count)
+    submission.append_pointer(signals)
+    var result = vulkan.vkQueueSubmit(queue, 1, submission.address, frame.fence)
+    crash result == 0
+}
+
+func draw_offscreen(draw_list: Render.Component.DrawList, textures: Render.Component.Textures) {
+    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
+    begin_frame()
+    ensure_textures(textures)
+    begin_commands()
+    record_uploads()
+    record_rectangles(draw_list)
+    var region = Structure(56)
+    region.append_long(0)
+    region.append_integer(0)
+    region.append_integer(0)
+    region.append_integer(1)
+    region.append_integer(0)
+    region.append_integer(0)
+    region.append_integer(1)
+    region.append_integer(0)
+    region.append_integer(0)
+    region.append_integer(0)
+    region.append_integer(frame.target_width)
+    region.append_integer(frame.target_height)
+    region.append_integer(1)
+    vulkan.vkCmdCopyImageToBuffer(frame.command_buffer, frame.target_image, 6, frame.readback_buffer, 1, region.address)
+    var no_semaphore: Long = 0
+    submit(false, no_semaphore)
+    wait_frame()
+}
+
+func pixel_at(left: Integer, top: Integer): Integer {
+    assert left >= 0 and top >= 0 and left < frame.target_width and top < frame.target_height
+    var offset = (top * frame.target_width + left) * 4
+    var pixel: Long = raw.read_integer(frame.readback_mapped, offset)
+    if pixel < 0 {
+        pixel = pixel + 4294967296
+    }
+    return pixel % 16777216
+}
+
+func create_swapchain(window: Window.Component.Window, handle: Long, swapchain: RenderVulkan.Component.Swapchain) {
+    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
+    var kernel = DynamicLibrary("kernel32.dll", 'identity', "")
+    var no_allocator: Long = 0
+    var no_module: Long = 0
+    var module_handle = kernel.GetModuleHandleA_as_long(no_module)
+    var surface_creation = Structure(40)
+    surface_creation.append_integer(1000009000)
+    surface_creation.append_long(0)
+    surface_creation.append_integer(0)
+    surface_creation.append_long(module_handle)
+    surface_creation.append_long(handle)
+    var created = Structure(8)
+    var surface_result = vulkan.vkCreateWin32SurfaceKHR(
+        instance,
+        surface_creation.address,
+        no_allocator,
+        created.address,
+    )
+    crash surface_result == 0
+    swapchain.surface = created.read_long(0)
+    surfaces.append(swapchain.surface)
+    var supported = Structure(8)
+    vulkan.vkGetPhysicalDeviceSurfaceSupportKHR(physical_device, queue_family, swapchain.surface, supported.address)
+    crash supported.read_integer(0) == 1
+    swapchain.width = window.width
+    swapchain.height = window.height
+    var mode = present_mode(swapchain.surface)
+    var capabilities = Structure(56)
+    vulkan.vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_device, swapchain.surface, capabilities.address)
+    var image_count = capabilities.read_integer(0) + 1
+    var current_transform = capabilities.read_integer(40)
+    var creation = Structure(112)
+    creation.append_integer(1000001000)
+    creation.append_long(0)
+    creation.append_integer(0)
+    creation.append_long(swapchain.surface)
+    creation.append_integer(image_count)
+    creation.append_integer(44)
+    creation.append_integer(0)
+    creation.append_integer(swapchain.width)
+    creation.append_integer(swapchain.height)
+    creation.append_integer(1)
+    creation.append_integer(18)
+    creation.append_integer(0)
+    creation.append_integer(0)
+    creation.append_long(0)
+    creation.append_integer(current_transform)
+    creation.append_integer(1)
+    creation.append_integer(mode)
+    creation.append_integer(1)
+    creation.append_long(0)
+    var result = vulkan.vkCreateSwapchainKHR(device, creation.address, no_allocator, created.address)
+    crash result == 0
+    swapchain.handle = created.read_long(0)
+    swapchains.append(swapchain.handle)
+    read_swapchain_images(swapchain)
+}
+
+func present_mode(surface: Long): Integer {
+    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
+    var count = Structure(8)
+    var no_modes: Long = 0
+    vulkan.vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device, surface, count.address, no_modes)
+    var mode_count = count.read_integer(0)
+    var modes = Structure(mode_count * 4 + 4)
+    vulkan.vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device, surface, count.address, modes.address)
+    var index = 0
+    var mailbox = 1
+    var chosen = 2
+    while index < mode_count {
+        if modes.read_integer(index * 4) == mailbox {
+            chosen = mailbox
+        }
+        index = index + 1
+    }
+    return chosen
+}
+
+func read_swapchain_images(swapchain: RenderVulkan.Component.Swapchain) {
+    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
+    var count = Structure(8)
+    var no_images: Long = 0
+    vulkan.vkGetSwapchainImagesKHR(device, swapchain.handle, count.address, no_images)
+    var image_count = count.read_integer(0)
+    var images = Structure(image_count * 8)
+    vulkan.vkGetSwapchainImagesKHR(device, swapchain.handle, count.address, images.address)
+    var index = 0
+    while index < image_count {
+        var image = images.read_long(index * 8)
+        swapchain.images.append(image)
+        var frame_done = create_semaphore()
+        swapchain.frames_done.append(frame_done)
+        presentation_semaphores.append(frame_done)
+        index = index + 1
+    }
+}
+
+func draw_to(
+    draw_list: Render.Component.DrawList,
+    textures: Render.Component.Textures,
+    swapchain: RenderVulkan.Component.Swapchain,
+) {
+    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
+    begin_frame()
+    var chosen = Structure(8)
+    var forever: Long = -1
+    var no_fence: Long = 0
+    var acquired = vulkan.vkAcquireNextImageKHR(
+        device,
+        swapchain.handle,
+        forever,
+        frame.image_ready,
+        no_fence,
+        chosen.address,
+    )
+    crash acquired == 0 or acquired == 1000001003
+    ensure_textures(textures)
+    var image_index = chosen.read_integer(0)
+    crash swapchain.images[image_index]
+    var image = swapchain.images[image_index]
+    crash swapchain.frames_done[image_index]
+    var frame_done = swapchain.frames_done[image_index]
+    begin_commands()
+    record_uploads()
+    record_rectangles(draw_list)
+    barrier(image, 0, 4096, 0, 7, 4096, 4096)
+    record_blit(image, swapchain)
+    barrier(image, 4096, 0, 7, 1000001002, 4096, 8192)
+    submit(true, frame_done)
+    var waits = Structure(8)
+    waits.append_long(frame_done)
+    var handles = Structure(8)
+    handles.append_long(swapchain.handle)
+    var indices = Structure(4)
+    indices.append_integer(image_index)
+    var presentation = Structure(64)
+    presentation.append_integer(1000001001)
+    presentation.append_long(0)
+    presentation.append_integer(1)
+    presentation.append_pointer(waits)
+    presentation.append_integer(1)
+    presentation.append_pointer(handles)
+    presentation.append_pointer(indices)
+    presentation.append_long(0)
+    var presented = vulkan.vkQueuePresentKHR(queue, presentation.address)
+    crash presented == 0 or presented == 1000001003
+}
+
+func record_blit(image: Long, swapchain: RenderVulkan.Component.Swapchain) {
+    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
+    var region = Structure(80)
+    region.append_integer(1)
+    region.append_integer(0)
+    region.append_integer(0)
+    region.append_integer(1)
+    append_corners(region, frame.target_width, frame.target_height)
+    region.append_integer(1)
+    region.append_integer(0)
+    region.append_integer(0)
+    region.append_integer(1)
+    append_corners(region, swapchain.width, swapchain.height)
+    vulkan.vkCmdBlitImage(frame.command_buffer, frame.target_image, 6, image, 7, 1, region.address, 0)
+}
+
+func append_corners(structure: RenderVulkan.Structure, width: Integer, height: Integer) {
+    structure.append_integer(0)
+    structure.append_integer(0)
+    structure.append_integer(0)
+    structure.append_integer(width)
+    structure.append_integer(height)
+    structure.append_integer(1)
+}
+
+func drop() {
+    release_device()
+}
+
+func release_device() {
+    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
+    var no_allocator: Long = 0
+    assert device != 0
+    vulkan.vkDeviceWaitIdle(device)
+    release_frames()
+    release_presentation()
+    release_textures()
+    vulkan.vkDestroyPipeline(device, pipeline, no_allocator)
+    vulkan.vkDestroyPipelineLayout(device, pipeline_layout, no_allocator)
+    vulkan.vkDestroyShaderModule(device, shader_vertex, no_allocator)
+    vulkan.vkDestroyShaderModule(device, shader_fragment, no_allocator)
+    vulkan.vkDestroyCommandPool(device, command_pool, no_allocator)
+    vulkan.vkDestroyDevice(device, no_allocator)
+    vulkan.vkDestroyInstance(instance, no_allocator)
+    device = 0
+    instance = 0
+}
+
+func release_frames() {
+    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
+    var no_allocator: Long = 0
+    var index = 0
+    while index < frames.count() {
+        frame = frames[index]
+        release_target()
+        release_rectangle_buffer()
+        release_in_flight(frame)
+        vulkan.vkDestroySemaphore(device, frame.image_ready, no_allocator)
+        vulkan.vkDestroyFence(device, frame.fence, no_allocator)
+        index = index + 1
+    }
+    release_unrecorded_uploads()
+}
+
+func release_unrecorded_uploads() {
+    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
+    var no_allocator: Long = 0
+    var index = 0
+    while index < pending_stagings.count() {
+        crash pending_staging_memories[index]
+        vulkan.vkDestroyBuffer(device, pending_stagings[index], no_allocator)
+        vulkan.vkFreeMemory(device, pending_staging_memories[index], no_allocator)
+        index = index + 1
+    }
+    pending_stagings.clear()
+    pending_staging_memories.clear()
+}
+
+func release_textures() {
+    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
+    var no_allocator: Long = 0
+    var index = 0
+    while index < texture_sets.count() {
+        crash texture_images[index]
+        crash texture_memories[index]
+        crash texture_views[index]
+        if texture_sets[index] != 0 {
+            vulkan.vkDestroyImageView(device, texture_views[index], no_allocator)
+            vulkan.vkDestroyImage(device, texture_images[index], no_allocator)
+            vulkan.vkFreeMemory(device, texture_memories[index], no_allocator)
+        }
+        index = index + 1
+    }
+    vulkan.vkDestroySampler(device, sampler, no_allocator)
+    vulkan.vkDestroyDescriptorPool(device, descriptor_pool, no_allocator)
+    vulkan.vkDestroyDescriptorSetLayout(device, descriptor_layout, no_allocator)
+}
+
+func release_presentation() {
+    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
+    var no_allocator: Long = 0
+    while swapchains.count() > 0 {
+        var swapchain = swapchains.last()
+        swapchains.remove_last()
+        vulkan.vkDestroySwapchainKHR(device, swapchain, no_allocator)
+    }
+    while presentation_semaphores.count() > 0 {
+        var semaphore = presentation_semaphores.last()
+        presentation_semaphores.remove_last()
+        vulkan.vkDestroySemaphore(device, semaphore, no_allocator)
+    }
+    while surfaces.count() > 0 {
+        var surface = surfaces.last()
+        surfaces.remove_last()
+        vulkan.vkDestroySurfaceKHR(instance, surface, no_allocator)
+    }
+}

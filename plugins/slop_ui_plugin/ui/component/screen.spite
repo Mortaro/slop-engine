@@ -1,0 +1,2 @@
+var width: Float = 640.0
+var height: Float = 400.0

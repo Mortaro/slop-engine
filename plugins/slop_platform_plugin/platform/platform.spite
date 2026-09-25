@@ -1,0 +1,8 @@
+var build = Build()
+
+func Platform() {
+    if build.target_operating_system == "windows" {
+        load "../../slop_windows_plugin"
+        load "../../slop_xinput_plugin"
+    }
+}

@@ -1,0 +1,200 @@
+singleton
+
+type AnyColumn {
+    insert_object(Integer, Anything)
+    remove_entity(Long, Integer)
+    release_all(Long)
+    release_buried(Integer): Integer
+}
+
+var headers = Dictionary<Long>()
+var releasers = Dictionary<AnyColumn>()
+var raw = Raw()
+var heap = Memory.Heap()
+var stage_counter = 0
+var removals = Dictionary<Removals>()
+
+func key(kind: Spite.Class): String {
+    var namespace = namespace_of(kind)
+    if namespace.is_empty() {
+        return kind.name
+    }
+    return "{namespace}.{kind.name}"
+}
+
+func namespace_of(kind: Spite.Class): String {
+    assert kind.namespace
+    return kind.namespace.name_with_namespaces
+}
+
+func header(name: String): Long {
+    if headers[name] {
+        return headers[name]
+    }
+    var made = heap.allocate(64)
+    var offset = 0
+    while offset < 64 {
+        raw.write_long(made, offset, 0)
+        offset = offset + 8
+    }
+    headers.set(name, made)
+    return made
+}
+
+func removals_of(column_key: String): Removals {
+    if removals[column_key] {
+        return removals[column_key]
+    }
+    var made = Removals()
+    removals.set(column_key, made)
+    return made
+}
+
+func note_removal(column_key: String, entity: Integer) {
+    var records = removals_of(column_key)
+    records.note(entity, stage_counter)
+}
+
+func removed_since(column_key: String, entity: Integer, since: Integer): Boolean {
+    assert removals[column_key]
+    return removals[column_key].removed_since(entity, since)
+}
+
+func removed_entities(column_key: String, since: Integer): List<Integer> {
+    if removals[column_key] {
+        return removals[column_key].removed_entities(since)
+    }
+    return List<Integer>()
+}
+
+func trim_removals(older_than: Integer) {
+    var keys = removals.keys()
+    var index = 0
+    while index < keys.count() {
+        trim_key(keys[index], older_than)
+        index = index + 1
+    }
+}
+
+func trim_key(column_key: String, older_than: Integer) {
+    assert removals[column_key]
+    removals[column_key].trim(older_than)
+}
+
+func is_marker(column_header: Long): Boolean {
+    return raw.read_long(column_header, 56) == 1
+}
+
+func added_tick(column_header: Long, row: Integer): Integer {
+    var ticks = raw.read_long(column_header, 48)
+    return raw.read_long(ticks, row * 8)
+}
+
+func insert_object(entity: Integer, value: Anything, relation: String) {
+    if value == Entity {
+        var column = Column<Entity>()
+        column.insert_keyed(entity, value, "Entity.{relation}")
+        return
+    }
+    var name = key(value.class)
+    crash releasers[name]
+    releasers[name].insert_object(entity, value)
+}
+
+func remove_one(name: String, entity: Integer) {
+    var column_header = header(name)
+    assert row_of(column_header, entity) >= 0
+    assert releasers[name]
+    note_removal(name, entity)
+    releasers[name].remove_entity(column_header, entity)
+}
+
+func release_buried(budget: Integer): Integer {
+    var names = releasers.keys()
+    var remaining = budget
+    var index = 0
+    while remaining > 0 and index < names.count() {
+        remaining = remaining - release_buried_in(names, index, remaining)
+        index = index + 1
+    }
+    return budget - remaining
+}
+
+func release_buried_in(names: List<String>, index: Integer, remaining: Integer): Integer {
+    assert names[index]
+    assert releasers[names[index]]
+    return releasers[names[index]].release_buried(remaining)
+}
+
+func record_releaser(name: String, releaser: AnyColumn) {
+    assert not releasers.has(name)
+    releasers.set(name, releaser)
+}
+
+func count_of(name: String): Integer {
+    var column_header = header(name)
+    return raw.read_long(column_header, 0)
+}
+
+func entity_at(name: String, row: Integer): Integer {
+    var column_header = header(name)
+    var entities = raw.read_long(column_header, 24)
+    return raw.read_long(entities, row * 8)
+}
+
+func has(name: String, entity: Integer): Boolean {
+    var column_header = header(name)
+    return row_of(column_header, entity) >= 0
+}
+
+func row_of(column_header: Long, entity: Integer): Integer {
+    var capacity = raw.read_long(column_header, 40)
+    if entity >= capacity {
+        return -1
+    }
+    var rows = raw.read_long(column_header, 32)
+    var stored = raw.read_long(rows, entity * 8)
+    return stored - 1
+}
+
+func remove_entities(entities: List<Integer>) {
+    var names = releasers.keys()
+    var index = 0
+    while index < names.count() {
+        remove_from_column(names[index], entities)
+        index = index + 1
+    }
+}
+
+func remove_from_column(name: String, entities: List<Integer>) {
+    assert releasers[name]
+    var column = releasers[name]
+    var column_header = header(name)
+    var index = 0
+    while index < entities.count() {
+        var entity = entities[index]
+        if row_of(column_header, entity) >= 0 {
+            note_removal(name, entity)
+            column.remove_entity(column_header, entity)
+        }
+        index = index + 1
+    }
+}
+
+func drop() {
+    var names = headers.keys()
+    var index = 0
+    while index < names.count() {
+        release_column(names, index)
+        index = index + 1
+    }
+}
+
+func release_column(names: List<String>, index: Integer) {
+    assert names[index]
+    var column_header = header(names[index])
+    if releasers[names[index]] {
+        releasers[names[index]].release_all(column_header)
+    }
+    heap.free(column_header)
+}

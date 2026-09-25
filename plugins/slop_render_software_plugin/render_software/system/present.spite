@@ -1,0 +1,46 @@
+type Target {
+    window: Window.Component.Window
+    canvas: Component.Canvas
+    handle: Window.Component.Handle
+}
+
+func present_each(target: Target) {
+    var window = target.window
+    var canvas = target.canvas
+    var raw = Raw()
+    var heap = Memory.Heap()
+    var user = DynamicLibrary("user32.dll", 'identity', "")
+    var graphics = DynamicLibrary("gdi32.dll", 'identity', "")
+    var handle = target.handle.value
+    assert handle != 0 and not window.closed
+    var header = heap.allocate(44)
+    var bits_per_pixel_and_planes = 32 * 65536 + 1
+    raw.write_integer(header, 0, 40)
+    raw.write_integer(header, 4, canvas.width)
+    raw.write_integer(header, 8, 0 - canvas.height)
+    raw.write_integer(header, 12, bits_per_pixel_and_planes)
+    var offset = 16
+    while offset < 44 {
+        raw.write_integer(header, offset, 0)
+        offset = offset + 4
+    }
+    var context = user.GetDC_as_long(handle)
+    var source_copy = 13369376
+    graphics.StretchDIBits(
+        context,
+        0,
+        0,
+        canvas.width,
+        canvas.height,
+        0,
+        0,
+        canvas.width,
+        canvas.height,
+        canvas.pixels,
+        header,
+        0,
+        source_copy,
+    )
+    user.ReleaseDC(handle, context)
+    heap.free(header)
+}

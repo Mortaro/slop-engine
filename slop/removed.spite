@@ -1,0 +1,16 @@
+generic $tracked_type
+
+var value: $tracked_type = null
+
+func tracking_kind(): Integer {
+    return 2
+}
+
+func tracked_key(): String {
+    var columns = Columns()
+    return columns.key(value.class)
+}
+
+func fill_from(column_header: Long, row: Integer) {
+    assert column_header != 0 and row >= 0
+}

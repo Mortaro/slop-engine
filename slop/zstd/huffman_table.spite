@@ -1,0 +1,107 @@
+var raw = Raw()
+var heap = Memory.Heap()
+var powers = Zstd.Powers()
+var maximum_bits = 0
+var symbols: Long = 0
+var lengths: Long = 0
+var ready = false
+
+func build(weights: List<Integer>) {
+    var total: Long = 0
+    var index = 0
+    while index < weights.count() {
+        if weights[index] > 0 {
+            total = total + powers.of(weights[index] - 1)
+        }
+        index = index + 1
+    }
+    crash total > 0
+    maximum_bits = powers.highest_bit(total) + 1
+    var left_over = powers.of(maximum_bits) - total
+    var last_weight = powers.highest_bit(left_over) + 1
+    crash powers.of(last_weight - 1) == left_over
+    weights.append(last_weight)
+    fill_table(weights)
+    ready = true
+}
+
+func fill_table(weights: List<Integer>) {
+    release_table()
+    var size = powers.of(maximum_bits)
+    symbols = heap.allocate(size * 4)
+    lengths = heap.allocate(size * 4)
+    var starts = List<Long>()
+    var start: Long = 0
+    var weight = 0
+    while weight <= maximum_bits {
+        starts.append(start)
+        var count = count_weight(weights, weight)
+        if weight > 0 {
+            start = start + powers.of(weight - 1) * count
+        }
+        weight = weight + 1
+    }
+    var symbol = 0
+    while symbol < weights.count() {
+        place_symbol(weights, symbol, starts)
+        symbol = symbol + 1
+    }
+}
+
+func count_weight(weights: List<Integer>, weight: Integer): Integer {
+    var count = 0
+    var index = 0
+    while index < weights.count() {
+        if weights[index] == weight {
+            count = count + 1
+        }
+        index = index + 1
+    }
+    return count
+}
+
+func place_symbol(weights: List<Integer>, symbol: Integer, starts: List<Long>) {
+    crash weights[symbol]
+    var weight = weights[symbol]
+    assert weight > 0
+    crash starts[weight]
+    var begin = starts[weight]
+    var span = powers.of(weight - 1)
+    var length = maximum_bits + 1 - weight
+    var slot = begin
+    while slot < begin + span {
+        raw.write_integer(symbols, slot * 4, symbol)
+        raw.write_integer(lengths, slot * 4, length)
+        slot = slot + 1
+    }
+    starts.set_at(weight, begin + span)
+}
+
+func release_table() {
+    assert symbols != 0
+    heap.free(symbols)
+    heap.free(lengths)
+    symbols = 0
+}
+
+func decode(reader: Zstd.BitReader): Integer {
+    var position = reader.bit_position - maximum_bits
+    var peeked: Long = 0
+    if position >= 0 {
+        peeked = reader.extract(position, maximum_bits)
+    } else {
+        var available = position + maximum_bits
+        var low = reader.extract(0, available)
+        var nothing: Long = 0
+        var shift = nothing - position
+        peeked = low * powers.of(shift)
+    }
+    var symbol = raw.read_integer(symbols, peeked * 4)
+    var length = raw.read_integer(lengths, peeked * 4)
+    reader.bit_position = reader.bit_position - length
+    return symbol
+}
+
+func drop() {
+    release_table()
+}

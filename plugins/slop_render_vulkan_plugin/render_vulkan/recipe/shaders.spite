@@ -1,0 +1,8 @@
+var glsl = Recipes.Glsl()
+var settings = Build()
+
+func build() {
+    var root = "{settings.plugins_folder}/slop_render_vulkan_plugin/render_vulkan"
+    glsl.compile(root, "shader.rectangles.vertex", "vert")
+    glsl.compile(root, "shader.rectangles.fragment", "frag")
+}

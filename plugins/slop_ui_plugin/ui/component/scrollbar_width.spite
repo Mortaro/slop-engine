@@ -1,0 +1,7 @@
+enum Kind {
+    'automatic'
+    'thin'
+    'none'
+}
+
+var value: Kind = 'automatic'

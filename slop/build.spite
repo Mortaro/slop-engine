@@ -1,0 +1,2 @@
+var slop_folder = "../../slop"
+var plugins_folder = "../../plugins"

@@ -1,0 +1,35 @@
+var folder = ""
+var index_file = ""
+var fingerprints = Dictionary<String>()
+var store: Recipes.Store? = null
+
+func CacheReader(cache_folder: String, index_path: String) {
+    folder = cache_folder
+    index_file = index_path
+}
+
+func read_index() {
+    var created = Recipes.Store("{folder}/store.bin")
+    store = created
+    var index = File(index_file)
+    var text = index.read()
+    assert text
+    var json = Json<Dictionary<String>>(null)
+    var parsed = json.read(text)
+    assert parsed
+    fingerprints = parsed
+}
+
+func fingerprint_of(id: String): String {
+    if fingerprints[id] {
+        return fingerprints[id]
+    }
+    return ""
+}
+
+func locate(id: String): Recipes.Record? {
+    assert fingerprints[id]
+    assert store
+    var key = "{id}#{fingerprints[id]}"
+    return store.locate(key)
+}

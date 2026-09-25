@@ -1,0 +1,2 @@
+var horizontal: Float = 0.0
+var vertical: Float = 0.0

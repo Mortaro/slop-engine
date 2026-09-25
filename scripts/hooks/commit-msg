@@ -1,0 +1,25 @@
+#!/bin/bash
+# Every commit names the model that wrote it, so a bad change has an owner.
+# Enforced rather than documented, as in the Spite language repository.
+
+message_file="$1"
+
+if grep -qiE '^Co-authored-by: .+ <.+@.+>' "$message_file"; then
+    exit 0
+fi
+
+cat >&2 <<'ERROR'
+
+  commit rejected: no Co-authored-by trailer
+
+  Every commit ends with the model that wrote it:
+
+      Co-authored-by: Claude Opus 5 <noreply@anthropic.com>
+
+  Name the model you are actually running as, not just "Claude". A human
+  committing by hand writes their own:
+
+      Co-authored-by: Mortaro <christian.mortaro@gmail.com>
+
+ERROR
+exit 1

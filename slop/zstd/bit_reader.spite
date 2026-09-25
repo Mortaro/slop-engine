@@ -1,0 +1,79 @@
+var raw = Raw()
+var powers = Zstd.Powers()
+var address: Long = 0
+var length = 0
+var bit_position: Long = 0
+
+func start_backward(new_address: Long, new_length: Integer) {
+    address = new_address
+    length = new_length
+    crash length > 0
+    var last = byte_at(length - 1)
+    crash last != 0
+    var marker = powers.highest_bit(last)
+    bit_position = (length - 1) * 8 + marker
+}
+
+func start_forward(new_address: Long, new_length: Integer) {
+    address = new_address
+    length = new_length
+    bit_position = 0
+}
+
+func byte_at(index: Long): Long {
+    assert index >= 0 and index < length
+    var value: Long = raw.read_byte(address, index)
+    if value < 0 {
+        value = value + 256
+    }
+    return value
+}
+
+func extract(position: Long, count: Integer): Long {
+    var byte_index = position / 8
+    var shift = position % 8
+    var word = byte_at(byte_index)
+    var index = 1
+    while index < 5 {
+        var next = byte_at(byte_index + index)
+        var placed = next.shifted_left(index * 8)
+        word = word.bits_or(placed)
+        index = index + 1
+    }
+    var mask = powers.of(count) - 1
+    var shifted = word.shifted_right(shift)
+    return shifted.bits_and(mask)
+}
+
+func read(count: Integer): Long {
+    assert count > 0
+    bit_position = bit_position - count
+    if bit_position >= 0 {
+        return extract(bit_position, count)
+    }
+    var available = bit_position + count
+    assert available > 0
+    var low = extract(0, available)
+    var nothing: Long = 0
+    var missing = nothing - bit_position
+    return low.shifted_left(missing)
+}
+
+func overflowed(): Boolean {
+    return bit_position < 0
+}
+
+func read_forward(count: Integer): Long {
+    assert count > 0
+    var value = extract(bit_position, count)
+    bit_position = bit_position + count
+    return value
+}
+
+func peek_forward(count: Integer): Long {
+    return extract(bit_position, count)
+}
+
+func forward_bytes_used(): Integer {
+    return (bit_position + 7) / 8
+}

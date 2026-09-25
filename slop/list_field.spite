@@ -1,0 +1,26 @@
+generic $list_type
+
+func write(value: $list_type, bytes: Asset.Bytes) {
+    var count = value.count()
+    bytes.write_integer(count)
+    var element = Field<$list_type.element_type>()
+    var index = 0
+    while index < count {
+        crash value[index]
+        element.write(value[index], bytes)
+        index = index + 1
+    }
+}
+
+func read(bytes: Asset.Bytes): $list_type {
+    var count = bytes.read_integer()
+    var list: $list_type = null
+    var element = Field<$list_type.element_type>()
+    var index = 0
+    while index < count {
+        var item = element.read(bytes)
+        list.append(item)
+        index = index + 1
+    }
+    return list
+}

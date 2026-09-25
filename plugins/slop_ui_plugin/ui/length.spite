@@ -1,0 +1,57 @@
+enum Unit {
+    'automatic'
+    'pixels'
+    'percent'
+    'em'
+    'root_em'
+    'viewport_width'
+    'viewport_height'
+    'fraction'
+}
+
+var amount: Float = 0.0
+var unit: Unit = 'automatic'
+
+func pixels(new_amount: Float) {
+    amount = new_amount
+    unit = 'pixels'
+}
+
+func percent(new_amount: Float) {
+    amount = new_amount
+    unit = 'percent'
+}
+
+func em(new_amount: Float) {
+    amount = new_amount
+    unit = 'em'
+}
+
+func root_em(new_amount: Float) {
+    amount = new_amount
+    unit = 'root_em'
+}
+
+func viewport_width(new_amount: Float) {
+    amount = new_amount
+    unit = 'viewport_width'
+}
+
+func viewport_height(new_amount: Float) {
+    amount = new_amount
+    unit = 'viewport_height'
+}
+
+func fraction(new_amount: Float) {
+    amount = new_amount
+    unit = 'fraction'
+}
+
+func automatic() {
+    amount = 0.0
+    unit = 'automatic'
+}
+
+func is_auto(): Boolean {
+    return unit == 'automatic'
+}

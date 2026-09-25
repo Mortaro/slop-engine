@@ -1,0 +1,6 @@
+var name = ""
+var type_name = ""
+var offset = 0
+var size = 0
+var count = 1
+var pointer = false

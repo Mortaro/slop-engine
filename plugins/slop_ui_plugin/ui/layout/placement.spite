@@ -1,0 +1,17 @@
+var left: Float = 0.0
+var top: Float = 0.0
+var block_left: Float = 0.0
+var block_top: Float = 0.0
+var block_width: Float = 0.0
+var block_height: Float = 0.0
+var clip_left: Float = -1000000000.0
+var clip_top: Float = -1000000000.0
+var clip_right: Float = 1000000000.0
+var clip_bottom: Float = 1000000000.0
+
+func inherit_clip(inherited: Ui.Layout.Placement) {
+    clip_left = inherited.clip_left
+    clip_top = inherited.clip_top
+    clip_right = inherited.clip_right
+    clip_bottom = inherited.clip_bottom
+}

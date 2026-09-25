@@ -1,0 +1,49 @@
+singleton
+
+var longs = TypedMemory<Long>()
+var ints = TypedMemory<Integer>()
+var bytes = TypedMemory<Byte>()
+
+func read_long(address: Memory.Address, offset: Long): Long {
+    var at = address + offset
+    return longs.read_value(at, 0)
+}
+
+func write_long(address: Memory.Address, offset: Long, value: Long) {
+    var at = address + offset
+    longs.write_value(at, 0, value)
+}
+
+func read_integer(address: Memory.Address, offset: Long): Integer {
+    var at = address + offset
+    return ints.read_value(at, 0)
+}
+
+func write_integer(address: Memory.Address, offset: Long, value: Integer) {
+    var at = address + offset
+    ints.write_value(at, 0, value)
+}
+
+func read_byte(address: Memory.Address, offset: Long): Integer {
+    var at = address + offset
+    var value: Integer = bytes.read_value(at, 0)
+    return value
+}
+
+func write_byte(address: Memory.Address, offset: Long, value: Integer) {
+    var at = address + offset
+    var narrow: Byte = value
+    bytes.write_value(at, 0, narrow)
+}
+
+func copy(source: Memory.Address, target: Memory.Address, count: Long) {
+    source.copy_to(target, count)
+}
+
+func text(address: Memory.Address, length: Long): String {
+    return address.text(length)
+}
+
+func terminated_text(address: Memory.Address): String {
+    return address.terminated_text()
+}

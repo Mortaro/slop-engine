@@ -1,0 +1,24 @@
+var record: Recipes.Record? = null
+
+func TextureLoad(found: Recipes.Record) {
+    record = found
+}
+
+func run(): Render.LoadedTexture {
+    crash record
+    var bytes = record.read()
+    var pack = Pack<Asset.Texture>()
+    var texture = pack.decode(bytes)
+    crash texture
+    var loaded = Render.LoadedTexture()
+    loaded.texture = texture
+    var pixels = texture.pixels
+    var count = pixels.count()
+    loaded.raw.reserve(count * 4 + 1)
+    var index = 0
+    while index < pixels.count() {
+        loaded.raw.write_integer(pixels[index])
+        index = index + 1
+    }
+    return loaded
+}

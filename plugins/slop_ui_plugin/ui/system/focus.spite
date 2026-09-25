@@ -1,0 +1,136 @@
+type Candidate {
+    entity: Entity
+    focusable: Component.Focusable
+    layout: Component.ComputedLayout
+    clip: Component.ComputedClip
+}
+
+type Holder {
+    entity: Entity
+    focused: Component.Focused
+}
+
+type Pointer {
+    mouse: Input.Component.Mouse
+}
+
+type Keys {
+    keyboard: Input.Component.Keyboard
+}
+
+var keys = Input.Key()
+
+func after_input_all(
+    candidates: List<Candidate>,
+    holders: List<Holder>,
+    pointers: List<Pointer>,
+    keyboards: List<Keys>,
+) {
+    var index = 0
+    while index < pointers.count() {
+        focus_under(candidates, holders, pointers[index].mouse)
+        index = index + 1
+    }
+    index = 0
+    while index < keyboards.count() {
+        tab_focus(candidates, holders, keyboards[index].keyboard)
+        index = index + 1
+    }
+}
+
+func focus_under(candidates: List<Candidate>, holders: List<Holder>, mouse: Input.Component.Mouse) {
+    assert mouse.pressed
+    var target = topmost_under(candidates, mouse)
+    move_focus(holders, target)
+}
+
+func tab_focus(candidates: List<Candidate>, holders: List<Holder>, keyboard: Input.Component.Keyboard) {
+    assert keyboard.was_pressed(keys.tab) and candidates.count() > 0
+    var backwards = keyboard.is_held(keys.shift)
+    var current_order = focused_order(holders)
+    var target = neighbour(candidates, current_order, backwards)
+    move_focus(holders, target)
+}
+
+func focused_order(holders: List<Holder>): Integer {
+    if holders.count() == 0 {
+        return -1
+    }
+    crash holders[0]
+    var holder = holders[0].entity.id
+    var layout = Lookup<Component.ComputedLayout>().of(holder)
+    if layout {
+        return layout.order
+    }
+    return -1
+}
+
+func neighbour(candidates: List<Candidate>, current_order: Integer, backwards: Boolean): Integer {
+    var best = -1
+    var best_order = -1
+    var wrap = -1
+    var wrap_order = -1
+    var index = 0
+    while index < candidates.count() {
+        var order = candidates[index].layout.order
+        var entity = candidates[index].entity.id
+        var beyond = order > current_order
+        var closer = best < 0 or order < best_order
+        var outer = wrap < 0 or order < wrap_order
+        if backwards {
+            beyond = order < current_order or current_order < 0
+            closer = best < 0 or order > best_order
+            outer = wrap < 0 or order > wrap_order
+        }
+        if order >= 0 and beyond and closer {
+            best = entity
+            best_order = order
+        }
+        if order >= 0 and outer {
+            wrap = entity
+            wrap_order = order
+        }
+        index = index + 1
+    }
+    if best >= 0 {
+        return best
+    }
+    return wrap
+}
+
+func move_focus(holders: List<Holder>, target: Integer) {
+    var index = 0
+    while index < holders.count() {
+        var holder = holders[index].entity
+        if holder.id != target {
+            holder.remove_component(Component.Focused)
+        }
+        index = index + 1
+    }
+    assert target >= 0
+    var already = Lookup<Component.Focused>().has(target)
+    assert not already
+    var focused = Component.Focused()
+    Entity(target).add_component(focused)
+}
+
+func topmost_under(candidates: List<Candidate>, mouse: Input.Component.Mouse): Integer {
+    var mouse_left: Float = mouse.left
+    var mouse_top: Float = mouse.top
+    var chosen = -1
+    var chosen_order = -1
+    var index = 0
+    while index < candidates.count() {
+        var candidate = candidates[index]
+        var layout = candidate.layout
+        var inside_x = mouse_left >= layout.left and mouse_left < layout.left + layout.width
+        var inside_y = mouse_top >= layout.top and mouse_top < layout.top + layout.height
+        var visible = candidate.clip.contains(mouse_left, mouse_top)
+        if inside_x and inside_y and visible and layout.order > chosen_order {
+            chosen = candidate.entity.id
+            chosen_order = layout.order
+        }
+        index = index + 1
+    }
+    return chosen
+}

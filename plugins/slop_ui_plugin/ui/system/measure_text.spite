@@ -1,0 +1,25 @@
+type MeasuredText {
+    entity: Entity
+    text: Component.Text
+}
+
+func prepare_each(measured: MeasuredText) {
+    var text = measured.text
+    var length = text.text.length()
+    var width: Float = 0.0
+    if length > 0 {
+        width = (length * 6 - 1) * text.scale
+    }
+    var height: Float = 7 * text.scale
+    var sizes = Lookup<Ui.Component.ContentSize>()
+    var size = sizes.of(measured.entity.id)
+    if size {
+        size.width = width
+        size.height = height
+    } else {
+        var created = Ui.Component.ContentSize()
+        created.width = width
+        created.height = height
+        measured.entity.add_component(created)
+    }
+}

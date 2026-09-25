@@ -1,0 +1,436 @@
+var bytes = Asset.Bytes()
+var layers = List<Psd.Layer>()
+
+func open(path: String) {
+    var loaded = bytes.read_file(path)
+    crash loaded
+    read_header()
+}
+
+func read_header() {
+    var signature = read_tag()
+    crash signature == "8BPS"
+    var version = read_short()
+    crash version == 1
+    skip(6)
+    var channel_count = read_short()
+    skip(8)
+    var depth = read_short()
+    var colour_mode = read_short()
+    crash depth == 8
+    crash colour_mode == 3
+    crash channel_count >= 3
+    var colour_mode_length = read_unsigned()
+    skip(colour_mode_length)
+    var resources_length = read_unsigned()
+    skip(resources_length)
+    var layer_and_mask_length = read_unsigned()
+    var layer_and_mask_end = bytes.position + layer_and_mask_length
+    assert layer_and_mask_length >= 4
+    var layer_information_length = read_unsigned()
+    var layer_information_end = bytes.position + layer_information_length
+    read_layers(layer_information_end)
+    bytes.position = layer_and_mask_end
+}
+
+func read_layers(end: Integer) {
+    assert bytes.position + 2 <= end
+    var count = read_signed_short()
+    if count < 0 {
+        count = 0 - count
+    }
+    var records = List<Psd.Layer>()
+    var index = 0
+    while index < count {
+        var record = read_record()
+        records.append(record)
+        index = index + 1
+    }
+    index = 0
+    while index < count {
+        locate_channels(records, index)
+        index = index + 1
+    }
+    build_tree(records)
+}
+
+func locate_channels(records: List<Psd.Layer>, index: Integer) {
+    crash records[index]
+    var channel = 0
+    while channel < records[index].channels.count() {
+        locate_channel(records[index], channel)
+        channel = channel + 1
+    }
+}
+
+func locate_channel(record: Psd.Layer, index: Integer) {
+    crash record.channels[index]
+    var stored_length = record.channels[index].length
+    var start = bytes.position
+    if stored_length >= 2 {
+        var compression = read_short()
+        crash compression == 0 or compression == 1
+        record.channels[index].compressed = compression == 1
+    }
+    record.channels[index].offset = start + 2
+    record.channels[index].length = stored_length - 2
+    bytes.position = start + stored_length
+}
+
+func read_record(): Psd.Layer {
+    var record = Psd.Layer()
+    record.top = read_signed()
+    record.left = read_signed()
+    record.bottom = read_signed()
+    record.right = read_signed()
+    var channel_count = read_short()
+    var index = 0
+    while index < channel_count {
+        var channel = Psd.Channel()
+        channel.identifier = read_signed_short()
+        channel.length = read_unsigned()
+        record.channels.append(channel)
+        index = index + 1
+    }
+    var signature = read_tag()
+    crash signature == "8BIM"
+    skip(4)
+    skip(4)
+    var extra_length = read_unsigned()
+    var extra_end = bytes.position + extra_length
+    var mask_length = read_unsigned()
+    var mask_end = bytes.position + mask_length
+    read_mask(record, mask_length)
+    bytes.position = mask_end
+    var ranges_length = read_unsigned()
+    skip(ranges_length)
+    var pascal_length = bytes.read_byte()
+    record.name = bytes.raw.text(bytes.address + bytes.position, pascal_length)
+    var padding = (4 - (pascal_length + 1) % 4) % 4
+    skip(pascal_length + padding)
+    read_extra_blocks(record, extra_end)
+    bytes.position = extra_end
+    return record
+}
+
+func read_mask(record: Psd.Layer, length: Integer) {
+    assert length >= 20
+    record.mask_top = read_signed()
+    record.mask_left = read_signed()
+    record.mask_bottom = read_signed()
+    record.mask_right = read_signed()
+    record.mask_default = bytes.read_byte()
+    var flags = bytes.read_byte()
+    record.mask_enabled = flags / 2 % 2 == 0
+    record.mask_channel = -2
+    if flags / 16 % 2 == 1 {
+        skip_mask_parameters()
+    }
+    assert length > 20 and bytes.remaining() >= 18
+    var real_flags = bytes.read_byte()
+    record.mask_default = bytes.read_byte()
+    record.mask_top = read_signed()
+    record.mask_left = read_signed()
+    record.mask_bottom = read_signed()
+    record.mask_right = read_signed()
+    record.mask_enabled = real_flags / 2 % 2 == 0
+    record.mask_channel = -3
+}
+
+func skip_mask_parameters() {
+    var parameters = bytes.read_byte()
+    if parameters % 2 == 1 {
+        var density = bytes.read_byte()
+        crash density == 255
+    }
+    if parameters / 2 % 2 == 1 {
+        var feather = bytes.read_long()
+        crash feather == 0
+    }
+    if parameters / 4 % 2 == 1 {
+        skip(1)
+    }
+    if parameters / 8 % 2 == 1 {
+        skip(8)
+    }
+}
+
+func read_extra_blocks(record: Psd.Layer, end: Integer) {
+    var reading = true
+    while reading and bytes.position + 12 <= end {
+        reading = read_extra_block(record)
+    }
+}
+
+func read_extra_block(record: Psd.Layer): Boolean {
+    var signature = read_tag()
+    assert signature == "8BIM" or signature == "8B64"
+    var key = read_tag()
+    var length = read_unsigned()
+    var start = bytes.position
+    if key == "luni" {
+        record.name = read_unicode_name()
+    } else if key == "lsct" or key == "lsdk" {
+        record.divider = read_unsigned()
+    }
+    bytes.position = start + length + length % 2
+    return true
+}
+
+func read_unicode_name(): String {
+    var count = read_unsigned()
+    var raw = Raw()
+    var heap = Memory.Heap()
+    var buffer = heap.allocate(count + 1)
+    var index = 0
+    while index < count {
+        var code = read_short()
+        if code > 127 {
+            code = 63
+        }
+        raw.write_byte(buffer, index, code)
+        index = index + 1
+    }
+    var name = raw.text(buffer, count)
+    heap.free(buffer)
+    return name
+}
+
+func build_tree(records: List<Psd.Layer>) {
+    var groups = List<String>()
+    var index = records.count() - 1
+    while index >= 0 {
+        place_record(records, index, groups)
+        index = index - 1
+    }
+    crash groups.is_empty()
+}
+
+func place_record(records: List<Psd.Layer>, index: Integer, groups: List<String>) {
+    crash records[index]
+    var divider = records[index].divider
+    if divider == 1 or divider == 2 {
+        records[index].group = true
+        records[index].path = joined_path(groups, records[index].name)
+        layers.append(records[index])
+        groups.append(records[index].name)
+    } else if divider == 3 {
+        crash not groups.is_empty()
+        groups.remove_last()
+    } else {
+        records[index].path = joined_path(groups, records[index].name)
+        layers.append(records[index])
+    }
+}
+
+func joined_path(groups: List<String>, name: String): String {
+    if groups.is_empty() {
+        return name
+    }
+    var prefix = groups.join("/")
+    return "{prefix}/{name}"
+}
+
+func pixels_of(layer: Psd.Layer): Asset.Texture {
+    var texture = Asset.Texture()
+    texture.width = layer.width()
+    texture.height = layer.height()
+    var red = channel_plane(layer, 0)
+    var green = channel_plane(layer, 1)
+    var blue = channel_plane(layer, 2)
+    var alpha = channel_plane(layer, -1)
+    var mask = mask_plane(layer)
+    var count = texture.width * texture.height
+    var pixel = 0
+    while pixel < count {
+        var value = pack_pixel(red, green, blue, alpha, mask, pixel)
+        texture.pixels.append(value)
+        pixel = pixel + 1
+    }
+    return texture
+}
+
+func pack_pixel(
+    red: List<Integer>,
+    green: List<Integer>,
+    blue: List<Integer>,
+    alpha: List<Integer>,
+    mask: List<Integer>,
+    pixel: Integer,
+): Integer {
+    crash red[pixel]
+    crash green[pixel]
+    crash blue[pixel]
+    crash alpha[pixel]
+    crash mask[pixel]
+    var masked = (alpha[pixel] * mask[pixel] + 127) / 255
+    return red[pixel] + green[pixel] * 256 + blue[pixel] * 65536 + masked * 16777216
+}
+
+func channel_plane(layer: Psd.Layer, identifier: Integer): List<Integer> {
+    var plane_width = layer.width()
+    var plane_height = layer.height()
+    var channel = layer.channels.find_by_identifier(identifier)
+    if channel {
+        return decode_channel(channel, plane_width, plane_height)
+    }
+    crash identifier == -1
+    return filled(plane_width * plane_height, 255)
+}
+
+func mask_plane(layer: Psd.Layer): List<Integer> {
+    var plane_width = layer.width()
+    var plane_height = layer.height()
+    var channel = layer.channels.find_by_identifier(layer.mask_channel)
+    var usable = layer.mask_enabled and layer.mask_channel != 0
+    if channel {
+        if usable {
+            return masked_plane(layer, channel)
+        }
+    }
+    return filled(plane_width * plane_height, 255)
+}
+
+func masked_plane(layer: Psd.Layer, channel: Psd.Channel): List<Integer> {
+    var mask_width = layer.mask_right - layer.mask_left
+    var mask_height = layer.mask_bottom - layer.mask_top
+    var stored = decode_channel(channel, mask_width, mask_height)
+    var plane = List<Integer>()
+    var row = 0
+    while row < layer.height() {
+        append_mask_row(layer, stored, plane, row)
+        row = row + 1
+    }
+    return plane
+}
+
+func append_mask_row(layer: Psd.Layer, stored: List<Integer>, plane: List<Integer>, row: Integer) {
+    var canvas_top = layer.top + row
+    var mask_width = layer.mask_right - layer.mask_left
+    var inside_rows = canvas_top >= layer.mask_top and canvas_top < layer.mask_bottom
+    var column = 0
+    while column < layer.width() {
+        var canvas_left = layer.left + column
+        var inside = inside_rows and canvas_left >= layer.mask_left and canvas_left < layer.mask_right
+        var value = layer.mask_default
+        if inside {
+            var at = (canvas_top - layer.mask_top) * mask_width + canvas_left - layer.mask_left
+            crash stored[at]
+            value = stored[at]
+        }
+        plane.append(value)
+        column = column + 1
+    }
+}
+
+func filled(count: Integer, value: Integer): List<Integer> {
+    var plane = List<Integer>()
+    var index = 0
+    while index < count {
+        plane.append(value)
+        index = index + 1
+    }
+    return plane
+}
+
+func decode_channel(channel: Psd.Channel, plane_width: Integer, plane_height: Integer): List<Integer> {
+    var plane = List<Integer>()
+    if channel.compressed {
+        decode_run_length(channel, plane_width, plane_height, plane)
+    } else {
+        copy_bytes(channel.offset, plane_width * plane_height, plane)
+    }
+    crash plane.count() == plane_width * plane_height
+    return plane
+}
+
+func decode_run_length(channel: Psd.Channel, plane_width: Integer, plane_height: Integer, plane: List<Integer>) {
+    var offset = channel.offset + plane_height * 2
+    var row = 0
+    while row < plane_height {
+        var row_length = bytes.big_endian_short(channel.offset + row * 2)
+        decode_pack_bits(offset, row_length, plane_width, plane)
+        offset = offset + row_length
+        row = row + 1
+    }
+}
+
+func decode_pack_bits(start: Integer, length: Integer, wanted: Integer, plane: List<Integer>) {
+    var read = start
+    var end = start + length
+    var written = 0
+    while written < wanted {
+        crash read < end
+        var header = bytes.byte_at(read)
+        read = read + 1
+        if header < 128 {
+            var copy = header + 1
+            crash read + copy <= end
+            crash written + copy <= wanted
+            copy_bytes(read, copy, plane)
+            read = read + copy
+            written = written + copy
+        } else if header > 128 {
+            var repeat = 257 - header
+            crash read < end
+            crash written + repeat <= wanted
+            var value = bytes.byte_at(read)
+            repeat_value(value, repeat, plane)
+            read = read + 1
+            written = written + repeat
+        }
+    }
+    crash read == end
+}
+
+func copy_bytes(from: Integer, count: Integer, plane: List<Integer>) {
+    var index = 0
+    while index < count {
+        var value = bytes.byte_at(from + index)
+        plane.append(value)
+        index = index + 1
+    }
+}
+
+func repeat_value(value: Integer, count: Integer, plane: List<Integer>) {
+    var index = 0
+    while index < count {
+        plane.append(value)
+        index = index + 1
+    }
+}
+
+func read_tag(): String {
+    var text = bytes.raw.text(bytes.address + bytes.position, 4)
+    skip(4)
+    return text
+}
+
+func read_short(): Integer {
+    var value = bytes.big_endian_short(bytes.position)
+    skip(2)
+    return value
+}
+
+func read_signed_short(): Integer {
+    var value = read_short()
+    if value >= 32768 {
+        value = value - 65536
+    }
+    return value
+}
+
+func read_unsigned(): Integer {
+    var value = bytes.big_endian_integer(bytes.position)
+    skip(4)
+    return value
+}
+
+func read_signed(): Integer {
+    return read_unsigned()
+}
+
+func skip(count: Integer) {
+    bytes.position = bytes.position + count
+    crash bytes.position <= bytes.length
+}

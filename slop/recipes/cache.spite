@@ -1,0 +1,114 @@
+singleton
+
+var sources = Recipes.Sources()
+var fingerprints = Dictionary<String>()
+var store: Recipes.Store? = null
+var loaded = false
+
+func folder(): String {
+    return sources.cache_folder()
+}
+
+func index_path(): String {
+    return sources.index_path()
+}
+
+func key(id: String, input_fingerprint: String): String {
+    return "{id}#{input_fingerprint}"
+}
+
+func is_current(id: String, input_fingerprint: String): Boolean {
+    load_index()
+    var entry = key(id, input_fingerprint)
+    var cooked = opened_store().has(entry)
+    if cooked {
+        point_index(id, input_fingerprint)
+    }
+    return cooked
+}
+
+func put(id: String, input_fingerprint: String, bytes: Asset.Bytes) {
+    load_index()
+    var entry = key(id, input_fingerprint)
+    var cooked = opened_store()
+    if not cooked.has(entry) {
+        cooked.write(entry, bytes)
+    }
+    point_index(id, input_fingerprint)
+}
+
+func point_index(id: String, input_fingerprint: String) {
+    assert fingerprints[id] != input_fingerprint
+    fingerprints.set(id, input_fingerprint)
+    var json = Json(fingerprints)
+    var text = json.write()
+    var path = index_path()
+    var index = File(path)
+    index.write(text)
+}
+
+func read(id: String): Asset.Bytes? {
+    load_index()
+    assert fingerprints[id]
+    var entry = key(id, fingerprints[id])
+    return opened_store().read(entry)
+}
+
+func locate(id: String): Recipes.Record? {
+    load_index()
+    assert fingerprints[id]
+    var entry = key(id, fingerprints[id])
+    return opened_store().locate(entry)
+}
+
+func scratch_path(id: String): String {
+    load_index()
+    return "{folder()}/scratch-{id}"
+}
+
+func opened_store(): Recipes.Store {
+    if store {
+        return store
+    }
+    var created = Recipes.Store("{folder()}/store.bin")
+    store = created
+    return created
+}
+
+func load_index() {
+    assert not loaded
+    loaded = true
+    var cache_folder = folder()
+    var directory = Directory(cache_folder)
+    directory.create()
+    var path = index_path()
+    var index = File(path)
+    var text = index.read()
+    assert text
+    var json = Json<Dictionary<String>>(null)
+    var parsed = json.read(text)
+    assert parsed
+    fingerprints = parsed
+}
+
+func fingerprint_bytes(bytes: Asset.Bytes): String {
+    var hash: Long = 1469598103
+    var index = 0
+    while index < bytes.length {
+        var code = bytes.byte_at(index)
+        hash = (hash * 31 + code) % 4294967291
+        index = index + 1
+    }
+    return "{hash}-{bytes.length}"
+}
+
+func fingerprint(text: String): String {
+    var hash: Long = 1469598103
+    var index = 0
+    while index < text.length() {
+        var code = text.code_at(index)
+        hash = (hash * 31 + code) % 4294967291
+        index = index + 1
+    }
+    return "{hash}-{text.length()}"
+}

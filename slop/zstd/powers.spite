@@ -1,0 +1,10 @@
+singleton
+
+func of(exponent: Integer): Long {
+    var one: Long = 1
+    return one.shifted_left(exponent)
+}
+
+func highest_bit(value: Long): Integer {
+    return 63 - value.leading_zero_count()
+}

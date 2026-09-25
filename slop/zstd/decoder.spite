@@ -1,0 +1,634 @@
+var raw = Raw()
+var heap = Memory.Heap()
+var powers = Zstd.Powers()
+var input: Long = 0
+var input_length = 0
+var position = 0
+var output = Asset.Bytes()
+var literals: Long = 0
+var literals_capacity = 0
+var literal_count = 0
+var literal_read = 0
+var huffman = Zstd.HuffmanTable()
+var literal_length_table = Zstd.FseTable()
+var offset_table = Zstd.FseTable()
+var match_length_table = Zstd.FseTable()
+var reader = Zstd.BitReader()
+var repeat_one: Long = 1
+var repeat_two: Long = 4
+var repeat_three: Long = 8
+var frame_checksum = 0
+var literal_length_bases = [
+    16
+    18
+    20
+    22
+    24
+    28
+    32
+    40
+    48
+    64
+    128
+    256
+    512
+    1024
+    2048
+    4096
+    8192
+    16384
+    32768
+    65536
+]
+var literal_length_bits = [1, 1, 1, 1, 2, 2, 3, 3, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
+var match_length_bases = [
+    35
+    37
+    39
+    41
+    43
+    47
+    51
+    59
+    67
+    83
+    99
+    131
+    259
+    515
+    1027
+    2051
+    4099
+    8195
+    16387
+    32771
+    65539
+]
+var match_length_bits = [1, 1, 1, 1, 2, 2, 3, 3, 4, 4, 5, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
+var literal_length_default = [
+    4
+    3
+    2
+    2
+    2
+    2
+    2
+    2
+    2
+    2
+    2
+    2
+    2
+    1
+    1
+    1
+    2
+    2
+    2
+    2
+    2
+    2
+    2
+    2
+    2
+    3
+    2
+    1
+    1
+    1
+    1
+    1
+    -1
+    -1
+    -1
+    -1
+]
+var match_length_default = [
+    1
+    4
+    3
+    2
+    2
+    2
+    2
+    2
+    2
+    1
+    1
+    1
+    1
+    1
+    1
+    1
+    1
+    1
+    1
+    1
+    1
+    1
+    1
+    1
+    1
+    1
+    1
+    1
+    1
+    1
+    1
+    1
+    1
+    1
+    1
+    1
+    1
+    1
+    1
+    1
+    1
+    1
+    1
+    1
+    1
+    1
+    -1
+    -1
+    -1
+    -1
+    -1
+    -1
+    -1
+]
+var offset_default = [1, 1, 1, 1, 1, 1, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, -1, -1, -1, -1, -1]
+
+func decompress(source: Asset.Bytes): Asset.Bytes {
+    input = source.address
+    input_length = source.length
+    position = 0
+    output = Asset.Bytes()
+    while position < input_length {
+        decode_frame()
+    }
+    return output
+}
+
+func byte_at(index: Integer): Integer {
+    crash index >= 0 and index < input_length
+    var value: Integer = raw.read_byte(input, index)
+    if value < 0 {
+        value = value + 256
+    }
+    return value
+}
+
+func little(index: Integer, count: Integer): Long {
+    var value: Long = 0
+    var multiplier: Long = 1
+    var offset = 0
+    while offset < count {
+        var next: Long = byte_at(index + offset)
+        value = value + next * multiplier
+        multiplier = multiplier * 256
+        offset = offset + 1
+    }
+    return value
+}
+
+func decode_frame() {
+    var magic = little(position, 4)
+    var skippable = magic >= 407710288 and magic <= 407710303
+    if skippable {
+        var skipped = little(position + 4, 4)
+        position = skipped + position + 8
+    } else {
+        crash magic == 4247762216
+        position = position + 4
+        read_frame_header()
+        decode_blocks()
+    }
+}
+
+func read_frame_header() {
+    var descriptor = byte_at(position)
+    position = position + 1
+    var content_size_flag = descriptor / 64
+    var single_segment = descriptor / 32 % 2
+    var dictionary_flag = descriptor % 4
+    frame_checksum = descriptor / 4 % 2
+    if single_segment == 0 {
+        position = position + 1
+    }
+    var dictionary_sizes = [0, 1, 2, 4]
+    crash dictionary_sizes[dictionary_flag]
+    var dictionary_bytes = dictionary_sizes[dictionary_flag]
+    var dictionary = little(position, dictionary_bytes)
+    crash dictionary == 0
+    position = position + dictionary_bytes
+    var size_bytes = content_size_bytes(content_size_flag, single_segment)
+    var content_size = little(position, size_bytes)
+    if size_bytes == 2 {
+        content_size = content_size + 256
+    }
+    position = position + size_bytes
+    output.reserve(content_size + output.length)
+    repeat_one = 1
+    repeat_two = 4
+    repeat_three = 8
+}
+
+func content_size_bytes(flag: Integer, single_segment: Integer): Integer {
+    if flag == 0 {
+        return single_segment
+    } else if flag == 1 {
+        return 2
+    } else if flag == 2 {
+        return 4
+    }
+    return 8
+}
+
+func decode_blocks() {
+    var last = 0
+    while last == 0 {
+        var header = little(position, 3)
+        position = position + 3
+        last = header % 2
+        var block_type = header / 2 % 4
+        var size = header / 8
+        decode_block(block_type, size)
+    }
+    position = position + frame_checksum * 4
+}
+
+func decode_block(block_type: Integer, size: Integer) {
+    crash block_type != 3
+    if block_type == 0 {
+        output.write_bytes(input + position, size)
+        position = position + size
+    } else if block_type == 1 {
+        var value = byte_at(position)
+        repeat_byte(value, size)
+        position = position + 1
+    } else {
+        var end = position + size
+        var cursor = decode_literals(position)
+        decode_sequences(cursor, end)
+        position = end
+    }
+}
+
+func repeat_byte(value: Integer, count: Integer) {
+    output.reserve(output.length + count)
+    var index = 0
+    while index < count {
+        raw.write_byte(output.address, output.length + index, value)
+        index = index + 1
+    }
+    output.length = output.length + count
+}
+
+func ensure_literals(count: Integer) {
+    assert count > literals_capacity
+    if literals != 0 {
+        heap.free(literals)
+    }
+    literals_capacity = count + 1024
+    literals = heap.allocate(literals_capacity)
+}
+
+func decode_literals(cursor: Integer): Integer {
+    var first = byte_at(cursor)
+    var block_type = first % 4
+    var size_format = first / 4 % 4
+    if block_type <= 1 {
+        return decode_simple_literals(cursor, block_type, size_format)
+    }
+    return decode_huffman_literals(cursor, block_type, size_format)
+}
+
+func decode_simple_literals(cursor: Integer, block_type: Integer, size_format: Integer): Integer {
+    var first = byte_at(cursor)
+    var header_size = 1
+    var regenerated = first / 8
+    if size_format == 1 {
+        header_size = 2
+        var second = byte_at(cursor + 1)
+        regenerated = first / 16 + second * 16
+    } else if size_format == 3 {
+        header_size = 3
+        var second = byte_at(cursor + 1)
+        var third = byte_at(cursor + 2)
+        regenerated = first / 16 + second * 16 + third * 4096
+    }
+    ensure_literals(regenerated)
+    literal_count = regenerated
+    var data = cursor + header_size
+    if block_type == 0 {
+        raw.copy(input + data, literals, regenerated)
+        return data + regenerated
+    }
+    var value = byte_at(data)
+    var index = 0
+    while index < regenerated {
+        raw.write_byte(literals, index, value)
+        index = index + 1
+    }
+    return data + 1
+}
+
+func decode_huffman_literals(cursor: Integer, block_type: Integer, size_format: Integer): Integer {
+    var header_size = 3
+    var value = little(cursor, 3)
+    var regenerated = value / 16 % 1024
+    var compressed = value / 16384 % 1024
+    if size_format == 2 {
+        header_size = 4
+        value = little(cursor, 4)
+        regenerated = value / 16 % 16384
+        compressed = value / 262144 % 16384
+    } else if size_format == 3 {
+        header_size = 5
+        value = little(cursor, 5)
+        regenerated = value / 16 % 262144
+        compressed = value / 4194304 % 262144
+    }
+    ensure_literals(regenerated)
+    literal_count = regenerated
+    var data = cursor + header_size
+    var stream_bytes = compressed
+    if block_type == 2 {
+        var used = read_huffman_tree(data)
+        data = data + used
+        stream_bytes = compressed - used
+    }
+    crash huffman.ready
+    if size_format == 0 {
+        decode_stream(data, stream_bytes, 0, regenerated)
+    } else {
+        decode_four_streams(data, stream_bytes, regenerated)
+    }
+    return compressed + cursor + header_size
+}
+
+func decode_four_streams(data: Integer, stream_bytes: Integer, regenerated: Integer) {
+    var first_size = little(data, 2)
+    var second_size = little(data + 2, 2)
+    var third_size = little(data + 4, 2)
+    var wide: Long = stream_bytes
+    var fourth_size = wide - 6 - first_size - second_size - third_size
+    var segment = (regenerated + 3) / 4
+    var start = data + 6
+    decode_stream(start, first_size, 0, segment)
+    start = first_size + start
+    decode_stream(start, second_size, segment, segment)
+    start = second_size + start
+    decode_stream(start, third_size, segment * 2, segment)
+    start = third_size + start
+    var last_count = regenerated - segment * 3
+    decode_stream(start, fourth_size, segment * 3, last_count)
+}
+
+func decode_stream(start: Integer, size: Integer, first: Integer, count: Integer) {
+    reader.start_backward(input + start, size)
+    var index = 0
+    while index < count {
+        var symbol = huffman.decode(reader)
+        raw.write_byte(literals, first + index, symbol)
+        index = index + 1
+    }
+}
+
+func read_huffman_tree(at: Integer): Integer {
+    var header = byte_at(at)
+    var weights = List<Integer>()
+    if header < 128 {
+        read_compressed_weights(at + 1, header, weights)
+        huffman.build(weights)
+        return 1 + header
+    }
+    var count = header - 127
+    var index = 0
+    while index < count {
+        var packed = byte_at(at + 1 + index / 2)
+        var weight = packed % 16
+        if index % 2 == 0 {
+            weight = packed / 16
+        }
+        weights.append(weight)
+        index = index + 1
+    }
+    huffman.build(weights)
+    return 1 + (count + 1) / 2
+}
+
+func read_compressed_weights(at: Integer, size: Integer, weights: List<Integer>) {
+    var table = Zstd.FseTable()
+    reader.start_forward(input + at, size)
+    var used = table.read_description(reader, 255)
+    reader.start_backward(input + at + used, size - used)
+    var first_state = reader.read(table.accuracy)
+    var second_state = reader.read(table.accuracy)
+    var decoding = true
+    while decoding {
+        var first_symbol = table.symbol_at(first_state)
+        weights.append(first_symbol)
+        first_state = next_state(table, first_state)
+        var second_symbol = table.symbol_at(second_state)
+        weights.append(second_symbol)
+        if reader.overflowed() {
+            decoding = false
+        } else {
+            second_state = next_state(table, second_state)
+            decoding = not reader.overflowed()
+            append_final_if_done(table, first_state, weights, decoding)
+        }
+    }
+}
+
+func append_final_if_done(table: Zstd.FseTable, state: Integer, weights: List<Integer>, decoding: Boolean) {
+    assert not decoding
+    var closing = table.symbol_at(state)
+    weights.append(closing)
+}
+
+func next_state(table: Zstd.FseTable, state: Integer): Integer {
+    var baseline = table.baseline_at(state)
+    var number_of_bits = table.bits_at(state)
+    var extra = reader.read(number_of_bits)
+    return extra + baseline
+}
+
+func decode_sequences(start: Integer, end: Integer) {
+    var cursor = start
+    var first = byte_at(cursor)
+    var count = first
+    cursor = cursor + 1
+    if first >= 128 and first < 255 {
+        var second = byte_at(cursor)
+        count = (first - 128) * 256 + second
+        cursor = cursor + 1
+    } else if first == 255 {
+        var low = little(cursor, 2)
+        count = low + 32512
+        cursor = cursor + 2
+    }
+    literal_read = 0
+    if count > 0 {
+        cursor = prepare_tables(cursor, end)
+        run_sequences(cursor, end, count)
+    }
+    var remaining = literal_count - literal_read
+    output.write_bytes(literals + literal_read, remaining)
+}
+
+func prepare_tables(start: Integer, end: Integer): Integer {
+    var modes = byte_at(start)
+    var cursor = start + 1
+    var literal_length_mode = modes / 64
+    var offset_mode = modes / 16 % 4
+    var match_length_mode = modes / 4 % 4
+    cursor = prepare_table(literal_length_table, literal_length_mode, cursor, end, literal_length_default, 6, 35)
+    cursor = prepare_table(offset_table, offset_mode, cursor, end, offset_default, 5, 31)
+    cursor = prepare_table(match_length_table, match_length_mode, cursor, end, match_length_default, 6, 52)
+    return cursor
+}
+
+func prepare_table(
+    table: Zstd.FseTable,
+    mode: Integer,
+    cursor: Integer,
+    end: Integer,
+    defaults: List<Integer>,
+    default_accuracy: Integer,
+    maximum_symbol: Integer,
+): Integer {
+    if mode == 0 {
+        table.build(defaults, default_accuracy)
+        return cursor
+    } else if mode == 1 {
+        var symbol = byte_at(cursor)
+        table.build_rle(symbol)
+        return cursor + 1
+    } else if mode == 2 {
+        reader.start_forward(input + cursor, end - cursor)
+        var used = table.read_description(reader, maximum_symbol)
+        return cursor + used
+    }
+    crash table.symbols != 0
+    return cursor
+}
+
+func run_sequences(start: Integer, end: Integer, count: Integer) {
+    reader.start_backward(input + start, end - start)
+    var literal_length_state = reader.read(literal_length_table.accuracy)
+    var offset_state = reader.read(offset_table.accuracy)
+    var match_length_state = reader.read(match_length_table.accuracy)
+    var sequence = 0
+    while sequence < count {
+        var offset_code = offset_table.symbol_at(offset_state)
+        var match_length_code = match_length_table.symbol_at(match_length_state)
+        var literal_length_code = literal_length_table.symbol_at(literal_length_state)
+        var offset_extra = reader.read(offset_code)
+        var offset_value = powers.of(offset_code) + offset_extra
+        var match_length = match_length_of(match_length_code)
+        var literal_length = literal_length_of(literal_length_code)
+        var offset = resolve_offset(offset_value, literal_length)
+        execute(literal_length, match_length, offset)
+        if sequence < count - 1 {
+            literal_length_state = next_table_state(literal_length_table, literal_length_state)
+            match_length_state = next_table_state(match_length_table, match_length_state)
+            offset_state = next_table_state(offset_table, offset_state)
+        }
+        sequence = sequence + 1
+    }
+}
+
+func next_table_state(table: Zstd.FseTable, state: Integer): Integer {
+    var baseline = table.baseline_at(state)
+    var number_of_bits = table.bits_at(state)
+    var extra = reader.read(number_of_bits)
+    return extra + baseline
+}
+
+func match_length_of(code: Integer): Integer {
+    if code < 32 {
+        return code + 3
+    }
+    var index = code - 32
+    crash match_length_bases[index]
+    crash match_length_bits[index]
+    var base = match_length_bases[index]
+    var extra = reader.read(match_length_bits[index])
+    return extra + base
+}
+
+func literal_length_of(code: Integer): Integer {
+    if code < 16 {
+        return code
+    }
+    var index = code - 16
+    crash literal_length_bases[index]
+    crash literal_length_bits[index]
+    var base = literal_length_bases[index]
+    var extra = reader.read(literal_length_bits[index])
+    return extra + base
+}
+
+func resolve_offset(offset_value: Long, literal_length: Integer): Long {
+    if offset_value > 3 {
+        var fresh = offset_value - 3
+        repeat_three = repeat_two
+        repeat_two = repeat_one
+        repeat_one = fresh
+        return fresh
+    }
+    var index = offset_value
+    if literal_length == 0 {
+        index = index + 1
+    }
+    if index == 2 {
+        var chosen = repeat_two
+        repeat_two = repeat_one
+        repeat_one = chosen
+    } else if index == 3 {
+        var chosen = repeat_three
+        repeat_three = repeat_two
+        repeat_two = repeat_one
+        repeat_one = chosen
+    } else if index == 4 {
+        var chosen = repeat_one - 1
+        repeat_three = repeat_two
+        repeat_two = repeat_one
+        repeat_one = chosen
+    }
+    return repeat_one
+}
+
+func execute(literal_length: Integer, match_length: Integer, offset: Long) {
+    crash literal_read + literal_length <= literal_count
+    output.write_bytes(literals + literal_read, literal_length)
+    literal_read = literal_read + literal_length
+    crash offset > 0 and offset <= output.length
+    output.reserve(output.length + match_length)
+    var length: Long = output.length
+    var from = length - offset
+    if offset >= match_length {
+        raw.copy(output.address + from, output.address + output.length, match_length)
+    } else {
+        copy_overlapping(from, match_length)
+    }
+    output.length = output.length + match_length
+}
+
+func copy_overlapping(from: Long, count: Integer) {
+    var index = 0
+    while index < count {
+        var value = raw.read_byte(output.address, from + index)
+        raw.write_byte(output.address, output.length + index, value)
+        index = index + 1
+    }
+}
+
+func drop() {
+    assert literals != 0
+    heap.free(literals)
+}

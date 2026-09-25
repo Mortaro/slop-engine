@@ -1,0 +1,7 @@
+enum Wrap {
+    'no_wrap'
+    'wrap'
+    'wrap_reverse'
+}
+
+var value: Wrap = 'no_wrap'

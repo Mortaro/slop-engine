@@ -1,0 +1,270 @@
+var bytes = Asset.Bytes()
+var raw = Raw()
+var blocks = List<Blend.Block>()
+var by_address = Dictionary<Integer>()
+var shapes = List<Blend.Shape>()
+var shape_index = Dictionary<Integer>()
+var names = List<String>()
+var types = List<String>()
+var type_sizes = List<Integer>()
+
+func open(path: String) {
+    var compressed = Asset.Bytes()
+    var loaded = compressed.read_file(path)
+    crash loaded
+    var first = compressed.byte_at(0)
+    if first == 40 {
+        var decoder = Zstd.Decoder()
+        bytes = decoder.decompress(compressed)
+    } else {
+        bytes = compressed
+    }
+    read_header()
+    read_blocks()
+}
+
+func text_at(offset: Integer, length: Integer): String {
+    return raw.text(bytes.address + offset, length)
+}
+
+func integer_at(offset: Integer): Integer {
+    return raw.read_integer(bytes.address, offset)
+}
+
+func long_at(offset: Integer): Long {
+    return raw.read_long(bytes.address, offset)
+}
+
+func short_at(offset: Integer): Integer {
+    var low = bytes.byte_at(offset)
+    var high = bytes.byte_at(offset + 1)
+    return low + high * 256
+}
+
+func read_header() {
+    var magic = text_at(0, 7)
+    crash magic == "BLENDER"
+    var format = text_at(7, 5)
+    crash format == "17-01"
+    var endian = text_at(12, 1)
+    crash endian == "v"
+}
+
+func read_blocks() {
+    var position = 17
+    var ended = false
+    while not ended {
+        var block = Blend.Block()
+        block.code = code_at(position)
+        block.shape = integer_at(position + 4)
+        block.old_address = long_at(position + 8)
+        block.length = long_at(position + 16)
+        block.count = long_at(position + 24)
+        block.offset = position + 32
+        ended = block.code == "ENDB"
+        record_block(block)
+        position = block.offset + block.length
+    }
+}
+
+func code_at(position: Integer): String {
+    var length = 0
+    while length < 4 and bytes.byte_at(position + length) != 0 {
+        length = length + 1
+    }
+    return text_at(position, length)
+}
+
+func record_block(block: Blend.Block) {
+    var index = blocks.count()
+    blocks.append(block)
+    if block.code == "DNA1" {
+        read_dna(block.offset)
+    }
+    assert block.old_address != 0
+    by_address.set("{block.old_address}", index)
+}
+
+func read_dna(start: Integer) {
+    var position = start + 8
+    var name_count = integer_at(position)
+    position = read_texts(position + 4, name_count, names)
+    position = aligned(position, start)
+    var type_tag = text_at(position, 4)
+    crash type_tag == "TYPE"
+    var type_count = integer_at(position + 4)
+    position = read_texts(position + 8, type_count, types)
+    position = aligned(position, start)
+    var length_tag = text_at(position, 4)
+    crash length_tag == "TLEN"
+    position = position + 4
+    var index = 0
+    while index < type_count {
+        var size = short_at(position)
+        type_sizes.append(size)
+        position = position + 2
+        index = index + 1
+    }
+    position = aligned(position, start)
+    var structure_tag = text_at(position, 4)
+    crash structure_tag == "STRC"
+    var structure_count = integer_at(position + 4)
+    position = position + 8
+    index = 0
+    while index < structure_count {
+        position = read_shape(position)
+        index = index + 1
+    }
+}
+
+func aligned(position: Integer, start: Integer): Integer {
+    var remainder = (position - start) % 4
+    if remainder == 0 {
+        return position
+    }
+    return position + 4 - remainder
+}
+
+func read_texts(start: Integer, count: Integer, into: List<String>): Integer {
+    var position = start
+    var index = 0
+    while index < count {
+        var length = 0
+        while bytes.byte_at(position + length) != 0 {
+            length = length + 1
+        }
+        var text = text_at(position, length)
+        into.append(text)
+        position = position + length + 1
+        index = index + 1
+    }
+    return position
+}
+
+func read_shape(start: Integer): Integer {
+    var shape = Blend.Shape()
+    var type_index = short_at(start)
+    var field_count = short_at(start + 2)
+    crash types[type_index]
+    crash type_sizes[type_index]
+    shape.name = types[type_index]
+    shape.size = type_sizes[type_index]
+    var position = start + 4
+    var offset = 0
+    var index = 0
+    while index < field_count {
+        var field = read_field(position, offset)
+        shape.fields.set(field.name, field)
+        offset = offset + field.size
+        position = position + 4
+        index = index + 1
+    }
+    var shape_number = shapes.count()
+    shapes.append(shape)
+    shape_index.set(shape.name, shape_number)
+    return position
+}
+
+func read_field(position: Integer, offset: Integer): Blend.Field {
+    var field = Blend.Field()
+    var type_index = short_at(position)
+    var name_index = short_at(position + 2)
+    crash types[type_index]
+    crash names[name_index]
+    crash type_sizes[type_index]
+    field.type_name = types[type_index]
+    var declared = names[name_index]
+    field.offset = offset
+    field.pointer = declared.starts_with("*") or declared.starts_with("(*")
+    field.count = array_count(declared)
+    field.name = bare_name(declared)
+    var element_size = type_sizes[type_index]
+    if field.pointer {
+        element_size = 8
+    }
+    field.size = element_size * field.count
+    return field
+}
+
+func array_count(declared: String): Integer {
+    var count = 1
+    var index = 0
+    var length = declared.length()
+    while index < length {
+        if declared.code_at(index) == 91 {
+            var close = index + 1
+            while declared.code_at(close) != 93 {
+                close = close + 1
+            }
+            var digits = declared.slice(index + 1, close)
+            var dimension = digits.to_integer()
+            count = count * dimension
+            index = close
+        }
+        index = index + 1
+    }
+    return count
+}
+
+func bare_name(declared: String): String {
+    var start = 0
+    var length = declared.length()
+    while start < length and not name_code_at(declared, start) {
+        start = start + 1
+    }
+    var end = start
+    while end < length and name_code_at(declared, end) {
+        end = end + 1
+    }
+    return declared.slice(start, end)
+}
+
+func name_code_at(declared: String, index: Integer): Boolean {
+    var code = declared.code_at(index)
+    return is_name_code(code)
+}
+
+func is_name_code(code: Integer): Boolean {
+    var lower = code >= 97 and code <= 122
+    var upper = code >= 65 and code <= 90
+    var digit = code >= 48 and code <= 57
+    return lower or upper or digit or code == 95
+}
+
+func shape_named(name: String): Blend.Shape {
+    crash shape_index[name]
+    var found = shape_index[name]
+    crash shapes[found]
+    return shapes[found]
+}
+
+func block_at(address: Long): Blend.Block? {
+    var found = by_address["{address}"]
+    assert found
+    return blocks[found]
+}
+
+func view_of(block: Blend.Block): Blend.View {
+    crash shapes[block.shape]
+    var view = Blend.View()
+    view.file = this
+    view.shape = shapes[block.shape]
+    view.offset = block.offset
+    return view
+}
+
+func blocks_coded(code: String): List<Blend.Block> {
+    var found = List<Blend.Block>()
+    var index = 0
+    while index < blocks.count() {
+        if blocks[index].code == code {
+            found.append(blocks[index])
+        }
+        index = index + 1
+    }
+    return found
+}
+
+func version(): String {
+    return text_at(13, 4)
+}

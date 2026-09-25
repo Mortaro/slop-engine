@@ -1,0 +1,66 @@
+type Device {
+    mouse: Component.Mouse
+    keyboard: Component.Keyboard
+    events: Component.Events
+}
+
+func after_input_each(device: Device) {
+    var mouse = device.mouse
+    var keyboard = device.keyboard
+    mouse.pressed = false
+    mouse.released = false
+    mouse.wheel = 0
+    keyboard.pressed.clear()
+    keyboard.typed = ""
+    keyboard.strokes.clear()
+    var pending = device.events.pending
+    var index = 0
+    while index < pending.count() {
+        apply(pending[index], mouse, keyboard)
+        index = index + 1
+    }
+    pending.clear()
+}
+
+func apply(event: Input.Event, mouse: Component.Mouse, keyboard: Component.Keyboard) {
+    if event.kind == 'pointer_moved' {
+        mouse.left = event.left
+        mouse.top = event.top
+    } else if event.kind == 'button_pressed' {
+        mouse.left = event.left
+        mouse.top = event.top
+        mouse.down = true
+        mouse.pressed = true
+    } else if event.kind == 'button_released' {
+        mouse.left = event.left
+        mouse.top = event.top
+        mouse.down = false
+        mouse.released = true
+    } else if event.kind == 'wheel_turned' {
+        mouse.wheel = mouse.wheel + event.wheel
+    } else if event.kind == 'key_pressed' {
+        keyboard.strokes.append(event)
+        press_key(keyboard, event.key)
+    } else if event.kind == 'key_released' {
+        release_key(keyboard, event.key)
+    } else if event.kind == 'character_typed' {
+        keyboard.strokes.append(event)
+        keyboard.typed = keyboard.typed + event.character
+    }
+}
+
+func press_key(keyboard: Component.Keyboard, key: Integer) {
+    keyboard.pressed.append(key)
+    assert not keyboard.held.contains(key)
+    keyboard.held.append(key)
+}
+
+func release_key(keyboard: Component.Keyboard, key: Integer) {
+    var index = keyboard.held.count() - 1
+    while index >= 0 {
+        if keyboard.held[index] == key {
+            keyboard.held.remove_at(index)
+        }
+        index = index - 1
+    }
+}

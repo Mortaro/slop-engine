@@ -1,0 +1,7 @@
+type Counted {
+    frame: Component.Frame
+}
+
+func last_each(counted: Counted) {
+    counted.frame.count = counted.frame.count + 1
+}

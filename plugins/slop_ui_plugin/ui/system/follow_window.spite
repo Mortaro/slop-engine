@@ -1,0 +1,12 @@
+type FollowedWindow {
+    window: Window.Component.Window
+}
+
+type Shown {
+    screen: Component.Screen
+}
+
+func prepare_each(followed: FollowedWindow, shown: Shown) {
+    shown.screen.width = followed.window.width
+    shown.screen.height = followed.window.height
+}

@@ -1,0 +1,117 @@
+type OpenedWindow {
+    entity: Entity
+    window: Window.Component.Window
+    events: Input.Component.Events
+    handle: Window.Component.Handle
+}
+
+type Quitting {
+    quit: Component.Quit
+}
+
+var owner = Windows.Owner()
+
+func input_all(windows: List<OpenedWindow>, quitting: List<Quitting>) {
+    assert owner.shared != 0
+    var messages = owner.take_events()
+    var message = 0
+    while message * 4 + 3 < messages.count() {
+        deliver(windows, messages, message * 4)
+        message = message + 1
+    }
+    var index = 0
+    while index < windows.count() {
+        notice_closed(windows[index], quitting)
+        index = index + 1
+    }
+}
+
+func deliver(windows: List<OpenedWindow>, messages: List<Long>, at: Integer) {
+    crash messages[at]
+    crash messages[at + 1]
+    crash messages[at + 2]
+    crash messages[at + 3]
+    var target = messages[at]
+    var kind: Integer = messages[at + 1]
+    var word = messages[at + 2]
+    var position = messages[at + 3]
+    var event = translate(kind, word, position)
+    assert event
+    var index = 0
+    while index < windows.count() {
+        var opened = windows[index]
+        if opened.handle.value == target {
+            opened.events.pending.append(event)
+        }
+        index = index + 1
+    }
+}
+
+func translate(kind: Integer, word: Long, position: Long): Input.Event? {
+    var event = Input.Event()
+    event.left = position % 65536
+    event.top = position / 65536 % 65536
+    if kind == 512 {
+        event.kind = 'pointer_moved'
+    } else if kind == 513 {
+        event.kind = 'button_pressed'
+    } else if kind == 514 {
+        event.kind = 'button_released'
+    } else if kind == 522 {
+        event.kind = 'wheel_turned'
+        event.wheel = wheel_notches(word)
+    } else if kind == 256 {
+        event.kind = 'key_pressed'
+        event.key = key_of(word)
+    } else if kind == 257 {
+        event.kind = 'key_released'
+        event.key = key_of(word)
+    } else if kind == 258 {
+        return typed(word)
+    } else {
+        return null
+    }
+    return event
+}
+
+func key_of(word: Long): Integer {
+    var code: Integer = word % 65536
+    return code
+}
+
+func wheel_notches(word: Long): Integer {
+    var delta: Integer = word / 65536 % 65536
+    if delta >= 32768 {
+        delta = delta - 65536
+    }
+    return delta / 120
+}
+
+func typed(word: Long): Input.Event? {
+    var code: Integer = word % 65536
+    var printable = code >= 32 and code != 127 and code < 256
+    assert printable
+    var raw = Raw()
+    var heap = Memory.Heap()
+    var one = heap.allocate(1)
+    raw.write_byte(one, 0, code)
+    var event = Input.Event()
+    event.kind = 'character_typed'
+    event.character = raw.text(one, 1)
+    heap.free(one)
+    return event
+}
+
+func notice_closed(opened: OpenedWindow, quitting: List<Quitting>) {
+    var handle = opened.handle.value
+    assert handle != 0 and not opened.window.closed
+    var user = DynamicLibrary("user32.dll", 'identity', "")
+    opened.window.closed = user.IsWindow(handle) == 0
+    assert opened.window.closed
+    opened.entity.remove()
+    var index = 0
+    while index < quitting.count() {
+        quitting[index].quit.requested = true
+        index = index + 1
+    }
+}

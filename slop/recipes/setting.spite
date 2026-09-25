@@ -1,0 +1,8 @@
+generic $settings_type
+
+func base_folder(settings: $settings_type): String {
+    if $settings_type.has_function("base_folder") {
+        return settings.base_folder()
+    }
+    return ""
+}

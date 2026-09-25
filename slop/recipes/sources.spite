@@ -1,0 +1,48 @@
+var build = Build()
+
+func relative_path(id: String, extension: String): String {
+    var folders = id.replace(".", "/")
+    return "assets/{folders}.{extension}"
+}
+
+func base(): String {
+    var folder = base_folder()
+    if folder == "" {
+        return build.program
+    }
+    return "{build.program}/{folder}"
+}
+
+func base_folder(): String {
+    var setting = Recipes.Setting<Build>()
+    return setting.base_folder(build)
+}
+
+func cache_folder(): String {
+    return "{base()}/.slop-cache"
+}
+
+func index_path(): String {
+    return "{build.program}/.slop-index.json"
+}
+
+func path_of(id: String, extension: String): String {
+    var relative = relative_path(id, extension)
+    var own = "{build.program}/{relative}"
+    var own_file = File(own)
+    if own_file.exists() {
+        return own
+    }
+    var based = "{base()}/{relative}"
+    var based_file = File(based)
+    crash based_file.exists()
+    return based
+}
+
+func path_in(root: String, id: String, extension: String): String {
+    var relative = relative_path(id, extension)
+    var path = "{build.program}/{root}/{relative}"
+    var file = File(path)
+    crash file.exists()
+    return path
+}

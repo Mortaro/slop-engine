@@ -1,0 +1,8 @@
+var left: Float = -1000000000.0
+var top: Float = -1000000000.0
+var right: Float = 1000000000.0
+var bottom: Float = 1000000000.0
+
+func contains(across: Float, down: Float): Boolean {
+    return across >= left and across < right and down >= top and down < bottom
+}

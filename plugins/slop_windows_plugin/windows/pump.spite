@@ -1,0 +1,188 @@
+var raw = Raw()
+var heap = Memory.Heap()
+var shared: Long = 0
+var request_slots = 16
+var request_bytes = 64
+var event_capacity = 4096
+var event_bytes = 32
+
+func Pump(shared_memory: Long) {
+    shared = shared_memory
+}
+
+func requests_at(): Long {
+    return shared + 32
+}
+
+func events_at(): Long {
+    var request_area = request_slots * request_bytes
+    return shared + 32 + request_area
+}
+
+func lock() {
+    var kernel = DynamicLibrary("kernel32.dll", 'identity', "")
+    kernel.AcquireSRWLockExclusive(shared)
+}
+
+func unlock() {
+    var kernel = DynamicLibrary("kernel32.dll", 'identity', "")
+    kernel.ReleaseSRWLockExclusive(shared)
+}
+
+func quitting(): Boolean {
+    lock()
+    var flag = raw.read_long(shared, 8) == 1
+    unlock()
+    return flag
+}
+
+func run() {
+    var kernel = DynamicLibrary("kernel32.dll", 'identity', "")
+    var user = DynamicLibrary("user32.dll", 'identity', "")
+    var no_handle: Long = 0
+    var instance = kernel.GetModuleHandleA_as_long(no_handle)
+    var class_name = "SlopEngineWindow"
+    register_class(instance, class_name)
+    var message = heap.allocate(48)
+    while not quitting() {
+        create_requested(instance, class_name)
+        while user.PeekMessageA(message, no_handle, 0, 0, 1) != 0 {
+            record(message)
+            user.TranslateMessage(message)
+            user.DispatchMessageA(message)
+        }
+        kernel.Sleep(1)
+    }
+    heap.free(message)
+}
+
+func create_requested(instance: Long, class_name: String) {
+    var slot = 0
+    while slot < request_slots {
+        create_slot(instance, class_name, slot)
+        slot = slot + 1
+    }
+}
+
+func create_slot(instance: Long, class_name: String, slot: Integer) {
+    lock()
+    var at = requests_at() + slot * request_bytes
+    var pending = raw.read_long(at, 0) == 1
+    var width: Integer = raw.read_long(at, 8)
+    var height: Integer = raw.read_long(at, 16)
+    var visible = raw.read_long(at, 24) == 1
+    var title_address = raw.read_long(at, 32)
+    var title_length = raw.read_long(at, 40)
+    unlock()
+    assert pending
+    var title = raw.text(title_address, title_length)
+    heap.free(title_address)
+    var handle = create_window(instance, class_name, title, width, height, visible)
+    lock()
+    raw.write_long(at, 48, handle)
+    raw.write_long(at, 0, 2)
+    unlock()
+}
+
+func create_window(
+    instance: Long,
+    class_name: String,
+    title: String,
+    width: Integer,
+    height: Integer,
+    visible: Boolean,
+): Long {
+    var user = DynamicLibrary("user32.dll", 'identity', "")
+    var no_handle: Long = 0
+    var style = window_style(visible)
+    var outer = outer_size(width, height, style)
+    var outer_width = raw.read_integer(outer, 8) - raw.read_integer(outer, 0)
+    var outer_height = raw.read_integer(outer, 12) - raw.read_integer(outer, 4)
+    heap.free(outer)
+    var handle = user.CreateWindowExA_as_long(
+        0,
+        class_name,
+        title,
+        style,
+        200,
+        150,
+        outer_width,
+        outer_height,
+        no_handle,
+        no_handle,
+        instance,
+        no_handle,
+    )
+    crash handle != 0
+    return handle
+}
+
+func record(message: Long) {
+    var kind = raw.read_integer(message, 8)
+    var mouse = kind == 512 or kind == 513 or kind == 514 or kind == 522
+    var keys = kind == 256 or kind == 257 or kind == 258
+    assert mouse or keys
+    lock()
+    var count = raw.read_long(shared, 16)
+    if count < event_capacity {
+        var at = events_at() + count * event_bytes
+        var window = raw.read_long(message, 0)
+        var wide_kind: Long = kind
+        var word = raw.read_long(message, 16)
+        var position = raw.read_long(message, 24)
+        raw.write_long(at, 0, window)
+        raw.write_long(at, 8, wide_kind)
+        raw.write_long(at, 16, word)
+        raw.write_long(at, 24, position)
+        raw.write_long(shared, 16, count + 1)
+    }
+    unlock()
+}
+
+func window_style(visible: Boolean): Integer {
+    var overlapped_window = 13565952
+    var maximize_box = 65536
+    var thick_frame = 262144
+    var visible_style = 268435456
+    var style = overlapped_window - maximize_box - thick_frame
+    if visible {
+        style = style + visible_style
+    }
+    return style
+}
+
+func outer_size(width: Integer, height: Integer, style: Integer): Long {
+    var user = DynamicLibrary("user32.dll", 'identity', "")
+    var rectangle = heap.allocate(16)
+    raw.write_integer(rectangle, 0, 0)
+    raw.write_integer(rectangle, 4, 0)
+    raw.write_integer(rectangle, 8, width)
+    raw.write_integer(rectangle, 12, height)
+    user.AdjustWindowRect(rectangle, style, 0)
+    return rectangle
+}
+
+func register_class(instance: Long, class_name: String) {
+    var user = DynamicLibrary("user32.dll", 'identity', "")
+    var kernel = DynamicLibrary("kernel32.dll", 'identity', "")
+    var no_handle: Long = 0
+    var user_module = kernel.GetModuleHandleA_as_long("user32.dll")
+    var default_procedure = kernel.GetProcAddress_as_long(user_module, "DefWindowProcA")
+    var name_bytes = heap.allocate(64)
+    kernel.lstrcpyA(name_bytes, class_name)
+    var arrow = user.LoadCursorA_as_long(no_handle, 32512)
+    var window_class = heap.allocate(72)
+    raw.write_long(window_class, 0, 3)
+    raw.write_long(window_class, 8, default_procedure)
+    raw.write_long(window_class, 16, 0)
+    raw.write_long(window_class, 24, instance)
+    raw.write_long(window_class, 32, 0)
+    raw.write_long(window_class, 40, arrow)
+    raw.write_long(window_class, 48, 0)
+    raw.write_long(window_class, 56, 0)
+    raw.write_long(window_class, 64, name_bytes)
+    var atom = user.RegisterClassA(window_class)
+    heap.free(window_class)
+    heap.free(name_bytes)
+    crash atom != 0
+}

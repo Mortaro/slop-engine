@@ -1,0 +1,2 @@
+var texture = Asset.Texture()
+var raw = Asset.Bytes()

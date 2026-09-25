@@ -1,0 +1,178 @@
+var raw = Raw()
+var heap = Memory.Heap()
+var floats = TypedMemory<Float>()
+var doubles = TypedMemory<Double>()
+var address: Long = 0
+var length = 0
+var capacity = 0
+var position = 0
+
+func reserve(wanted: Integer) {
+    assert wanted > capacity
+    var grown = capacity * 2
+    if grown < wanted {
+        grown = wanted + 64
+    }
+    if address == 0 {
+        address = heap.allocate(grown)
+    } else {
+        address = heap.resize(address, grown)
+    }
+    capacity = grown
+}
+
+func write_byte(value: Integer) {
+    reserve(length + 1)
+    raw.write_byte(address, length, value)
+    length = length + 1
+}
+
+func write_integer(value: Integer) {
+    reserve(length + 4)
+    raw.write_integer(address, length, value)
+    length = length + 4
+}
+
+func write_long(value: Long) {
+    reserve(length + 8)
+    raw.write_long(address, length, value)
+    length = length + 8
+}
+
+func write_float(value: Float) {
+    reserve(length + 4)
+    floats.write_value(address + length, 0, value)
+    length = length + 4
+}
+
+func write_double(value: Double) {
+    reserve(length + 8)
+    doubles.write_value(address + length, 0, value)
+    length = length + 8
+}
+
+func write_text(text: String) {
+    var text_length = text.length()
+    write_integer(text_length)
+    var index = 0
+    while index < text_length {
+        var code = text.code_at(index)
+        write_byte(code)
+        index = index + 1
+    }
+}
+
+func write_bytes(source: Long, count: Integer) {
+    reserve(length + count)
+    raw.copy(source, address + length, count)
+    length = length + count
+}
+
+func append_text_bytes(text: String) {
+    var text_length = text.length()
+    reserve(length + text_length)
+    var index = 0
+    while index < text_length {
+        var code = text.code_at(index)
+        raw.write_byte(address, length + index, code)
+        index = index + 1
+    }
+    length = length + text_length
+}
+
+func remaining(): Integer {
+    return length - position
+}
+
+func read_byte(): Integer {
+    crash position + 1 <= length
+    var value: Integer = raw.read_byte(address, position)
+    if value < 0 {
+        value = value + 256
+    }
+    position = position + 1
+    return value
+}
+
+func read_integer(): Integer {
+    crash position + 4 <= length
+    var value = raw.read_integer(address, position)
+    position = position + 4
+    return value
+}
+
+func read_long(): Long {
+    crash position + 8 <= length
+    var value = raw.read_long(address, position)
+    position = position + 8
+    return value
+}
+
+func read_float(): Float {
+    crash position + 4 <= length
+    var value = floats.read_value(address + position, 0)
+    position = position + 4
+    return value
+}
+
+func read_double(): Double {
+    crash position + 8 <= length
+    var value = doubles.read_value(address + position, 0)
+    position = position + 8
+    return value
+}
+
+func read_text(): String {
+    var text_length = read_integer()
+    crash text_length >= 0 and position + text_length <= length
+    var text = raw.text(address + position, text_length)
+    position = position + text_length
+    return text
+}
+
+func byte_at(offset: Integer): Integer {
+    crash offset >= 0 and offset < length
+    var value: Integer = raw.read_byte(address, offset)
+    if value < 0 {
+        value = value + 256
+    }
+    return value
+}
+
+func big_endian_short(offset: Integer): Integer {
+    var high = byte_at(offset)
+    var low = byte_at(offset + 1)
+    return high * 256 + low
+}
+
+func big_endian_integer(offset: Integer): Integer {
+    var high = big_endian_short(offset)
+    var low = big_endian_short(offset + 2)
+    return high * 65536 + low
+}
+
+func read_file(path: String): Boolean {
+    var file = File(path)
+    var size = file.size()
+    assert size
+    length = 0
+    position = 0
+    var wanted: Integer = size
+    reserve(wanted + 1)
+    var start: Long = 0
+    var read = file.read_bytes(start, size, address)
+    assert read
+    length = wanted
+    return read == size
+}
+
+func save(path: String): Boolean {
+    var file = File(path)
+    var count: Long = length
+    return file.write_bytes(address, count)
+}
+
+func drop() {
+    assert address != 0
+    heap.free(address)
+}

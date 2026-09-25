@@ -1,0 +1,88 @@
+var font_size: Float = 16.0
+var width: Float? = null
+var height: Float? = null
+var minimum_width: Float? = null
+var minimum_height: Float? = null
+var maximum_width: Float = 1000000000.0
+var maximum_height: Float = 1000000000.0
+var margins: List<Float> = [0.0, 0.0, 0.0, 0.0]
+var margin_autos: List<Boolean> = [false, false, false, false]
+var paddings: List<Float> = [0.0, 0.0, 0.0, 0.0]
+var borders: List<Float> = [0.0, 0.0, 0.0, 0.0]
+var insets: List<Float> = [0.0, 0.0, 0.0, 0.0]
+var inset_given: List<Boolean> = [false, false, false, false]
+var position = 0
+var border_box = false
+var grow: Float = 0.0
+var shrink: Float = 1.0
+var basis = Ui.Length()
+var align_self = 0
+var leaf = false
+var content_width: Float = 0.0
+var content_height: Float = 0.0
+
+func margin_at(side: Integer): Float {
+    crash margins[side]
+    return margins[side]
+}
+
+func set_margin_at(side: Integer, value: Float) {
+    margins.set_at(side, value)
+}
+
+func margin_auto_at(side: Integer): Boolean {
+    return margin_autos[side] == true
+}
+
+func padding_at(side: Integer): Float {
+    crash paddings[side]
+    return paddings[side]
+}
+
+func border_at(side: Integer): Float {
+    crash borders[side]
+    return borders[side]
+}
+
+func inset_at(side: Integer): Float {
+    crash insets[side]
+    return insets[side]
+}
+
+func has_inset(side: Integer): Boolean {
+    return inset_given[side] == true
+}
+
+func horizontal_extras(): Float {
+    var paddings_sum = padding_at(3) + padding_at(1)
+    var borders_sum = border_at(3) + border_at(1)
+    return paddings_sum + borders_sum
+}
+
+func vertical_extras(): Float {
+    var paddings_sum = padding_at(0) + padding_at(2)
+    var borders_sum = border_at(0) + border_at(2)
+    return paddings_sum + borders_sum
+}
+
+func horizontal_margins(): Float {
+    return margin_at(3) + margin_at(1)
+}
+
+func vertical_margins(): Float {
+    return margin_at(0) + margin_at(2)
+}
+
+func used_minimum_width(): Float {
+    if minimum_width {
+        return minimum_width
+    }
+    return 0.0
+}
+
+func used_minimum_height(): Float {
+    if minimum_height {
+        return minimum_height
+    }
+    return 0.0
+}

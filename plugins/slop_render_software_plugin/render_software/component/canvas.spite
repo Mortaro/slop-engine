@@ -1,0 +1,156 @@
+var width = 0
+var height = 0
+var pixels: Long = 0
+var raw = Raw()
+var heap = Memory.Heap()
+var clip_left = -1000000000
+var clip_top = -1000000000
+var clip_right = 1000000000
+var clip_bottom = 1000000000
+
+func resize(new_width: Integer, new_height: Integer) {
+    assert new_width != width or new_height != height
+    if pixels != 0 {
+        heap.free(pixels)
+    }
+    width = new_width
+    height = new_height
+    pixels = heap.allocate(width * height * 4)
+}
+
+func clip_to(left: Integer, top: Integer, right: Integer, bottom: Integer) {
+    clip_left = left
+    clip_top = top
+    clip_right = right
+    clip_bottom = bottom
+}
+
+func fill(color: Integer) {
+    clip_to(-1000000000, -1000000000, 1000000000, 1000000000)
+    fill_rectangle(0, 0, width, height, color)
+}
+
+func fill_rectangle(left: Integer, top: Integer, rectangle_width: Integer, rectangle_height: Integer, color: Integer) {
+    var clipped_left = larger(left, clip_left)
+    var clipped_right = smaller(left + rectangle_width, clip_right)
+    var clipped_top = larger(top, clip_top)
+    var clipped_bottom = smaller(top + rectangle_height, clip_bottom)
+    var first_column = clamp(clipped_left, width)
+    var last_column = clamp(clipped_right, width)
+    var first_row = clamp(clipped_top, height)
+    var last_row = clamp(clipped_bottom, height)
+    var row = first_row
+    while row < last_row {
+        fill_row(row, first_column, last_column, color)
+        row = row + 1
+    }
+}
+
+func fill_row(row: Integer, first_column: Integer, last_column: Integer, color: Integer) {
+    var offset = (row * width + first_column) * 4
+    var end = (row * width + last_column) * 4
+    while offset < end {
+        raw.write_integer(pixels, offset, color)
+        offset = offset + 4
+    }
+}
+
+func larger(first: Integer, second: Integer): Integer {
+    if first > second {
+        return first
+    }
+    return second
+}
+
+func smaller(first: Integer, second: Integer): Integer {
+    if first < second {
+        return first
+    }
+    return second
+}
+
+func clamp(value: Integer, limit: Integer): Integer {
+    if value < 0 {
+        return 0
+    } else if value > limit {
+        return limit
+    }
+    return value
+}
+
+func blend_image(left: Integer, top: Integer, image_width: Integer, image_height: Integer, image: Asset.Texture) {
+    var row = 0
+    while row < image_height {
+        blend_row(left, top + row, row, image_width, image_height, image)
+        row = row + 1
+    }
+}
+
+func blend_row(
+    left: Integer,
+    canvas_top: Integer,
+    row: Integer,
+    image_width: Integer,
+    image_height: Integer,
+    image: Asset.Texture,
+) {
+    assert canvas_top >= 0 and canvas_top < height and canvas_top >= clip_top and canvas_top < clip_bottom
+    var texel_row = row * image.height / image_height
+    var column = 0
+    while column < image_width {
+        var canvas_left = left + column
+        var on_canvas = canvas_left >= 0 and canvas_left < width
+        var in_clip = canvas_left >= clip_left and canvas_left < clip_right
+        if on_canvas and in_clip {
+            var texel_column = column * image.width / image_width
+            var at = texel_row * image.width + texel_column
+            crash image.pixels[at]
+            blend_pixel(canvas_left, canvas_top, image.pixels[at])
+        }
+        column = column + 1
+    }
+}
+
+func blend_pixel(canvas_left: Integer, canvas_top: Integer, texel: Integer) {
+    var alpha = channel(texel, 24)
+    var offset = (canvas_top * width + canvas_left) * 4
+    var below = raw.read_integer(pixels, offset)
+    var red = blend_channel(texel, 0, below, 16, alpha)
+    var green = blend_channel(texel, 8, below, 8, alpha)
+    var blue = blend_channel(texel, 16, below, 0, alpha)
+    var red_part = red.shifted_left(16)
+    var green_part = green.shifted_left(8)
+    var blended = red_part.bits_or(green_part).bits_or(blue)
+    raw.write_integer(pixels, offset, blended)
+}
+
+func blend_channel(
+    texel: Integer,
+    texel_shift: Integer,
+    below: Integer,
+    below_shift: Integer,
+    alpha: Integer,
+): Integer {
+    var above_value = channel(texel, texel_shift)
+    var below_value = channel(below, below_shift)
+    return mix(above_value, below_value, alpha)
+}
+
+func channel(value: Integer, shift: Integer): Integer {
+    var shifted = value.shifted_right(shift)
+    return shifted.bits_and(255)
+}
+
+func mix(above: Integer, below: Integer, alpha: Integer): Integer {
+    return (above * alpha + below * (255 - alpha) + 127) / 255
+}
+
+func pixel_at(left: Integer, top: Integer): Integer {
+    assert left >= 0 and top >= 0 and left < width and top < height
+    return raw.read_integer(pixels, (top * width + left) * 4)
+}
+
+func drop() {
+    assert pixels != 0
+    heap.free(pixels)
+}

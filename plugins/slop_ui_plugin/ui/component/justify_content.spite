@@ -1,0 +1,10 @@
+enum Justification {
+    'flex_start'
+    'flex_end'
+    'center'
+    'space_between'
+    'space_around'
+    'space_evenly'
+}
+
+var value: Justification = 'flex_start'

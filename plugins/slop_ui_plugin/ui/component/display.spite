@@ -1,0 +1,8 @@
+enum Kind {
+    'block'
+    'flex'
+    'grid'
+    'none'
+}
+
+var value: Kind = 'block'

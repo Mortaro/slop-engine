@@ -1,0 +1,9 @@
+type Frame {
+    window: Window.Component.Window
+    draw_list: Component.DrawList
+    clear_color: Component.ClearColor
+}
+
+func prepare_each(frame: Frame) {
+    frame.draw_list.begin(frame.window.width, frame.window.height, frame.clear_color.color)
+}

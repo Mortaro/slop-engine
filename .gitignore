@@ -1,0 +1,19 @@
+# Examples stay local for now.
+/examples/
+
+# Build caches and outputs. Nothing here is source; all of it regenerates.
+.spite-cache/
+*.exe
+*.pdb
+*.obj
+*.o
+*.lib
+*.ilk
+*.crashes
+*.reload_host
+*.reload_files
+
+# Cooked assets: the content-addressed store and each program's index.
+store.bin
+store.bin.index
+.slop-index.json

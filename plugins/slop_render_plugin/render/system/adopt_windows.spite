@@ -1,0 +1,14 @@
+type NewWindow {
+    entity: Entity
+    window: Added<Window.Component.Window>
+}
+
+func after_input_each(created: NewWindow) {
+    var window = created.entity
+    var draw_list = Component.DrawList()
+    window.add_component(draw_list)
+    var clear_color = Component.ClearColor()
+    window.add_component(clear_color)
+    var textures = Component.Textures()
+    window.add_component(textures)
+}

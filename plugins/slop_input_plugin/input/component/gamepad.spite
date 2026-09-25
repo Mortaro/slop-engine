@@ -1,0 +1,39 @@
+var slot = 0
+var connected = false
+var held = List<Integer>()
+var pressed = List<Integer>()
+var released = List<Integer>()
+var left_x: Float = 0.0
+var left_y: Float = 0.0
+var right_x: Float = 0.0
+var right_y: Float = 0.0
+var left_trigger: Float = 0.0
+var right_trigger: Float = 0.0
+
+func is_held(button: Integer): Boolean {
+    return held.contains(button)
+}
+
+func was_pressed(button: Integer): Boolean {
+    return pressed.contains(button)
+}
+
+func set_buttons(now: List<Integer>) {
+    pressed.clear()
+    released.clear()
+    var index = 0
+    while index < now.count() {
+        if not held.contains(now[index]) {
+            pressed.append(now[index])
+        }
+        index = index + 1
+    }
+    index = 0
+    while index < held.count() {
+        if not now.contains(held[index]) {
+            released.append(held[index])
+        }
+        index = index + 1
+    }
+    held = now
+}

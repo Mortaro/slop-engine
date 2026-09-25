@@ -1,0 +1,15 @@
+type OpenedWindow {
+    entity: Entity
+    opened: Removed<Window.Component.Opening>
+    window: Window.Component.Window
+    handle: Window.Component.Handle
+}
+
+func present_each(created: OpenedWindow) {
+    var renderer = Component.Renderer()
+    renderer.ensure()
+    var swapchain = Component.Swapchain()
+    renderer.create_swapchain(created.window, created.handle.value, swapchain)
+    created.entity.add_component(swapchain)
+    created.entity.add_component(renderer)
+}

@@ -1,0 +1,9 @@
+var start = 0
+var end = 0
+var cross: Float = 0.0
+var position: Float = 0.0
+
+func Line(new_start: Integer, new_end: Integer) {
+    start = new_start
+    end = new_end
+}

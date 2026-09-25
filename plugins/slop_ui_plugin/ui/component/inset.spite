@@ -1,0 +1,4 @@
+var top = Ui.Length()
+var right = Ui.Length()
+var bottom = Ui.Length()
+var left = Ui.Length()

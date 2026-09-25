@@ -1,0 +1,140 @@
+type Pad {
+    entity: Entity
+    gamepad: Input.Component.Gamepad
+}
+
+var world = World()
+var raw = Raw()
+var heap = Memory.Heap()
+var buttons = Input.Button()
+var ticks = 0
+var disconnected_every = 60
+var slots = 4
+
+func input_all(pads: List<Pad>) {
+    ticks = ticks + 1
+    var state = heap.allocate(16)
+    var slot = 0
+    while slot < slots {
+        poll_slot(pads, slot, state)
+        slot = slot + 1
+    }
+    heap.free(state)
+}
+
+func poll_slot(pads: List<Pad>, slot: Integer, state: Long) {
+    var pad = pad_of(pads, slot)
+    var due = ticks % disconnected_every == 1
+    if pad {
+        if pad.gamepad.connected {
+            due = true
+        }
+    }
+    assert due
+    var xinput = DynamicLibrary("xinput1_4.dll", 'identity', "")
+    var result = xinput.XInputGetState(slot, state)
+    var connected = result == 0
+    if pad {
+        read_pad(pad.gamepad, connected, state)
+    } else if connected {
+        var gamepad = Input.Component.Gamepad()
+        gamepad.slot = slot
+        read_pad(gamepad, connected, state)
+        var entity = world.create_entity()
+        entity.add_component(gamepad)
+    }
+}
+
+func pad_of(pads: List<Pad>, slot: Integer): Pad? {
+    var index = 0
+    while index < pads.count() {
+        if pads[index].gamepad.slot == slot {
+            return pads[index]
+        }
+        index = index + 1
+    }
+    return null
+}
+
+func read_pad(gamepad: Input.Component.Gamepad, connected: Boolean, state: Long) {
+    gamepad.connected = connected
+    var now = List<Integer>()
+    if connected {
+        var bits = unsigned_short(state, 4)
+        collect_buttons(bits, now)
+        gamepad.left_trigger = trigger(state, 6)
+        gamepad.right_trigger = trigger(state, 7)
+        gamepad.left_x = axis(state, 8, 7849.0)
+        gamepad.left_y = axis(state, 10, 7849.0)
+        gamepad.right_x = axis(state, 12, 8689.0)
+        gamepad.right_y = axis(state, 14, 8689.0)
+    }
+    gamepad.set_buttons(now)
+}
+
+func collect_buttons(bits: Integer, now: List<Integer>) {
+    add_if(bits, 1, buttons.up, now)
+    add_if(bits, 2, buttons.down, now)
+    add_if(bits, 4, buttons.left, now)
+    add_if(bits, 8, buttons.right, now)
+    add_if(bits, 16, buttons.start, now)
+    add_if(bits, 32, buttons.select, now)
+    add_if(bits, 64, buttons.left_stick, now)
+    add_if(bits, 128, buttons.right_stick, now)
+    add_if(bits, 256, buttons.left_shoulder, now)
+    add_if(bits, 512, buttons.right_shoulder, now)
+    add_if(bits, 4096, buttons.south, now)
+    add_if(bits, 8192, buttons.east, now)
+    add_if(bits, 16384, buttons.west, now)
+    add_if(bits, 32768, buttons.north, now)
+}
+
+func add_if(bits: Integer, mask: Integer, button: Integer, now: List<Integer>) {
+    assert bits.bits_and(mask) != 0
+    now.append(button)
+}
+
+func unsigned_short(address: Long, offset: Integer): Integer {
+    var low = raw.read_byte(address, offset)
+    var high = raw.read_byte(address, offset + 1)
+    var low_value: Integer = low
+    var high_value: Integer = high
+    if low_value < 0 {
+        low_value = low_value + 256
+    }
+    if high_value < 0 {
+        high_value = high_value + 256
+    }
+    return high_value * 256 + low_value
+}
+
+func trigger(address: Long, offset: Integer): Float {
+    var raw: Integer = raw.read_byte(address, offset)
+    if raw < 0 {
+        raw = raw + 256
+    }
+    var value: Float = raw
+    return value / 255.0
+}
+
+func axis(address: Long, offset: Integer, dead_zone: Float): Float {
+    var raw = unsigned_short(address, offset)
+    if raw >= 32768 {
+        raw = raw - 65536
+    }
+    var value: Float = raw
+    var magnitude = value
+    if magnitude < 0.0 {
+        magnitude = 0.0 - magnitude
+    }
+    assert magnitude >= dead_zone
+    var span = 32767.0 - dead_zone
+    var scaled = (magnitude - dead_zone) / span
+    if scaled > 1.0 {
+        scaled = 1.0
+    }
+    if value < 0.0 {
+        return 0.0 - scaled
+    }
+    return scaled
+}

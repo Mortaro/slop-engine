@@ -1,0 +1,6 @@
+var code = ""
+var shape = 0
+var old_address: Long = 0
+var offset = 0
+var length = 0
+var count = 0

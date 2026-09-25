@@ -1,0 +1,133 @@
+singleton
+
+type Buildable {
+    build()
+}
+
+var recipes = List<Buildable>()
+var sources = List<List<String>>()
+var stamps = List<List<String>>()
+var current = -1
+var watcher: Recipes.Watcher? = null
+
+func cook() {
+    cook_recipes()
+    watch()
+}
+
+func cook_recipe(recipe: Symbol<Recipe>) {
+    var cooking = Cooking<recipe.class>()
+    add(cooking.recipe)
+}
+
+func add(recipe: Buildable) {
+    recipes.append(recipe)
+    sources.append(List<String>())
+    stamps.append(List<String>())
+    current = recipes.count() - 1
+    recipe.build()
+    current = -1
+}
+
+func note_source(path: String) {
+    assert current >= 0
+    crash sources[current]
+    crash stamps[current]
+    assert not sources[current].contains(path)
+    sources[current].append(path)
+    var stamp = stamp_of(path)
+    stamps[current].append(stamp)
+}
+
+func watch() {
+    var folders = List<String>()
+    var recipe = 0
+    while recipe < sources.count() {
+        add_folders(sources[recipe], folders)
+        recipe = recipe + 1
+    }
+    assert folders.count() > 0
+    var started = Recipes.Watcher()
+    started.start(folders)
+    watcher = started
+}
+
+func add_folders(paths: List<String>, folders: List<String>) {
+    var index = 0
+    while index < paths.count() {
+        var folder = folder_of(paths[index])
+        if not folders.contains(folder) {
+            folders.append(folder)
+        }
+        index = index + 1
+    }
+}
+
+func folder_of(path: String): String {
+    var normalized = path.replace("\\", "/")
+    var cut = normalized.length() - 1
+    while cut > 0 and normalized.code_at(cut) != 47 {
+        cut = cut - 1
+    }
+    return normalized.slice(0, cut)
+}
+
+func take_stale(): List<Integer>? {
+    assert watcher
+    assert watcher.take_change()
+    return restamp_stale()
+}
+
+func restamp_stale(): List<Integer> {
+    var stale_recipes = List<Integer>()
+    var recipe = 0
+    while recipe < sources.count() {
+        crash stamps[recipe]
+        if stale(sources[recipe], stamps[recipe]) {
+            stale_recipes.append(recipe)
+            restamp(sources[recipe], stamps[recipe])
+        }
+        recipe = recipe + 1
+    }
+    return stale_recipes
+}
+
+func restamp(paths: List<String>, known: List<String>) {
+    var index = 0
+    while index < paths.count() {
+        var stamp = stamp_of(paths[index])
+        known.set_at(index, stamp)
+        index = index + 1
+    }
+}
+
+func rebuild(recipe: Integer) {
+    crash recipes[recipe]
+    current = recipe
+    recipes[recipe].build()
+    current = -1
+}
+
+func stale(paths: List<String>, known: List<String>): Boolean {
+    var index = 0
+    var changed = false
+    while not changed and index < paths.count() {
+        crash known[index]
+        var stamp = stamp_of(paths[index])
+        changed = stamp != known[index]
+        index = index + 1
+    }
+    return changed
+}
+
+func stamp_of(path: String): String {
+    var file = File(path)
+    var modified = file.modified()
+    var size = file.size()
+    if modified {
+        if size {
+            return "{modified}-{size}"
+        }
+    }
+    return "missing"
+}

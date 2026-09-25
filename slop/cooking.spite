@@ -1,0 +1,3 @@
+generic $recipe_type
+
+var recipe: $recipe_type = null
