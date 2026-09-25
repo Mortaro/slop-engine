@@ -1,0 +1,5 @@
+var vertices = List<Float>()
+var joints = List<Integer>()
+var weights = List<Float>()
+var indices = List<Integer>()
+var texture = ""

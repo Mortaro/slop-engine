@@ -1,0 +1,178 @@
+var m0: Float = 1.0
+var m1: Float = 0.0
+var m2: Float = 0.0
+var m3: Float = 0.0
+var m4: Float = 0.0
+var m5: Float = 1.0
+var m6: Float = 0.0
+var m7: Float = 0.0
+var m8: Float = 0.0
+var m9: Float = 0.0
+var m10: Float = 1.0
+var m11: Float = 0.0
+var m12: Float = 0.0
+var m13: Float = 0.0
+var m14: Float = 0.0
+var m15: Float = 1.0
+var floats = TypedMemory<Float>()
+var scalar = Math.Scalar()
+
+func multiplied(other: Math.Matrix4): Math.Matrix4 {
+    var product = Math.Matrix4()
+    product.m0 = m0 * other.m0 + m4 * other.m1 + m8 * other.m2 + m12 * other.m3
+    product.m1 = m1 * other.m0 + m5 * other.m1 + m9 * other.m2 + m13 * other.m3
+    product.m2 = m2 * other.m0 + m6 * other.m1 + m10 * other.m2 + m14 * other.m3
+    product.m3 = m3 * other.m0 + m7 * other.m1 + m11 * other.m2 + m15 * other.m3
+    product.m4 = m0 * other.m4 + m4 * other.m5 + m8 * other.m6 + m12 * other.m7
+    product.m5 = m1 * other.m4 + m5 * other.m5 + m9 * other.m6 + m13 * other.m7
+    product.m6 = m2 * other.m4 + m6 * other.m5 + m10 * other.m6 + m14 * other.m7
+    product.m7 = m3 * other.m4 + m7 * other.m5 + m11 * other.m6 + m15 * other.m7
+    product.m8 = m0 * other.m8 + m4 * other.m9 + m8 * other.m10 + m12 * other.m11
+    product.m9 = m1 * other.m8 + m5 * other.m9 + m9 * other.m10 + m13 * other.m11
+    product.m10 = m2 * other.m8 + m6 * other.m9 + m10 * other.m10 + m14 * other.m11
+    product.m11 = m3 * other.m8 + m7 * other.m9 + m11 * other.m10 + m15 * other.m11
+    product.m12 = m0 * other.m12 + m4 * other.m13 + m8 * other.m14 + m12 * other.m15
+    product.m13 = m1 * other.m12 + m5 * other.m13 + m9 * other.m14 + m13 * other.m15
+    product.m14 = m2 * other.m12 + m6 * other.m13 + m10 * other.m14 + m14 * other.m15
+    product.m15 = m3 * other.m12 + m7 * other.m13 + m11 * other.m14 + m15 * other.m15
+    return product
+}
+
+func copy_from(other: Math.Matrix4) {
+    m0 = other.m0
+    m1 = other.m1
+    m2 = other.m2
+    m3 = other.m3
+    m4 = other.m4
+    m5 = other.m5
+    m6 = other.m6
+    m7 = other.m7
+    m8 = other.m8
+    m9 = other.m9
+    m10 = other.m10
+    m11 = other.m11
+    m12 = other.m12
+    m13 = other.m13
+    m14 = other.m14
+    m15 = other.m15
+}
+
+func set_perspective(field_of_view: Float, aspect: Float, near: Float, far: Float) {
+    var focal = 1.0 / scalar.tangent(field_of_view * 0.5)
+    clear()
+    m0 = focal / aspect
+    m5 = 0.0 - focal
+    m10 = far / (near - far)
+    m11 = -1.0
+    m14 = near * far / (near - far)
+    m15 = 0.0
+}
+
+func set_look_at(eye_x: Float, eye_y: Float, eye_z: Float, target_x: Float, target_y: Float, target_z: Float) {
+    var forward_x = target_x - eye_x
+    var forward_y = target_y - eye_y
+    var forward_z = target_z - eye_z
+    var forward_length = scalar.square_root(forward_x * forward_x + forward_y * forward_y + forward_z * forward_z)
+    forward_x = forward_x / forward_length
+    forward_y = forward_y / forward_length
+    forward_z = forward_z / forward_length
+    var side_x = 0.0 - forward_z
+    var side_z = forward_x
+    var side_length = scalar.square_root(side_x * side_x + side_z * side_z)
+    side_x = side_x / side_length
+    side_z = side_z / side_length
+    var up_x = 0.0 - side_z * forward_y
+    var up_y = side_z * forward_x - side_x * forward_z
+    var up_z = side_x * forward_y
+    clear()
+    m0 = side_x
+    m4 = 0.0
+    m8 = side_z
+    m12 = 0.0 - (side_x * eye_x + side_z * eye_z)
+    m1 = up_x
+    m5 = up_y
+    m9 = up_z
+    m13 = 0.0 - (up_x * eye_x + up_y * eye_y + up_z * eye_z)
+    m2 = 0.0 - forward_x
+    m6 = 0.0 - forward_y
+    m10 = 0.0 - forward_z
+    m14 = forward_x * eye_x + forward_y * eye_y + forward_z * eye_z
+    m15 = 1.0
+}
+
+func set_transform(
+    position_x: Float,
+    position_y: Float,
+    position_z: Float,
+    rotation_x: Float,
+    rotation_y: Float,
+    rotation_z: Float,
+    rotation_w: Float,
+    scale_x: Float,
+    scale_y: Float,
+    scale_z: Float,
+) {
+    var xx = rotation_x * rotation_x
+    var yy = rotation_y * rotation_y
+    var zz = rotation_z * rotation_z
+    var xy = rotation_x * rotation_y
+    var xz = rotation_x * rotation_z
+    var yz = rotation_y * rotation_z
+    var wx = rotation_w * rotation_x
+    var wy = rotation_w * rotation_y
+    var wz = rotation_w * rotation_z
+    m0 = (1.0 - 2.0 * (yy + zz)) * scale_x
+    m1 = 2.0 * (xy + wz) * scale_x
+    m2 = 2.0 * (xz - wy) * scale_x
+    m3 = 0.0
+    m4 = 2.0 * (xy - wz) * scale_y
+    m5 = (1.0 - 2.0 * (xx + zz)) * scale_y
+    m6 = 2.0 * (yz + wx) * scale_y
+    m7 = 0.0
+    m8 = 2.0 * (xz + wy) * scale_z
+    m9 = 2.0 * (yz - wx) * scale_z
+    m10 = (1.0 - 2.0 * (xx + yy)) * scale_z
+    m11 = 0.0
+    m12 = position_x
+    m13 = position_y
+    m14 = position_z
+    m15 = 1.0
+}
+
+func clear() {
+    m0 = 0.0
+    m1 = 0.0
+    m2 = 0.0
+    m3 = 0.0
+    m4 = 0.0
+    m5 = 0.0
+    m6 = 0.0
+    m7 = 0.0
+    m8 = 0.0
+    m9 = 0.0
+    m10 = 0.0
+    m11 = 0.0
+    m12 = 0.0
+    m13 = 0.0
+    m14 = 0.0
+    m15 = 0.0
+}
+
+func write_to(address: Long) {
+    floats.write_value(address, 0, m0)
+    floats.write_value(address, 1, m1)
+    floats.write_value(address, 2, m2)
+    floats.write_value(address, 3, m3)
+    floats.write_value(address, 4, m4)
+    floats.write_value(address, 5, m5)
+    floats.write_value(address, 6, m6)
+    floats.write_value(address, 7, m7)
+    floats.write_value(address, 8, m8)
+    floats.write_value(address, 9, m9)
+    floats.write_value(address, 10, m10)
+    floats.write_value(address, 11, m11)
+    floats.write_value(address, 12, m12)
+    floats.write_value(address, 13, m13)
+    floats.write_value(address, 14, m14)
+    floats.write_value(address, 15, m15)
+}

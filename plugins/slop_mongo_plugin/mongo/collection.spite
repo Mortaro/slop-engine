@@ -1,0 +1,116 @@
+var client = Mongo.Client("127.0.0.1", 27017)
+var database = ""
+var name = ""
+
+func insert_one(document: Mongo.Document): Boolean {
+    var documents = Mongo.Document()
+    documents.append_document(document)
+    var command = Mongo.Document()
+    command.set_text("insert", name)
+    command.set_array("documents", documents)
+    var reply = client.run_command(database, command)
+    assert reply
+    return reply.integer_of("n") == 1
+}
+
+func find_one(filter: Mongo.Document): Mongo.Document? {
+    var command = Mongo.Document()
+    command.set_text("find", name)
+    command.set_document("filter", filter)
+    command.set_integer("limit", 1)
+    command.set_boolean("singleBatch", true)
+    var reply = client.run_command(database, command)
+    assert reply
+    var cursor = reply.document_of("cursor")
+    assert cursor
+    var batch = cursor.document_of("firstBatch")
+    assert batch
+    var first = batch.elements.first()
+    assert first
+    return first.document
+}
+
+func find(filter: Mongo.Document): List<Mongo.Document> {
+    var found = List<Mongo.Document>()
+    var command = Mongo.Document()
+    command.set_text("find", name)
+    command.set_document("filter", filter)
+    var reply = client.run_command(database, command)
+    var cursor_id = take_batch(reply, "firstBatch", found)
+    while cursor_id != 0 {
+        var more = Mongo.Document()
+        more.set_long("getMore", cursor_id)
+        more.set_text("collection", name)
+        var next_reply = client.run_command(database, more)
+        cursor_id = take_batch(next_reply, "nextBatch", found)
+    }
+    return found
+}
+
+func take_batch(reply: Mongo.Document?, batch_name: String, found: List<Mongo.Document>): Long {
+    assert reply
+    var cursor = reply.document_of("cursor")
+    assert cursor
+    var batch = cursor.document_of(batch_name)
+    assert batch
+    var index = 0
+    while index < batch.elements.count() {
+        var element = batch.elements[index]
+        if element.document {
+            found.append(element.document)
+        }
+        index = index + 1
+    }
+    return cursor.long_of("id")
+}
+
+func update_one(filter: Mongo.Document, update: Mongo.Document): Integer {
+    return update_matching(filter, update, false)
+}
+
+func update_many(filter: Mongo.Document, update: Mongo.Document): Integer {
+    return update_matching(filter, update, true)
+}
+
+func update_matching(filter: Mongo.Document, update: Mongo.Document, every: Boolean): Integer {
+    var statement = Mongo.Document()
+    statement.set_document("q", filter)
+    statement.set_document("u", update)
+    statement.set_boolean("multi", every)
+    var updates = Mongo.Document()
+    updates.append_document(statement)
+    var command = Mongo.Document()
+    command.set_text("update", name)
+    command.set_array("updates", updates)
+    var reply = client.run_command(database, command)
+    assert reply
+    return reply.integer_of("nModified")
+}
+
+func delete_one(filter: Mongo.Document): Integer {
+    return delete_matching(filter, 1)
+}
+
+func delete_many(filter: Mongo.Document): Integer {
+    return delete_matching(filter, 0)
+}
+
+func delete_matching(filter: Mongo.Document, limit: Integer): Integer {
+    var statement = Mongo.Document()
+    statement.set_document("q", filter)
+    statement.set_integer("limit", limit)
+    var deletes = Mongo.Document()
+    deletes.append_document(statement)
+    var command = Mongo.Document()
+    command.set_text("delete", name)
+    command.set_array("deletes", deletes)
+    var reply = client.run_command(database, command)
+    assert reply
+    return reply.integer_of("n")
+}
+
+func count(filter: Mongo.Document): Integer {
+    var done = client.read_exactly(0, 4)
+    assert done
+    return filter.elements.count()
+}

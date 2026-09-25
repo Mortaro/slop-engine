@@ -1,3 +1,7 @@
+type Part {
+    release_part(RenderVulkan.Component.Renderer)
+}
+
 var instance: Long = 0
 var physical_device: Long = 0
 var device: Long = 0
@@ -33,6 +37,9 @@ var surfaces = List<Long>()
 var swapchains = List<Long>()
 var device_name = ""
 var validation = false
+var parts = List<Part>()
+var capture_requested = false
+var captured = false
 var raw = Raw()
 var cache = Recipes.Cache()
 var build = Build()
@@ -1037,7 +1044,11 @@ func record_rectangles(draw_list: Render.Component.DrawList) {
     ensure_rectangle_capacity(draw_list.count)
     var bytes = draw_list.count * draw_list.stride()
     raw.copy(draw_list.rectangles, frame.rectangle_mapped, bytes)
-    barrier(frame.target_image, 0, 256, 0, 2, 1, 1024)
+    var load_operation = 0
+    if not frame.scene_drawn {
+        barrier(frame.target_image, 0, 256, 0, 2, 1, 1024)
+        load_operation = 1
+    }
     var attachment = Structure(72)
     attachment.append_integer(1000044001)
     attachment.append_long(0)
@@ -1046,7 +1057,7 @@ func record_rectangles(draw_list: Render.Component.DrawList) {
     attachment.append_integer(0)
     attachment.append_long(0)
     attachment.append_integer(0)
-    attachment.append_integer(1)
+    attachment.append_integer(load_operation)
     attachment.append_integer(0)
     append_clear_color(attachment, draw_list.clear_color)
     var rendering = Structure(80)
@@ -1176,6 +1187,13 @@ func draw_offscreen(draw_list: Render.Component.DrawList, textures: Render.Compo
     begin_commands()
     record_uploads()
     record_rectangles(draw_list)
+    record_capture()
+    var no_semaphore: Long = 0
+    submit(false, no_semaphore)
+    wait_frame()
+}
+
+func record_capture() {
     var region = Structure(56)
     region.append_long(0)
     region.append_integer(0)
@@ -1191,9 +1209,6 @@ func draw_offscreen(draw_list: Render.Component.DrawList, textures: Render.Compo
     region.append_integer(frame.target_height)
     region.append_integer(1)
     vulkan.vkCmdCopyImageToBuffer(frame.command_buffer, frame.target_image, 6, frame.readback_buffer, 1, region.address)
-    var no_semaphore: Long = 0
-    submit(false, no_semaphore)
-    wait_frame()
 }
 
 func pixel_at(left: Integer, top: Integer): Integer {
@@ -1300,7 +1315,7 @@ func read_swapchain_images(swapchain: RenderVulkan.Component.Swapchain) {
     }
 }
 
-func draw_to(
+func begin_window_frame(
     draw_list: Render.Component.DrawList,
     textures: Render.Component.Textures,
     swapchain: RenderVulkan.Component.Swapchain,
@@ -1319,14 +1334,25 @@ func draw_to(
     )
     crash acquired == 0 or acquired == 1000001003
     ensure_textures(textures)
-    var image_index = chosen.read_integer(0)
+    swapchain.acquired = chosen.read_integer(0)
+    begin_commands()
+    record_uploads()
+    ensure_target(draw_list.width, draw_list.height)
+    frame.scene_drawn = false
+}
+
+func finish_window_frame(draw_list: Render.Component.DrawList, swapchain: RenderVulkan.Component.Swapchain) {
+    assert swapchain.acquired >= 0
+    var image_index = swapchain.acquired
+    swapchain.acquired = -1
     crash swapchain.images[image_index]
     var image = swapchain.images[image_index]
     crash swapchain.frames_done[image_index]
     var frame_done = swapchain.frames_done[image_index]
-    begin_commands()
-    record_uploads()
     record_rectangles(draw_list)
+    if capture_requested {
+        record_capture()
+    }
     barrier(image, 0, 4096, 0, 7, 4096, 4096)
     record_blit(image, swapchain)
     barrier(image, 4096, 0, 7, 1000001002, 4096, 8192)
@@ -1348,6 +1374,11 @@ func draw_to(
     presentation.append_long(0)
     var presented = vulkan.vkQueuePresentKHR(queue, presentation.address)
     crash presented == 0 or presented == 1000001003
+    if capture_requested {
+        wait_frame()
+        capture_requested = false
+        captured = true
+    }
 }
 
 func record_blit(image: Long, swapchain: RenderVulkan.Component.Swapchain) {
@@ -1382,6 +1413,7 @@ func release_device() {
     var no_allocator: Long = 0
     assert device != 0
     vulkan.vkDeviceWaitIdle(device)
+    release_parts()
     release_frames()
     release_presentation()
     release_textures()
@@ -1394,6 +1426,15 @@ func release_device() {
     vulkan.vkDestroyInstance(instance, no_allocator)
     device = 0
     instance = 0
+}
+
+func release_parts() {
+    var index = 0
+    while index < parts.count() {
+        parts[index].release_part(this)
+        index = index + 1
+    }
+    parts.clear()
 }
 
 func release_frames() {

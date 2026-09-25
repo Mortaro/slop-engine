@@ -6,6 +6,7 @@ var target_memory: Long = 0
 var target_view: Long = 0
 var target_width = 0
 var target_height = 0
+var scene_drawn = false
 var rectangle_buffer: Long = 0
 var rectangle_memory: Long = 0
 var rectangle_mapped: Long = 0

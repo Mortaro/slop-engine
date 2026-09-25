@@ -1,0 +1,12 @@
+type NewWindow {
+    entity: Entity
+    window: Added<Window.Component.Window>
+}
+
+func after_input_each(created: NewWindow) {
+    var window = created.entity
+    var meshes = Component.Meshes()
+    window.add_component(meshes)
+    var view = Component.View()
+    window.add_component(view)
+}

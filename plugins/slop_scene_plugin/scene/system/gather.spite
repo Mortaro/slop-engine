@@ -1,0 +1,53 @@
+type Modeled {
+    model: Component.Model
+    transform: Transform.Component.Transform
+}
+
+type Viewing {
+    camera: Camera.Component.Camera
+}
+
+type Target {
+    view: Component.View
+    meshes: Component.Meshes
+    textures: Render.Component.Textures
+}
+
+func render_all(models: List<Modeled>, cameras: List<Viewing>, targets: List<Target>) {
+    var index = 0
+    while index < targets.count() {
+        gather(targets[index], models, cameras)
+        index = index + 1
+    }
+}
+
+func gather(target: Target, models: List<Modeled>, cameras: List<Viewing>) {
+    var view = target.view
+    view.begin()
+    var camera = cameras.first()
+    assert camera
+    view.has_camera = true
+    view.field_of_view = camera.camera.field_of_view
+    view.near = camera.camera.near
+    view.far = camera.camera.far
+    var lens = camera.camera
+    view.view.set_look_at(lens.eye_x, lens.eye_y, lens.eye_z, lens.target_x, lens.target_y, lens.target_z)
+    var index = 0
+    while index < models.count() {
+        add_draw(target, models[index])
+        index = index + 1
+    }
+}
+
+func add_draw(target: Target, modeled: Modeled) {
+    var slot = target.meshes.request(modeled.model.mesh)
+    assert target.meshes.is_ready(slot)
+    var loaded = target.meshes.mesh_at(slot)
+    var draw = Scene.Draw()
+    draw.mesh_slot = slot
+    if not loaded.texture.is_empty() {
+        draw.texture_slot = target.textures.request(loaded.texture)
+    }
+    draw.model = modeled.transform.matrix()
+    target.view.draws.append(draw)
+}

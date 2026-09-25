@@ -1,0 +1,53 @@
+generic $value_type
+
+var hex = Mongo.Hex()
+
+func to_document(value: $value_type): Mongo.Document {
+    var document = Mongo.Document()
+    write_attributes(value, document)
+    return document
+}
+
+func write_attribute(attribute: Symbol<$value_type>, value: $value_type, document: Mongo.Document) {
+    var key = key_of(attribute.name)
+    var element = Mongo.Element(key, 10)
+    var mapping = Mongo.Mapping<attribute.class>()
+    mapping.write(value.attributes[attribute], element)
+    if key == "_id" and element.kind == 2 and hex.is_object_id(element.text) {
+        element.kind = 7
+    }
+    document.elements.append(element)
+}
+
+func from_document(document: Mongo.Document): $value_type {
+    var created: $value_type = null
+    read_attributes(created, document)
+    return created
+}
+
+func read_attribute(attribute: Symbol<$value_type>, created: $value_type, document: Mongo.Document) {
+    var key = key_of(attribute.name)
+    var found = document.find(key)
+    assert found
+    var mapping = Mongo.Mapping<attribute.class>()
+    assert mapping.accepts(found)
+    created.attributes[attribute] = mapping.read(found)
+}
+
+func identify_attribute(attribute: Symbol<$value_type>, value: $value_type, generated: String) {
+    assert attribute.name == "id"
+    var mapping = Mongo.Mapping<attribute.class>()
+    var current = Mongo.Element("id", 10)
+    mapping.write(value.attributes[attribute], current)
+    assert current.kind == 2 and current.text.is_empty()
+    var identifier = Mongo.Element("id", 7)
+    identifier.text = generated
+    value.attributes[attribute] = mapping.read(identifier)
+}
+
+func key_of(name: String): String {
+    if name == "id" {
+        return "_id"
+    }
+    return name
+}

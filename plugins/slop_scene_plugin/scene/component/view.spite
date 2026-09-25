@@ -1,0 +1,21 @@
+var has_camera = false
+var view = Math.Matrix4()
+var field_of_view: Float = 0.785398
+var near: Float = 0.1
+var far: Float = 500.0
+var draws = List<Scene.Draw>()
+var palettes = List<Math.Matrix4>()
+
+func begin() {
+    has_camera = false
+    draws.clear()
+    palettes.clear()
+    var identity = Math.Matrix4()
+    palettes.append(identity)
+}
+
+func projection(aspect: Float): Math.Matrix4 {
+    var result = Math.Matrix4()
+    result.set_perspective(field_of_view, aspect, near, far)
+    return result
+}

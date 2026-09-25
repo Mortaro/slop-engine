@@ -1,0 +1,8 @@
+var yaw: Float = 0.0
+var pitch: Float = -0.35
+var zoom: Float = 8.0
+var target_x: Float = 0.0
+var target_y: Float = 0.0
+var target_z: Float = 0.0
+var target_height: Float = 1.57
+var eye_lift: Float = 0.8

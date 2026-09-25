@@ -1,0 +1,9 @@
+var field_of_view: Float = 0.785398
+var near: Float = 0.1
+var far: Float = 500.0
+var eye_x: Float = 0.0
+var eye_y: Float = 1.6
+var eye_z: Float = 5.0
+var target_x: Float = 0.0
+var target_y: Float = 1.0
+var target_z: Float = 0.0

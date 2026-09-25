@@ -1,0 +1,7 @@
+type Loading {
+    meshes: Component.Meshes
+}
+
+func last_each(loading: Loading) {
+    loading.meshes.finish_loads()
+}

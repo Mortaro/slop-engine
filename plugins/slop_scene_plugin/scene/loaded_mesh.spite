@@ -1,0 +1,4 @@
+var vertices = Asset.Bytes()
+var indices = Asset.Bytes()
+var index_count = 0
+var texture = ""

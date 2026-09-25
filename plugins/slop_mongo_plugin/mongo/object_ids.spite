@@ -1,0 +1,21 @@
+singleton
+
+var clock = Clock()
+var hex = Mongo.Hex()
+var counter = 0
+var machine: Long = 0
+
+func next(): String {
+    if machine == 0 {
+        var started = clock.elapsed_nanoseconds()
+        machine = started.bits_and(1099511627775).bits_or(1)
+    }
+    counter = counter + 1
+    var now = clock.now()
+    var since = now.since_1970
+    var seconds = since.total('seconds')
+    var time_text = hex.long_text(seconds, 8)
+    var machine_text = hex.long_text(machine, 10)
+    var counter_text = hex.long_text(counter, 6)
+    return "{time_text}{machine_text}{counter_text}"
+}

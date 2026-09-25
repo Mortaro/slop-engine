@@ -1,0 +1,4 @@
+var mesh_slot = 0
+var texture_slot = -1
+var model = Math.Matrix4()
+var palette_first = 0

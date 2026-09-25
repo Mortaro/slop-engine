@@ -1,0 +1,21 @@
+type Orbiting {
+    camera: Component.Camera
+    orbit: Component.Orbit
+}
+
+var scalar = Math.Scalar()
+
+func prepare_each(orbiting: Orbiting) {
+    var orbit = orbiting.orbit
+    var camera = orbiting.camera
+    var pitch_cosine = scalar.cosine(orbit.pitch)
+    var pitch_sine = scalar.sine(orbit.pitch)
+    var yaw_cosine = scalar.cosine(orbit.yaw)
+    var yaw_sine = scalar.sine(orbit.yaw)
+    camera.target_x = orbit.target_x
+    camera.target_y = orbit.target_y + orbit.target_height
+    camera.target_z = orbit.target_z
+    camera.eye_x = camera.target_x - orbit.zoom * pitch_cosine * yaw_sine
+    camera.eye_y = camera.target_y - orbit.zoom * pitch_sine + orbit.eye_lift
+    camera.eye_z = camera.target_z + orbit.zoom * pitch_cosine * yaw_cosine
+}

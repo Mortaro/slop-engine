@@ -1,0 +1,176 @@
+var elements = List<Mongo.Element>()
+
+func put(element: Mongo.Element) {
+    var index = 0
+    var found = false
+    while index < elements.count() and not found {
+        if elements[index].key == element.key {
+            elements[index] = element
+            found = true
+        }
+        index = index + 1
+    }
+    if not found {
+        elements.append(element)
+    }
+}
+
+func set_text(key: String, value: String) {
+    var element = Mongo.Element(key, 2)
+    element.text = value
+    put(element)
+}
+
+func set_object_id(key: String, hexadecimal: String) {
+    var element = Mongo.Element(key, 7)
+    element.text = hexadecimal
+    put(element)
+}
+
+func set_integer(key: String, value: Integer) {
+    var element = Mongo.Element(key, 16)
+    element.whole = value
+    put(element)
+}
+
+func set_long(key: String, value: Long) {
+    var element = Mongo.Element(key, 18)
+    element.whole = value
+    put(element)
+}
+
+func set_date_time(key: String, milliseconds_since_1970: Long) {
+    var element = Mongo.Element(key, 9)
+    element.whole = milliseconds_since_1970
+    put(element)
+}
+
+func set_double(key: String, value: Double) {
+    var element = Mongo.Element(key, 1)
+    element.decimal = value
+    put(element)
+}
+
+func set_boolean(key: String, value: Boolean) {
+    var element = Mongo.Element(key, 8)
+    element.boolean = value
+    put(element)
+}
+
+func set_null(key: String) {
+    var element = Mongo.Element(key, 10)
+    put(element)
+}
+
+func set_document(key: String, value: Mongo.Document) {
+    var element = Mongo.Element(key, 3)
+    element.document = value
+    put(element)
+}
+
+func set_array(key: String, value: Mongo.Document) {
+    var element = Mongo.Element(key, 4)
+    element.document = value
+    put(element)
+}
+
+func append_text(value: String) {
+    var key = "{elements.count()}"
+    set_text(key, value)
+}
+
+func append_integer(value: Integer) {
+    var key = "{elements.count()}"
+    set_integer(key, value)
+}
+
+func append_long(value: Long) {
+    var key = "{elements.count()}"
+    set_long(key, value)
+}
+
+func append_double(value: Double) {
+    var key = "{elements.count()}"
+    set_double(key, value)
+}
+
+func append_boolean(value: Boolean) {
+    var key = "{elements.count()}"
+    set_boolean(key, value)
+}
+
+func append_document(value: Mongo.Document) {
+    var key = "{elements.count()}"
+    set_document(key, value)
+}
+
+func find(key: String): Mongo.Element? {
+    return elements.find_by_key(key)
+}
+
+func has(key: String): Boolean {
+    var found = find(key)
+    assert found
+    return true
+}
+
+func count(): Integer {
+    return elements.count()
+}
+
+func keys(): List<String> {
+    return elements.map_key()
+}
+
+func text_of(key: String): String {
+    var found = find(key)
+    assert found
+    return found.text
+}
+
+func integer_of(key: String): Integer {
+    var found = find(key)
+    assert found
+    var number: Integer = found.as_long()
+    return number
+}
+
+func long_of(key: String): Long {
+    var found = find(key)
+    assert found
+    return found.as_long()
+}
+
+func double_of(key: String): Double {
+    var found = find(key)
+    assert found
+    return found.as_double()
+}
+
+func boolean_of(key: String): Boolean {
+    var found = find(key)
+    assert found
+    return found.boolean
+}
+
+func document_of(key: String): Mongo.Document? {
+    var found = find(key)
+    assert found
+    return found.document
+}
+
+func to_string(): String {
+    var pieces = elements.map(entry_text)
+    var joined = pieces.join(", ")
+    return "\{{joined}}"
+}
+
+func array_text(): String {
+    var pieces = elements.map_to_string()
+    var joined = pieces.join(", ")
+    return "[{joined}]"
+}
+
+func entry_text(element: Mongo.Element): String {
+    return "{element.key}: {element}"
+}

@@ -1,0 +1,39 @@
+var digits = "0123456789abcdef"
+
+func digit_value(code: Integer): Integer {
+    if code >= 48 and code <= 57 {
+        return code - 48
+    }
+    if code >= 97 and code <= 102 {
+        return code - 87
+    }
+    if code >= 65 and code <= 70 {
+        return code - 55
+    }
+    return -1
+}
+
+func is_object_id(text: String): Boolean {
+    assert text.length() == 24
+    var index = 0
+    var valid = true
+    while index < 24 and valid {
+        var code = text.code_at(index)
+        valid = digit_value(code) >= 0
+        index = index + 1
+    }
+    return valid
+}
+
+func long_text(value: Long, digit_count: Integer): String {
+    var pieces = List<String>()
+    var index = digit_count - 1
+    while index >= 0 {
+        var shift = index * 4
+        var nibble = value.shifted_right(shift).bits_and(15)
+        var digit = digits.character_at(nibble)
+        pieces.append(digit)
+        index = index - 1
+    }
+    return pieces.join("")
+}

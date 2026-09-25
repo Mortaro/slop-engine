@@ -1,0 +1,16 @@
+type Target {
+    window: Window.Component.Window
+    swapchain: RenderVulkan.Component.Swapchain
+    renderer: RenderVulkan.Component.Renderer
+    mesh_renderer: Component.MeshRenderer
+    view: Scene.Component.View
+    meshes: Scene.Component.Meshes
+    draw_list: Render.Component.DrawList
+}
+
+func after_render_each(target: Target) {
+    var renderer = target.renderer
+    assert not target.window.closed and renderer.device != 0
+    assert target.swapchain.acquired >= 0 and target.view.has_camera
+    target.mesh_renderer.record(renderer, target.view, target.meshes, target.draw_list.clear_color)
+}

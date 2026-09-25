@@ -1,0 +1,73 @@
+var key = ""
+var kind = 10
+var text = ""
+var whole: Long = 0
+var decimal: Double = 0.0
+var boolean = false
+var document: Mongo.Document? = null
+
+func Element(new_key: String, new_kind: Integer) {
+    key = new_key
+    kind = new_kind
+}
+
+func is_number(): Boolean {
+    return kind == 1 or kind == 16 or kind == 18
+}
+
+func as_long(): Long {
+    if kind == 1 {
+        var rounded: Long = decimal
+        return rounded
+    }
+    if kind == 8 and boolean {
+        return 1
+    }
+    return whole
+}
+
+func as_double(): Double {
+    if kind == 1 {
+        return decimal
+    }
+    var number = as_long()
+    var converted: Double = number
+    return converted
+}
+
+func to_string(): String {
+    if kind == 2 {
+        return "\"{text}\""
+    }
+    if kind == 7 {
+        return "ObjectId(\"{text}\")"
+    }
+    if kind == 1 {
+        return "{decimal}"
+    }
+    if kind == 8 {
+        return "{boolean}"
+    }
+    if kind == 9 {
+        return "Date({whole})"
+    }
+    if kind == 16 or kind == 18 {
+        return "{whole}"
+    }
+    if kind == 10 {
+        return "null"
+    }
+    if kind == 3 or kind == 4 {
+        return embedded_text()
+    }
+    return "<type {kind}>"
+}
+
+func embedded_text(): String {
+    assert document
+    var shown = document
+    if kind == 4 {
+        return shown.array_text()
+    }
+    return shown.to_string()
+}

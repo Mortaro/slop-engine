@@ -3,10 +3,11 @@ type Target {
     swapchain: Component.Swapchain
     renderer: Component.Renderer
     draw_list: Render.Component.DrawList
+    textures: Render.Component.Textures
 }
 
-func present_each(target: Target) {
+func render_each(target: Target) {
     var renderer = target.renderer
     assert not target.window.closed and renderer.device != 0
-    renderer.finish_window_frame(target.draw_list, target.swapchain)
+    renderer.begin_window_frame(target.draw_list, target.textures, target.swapchain)
 }

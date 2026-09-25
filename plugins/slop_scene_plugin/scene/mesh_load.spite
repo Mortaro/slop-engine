@@ -1,0 +1,59 @@
+var path = ""
+var offset: Long = 0
+var length: Long = 0
+var vertex_floats = 8
+
+func MeshLoad(found: Recipes.Record) {
+    path = found.path
+    offset = found.offset
+    length = found.length
+}
+
+func run(): Scene.LoadedMesh {
+    var record = Recipes.Record()
+    record.path = path
+    record.offset = offset
+    record.length = length
+    var bytes = record.read()
+    var pack = Pack<Asset.Mesh>()
+    var mesh = pack.decode(bytes)
+    crash mesh
+    var loaded = Scene.LoadedMesh()
+    loaded.texture = mesh.texture
+    var count = mesh.vertices.count() / vertex_floats
+    var skinned = mesh.joints.count() == count
+    var vertex = 0
+    while vertex < count {
+        write_vertex(loaded.vertices, mesh, vertex, skinned)
+        vertex = vertex + 1
+    }
+    loaded.index_count = mesh.indices.count()
+    mesh.indices.each(loaded.indices.write_integer)
+    return loaded
+}
+
+func write_vertex(target: Asset.Bytes, mesh: Asset.Mesh, vertex: Integer, skinned: Boolean) {
+    var first = vertex * vertex_floats
+    var index = 0
+    while index < vertex_floats {
+        crash mesh.vertices[first + index]
+        target.write_float(mesh.vertices[first + index])
+        index = index + 1
+    }
+    if skinned {
+        crash mesh.joints[vertex]
+        target.write_integer(mesh.joints[vertex])
+        var weight = 0
+        while weight < 4 {
+            crash mesh.weights[vertex * 4 + weight]
+            target.write_float(mesh.weights[vertex * 4 + weight])
+            weight = weight + 1
+        }
+    } else {
+        target.write_integer(0)
+        target.write_float(1.0)
+        target.write_float(0.0)
+        target.write_float(0.0)
+        target.write_float(0.0)
+    }
+}

@@ -1,0 +1,86 @@
+var ids = List<String>()
+var meshes = List<Scene.LoadedMesh>()
+var ready = List<Boolean>()
+var generations = List<Integer>()
+var loads = List<Parallel<Scene.LoadedMesh>>()
+var load_slots = List<Integer>()
+var sources = Recipes.Sources()
+var reader: Recipes.CacheReader? = null
+
+func request(id: String): Integer {
+    var index = 0
+    while index < ids.count() {
+        if ids[index] == id {
+            return index
+        }
+        index = index + 1
+    }
+    return start_loading(id)
+}
+
+func start_loading(id: String): Integer {
+    var slot = meshes.count()
+    ids.append(id)
+    var empty_mesh = Scene.LoadedMesh()
+    meshes.append(empty_mesh)
+    ready.append(false)
+    generations.append(0)
+    var opened = opened_reader()
+    var record = opened.locate(id)
+    crash record
+    var job = Scene.MeshLoad(record)
+    var loading = Parallel(job.run)
+    loads.append(loading)
+    load_slots.append(slot)
+    return slot
+}
+
+func opened_reader(): Recipes.CacheReader {
+    if reader {
+        return reader
+    }
+    var cache_folder = sources.cache_folder()
+    var index_path = sources.index_path()
+    var created = Recipes.CacheReader(cache_folder, index_path)
+    created.read_index()
+    reader = created
+    return created
+}
+
+func is_ready(slot: Integer): Boolean {
+    crash slot < ready.count()
+    return ready[slot]
+}
+
+func mesh_at(slot: Integer): Scene.LoadedMesh {
+    crash meshes[slot]
+    return meshes[slot]
+}
+
+func generation(slot: Integer): Integer {
+    crash generations[slot]
+    return generations[slot]
+}
+
+func finish_loads() {
+    var index = loads.count() - 1
+    while index >= 0 {
+        finish_if_done(index)
+        index = index - 1
+    }
+}
+
+func finish_if_done(index: Integer) {
+    crash loads[index]
+    crash load_slots[index]
+    var slot = load_slots[index]
+    var loading = loads[index]
+    assert loading.finished
+    var loaded: Scene.LoadedMesh = loading
+    meshes.set_at(slot, loaded)
+    ready.set_at(slot, true)
+    crash generations[slot]
+    generations.set_at(slot, generations[slot] + 1)
+    loads.remove_at(index)
+    load_slots.remove_at(index)
+}
