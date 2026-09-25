@@ -1,6 +1,7 @@
 var client = Mongo.Client("127.0.0.1", 27017)
 var database = ""
 var name = ""
+var batch_size = 0
 
 func insert_one(document: Mongo.Document): Boolean {
     var documents = Mongo.Document()
@@ -35,16 +36,23 @@ func find(filter: Mongo.Document): List<Mongo.Document> {
     var command = Mongo.Document()
     command.set_text("find", name)
     command.set_document("filter", filter)
+    ask_batch_size(command)
     var reply = client.run_command(database, command)
     var cursor_id = take_batch(reply, "firstBatch", found)
     while cursor_id != 0 {
         var more = Mongo.Document()
         more.set_long("getMore", cursor_id)
         more.set_text("collection", name)
+        ask_batch_size(more)
         var next_reply = client.run_command(database, more)
         cursor_id = take_batch(next_reply, "nextBatch", found)
     }
     return found
+}
+
+func ask_batch_size(command: Mongo.Document) {
+    assert batch_size > 0
+    command.set_integer("batchSize", batch_size)
 }
 
 func take_batch(reply: Mongo.Document?, batch_name: String, found: List<Mongo.Document>): Long {
@@ -109,8 +117,11 @@ func delete_matching(filter: Mongo.Document, limit: Integer): Integer {
     return reply.integer_of("n")
 }
 
-func count(filter: Mongo.Document): Integer {
-    var done = client.read_exactly(0, 4)
-    assert done
-    return filter.elements.count()
+func count_matching(filter: Mongo.Document): Integer {
+    var command = Mongo.Document()
+    command.set_text("count", name)
+    command.set_document("query", filter)
+    var reply = client.run_command(database, command)
+    assert reply
+    return reply.integer_of("n")
 }

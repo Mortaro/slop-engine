@@ -39,5 +39,5 @@ func delete_many(filter: Mongo.Document): Integer {
 }
 
 func count_matching(filter: Mongo.Document): Integer {
-    return collection.count(filter)
+    return collection.count_matching(filter)
 }
