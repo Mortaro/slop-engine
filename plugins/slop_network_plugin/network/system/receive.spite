@@ -1,0 +1,66 @@
+type Peer {
+    entity: Entity
+    connection: Network.Component.Connection
+}
+
+var world = World()
+var mirrors = Dictionary<Integer>()
+var frame = Asset.Bytes()
+var understood = false
+
+func after_input_each(peer: Peer) {
+    var stream = peer.connection.stream
+    stream.receive_all()
+    while not stream.closed and stream.next_frame(frame) {
+        var message = frame.read_integer()
+        var remote = frame.read_integer()
+        understood = false
+        decode_components(message, remote, peer.entity.id)
+        if not understood {
+            stream.closed = true
+        }
+    }
+}
+
+func decode_component(component: Symbol<Component>, message: Integer, remote: Integer, connection: Integer) {
+    var codec = Network.Codec<component.class>()
+    if codec.replicated() and codec.id() == message {
+        var value = codec.read(frame)
+        if value {
+            understood = true
+            var target = target_entity(remote, connection)
+            target.add_component(value)
+        }
+    }
+}
+
+func target_entity(remote: Integer, connection: Integer): Entity {
+    if remote != -2 {
+        return local_entity(remote)
+    }
+    var arrived = world.create_entity()
+    var sender = Network.Component.Sender()
+    sender.connection = connection
+    arrived.add_component(sender)
+    var marker = Network.Component.Arrived()
+    arrived.add_component(marker)
+    return arrived
+}
+
+func local_entity(remote: Integer): Entity {
+    if remote == -1 {
+        return world.as_entity()
+    }
+    var name = "{remote}"
+    if mirrors.has(name) {
+        var known = mirrors.get(name)
+        crash known
+        return Entity(known)
+    }
+    var made = world.create_entity()
+    mirrors.set(name, made.id)
+    var mirrored = Network.Component.Mirrored()
+    mirrored.remote = remote
+    made.add_component(mirrored)
+    return made
+}

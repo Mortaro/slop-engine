@@ -12,6 +12,7 @@ claim about behaviour is checked by one of the programs in `examples/` (see [tes
 | [ui.md](ui.md) | buttons, interaction markers, styles as components, how a game writes state styles |
 | [rendering.md](rendering.md) | the draw list, the software and Vulkan backends, parity, the window without callbacks |
 | [assets-and-recipes.md](assets-and-recipes.md) | asset formats as declared classes, recipes as code, the cache, background loading |
+| [networking.md](networking.md) | environments as folders (client, server, bot), replicated components, the binary wire (proposal, built) |
 | [loaders.md](loaders.md) | PSD, zstd and `.blend` read in pure Spite |
 | [testing.md](testing.md) | every example, what it proves, and how to run it |
 | [performance.md](performance.md) | the stress numbers, where the time goes, what would make it faster |

@@ -1,0 +1,44 @@
+type Peer {
+    entity: Entity
+    connection: Network.Component.Connection
+}
+
+var world = World()
+var mirrored = Dictionary<Asset.Bytes>()
+var changed = Asset.Bytes()
+var messages = Asset.Bytes()
+
+func last_all(peers: List<Peer>) {
+    changed.clear()
+    messages.clear()
+    encode_components()
+    var index = 0
+    while index < peers.count() {
+        deliver(peers[index])
+        index = index + 1
+    }
+}
+
+func encode_component(component: Symbol<Component>) {
+    var codec = Network.Codec<component.class>()
+    codec.mirror(mirrored, changed)
+    codec.send(messages)
+}
+
+func deliver(peer: Peer) {
+    var connection = peer.connection
+    var stream = connection.stream
+    if connection.fresh {
+        connection.fresh = false
+        var snapshot = mirrored.values()
+        snapshot.each(stream.queue)
+    } else {
+        stream.queue(changed)
+    }
+    stream.queue(messages)
+    stream.flush()
+    if stream.closed {
+        stream.close()
+        world.despawn(peer.entity.id)
+    }
+}

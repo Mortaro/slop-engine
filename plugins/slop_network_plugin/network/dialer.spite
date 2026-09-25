@@ -1,0 +1,28 @@
+var task = Network.DialTask(0)
+var running: Parallel<Boolean>? = null
+
+func idle(): Boolean {
+    assert not running
+    return true
+}
+
+func ready(): Boolean {
+    assert running
+    return running.finished
+}
+
+func start(port: Integer) {
+    task = Network.DialTask(port)
+    running = Parallel(task.run)
+}
+
+func take(): Socket? {
+    var handle = running
+    crash handle
+    running = null
+    var connected: Boolean = handle
+    if connected {
+        return task.socket
+    }
+    return null
+}

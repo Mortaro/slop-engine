@@ -157,3 +157,11 @@ A draw target is any entity with the three components; `render_parity` makes an 
 | `RenderVulkan.Recipe.Shaders` | compiles the rectangle shaders |
 
 See [rendering.md](rendering.md).
+
+## slop_network_plugin
+
+Replicates components between the environments of one program: state a component declares with
+`mirrored_from(environment)`, and messages it declares with `sent_from(environment)`. Connections are entities;
+`Network.Component.Listen` or `Network.Component.Connect` on the world entity starts it. The wire is binary frames
+encoded by the engine's derived codec. Windows only for now (it calls `ws2_32.dll` for non-blocking sockets). See
+[networking.md](networking.md).

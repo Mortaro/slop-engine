@@ -1,0 +1,27 @@
+type Hosting {
+    listen: Network.Component.Listen
+}
+
+var world = World()
+var sockets = Network.Sockets()
+
+func input_each(hosting: Hosting) {
+    var listen = hosting.listen
+    if not listen.open {
+        crash listen.socket.listen_locally(listen.port)
+        sockets.make_nonblocking(listen.socket.handle)
+        listen.open = true
+    }
+    var accepted = listen.socket.accept_client()
+    while accepted {
+        adopt(accepted)
+        accepted = listen.socket.accept_client()
+    }
+}
+
+func adopt(accepted: Socket) {
+    var connection = Network.Component.Connection()
+    connection.stream.adopt(accepted)
+    var peer = world.create_entity()
+    peer.add_component(connection)
+}

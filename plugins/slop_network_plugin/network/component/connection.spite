@@ -1,0 +1,2 @@
+var stream = Network.Stream()
+var fresh = true

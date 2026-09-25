@@ -6,6 +6,8 @@ var address: Long = 0
 var length = 0
 var capacity = 0
 var position = 0
+var untrusted = false
+var failed = false
 
 func reserve(wanted: Integer) {
     assert wanted > capacity
@@ -80,12 +82,38 @@ func append_text_bytes(text: String) {
     length = length + text_length
 }
 
+func fits(count: Integer): Boolean {
+    if not failed and position + count <= length {
+        return true
+    }
+    crash untrusted
+    failed = true
+    position = length
+    return false
+}
+
+func count_fits(count: Integer): Boolean {
+    if count >= 0 and count <= remaining() {
+        return true
+    }
+    crash untrusted
+    failed = true
+    position = length
+    return false
+}
+
+func clear() {
+    length = 0
+    position = 0
+    failed = false
+}
+
 func remaining(): Integer {
     return length - position
 }
 
 func read_byte(): Integer {
-    crash position + 1 <= length
+    assert fits(1)
     var value: Integer = raw.read_byte(address, position)
     if value < 0 {
         value = value + 256
@@ -95,28 +123,28 @@ func read_byte(): Integer {
 }
 
 func read_integer(): Integer {
-    crash position + 4 <= length
+    assert fits(4)
     var value = raw.read_integer(address, position)
     position = position + 4
     return value
 }
 
 func read_long(): Long {
-    crash position + 8 <= length
+    assert fits(8)
     var value = raw.read_long(address, position)
     position = position + 8
     return value
 }
 
 func read_float(): Float {
-    crash position + 4 <= length
+    assert fits(4)
     var value = floats.read_value(address + position, 0)
     position = position + 4
     return value
 }
 
 func read_double(): Double {
-    crash position + 8 <= length
+    assert fits(8)
     var value = doubles.read_value(address + position, 0)
     position = position + 8
     return value
@@ -124,7 +152,7 @@ func read_double(): Double {
 
 func read_text(): String {
     var text_length = read_integer()
-    crash text_length >= 0 and position + text_length <= length
+    assert text_length >= 0 and fits(text_length)
     var text = raw.text(address + position, text_length)
     position = position + text_length
     return text

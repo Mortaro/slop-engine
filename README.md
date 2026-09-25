@@ -315,11 +315,13 @@ slop/                     the core, loaded by every program
   recipes/                Recipes.Cache, Recipes.Glsl
 plugins/                  each loaded on its own: plugins/slop_<feature>_plugin/<feature>/{component,system,assets,...}
   window/, input/, ui/, render/, render_software/, render_vulkan/
+  network/                replicated components and connections (docs/networking.md)
   psd/, zstd/, blend/     the source-format loaders, loaded by whoever has a recipe that reads them
                           (window: component/window, bundle/window, system/open_window, pump_messages;
                            ui: component/button, label, text, hovered, pressed; system/interact)
 examples/
   click_counter/          the game
+  click_counter_online/   the same game with a server-authoritative counter: client, server and bot environments
   click_counter_test/     its test: a program that loads the game and adds its own systems
   render_parity/, use_potion/, healing/, stress/, asset_round_trip/, psd_probe/, zstd_probe/, blend_probe/
 ```

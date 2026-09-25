@@ -15,6 +15,9 @@ func write(value: $list_type, bytes: Asset.Bytes) {
 func read(bytes: Asset.Bytes): $list_type {
     var count = bytes.read_integer()
     var list: $list_type = null
+    if not bytes.count_fits(count) {
+        return list
+    }
     var element = Field<$list_type.element_type>()
     var index = 0
     while index < count {

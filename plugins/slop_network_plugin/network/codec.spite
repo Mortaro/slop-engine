@@ -1,0 +1,135 @@
+generic $component_type
+
+var column = Column<$component_type>()
+var columns = Columns()
+var world = World()
+var build = Build()
+var raw = Raw()
+var sample: $component_type = null
+var scratch = Asset.Bytes()
+
+func key(): String {
+    return columns.key(sample.class)
+}
+
+func id(): Integer {
+    var name = key()
+    var hash: Long = 7
+    var index = 0
+    while index < name.length() {
+        var code = name.code_at(index)
+        hash = (hash * 31 + code) % 2147483647
+        index = index + 1
+    }
+    var narrow: Integer = hash
+    return narrow
+}
+
+func mirror(mirrored: Dictionary<Asset.Bytes>, changed: Asset.Bytes) {
+    if $component_type.has_function("mirrored_from") {
+        mirror_column(mirrored, changed)
+    }
+}
+
+func mirror_column(mirrored: Dictionary<Asset.Bytes>, changed: Asset.Bytes) {
+    var name = key()
+    var message = id()
+    var count = columns.count_of(name)
+    var row = 0
+    while row < count {
+        var entity = columns.entity_at(name, row)
+        var value = column.get(entity, name)
+        if value.mirrored_from(build.environment) {
+            var remote = remote_of(entity)
+            scratch.clear()
+            write_frame(scratch, message, remote, value)
+            var slot = "{message} {remote}"
+            var stored = stored_frame(mirrored, slot)
+            if not same(stored, scratch) {
+                stored.clear()
+                stored.write_bytes(scratch.address, scratch.length)
+                changed.write_bytes(scratch.address, scratch.length)
+            }
+        }
+        row = row + 1
+    }
+}
+
+func send(messages: Asset.Bytes) {
+    if $component_type.has_function("sent_from") {
+        send_column(messages)
+    }
+}
+
+func send_column(messages: Asset.Bytes) {
+    var name = key()
+    var message = id()
+    var count = columns.count_of(name)
+    var row = 0
+    while row < count {
+        var entity = columns.entity_at(name, row)
+        var value = column.get(entity, name)
+        if value.sent_from(build.environment) {
+            write_frame(messages, message, -2, value)
+            world.despawn(entity)
+        }
+        row = row + 1
+    }
+}
+
+func replicated(): Boolean {
+    if $component_type.has_function("mirrored_from") or $component_type.has_function("sent_from") {
+        return true
+    }
+    return false
+}
+
+func read(frame: Asset.Bytes): $component_type? {
+    var value: $component_type = null
+    if $component_type.has_function("mirrored_from") or $component_type.has_function("sent_from") {
+        var pack = Pack<$component_type>()
+        pack.read_into(value, frame)
+    }
+    assert not frame.failed and frame.remaining() == 0
+    return value
+}
+
+func write_frame(frames: Asset.Bytes, message: Integer, entity: Integer, value: $component_type) {
+    var start = frames.length
+    frames.write_integer(0)
+    frames.write_integer(message)
+    frames.write_integer(entity)
+    if $component_type.has_function("mirrored_from") or $component_type.has_function("sent_from") {
+        var pack = Pack<$component_type>()
+        pack.write(value, frames)
+    }
+    var size = frames.length - start - 4
+    raw.write_integer(frames.address, start, size)
+}
+
+func stored_frame(mirrored: Dictionary<Asset.Bytes>, slot: String): Asset.Bytes {
+    var found = mirrored.get(slot)
+    if found {
+        return found
+    }
+    var made = Asset.Bytes()
+    mirrored.set(slot, made)
+    return made
+}
+
+func same(stored: Asset.Bytes, fresh: Asset.Bytes): Boolean {
+    assert stored.length == fresh.length
+    var index = 0
+    while index < fresh.length {
+        assert stored.byte_at(index) == fresh.byte_at(index)
+        index = index + 1
+    }
+    return true
+}
+
+func remote_of(entity: Integer): Integer {
+    if entity == world.entity {
+        return -1
+    }
+    return entity
+}

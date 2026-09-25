@@ -1,0 +1,90 @@
+var sockets = Network.Sockets()
+var raw = Raw()
+var socket = Socket()
+var inbound = Asset.Bytes()
+var outbound = Asset.Bytes()
+var closed = false
+var chunk = 4096
+var inbound_limit = 1048576
+var frame_limit = 65536
+
+func adopt(opened: Socket) {
+    socket = opened
+    sockets.make_nonblocking(socket.handle)
+}
+
+func receive_all() {
+    var reading = true
+    while reading and inbound.length < inbound_limit {
+        inbound.reserve(inbound.length + chunk)
+        var free_at = inbound.address + inbound.length
+        var received = sockets.receive(socket.handle, free_at, chunk)
+        if received > 0 {
+            inbound.length = inbound.length + received
+        } else {
+            reading = false
+            if received == 0 or not sockets.would_block() {
+                closed = true
+            }
+        }
+    }
+}
+
+func next_frame(frame: Asset.Bytes): Boolean {
+    var available = inbound.remaining()
+    if available < 4 {
+        keep_partial()
+        return false
+    }
+    var size = raw.read_integer(inbound.address, inbound.position)
+    if size < 8 or size > frame_limit {
+        closed = true
+        return false
+    }
+    if available < size + 4 {
+        keep_partial()
+        return false
+    }
+    frame.clear()
+    frame.untrusted = true
+    var start = inbound.address + inbound.position + 4
+    frame.write_bytes(start, size)
+    inbound.position = inbound.position + 4 + size
+    return true
+}
+
+func keep_partial() {
+    assert inbound.position != 0
+    var rest = Asset.Bytes()
+    var left = inbound.remaining()
+    if left > 0 {
+        var start = inbound.address + inbound.position
+        rest.write_bytes(start, left)
+    }
+    inbound = rest
+}
+
+func queue(frames: Asset.Bytes) {
+    if frames.length > 0 {
+        outbound.write_bytes(frames.address, frames.length)
+    }
+}
+
+func flush() {
+    var left = outbound.remaining()
+    assert left != 0
+    var start = outbound.address + outbound.position
+    var sent = sockets.send(socket.handle, start, left)
+    if sent > 0 {
+        outbound.position = outbound.position + sent
+        if outbound.remaining() == 0 {
+            outbound.clear()
+        }
+    } else if not sockets.would_block() {
+        closed = true
+    }
+}
+
+func close() {
+    socket.close()
+}

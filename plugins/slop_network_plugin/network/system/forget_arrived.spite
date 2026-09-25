@@ -1,0 +1,10 @@
+type Delivered {
+    entity: Entity
+    arrived: Network.Component.Arrived
+}
+
+var world = World()
+
+func last_each(delivered: Delivered) {
+    world.despawn(delivered.entity.id)
+}

@@ -1,0 +1,42 @@
+type Joining {
+    connect: Network.Component.Connect
+}
+
+var world = World()
+var peers = Lookup<Network.Component.Connection>()
+var retry_ticks = 60
+
+func input_each(joining: Joining) {
+    var connect = joining.connect
+    if connect.connection >= 0 {
+        assert not peers.has(connect.connection)
+        connect.connection = -1
+    }
+    if connect.dialer.ready() {
+        take_socket(connect)
+    } else if connect.dialer.idle() {
+        dial(connect)
+    }
+}
+
+func take_socket(connect: Network.Component.Connect) {
+    var socket = connect.dialer.take()
+    if socket {
+        var connection = Network.Component.Connection()
+        connection.stream.adopt(socket)
+        var peer = world.create_entity()
+        peer.add_component(connection)
+        connect.connection = peer.id
+        connect.wait_ticks = 1
+    } else {
+        connect.wait_ticks = retry_ticks
+    }
+}
+
+func dial(connect: Network.Component.Connect) {
+    if connect.wait_ticks > 0 {
+        connect.wait_ticks = connect.wait_ticks - 1
+        return
+    }
+    connect.dialer.start(connect.port)
+}

@@ -49,8 +49,12 @@ likely cost:
    once. Systems with several rows still build candidate lists for their combinations.
 4. **Per-frame scratch on the heap.** The layout's dictionaries and lists, and interpolated strings.
 
-The allocator and ownership proposal this fed (value components, per-tick arenas, per-runner command rings) is with
-the Spite language session for Mortaro to decide. The benchmarks to race are ecs_bench_suite's: `add_remove` and
+Mortaro (2026-09-25): "data oriented design for cache performance is very important, we need to make sure we are
+using cpu cache as much as possible". The language's answers so far: D204, a `Vector<T>` whose items live inline and
+whose `vector[index]` is a borrowed reference written in place (no copy, no reference count), which is the path to
+component columns stored as values; and D203, strings of up to about 22 bytes stored inside the String value (no
+allocation), for names and ids in components and on the network. SlopEngine waits for `Vector<T>` before moving its
+columns. The benchmarks to race are ecs_bench_suite's: `add_remove` and
 `schedule` look winnable now; `simple_iter` and `heavy_compute` need value columns; `frag_iter` favours Bevy's
 archetypes.
 
