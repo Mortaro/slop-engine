@@ -38,5 +38,5 @@ func dial(connect: Network.Component.Connect) {
         connect.wait_ticks = connect.wait_ticks - 1
         return
     }
-    connect.dialer.start(connect.port)
+    connect.dialer.start(connect.host, connect.port)
 }

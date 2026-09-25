@@ -1,12 +1,14 @@
+var host = ""
 var port = 0
 
-func DialTask(dial_port: Integer) {
+func DialTask(dial_host: String, dial_port: Integer) {
+    host = dial_host
     port = dial_port
 }
 
 func run(): Socket? {
     var socket = Socket()
-    if socket.connect_locally(port) {
+    if socket.connect(host, port) {
         return socket
     }
     return null

@@ -133,8 +133,8 @@ Connections are entities. Settings and state are components on the world entity:
 
 | Component | On | Meaning |
 |---|---|---|
-| `Network.Component.Listen` | world | accept connections on `port` |
-| `Network.Component.Connect` | world | keep a connection to `port`, redialling a second after a failure |
+| `Network.Component.Listen` | world | accept connections on `host` (default `127.0.0.1`; `0.0.0.0` for every address) and `port` |
+| `Network.Component.Connect` | world | keep a connection to `host` and `port`, redialling a second after a failure |
 | `Network.Component.Connection` | one entity per peer | its stream, and `fresh` until the first snapshot is sent |
 | `Network.Component.Sender` | an arrived message | the connection entity it came from |
 | `Network.Component.Arrived` | an arrived message | despawned at the end of the tick |
@@ -191,6 +191,5 @@ In rough order of need:
 - **A handshake** carrying the environment and a hash of every replicated component, so mismatched builds refuse
   each other instead of misreading, and a compile-time check that no two components hash to the same message id.
 - **Unreliable delivery** (UDP) for state that is superseded every tick, prediction, and rates.
-- **Transport.** The library's `Socket` is TCP on `127.0.0.1` only, and its reads block. `Network.Sockets` calls
-  `ws2_32.dll` directly for non-blocking mode and error codes, which makes the plugin Windows-only; it goes away
-  when `Socket` gains non-blocking reads (asked of the language session).
+- **Transport.** TCP through the library's `Socket` and its non-blocking calls (`accept_client_now`,
+  `read_bytes_now`, `write_bytes_now`, `closed`), so the plugin has no code of its own for any operating system.

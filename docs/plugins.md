@@ -163,5 +163,5 @@ See [rendering.md](rendering.md).
 Replicates components between the environments of one program: state a component declares with
 `mirrored_from(environment)`, and messages it declares with `sent_from(environment)`. Connections are entities;
 `Network.Component.Listen` or `Network.Component.Connect` on the world entity starts it. The wire is binary frames
-encoded by the engine's derived codec. Windows only for now (it calls `ws2_32.dll` for non-blocking sockets). See
+encoded by the engine's derived codec. TCP through the library's non-blocking `Socket`. See
 [networking.md](networking.md).

@@ -1,4 +1,4 @@
-var task = Network.DialTask(0)
+var task = Network.DialTask("", 0)
 var running: Parallel<Socket?>? = null
 
 func idle(): Boolean {
@@ -11,8 +11,8 @@ func ready(): Boolean {
     return running.finished
 }
 
-func start(port: Integer) {
-    task = Network.DialTask(port)
+func start(host: String, port: Integer) {
+    task = Network.DialTask(host, port)
     running = Parallel(task.run)
 }
 

@@ -1,4 +1,3 @@
-var sockets = Network.Sockets()
 var raw = Raw()
 var socket = Socket()
 var inbound = Asset.Bytes()
@@ -10,7 +9,6 @@ var frame_limit = 65536
 
 func adopt(opened: Socket) {
     socket = opened
-    sockets.make_nonblocking(socket.handle)
 }
 
 func receive_all() {
@@ -18,15 +16,12 @@ func receive_all() {
     while reading and inbound.length < inbound_limit {
         inbound.reserve(inbound.length + chunk)
         var free_at = inbound.address + inbound.length
-        var received = sockets.receive(socket.handle, free_at, chunk)
-        if received > 0 {
-            inbound.length = inbound.length + received
-        } else {
-            reading = false
-            if received == 0 or not sockets.would_block() {
-                closed = true
-            }
-        }
+        var received = socket.read_bytes_now(free_at, chunk)
+        inbound.length = inbound.length + received
+        reading = received > 0
+    }
+    if socket.closed {
+        closed = true
     }
 }
 
@@ -74,13 +69,12 @@ func flush() {
     var left = outbound.remaining()
     assert left != 0
     var start = outbound.address + outbound.position
-    var sent = sockets.send(socket.handle, start, left)
-    if sent > 0 {
-        outbound.position = outbound.position + sent
-        if outbound.remaining() == 0 {
-            outbound.clear()
-        }
-    } else if not sockets.would_block() {
+    var sent = socket.write_bytes_now(start, left)
+    outbound.position = outbound.position + sent
+    if outbound.remaining() == 0 {
+        outbound.clear()
+    }
+    if socket.closed {
         closed = true
     }
 }

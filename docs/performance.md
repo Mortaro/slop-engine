@@ -12,6 +12,7 @@
 | per-runner command buffers, removal log per column | 48 ms |
 | a single-row system streams its driver column (one match per entity, no per-tick candidate list, no re-match to store) | about 44 ms (runs that overlap other builds on the machine reach 115 ms) |
 | thread pool and D183 singleton guards (today): one guarded `Row` call per entity | 108 ms until the guards stopped sharing cache lines (INSIGHTS bug 28); with the fix and D184, 46 ms parallel and 58 ms sequential |
+| short strings inline (D203), production builds without debug machinery | 42 ms parallel; spawning 200,000 bodies 510 ms |
 
 About 150 ns per entity per system: better, and still about two orders of magnitude from a native ECS.
 
@@ -78,7 +79,7 @@ amount of work.
 | Cache index scan | **fixed**: `store.bin.index` mirrors every record (key, offset, length), so opening the store is one read. If the index is missing or disagrees with the store's size, the store is rescanned and the index rewritten |
 | Re-cooking a changed source | **fixed**: recipes re-run on a worker, and the engine checks its loaded textures on another; the worst tick while a texture is re-cooked and reloaded is 2 ms |
 | Texture decode format | open: textures are stored as a list of `Integer`s and converted to raw bytes on the worker. Should be GPU-ready bytes (and later block-compressed) in the store |
-| Spawning a streamed region | open: needs spawning spread over frames. `create_entity_from_bundle` walks the bundle reflectively and computes each component's column key as a string, so bulk spawning got 2x slower with the entity API (200,000 bodies: 520 ms to 950 ms); caching keys per class is the next step |
+| Spawning a streamed region | open: needs spawning spread over frames. `create_entity_from_bundle` walks the bundle reflectively and computes each component's column key as a string, so bulk spawning got 2x slower with the entity API (200,000 bodies: 520 ms to 950 ms), and short strings brought it back to 510 ms; integer ids per component class instead of string keys are the next step |
 | Layout | open: the whole UI tree is laid out every frame. Fine for menus; an in-world UI needs dirty-subtree layout |
 
 ## Thread affinity

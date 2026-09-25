@@ -3,19 +3,17 @@ type Hosting {
 }
 
 var world = World()
-var sockets = Network.Sockets()
 
 func input_each(hosting: Hosting) {
     var listen = hosting.listen
     if not listen.open {
-        crash listen.socket.listen_locally(listen.port)
-        sockets.make_nonblocking(listen.socket.handle)
+        crash listen.socket.listen_at(listen.host, listen.port)
         listen.open = true
     }
-    var accepted = listen.socket.accept_client()
+    var accepted = listen.socket.accept_client_now()
     while accepted {
         adopt(accepted)
-        accepted = listen.socket.accept_client()
+        accepted = listen.socket.accept_client_now()
     }
 }
 
