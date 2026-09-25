@@ -1928,7 +1928,8 @@ func column_tracks(entity: Integer): List<Ui.Length> {
         }
     }
     var single = List<Ui.Length>()
-    single.append(Ui.Length())
+    var length = Ui.Length()
+    single.append(length)
     return single
 }
 

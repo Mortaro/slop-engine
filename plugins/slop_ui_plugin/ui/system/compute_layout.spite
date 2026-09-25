@@ -79,7 +79,8 @@ func ensure_scrolling(flex: Ui.Layout.Flex, entity: Integer) {
 func add_child(flex: Ui.Layout.Flex, child: Child) {
     var key = "{child.parent.entity}"
     if not flex.children.has(key) {
-        flex.children.set(key, List<Integer>())
+        var children = List<Integer>()
+        flex.children.set(key, children)
     }
     crash flex.children[key]
     flex.children[key].append(child.entity.id)

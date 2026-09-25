@@ -31,8 +31,10 @@ func request(id: String): Integer {
 func start_loading(id: String): Integer {
     var slot = textures.count()
     ids.append(id)
-    textures.append(Asset.Texture())
-    raws.append(Asset.Bytes())
+    var empty_texture = Asset.Texture()
+    textures.append(empty_texture)
+    var empty_raw = Asset.Bytes()
+    raws.append(empty_raw)
     ready.append(false)
     generations.append(0)
     loaded_fingerprints.append("")

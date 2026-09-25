@@ -22,8 +22,10 @@ func cook_recipe(recipe: Symbol<Recipe>) {
 
 func add(recipe: Buildable) {
     recipes.append(recipe)
-    sources.append(List<String>())
-    stamps.append(List<String>())
+    var sources_of = List<String>()
+    sources.append(sources_of)
+    var stamps_of = List<String>()
+    stamps.append(stamps_of)
     current = recipes.count() - 1
     recipe.build()
     current = -1

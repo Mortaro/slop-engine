@@ -18,8 +18,10 @@ func prepare() {
 }
 
 func add_buffer(): Integer {
-    buffers.append(List<Command>())
-    despawn_buffers.append(List<Integer>())
+    var buffer = List<Command>()
+    buffers.append(buffer)
+    var despawn_buffer = List<Integer>()
+    despawn_buffers.append(despawn_buffer)
     return buffers.count() - 1
 }
 

@@ -18,9 +18,11 @@ var columns = Columns()
 
 func App() {
     var quit_column = Column<Component.Quit>()
-    quit_column.insert(world.entity, Component.Quit())
+    var quit = Component.Quit()
+    quit_column.insert(world.entity, quit)
     var frame_column = Column<Component.Frame>()
-    frame_column.insert(world.entity, Component.Frame())
+    var frame = Component.Frame()
+    frame_column.insert(world.entity, frame)
     register_components()
     add_systems()
     phases.each(build_phase)
