@@ -12,11 +12,7 @@ func last_all(peers: List<Peer>) {
     changed.clear()
     messages.clear()
     encode_components()
-    var index = 0
-    while index < peers.count() {
-        deliver(peers[index])
-        index = index + 1
-    }
+    peers.each(deliver)
 }
 
 func encode_component(component: Symbol<Component>) {

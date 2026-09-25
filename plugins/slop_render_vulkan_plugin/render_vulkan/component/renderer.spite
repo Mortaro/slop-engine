@@ -37,6 +37,8 @@ var raw = Raw()
 var cache = Recipes.Cache()
 var build = Build()
 var console = Console()
+var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
+var kernel = DynamicLibrary("kernel32.dll", 'identity', "")
 
 func ensure() {
     assert instance == 0
@@ -53,7 +55,6 @@ func vulkan_version(): Integer {
 }
 
 func create_instance() {
-    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
     var application = Structure(64)
     application.append_integer(0)
     application.append_long(0)
@@ -94,7 +95,6 @@ func create_instance() {
 }
 
 func choose_physical_device() {
-    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
     var count = Structure(8)
     var no_devices: Long = 0
     vulkan.vkEnumeratePhysicalDevices(instance, count.address, no_devices)
@@ -121,7 +121,6 @@ func choose_physical_device() {
 }
 
 func device_score(candidate: Long): Integer {
-    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
     var properties = Structure(1024)
     vulkan.vkGetPhysicalDeviceProperties(candidate, properties.address)
     var api_version = properties.read_integer(0)
@@ -138,7 +137,6 @@ func device_score(candidate: Long): Integer {
 }
 
 func graphics_family(candidate: Long): Integer {
-    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
     var count = Structure(8)
     var no_families: Long = 0
     vulkan.vkGetPhysicalDeviceQueueFamilyProperties(candidate, count.address, no_families)
@@ -159,7 +157,6 @@ func graphics_family(candidate: Long): Integer {
 }
 
 func create_device() {
-    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
     queue_family = graphics_family(physical_device)
     var priorities = Structure(8)
     priorities.append_float(1.0)
@@ -198,7 +195,6 @@ func create_device() {
 }
 
 func create_commands() {
-    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
     var no_allocator: Long = 0
     var pool_creation = Structure(24)
     pool_creation.append_integer(39)
@@ -223,7 +219,6 @@ func create_commands() {
 }
 
 func allocate_command_buffer(): Long {
-    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
     var allocation = Structure(32)
     allocation.append_integer(40)
     allocation.append_long(0)
@@ -237,7 +232,6 @@ func allocate_command_buffer(): Long {
 }
 
 func begin_frame() {
-    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
     var slot = frame_number % frames_in_flight
     frame_number = frame_number + 1
     crash frames[slot]
@@ -252,7 +246,6 @@ func begin_frame() {
 }
 
 func wait_frame() {
-    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
     var fences = Structure(8)
     fences.append_long(frame.fence)
     var forever: Long = -1
@@ -261,7 +254,6 @@ func wait_frame() {
 }
 
 func create_fence(): Long {
-    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
     var no_allocator: Long = 0
     var creation = Structure(24)
     creation.append_integer(8)
@@ -275,7 +267,6 @@ func create_fence(): Long {
 }
 
 func create_semaphore(): Long {
-    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
     var no_allocator: Long = 0
     var creation = Structure(24)
     creation.append_integer(9)
@@ -288,7 +279,6 @@ func create_semaphore(): Long {
 }
 
 func create_shader(id: String): Long {
-    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
     var code = cache.read(id)
     crash code
     var length = code.length
@@ -309,7 +299,6 @@ func create_shader(id: String): Long {
 }
 
 func create_pipeline() {
-    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
     var no_allocator: Long = 0
     shader_vertex = create_shader("shader.rectangles.vertex")
     shader_fragment = create_shader("shader.rectangles.fragment")
@@ -350,7 +339,6 @@ func create_pipeline() {
 }
 
 func create_descriptors() {
-    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
     var no_allocator: Long = 0
     var binding = Structure(24)
     binding.append_integer(0)
@@ -391,7 +379,6 @@ func create_descriptors() {
 }
 
 func create_sampler() {
-    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
     var no_allocator: Long = 0
     var creation = Structure(80)
     creation.append_integer(31)
@@ -512,7 +499,6 @@ func record_uploads() {
 }
 
 func record_upload(index: Integer) {
-    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
     crash pending_images[index]
     crash pending_stagings[index]
     crash pending_widths[index]
@@ -535,7 +521,6 @@ func record_upload(index: Integer) {
 }
 
 func release_in_flight(finished: RenderVulkan.Frame) {
-    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
     var no_allocator: Long = 0
     var index = 0
     while index < finished.in_flight_stagings.count() {
@@ -550,7 +535,6 @@ func release_in_flight(finished: RenderVulkan.Frame) {
 }
 
 func release_retired(finished: RenderVulkan.Frame) {
-    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
     var no_allocator: Long = 0
     var index = 0
     while index < finished.retired_sets.count() {
@@ -579,7 +563,6 @@ func append_color_layers(structure: RenderVulkan.Structure) {
 }
 
 func create_texture_image(width: Integer, height: Integer): Long {
-    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
     var no_allocator: Long = 0
     var creation = Structure(96)
     creation.append_integer(14)
@@ -615,7 +598,6 @@ func create_texture_image(width: Integer, height: Integer): Long {
 }
 
 func allocate_texture_set(view: Long): Long {
-    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
     var layouts = Structure(8)
     layouts.append_long(descriptor_layout)
     var allocation = Structure(40)
@@ -811,7 +793,6 @@ func blend_state(): RenderVulkan.Structure {
 }
 
 func memory_type(bits: Integer, wanted: Integer): Integer {
-    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
     var properties = Structure(528)
     vulkan.vkGetPhysicalDeviceMemoryProperties(physical_device, properties.address)
     var count = properties.read_integer(0)
@@ -847,7 +828,6 @@ func has_flags(flags: Integer, wanted: Integer): Boolean {
 }
 
 func allocate_memory(requirements: RenderVulkan.Structure, wanted: Integer): Long {
-    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
     var size = requirements.read_long(0)
     var bits = requirements.read_integer(16)
     var type_index = memory_type(bits, wanted)
@@ -864,7 +844,6 @@ func allocate_memory(requirements: RenderVulkan.Structure, wanted: Integer): Lon
 }
 
 func create_buffer(bytes: Integer, usage: Integer): Long {
-    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
     var creation = Structure(56)
     creation.append_integer(12)
     creation.append_long(0)
@@ -882,7 +861,6 @@ func create_buffer(bytes: Integer, usage: Integer): Long {
 }
 
 func host_memory_for(buffer: Long): Long {
-    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
     var requirements = Structure(24)
     vulkan.vkGetBufferMemoryRequirements(device, buffer, requirements.address)
     var host_visible_and_coherent = 6
@@ -894,7 +872,6 @@ func host_memory_for(buffer: Long): Long {
 }
 
 func map(buffer_memory: Long, bytes: Integer): Long {
-    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
     var mapped = Structure(8)
     var no_offset: Long = 0
     var size: Long = bytes
@@ -918,7 +895,6 @@ func ensure_rectangle_capacity(count: Integer) {
 }
 
 func release_rectangle_buffer() {
-    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
     var no_allocator: Long = 0
     assert frame.rectangle_buffer != 0
     vulkan.vkDestroyBuffer(device, frame.rectangle_buffer, no_allocator)
@@ -937,7 +913,6 @@ func ensure_target(width: Integer, height: Integer) {
 }
 
 func create_target_image() {
-    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
     var no_allocator: Long = 0
     var creation = Structure(96)
     creation.append_integer(14)
@@ -975,7 +950,6 @@ func create_target_view() {
 }
 
 func create_view(image: Long, format: Integer): Long {
-    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
     var no_allocator: Long = 0
     var creation = Structure(80)
     creation.append_integer(15)
@@ -1013,7 +987,6 @@ func create_readback() {
 }
 
 func release_target() {
-    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
     var no_allocator: Long = 0
     assert frame.target_image != 0
     vulkan.vkDestroyImageView(device, frame.target_view, no_allocator)
@@ -1033,7 +1006,6 @@ func barrier(
     source_stage: Integer,
     destination_stage: Integer,
 ) {
-    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
     var description = Structure(72)
     description.append_integer(45)
     description.append_long(0)
@@ -1061,7 +1033,6 @@ func barrier(
 }
 
 func record_rectangles(draw_list: Render.Component.DrawList) {
-    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
     ensure_target(draw_list.width, draw_list.height)
     ensure_rectangle_capacity(draw_list.count)
     var bytes = draw_list.count * draw_list.stride()
@@ -1109,7 +1080,6 @@ func record_rectangles(draw_list: Render.Component.DrawList) {
 }
 
 func record_run(draw_list: Render.Component.DrawList, first: Integer): Integer {
-    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
     var texture = draw_list.texture_at(first)
     var last = first + 1
     while last < draw_list.count and draw_list.texture_at(last) == texture {
@@ -1140,7 +1110,6 @@ func append_clear_color(structure: RenderVulkan.Structure, color: Integer) {
 }
 
 func record_viewport() {
-    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
     var viewport = Structure(24)
     viewport.append_float(0.0)
     viewport.append_float(0.0)
@@ -1162,7 +1131,6 @@ func record_viewport() {
 }
 
 func begin_commands() {
-    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
     vulkan.vkResetCommandBuffer(frame.command_buffer, 0)
     var begin = Structure(32)
     begin.append_integer(42)
@@ -1174,7 +1142,6 @@ func begin_commands() {
 }
 
 func submit(wait_for_image: Boolean, frame_done: Long) {
-    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
     var end_result = vulkan.vkEndCommandBuffer(frame.command_buffer)
     crash end_result == 0
     var buffers = Structure(8)
@@ -1204,7 +1171,6 @@ func submit(wait_for_image: Boolean, frame_done: Long) {
 }
 
 func draw_offscreen(draw_list: Render.Component.DrawList, textures: Render.Component.Textures) {
-    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
     begin_frame()
     ensure_textures(textures)
     begin_commands()
@@ -1241,8 +1207,6 @@ func pixel_at(left: Integer, top: Integer): Integer {
 }
 
 func create_swapchain(window: Window.Component.Window, handle: Long, swapchain: RenderVulkan.Component.Swapchain) {
-    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
-    var kernel = DynamicLibrary("kernel32.dll", 'identity', "")
     var no_allocator: Long = 0
     var no_module: Long = 0
     var module_handle = kernel.GetModuleHandleA_as_long(no_module)
@@ -1300,7 +1264,6 @@ func create_swapchain(window: Window.Component.Window, handle: Long, swapchain: 
 }
 
 func present_mode(surface: Long): Integer {
-    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
     var count = Structure(8)
     var no_modes: Long = 0
     vulkan.vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device, surface, count.address, no_modes)
@@ -1320,7 +1283,6 @@ func present_mode(surface: Long): Integer {
 }
 
 func read_swapchain_images(swapchain: RenderVulkan.Component.Swapchain) {
-    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
     var count = Structure(8)
     var no_images: Long = 0
     vulkan.vkGetSwapchainImagesKHR(device, swapchain.handle, count.address, no_images)
@@ -1343,7 +1305,6 @@ func draw_to(
     textures: Render.Component.Textures,
     swapchain: RenderVulkan.Component.Swapchain,
 ) {
-    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
     begin_frame()
     var chosen = Structure(8)
     var forever: Long = -1
@@ -1390,7 +1351,6 @@ func draw_to(
 }
 
 func record_blit(image: Long, swapchain: RenderVulkan.Component.Swapchain) {
-    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
     var region = Structure(80)
     region.append_integer(1)
     region.append_integer(0)
@@ -1419,7 +1379,6 @@ func drop() {
 }
 
 func release_device() {
-    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
     var no_allocator: Long = 0
     assert device != 0
     vulkan.vkDeviceWaitIdle(device)
@@ -1438,7 +1397,6 @@ func release_device() {
 }
 
 func release_frames() {
-    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
     var no_allocator: Long = 0
     var index = 0
     while index < frames.count() {
@@ -1454,7 +1412,6 @@ func release_frames() {
 }
 
 func release_unrecorded_uploads() {
-    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
     var no_allocator: Long = 0
     var index = 0
     while index < pending_stagings.count() {
@@ -1468,7 +1425,6 @@ func release_unrecorded_uploads() {
 }
 
 func release_textures() {
-    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
     var no_allocator: Long = 0
     var index = 0
     while index < texture_sets.count() {
@@ -1488,20 +1444,22 @@ func release_textures() {
 }
 
 func release_presentation() {
-    var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
     var no_allocator: Long = 0
     while swapchains.count() > 0 {
         var swapchain = swapchains.last()
+        crash swapchain
         swapchains.remove_last()
         vulkan.vkDestroySwapchainKHR(device, swapchain, no_allocator)
     }
     while presentation_semaphores.count() > 0 {
         var semaphore = presentation_semaphores.last()
+        crash semaphore
         presentation_semaphores.remove_last()
         vulkan.vkDestroySemaphore(device, semaphore, no_allocator)
     }
     while surfaces.count() > 0 {
         var surface = surfaces.last()
+        crash surface
         surfaces.remove_last()
         vulkan.vkDestroySurfaceKHR(instance, surface, no_allocator)
     }

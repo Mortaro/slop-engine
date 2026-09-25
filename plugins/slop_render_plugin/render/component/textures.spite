@@ -10,8 +10,8 @@ var sources = Recipes.Sources()
 var reader: Recipes.CacheReader? = null
 var loaded_fingerprints = List<String>()
 var watcher: Recipes.Watcher? = null
-var check: Render.ChangeCheck? = null
-var check_thread: Parallel<Nothing>? = null
+var check_thread: Parallel<Render.ChangedTextures>? = null
+var build = Build()
 
 func request(id: String): Integer {
     var index = 0
@@ -58,7 +58,6 @@ func subscribe() {
     var folders = List<String>()
     var cache_folder = sources.cache_folder()
     folders.append(cache_folder)
-    var build = Build()
     folders.append(build.program)
     var started = Recipes.Watcher()
     started.start(folders)
@@ -89,7 +88,6 @@ func start_check() {
     var index_path = sources.index_path()
     var task = Render.ChangeCheck(cache_folder, index_path, loaded, fingerprints)
     var started = Parallel(task.run)
-    check = task
     check_thread = started
 }
 
@@ -98,16 +96,14 @@ func finish_check() {
     crash thread
     assert thread.finished
     check_thread = null
-    var task = check
-    crash task
-    reader = task.reader
+    var found: Render.ChangedTextures = thread
+    reader = found.reader
     var index = 0
-    while index < task.changed.count() {
-        crash task.records[index]
-        reload_slot(task.changed[index], task.records[index])
+    while index < found.slots.count() {
+        crash found.records[index]
+        reload_slot(found.slots[index], found.records[index])
         index = index + 1
     }
-    check = null
 }
 
 func reload_slot(slot: Integer, record: Recipes.Record) {

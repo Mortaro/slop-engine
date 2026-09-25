@@ -1,5 +1,7 @@
 var bytes = Asset.Bytes()
 var layers = List<Psd.Layer>()
+var heap = Memory.Heap()
+var raw = Raw()
 
 func open(path: String) {
     var loaded = bytes.read_file(path)
@@ -179,8 +181,6 @@ func read_extra_block(record: Psd.Layer): Boolean {
 
 func read_unicode_name(): String {
     var count = read_unsigned()
-    var raw = Raw()
-    var heap = Memory.Heap()
     var buffer = heap.allocate(count + 1)
     var index = 0
     while index < count {

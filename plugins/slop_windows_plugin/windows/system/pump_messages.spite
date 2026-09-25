@@ -9,6 +9,9 @@ type Quitting {
     quit: Component.Quit
 }
 
+var user = DynamicLibrary("user32.dll", 'identity', "")
+var heap = Memory.Heap()
+var raw = Raw()
 var owner = Windows.Owner()
 
 func input_all(windows: List<OpenedWindow>, quitting: List<Quitting>) {
@@ -91,8 +94,6 @@ func typed(word: Long): Input.Event? {
     var code: Integer = word % 65536
     var printable = code >= 32 and code != 127 and code < 256
     assert printable
-    var raw = Raw()
-    var heap = Memory.Heap()
     var one = heap.allocate(1)
     raw.write_byte(one, 0, code)
     var event = Input.Event()
@@ -105,7 +106,6 @@ func typed(word: Long): Input.Event? {
 func notice_closed(opened: OpenedWindow, quitting: List<Quitting>) {
     var handle = opened.handle.value
     assert handle != 0 and not opened.window.closed
-    var user = DynamicLibrary("user32.dll", 'identity', "")
     opened.window.closed = user.IsWindow(handle) == 0
     assert opened.window.closed
     opened.entity.remove()

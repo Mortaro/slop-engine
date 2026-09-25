@@ -99,12 +99,16 @@ func removal_candidates(): List<Integer> {
     var matching = List<Integer>()
     var candidate = 0
     while candidate < found.count() {
-        if matches(found[candidate]) {
-            matching.append(found[candidate])
-        }
+        keep_matching(matching, found[candidate])
         candidate = candidate + 1
     }
     return matching
+}
+
+func keep_matching(matching: List<Integer>, entity: Integer) {
+    if matches(entity) {
+        matching.append(entity)
+    }
 }
 
 func smallest_header(): Long {

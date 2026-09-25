@@ -51,14 +51,16 @@ func build_phase(phase: String) {
 
 func place(runner: Runnable, phase: String, opened: Boolean) {
     var stage = stages.last()
-    if not opened or conflicts(stage, runner) {
-        var fresh = List<Runnable>()
-        fresh.append(runner)
-        stages.append(fresh)
-        stage_phases.append(phase)
-    } else {
-        stage.append(runner)
+    if opened and stage {
+        if not conflicts(stage, runner) {
+            stage.append(runner)
+            return
+        }
     }
+    var fresh = List<Runnable>()
+    fresh.append(runner)
+    stages.append(fresh)
+    stage_phases.append(phase)
 }
 
 func conflicts(stage: List<Runnable>, candidate: Runnable): Boolean {

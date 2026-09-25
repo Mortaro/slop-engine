@@ -1,6 +1,7 @@
 var entity = 0
 var component: Anything? = null
 var relation = ""
+var columns = Columns()
 
 func AddComponent(new_entity: Integer, new_component: Anything, new_relation: String) {
     entity = new_entity
@@ -10,6 +11,5 @@ func AddComponent(new_entity: Integer, new_component: Anything, new_relation: St
 
 func apply() {
     crash component
-    var columns = Columns()
     columns.insert_object(entity, component, relation)
 }

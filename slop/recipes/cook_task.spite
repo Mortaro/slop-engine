@@ -1,14 +1,21 @@
 var cookbook = Recipes.Cookbook()
-var stale = List<Integer>()
+var stale = ""
 
 func CookTask(stale_recipes: List<Integer>) {
-    stale = stale_recipes
+    stale_recipes.each(note)
+}
+
+func note(recipe: Integer) {
+    stale = "{stale}{recipe},"
 }
 
 func run() {
-    var index = 0
-    while index < stale.count() {
-        cookbook.rebuild(stale[index])
-        index = index + 1
-    }
+    var recipes = stale.split(",")
+    recipes.each(rebuild)
+}
+
+func rebuild(recipe: String) {
+    assert not recipe.is_empty()
+    var index = recipe.to_integer()
+    cookbook.rebuild(index)
 }

@@ -1,36 +1,43 @@
 var folder = ""
 var index_file = ""
-var ids = List<String>()
-var known = List<String>()
-var reader: Recipes.CacheReader? = null
-var changed = List<Integer>()
-var records = List<Recipes.Record>()
+var ids = ""
+var known = ""
 
 func ChangeCheck(cache_folder: String, index_path: String, loaded: List<String>, fingerprints: List<String>) {
     folder = cache_folder
     index_file = index_path
-    ids = loaded
-    known = fingerprints
+    ids = loaded.join("\n")
+    known = fingerprints.join("\n")
 }
 
-func run() {
+func run(): Render.ChangedTextures {
     var fresh = Recipes.CacheReader(folder, index_file)
     fresh.read_index()
+    var found = Render.ChangedTextures()
+    found.reader = fresh
+    var id_list = ids.split("\n")
+    var known_list = known.split("\n")
     var index = 0
-    while index < ids.count() {
-        compare(fresh, index)
+    while index < id_list.count() {
+        compare(found, fresh, id_list, known_list, index)
         index = index + 1
     }
-    reader = fresh
+    return found
 }
 
-func compare(fresh: Recipes.CacheReader, index: Integer) {
-    crash ids[index]
-    crash known[index]
-    var fingerprint = fresh.fingerprint_of(ids[index])
-    assert fingerprint != "" and fingerprint != known[index]
-    var record = fresh.locate(ids[index])
+func compare(
+    found: Render.ChangedTextures,
+    fresh: Recipes.CacheReader,
+    id_list: List<String>,
+    known_list: List<String>,
+    index: Integer,
+) {
+    crash id_list[index]
+    crash known_list[index]
+    var fingerprint = fresh.fingerprint_of(id_list[index])
+    assert fingerprint != "" and fingerprint != known_list[index]
+    var record = fresh.locate(id_list[index])
     assert record
-    changed.append(index)
-    records.append(record)
+    found.slots.append(index)
+    found.records.append(record)
 }

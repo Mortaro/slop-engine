@@ -1,10 +1,13 @@
-var socket = Socket()
 var port = 0
 
 func DialTask(dial_port: Integer) {
     port = dial_port
 }
 
-func run(): Boolean {
-    return socket.connect_locally(port)
+func run(): Socket? {
+    var socket = Socket()
+    if socket.connect_locally(port) {
+        return socket
+    }
+    return null
 }

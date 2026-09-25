@@ -3,6 +3,7 @@ var sources = Recipes.Sources()
 var cookbook = Recipes.Cookbook()
 var console = Console()
 var program = Program()
+var c_runtime = DynamicLibrary("ucrtbase.dll", 'identity', "")
 
 func compile(root: String, id: String, stage: String) {
     var source_path = sources.path_in(root, id, "glsl")
@@ -30,7 +31,6 @@ func compile(root: String, id: String, stage: String) {
     var loaded = compiled.read_file(output_path)
     crash loaded
     cache.put(id, fingerprint, compiled)
-    var c_runtime = DynamicLibrary("ucrtbase.dll", 'identity', "")
     c_runtime.remove(output_path)
     console.print("recipe: compiled {id} ({stage})")
 }

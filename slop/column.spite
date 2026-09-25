@@ -7,9 +7,9 @@ var sample: $component_type = null
 var buried: Long = 0
 var buried_count = 0
 var buried_capacity = 0
+var columns = Columns()
 
 func prepare_column() {
-    var columns = Columns()
     var name = columns.key(sample.class)
     columns.header(name)
     record_column(name)
@@ -22,13 +22,11 @@ func insert_object(entity: Integer, value: Anything) {
 }
 
 func insert(entity: Integer, value: $component_type) {
-    var columns = Columns()
     var name = columns.key(value.class)
     insert_keyed(entity, value, name)
 }
 
 func insert_keyed(entity: Integer, value: $component_type, name: String) {
-    var columns = Columns()
     var column_header = columns.header(name)
     record_column(name)
     grow_rows(column_header, entity)
@@ -46,14 +44,12 @@ func insert_keyed(entity: Integer, value: $component_type, name: String) {
 }
 
 func replace_value(column_header: Long, values: Long, row: Integer, value: $component_type) {
-    var columns = Columns()
     assert not columns.is_marker(column_header)
     typed.release_value(values, row)
     typed.write_value(values, row, value)
 }
 
 func record_column(name: String) {
-    var columns = Columns()
     assert not columns.releasers.has(name)
     columns.record_releaser(name, this)
 }
@@ -65,7 +61,6 @@ func append(column_header: Long, entity: Integer, value: $component_type) {
     var entities = raw.read_long(column_header, 24)
     var rows = raw.read_long(column_header, 32)
     var ticks = raw.read_long(column_header, 48)
-    var columns = Columns()
     if not columns.is_marker(column_header) {
         typed.write_value(values, count, value)
     }
@@ -121,7 +116,6 @@ func resized(address: Long, bytes: Long): Long {
 }
 
 func get(entity: Integer, name: String): $component_type {
-    var columns = Columns()
     var column_header = columns.header(name)
     var row = columns.row_of(column_header, entity)
     crash row >= 0
@@ -131,7 +125,6 @@ func get(entity: Integer, name: String): $component_type {
 }
 
 func store(entity: Integer, value: $component_type) {
-    var columns = Columns()
     var name = columns.key(value.class)
     var column_header = columns.header(name)
     var row = columns.row_of(column_header, entity)
@@ -144,7 +137,6 @@ func store(entity: Integer, value: $component_type) {
 }
 
 func remove_entity(column_header: Long, entity: Integer) {
-    var columns = Columns()
     var row = columns.row_of(column_header, entity)
     assert row >= 0
     var count = raw.read_long(column_header, 0)

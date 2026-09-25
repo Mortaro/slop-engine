@@ -4,13 +4,14 @@ type Target {
     handle: Window.Component.Handle
 }
 
+var graphics = DynamicLibrary("gdi32.dll", 'identity', "")
+var user = DynamicLibrary("user32.dll", 'identity', "")
+var heap = Memory.Heap()
+var raw = Raw()
+
 func present_each(target: Target) {
     var window = target.window
     var canvas = target.canvas
-    var raw = Raw()
-    var heap = Memory.Heap()
-    var user = DynamicLibrary("user32.dll", 'identity', "")
-    var graphics = DynamicLibrary("gdi32.dll", 'identity', "")
     var handle = target.handle.value
     assert handle != 0 and not window.closed
     var header = heap.allocate(44)

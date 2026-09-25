@@ -3,6 +3,7 @@ type Pad {
     gamepad: Input.Component.Gamepad
 }
 
+var xinput = DynamicLibrary("xinput1_4.dll", 'identity', "")
 var world = World()
 var raw = Raw()
 var heap = Memory.Heap()
@@ -31,7 +32,6 @@ func poll_slot(pads: List<Pad>, slot: Integer, state: Long) {
         }
     }
     assert due
-    var xinput = DynamicLibrary("xinput1_4.dll", 'identity', "")
     var result = xinput.XInputGetState(slot, state)
     var connected = result == 0
     if pad {

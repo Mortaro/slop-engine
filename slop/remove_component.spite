@@ -1,13 +1,12 @@
 var entity = 0
 var key = ""
+var columns = Columns()
 
 func RemoveComponent(new_entity: Integer, component_class: Spite.Class) {
     entity = new_entity
-    var columns = Columns()
     key = columns.key(component_class)
 }
 
 func apply() {
-    var columns = Columns()
     columns.remove_one(key, entity)
 }

@@ -1,5 +1,5 @@
 var task = Network.DialTask(0)
-var running: Parallel<Boolean>? = null
+var running: Parallel<Socket?>? = null
 
 func idle(): Boolean {
     assert not running
@@ -20,9 +20,6 @@ func take(): Socket? {
     var handle = running
     crash handle
     running = null
-    var connected: Boolean = handle
-    if connected {
-        return task.socket
-    }
-    return null
+    var connected: Socket? = handle
+    return connected
 }

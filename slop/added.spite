@@ -3,19 +3,19 @@ generic $tracked_type
 var value: $tracked_type = null
 var raw = Raw()
 var typed = TypedMemory<$tracked_type>()
+var header_reader = ColumnHeader()
+var columns = Columns()
 
 func tracking_kind(): Integer {
     return 1
 }
 
 func tracked_key(): String {
-    var columns = Columns()
     return columns.key(value.class)
 }
 
 func fill_from(column_header: Long, row: Integer) {
     assert column_header != 0 and row >= 0
-    var header_reader = ColumnHeader()
     assert not header_reader.is_marker(column_header)
     var values = raw.read_long(column_header, 16)
     value = typed.read_value(values, row)

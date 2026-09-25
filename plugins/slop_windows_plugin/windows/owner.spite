@@ -8,6 +8,7 @@ var request_slots = 16
 var request_bytes = 64
 var event_capacity = 4096
 var event_bytes = 32
+var kernel = DynamicLibrary("kernel32.dll", 'identity', "")
 
 func requests_at(): Long {
     return shared + 32
@@ -35,12 +36,10 @@ func start() {
 }
 
 func lock() {
-    var kernel = DynamicLibrary("kernel32.dll", 'identity', "")
     kernel.AcquireSRWLockExclusive(shared)
 }
 
 func unlock() {
-    var kernel = DynamicLibrary("kernel32.dll", 'identity', "")
     kernel.ReleaseSRWLockExclusive(shared)
 }
 

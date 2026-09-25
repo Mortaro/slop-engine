@@ -1,11 +1,18 @@
-var record: Recipes.Record? = null
+var path = ""
+var offset: Long = 0
+var length: Long = 0
 
 func TextureLoad(found: Recipes.Record) {
-    record = found
+    path = found.path
+    offset = found.offset
+    length = found.length
 }
 
 func run(): Render.LoadedTexture {
-    crash record
+    var record = Recipes.Record()
+    record.path = path
+    record.offset = offset
+    record.length = length
     var bytes = record.read()
     var pack = Pack<Asset.Texture>()
     var texture = pack.decode(bytes)
@@ -15,10 +22,6 @@ func run(): Render.LoadedTexture {
     var pixels = texture.pixels
     var count = pixels.count()
     loaded.raw.reserve(count * 4 + 1)
-    var index = 0
-    while index < pixels.count() {
-        loaded.raw.write_integer(pixels[index])
-        index = index + 1
-    }
+    pixels.each(loaded.raw.write_integer)
     return loaded
 }

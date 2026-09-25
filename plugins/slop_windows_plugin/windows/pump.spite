@@ -5,6 +5,8 @@ var request_slots = 16
 var request_bytes = 64
 var event_capacity = 4096
 var event_bytes = 32
+var kernel = DynamicLibrary("kernel32.dll", 'identity', "")
+var user = DynamicLibrary("user32.dll", 'identity', "")
 
 func Pump(shared_memory: Long) {
     shared = shared_memory
@@ -20,12 +22,10 @@ func events_at(): Long {
 }
 
 func lock() {
-    var kernel = DynamicLibrary("kernel32.dll", 'identity', "")
     kernel.AcquireSRWLockExclusive(shared)
 }
 
 func unlock() {
-    var kernel = DynamicLibrary("kernel32.dll", 'identity', "")
     kernel.ReleaseSRWLockExclusive(shared)
 }
 
@@ -37,8 +37,6 @@ func quitting(): Boolean {
 }
 
 func run() {
-    var kernel = DynamicLibrary("kernel32.dll", 'identity', "")
-    var user = DynamicLibrary("user32.dll", 'identity', "")
     var no_handle: Long = 0
     var instance = kernel.GetModuleHandleA_as_long(no_handle)
     var class_name = "SlopEngineWindow"
@@ -92,7 +90,6 @@ func create_window(
     height: Integer,
     visible: Boolean,
 ): Long {
-    var user = DynamicLibrary("user32.dll", 'identity', "")
     var no_handle: Long = 0
     var style = window_style(visible)
     var outer = outer_size(width, height, style)
@@ -152,7 +149,6 @@ func window_style(visible: Boolean): Integer {
 }
 
 func outer_size(width: Integer, height: Integer, style: Integer): Long {
-    var user = DynamicLibrary("user32.dll", 'identity', "")
     var rectangle = heap.allocate(16)
     raw.write_integer(rectangle, 0, 0)
     raw.write_integer(rectangle, 4, 0)
@@ -163,8 +159,6 @@ func outer_size(width: Integer, height: Integer, style: Integer): Long {
 }
 
 func register_class(instance: Long, class_name: String) {
-    var user = DynamicLibrary("user32.dll", 'identity', "")
-    var kernel = DynamicLibrary("kernel32.dll", 'identity', "")
     var no_handle: Long = 0
     var user_module = kernel.GetModuleHandleA_as_long("user32.dll")
     var default_procedure = kernel.GetProcAddress_as_long(user_module, "DefWindowProcA")
