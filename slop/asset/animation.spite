@@ -1,0 +1,5 @@
+var name = ""
+var frames_per_second: Float = 30.0
+var frame_count = 0
+var bone_count = 0
+var keys = List<Float>()

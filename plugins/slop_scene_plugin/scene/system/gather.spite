@@ -49,5 +49,14 @@ func add_draw(target: Target, modeled: Modeled) {
         draw.texture_slot = target.textures.request(loaded.texture)
     }
     draw.model = modeled.transform.matrix()
+    var palette = modeled.model.palette
+    if palette.count() > 0 {
+        draw.palette_first = target.view.palettes.count()
+        var index = 0
+        while index < palette.count() {
+            target.view.palettes.append(palette[index])
+            index = index + 1
+        }
+    }
     target.view.draws.append(draw)
 }

@@ -139,6 +139,224 @@ func set_transform(
     m15 = 1.0
 }
 
+func inverted(): Math.Matrix4 {
+    var result = Math.Matrix4()
+    result.m0 = m5 * m10 * m15 - m5 * m11 * m14 - m9 * m6 * m15 + m9 * m7 * m14 + m13 * m6 * m11 - m13 * m7 * m10
+    result.m4 = 0.0 - m4 * m10 * m15 + m4 * m11 * m14 + m8 * m6 * m15 - m8 * m7 * m14 - m12 * m6 * m11 + m12 * m7 * m10
+    result.m8 = m4 * m9 * m15 - m4 * m11 * m13 - m8 * m5 * m15 + m8 * m7 * m13 + m12 * m5 * m11 - m12 * m7 * m9
+    result.m12 = 0.0 - m4 * m9 * m14 + m4 * m10 * m13 + m8 * m5 * m14 - m8 * m6 * m13 - m12 * m5 * m10 + m12 * m6 * m9
+    result.m1 = 0.0 - m1 * m10 * m15 + m1 * m11 * m14 + m9 * m2 * m15 - m9 * m3 * m14 - m13 * m2 * m11 + m13 * m3 * m10
+    result.m5 = m0 * m10 * m15 - m0 * m11 * m14 - m8 * m2 * m15 + m8 * m3 * m14 + m12 * m2 * m11 - m12 * m3 * m10
+    result.m9 = 0.0 - m0 * m9 * m15 + m0 * m11 * m13 + m8 * m1 * m15 - m8 * m3 * m13 - m12 * m1 * m11 + m12 * m3 * m9
+    result.m13 = m0 * m9 * m14 - m0 * m10 * m13 - m8 * m1 * m14 + m8 * m2 * m13 + m12 * m1 * m10 - m12 * m2 * m9
+    result.m2 = m1 * m6 * m15 - m1 * m7 * m14 - m5 * m2 * m15 + m5 * m3 * m14 + m13 * m2 * m7 - m13 * m3 * m6
+    result.m6 = 0.0 - m0 * m6 * m15 + m0 * m7 * m14 + m4 * m2 * m15 - m4 * m3 * m14 - m12 * m2 * m7 + m12 * m3 * m6
+    result.m10 = m0 * m5 * m15 - m0 * m7 * m13 - m4 * m1 * m15 + m4 * m3 * m13 + m12 * m1 * m7 - m12 * m3 * m5
+    result.m14 = 0.0 - m0 * m5 * m14 + m0 * m6 * m13 + m4 * m1 * m14 - m4 * m2 * m13 - m12 * m1 * m6 + m12 * m2 * m5
+    result.m3 = 0.0 - m1 * m6 * m11 + m1 * m7 * m10 + m5 * m2 * m11 - m5 * m3 * m10 - m9 * m2 * m7 + m9 * m3 * m6
+    result.m7 = m0 * m6 * m11 - m0 * m7 * m10 - m4 * m2 * m11 + m4 * m3 * m10 + m8 * m2 * m7 - m8 * m3 * m6
+    result.m11 = 0.0 - m0 * m5 * m11 + m0 * m7 * m9 + m4 * m1 * m11 - m4 * m3 * m9 - m8 * m1 * m7 + m8 * m3 * m5
+    result.m15 = m0 * m5 * m10 - m0 * m6 * m9 - m4 * m1 * m10 + m4 * m2 * m9 + m8 * m1 * m6 - m8 * m2 * m5
+    var determinant = m0 * result.m0 + m1 * result.m4 + m2 * result.m8 + m3 * result.m12
+    crash determinant != 0.0
+    result.scale_all(1.0 / determinant)
+    return result
+}
+
+func scale_all(factor: Float) {
+    m0 = m0 * factor
+    m1 = m1 * factor
+    m2 = m2 * factor
+    m3 = m3 * factor
+    m4 = m4 * factor
+    m5 = m5 * factor
+    m6 = m6 * factor
+    m7 = m7 * factor
+    m8 = m8 * factor
+    m9 = m9 * factor
+    m10 = m10 * factor
+    m11 = m11 * factor
+    m12 = m12 * factor
+    m13 = m13 * factor
+    m14 = m14 * factor
+    m15 = m15 * factor
+}
+
+func value_at(index: Integer): Float {
+    if index == 0 {
+        return m0
+    }
+    if index == 1 {
+        return m1
+    }
+    if index == 2 {
+        return m2
+    }
+    if index == 3 {
+        return m3
+    }
+    if index == 4 {
+        return m4
+    }
+    if index == 5 {
+        return m5
+    }
+    if index == 6 {
+        return m6
+    }
+    if index == 7 {
+        return m7
+    }
+    if index == 8 {
+        return m8
+    }
+    if index == 9 {
+        return m9
+    }
+    if index == 10 {
+        return m10
+    }
+    if index == 11 {
+        return m11
+    }
+    if index == 12 {
+        return m12
+    }
+    if index == 13 {
+        return m13
+    }
+    if index == 14 {
+        return m14
+    }
+    return m15
+}
+
+func set_value(index: Integer, value: Float) {
+    if index == 0 {
+        m0 = value
+    }
+    if index == 1 {
+        m1 = value
+    }
+    if index == 2 {
+        m2 = value
+    }
+    if index == 3 {
+        m3 = value
+    }
+    if index == 4 {
+        m4 = value
+    }
+    if index == 5 {
+        m5 = value
+    }
+    if index == 6 {
+        m6 = value
+    }
+    if index == 7 {
+        m7 = value
+    }
+    if index == 8 {
+        m8 = value
+    }
+    if index == 9 {
+        m9 = value
+    }
+    if index == 10 {
+        m10 = value
+    }
+    if index == 11 {
+        m11 = value
+    }
+    if index == 12 {
+        m12 = value
+    }
+    if index == 13 {
+        m13 = value
+    }
+    if index == 14 {
+        m14 = value
+    }
+    if index == 15 {
+        m15 = value
+    }
+}
+
+func decompose(pose: Math.Pose) {
+    pose.position_x = m12
+    pose.position_y = m13
+    pose.position_z = m14
+    pose.scale_x = scalar.square_root(m0 * m0 + m1 * m1 + m2 * m2)
+    pose.scale_y = scalar.square_root(m4 * m4 + m5 * m5 + m6 * m6)
+    pose.scale_z = scalar.square_root(m8 * m8 + m9 * m9 + m10 * m10)
+    var r00 = m0 / pose.scale_x
+    var r10 = m1 / pose.scale_x
+    var r20 = m2 / pose.scale_x
+    var r01 = m4 / pose.scale_y
+    var r11 = m5 / pose.scale_y
+    var r21 = m6 / pose.scale_y
+    var r02 = m8 / pose.scale_z
+    var r12 = m9 / pose.scale_z
+    var r22 = m10 / pose.scale_z
+    var trace = r00 + r11 + r22
+    if trace > 0.0 {
+        var root = scalar.square_root(trace + 1.0) * 2.0
+        pose.rotation_w = 0.25 * root
+        pose.rotation_x = (r21 - r12) / root
+        pose.rotation_y = (r02 - r20) / root
+        pose.rotation_z = (r10 - r01) / root
+    } else if r00 > r11 and r00 > r22 {
+        var root = scalar.square_root(1.0 + r00 - r11 - r22) * 2.0
+        pose.rotation_w = (r21 - r12) / root
+        pose.rotation_x = 0.25 * root
+        pose.rotation_y = (r01 + r10) / root
+        pose.rotation_z = (r02 + r20) / root
+    } else if r11 > r22 {
+        var root = scalar.square_root(1.0 + r11 - r00 - r22) * 2.0
+        pose.rotation_w = (r02 - r20) / root
+        pose.rotation_x = (r01 + r10) / root
+        pose.rotation_y = 0.25 * root
+        pose.rotation_z = (r12 + r21) / root
+    } else {
+        var root = scalar.square_root(1.0 + r22 - r00 - r11) * 2.0
+        pose.rotation_w = (r10 - r01) / root
+        pose.rotation_x = (r02 + r20) / root
+        pose.rotation_y = (r12 + r21) / root
+        pose.rotation_z = 0.25 * root
+    }
+}
+
+func set_pose(pose: Math.Pose) {
+    set_transform(
+        pose.position_x,
+        pose.position_y,
+        pose.position_z,
+        pose.rotation_x,
+        pose.rotation_y,
+        pose.rotation_z,
+        pose.rotation_w,
+        pose.scale_x,
+        pose.scale_y,
+        pose.scale_z,
+    )
+}
+
+func transform_point(target: Math.Vector3, x_value: Float, y_value: Float, z_value: Float) {
+    target.x_value = m0 * x_value + m4 * y_value + m8 * z_value + m12
+    target.y_value = m1 * x_value + m5 * y_value + m9 * z_value + m13
+    target.z_value = m2 * x_value + m6 * y_value + m10 * z_value + m14
+}
+
+func transform_direction(target: Math.Vector3, x_value: Float, y_value: Float, z_value: Float) {
+    var along_x = m0 * x_value + m4 * y_value + m8 * z_value
+    var along_y = m1 * x_value + m5 * y_value + m9 * z_value
+    var along_z = m2 * x_value + m6 * y_value + m10 * z_value
+    var length = scalar.square_root(along_x * along_x + along_y * along_y + along_z * along_z)
+    target.x_value = along_x / length
+    target.y_value = along_y / length
+    target.z_value = along_z / length
+}
+
 func clear() {
     m0 = 0.0
     m1 = 0.0

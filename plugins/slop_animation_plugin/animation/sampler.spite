@@ -1,0 +1,128 @@
+var scalar = Math.Scalar()
+var globals = List<Math.Matrix4>()
+var first = Math.Pose()
+var second = Math.Pose()
+
+func sample(
+    skeleton: Asset.Skeleton,
+    clip: Asset.Animation,
+    animator: Animation.Component.Animator,
+    palette: List<Math.Matrix4>,
+) {
+    var frame_count: Float = clip.frame_count
+    assert clip.frame_count > 0
+    var position = animator.time * clip.frames_per_second
+    if animator.looping {
+        position = position - scalar.floor(position / frame_count) * frame_count
+    } else {
+        position = scalar.clamp(position, 0.0, frame_count - 1.0)
+    }
+    var whole = scalar.floor(position)
+    var blend = position - whole
+    var from: Integer = whole
+    var to = from + 1
+    if to >= clip.frame_count {
+        to = 0
+        if not animator.looping {
+            to = from
+        }
+    }
+    globals.clear()
+    palette.clear()
+    var bone = 0
+    var bone_count = skeleton.names.count()
+    while bone < bone_count {
+        pose_bone(skeleton, clip, bone, from, to, blend, palette)
+        bone = bone + 1
+    }
+}
+
+func pose_bone(
+    skeleton: Asset.Skeleton,
+    clip: Asset.Animation,
+    bone: Integer,
+    from: Integer,
+    to: Integer,
+    blend: Float,
+    palette: List<Math.Matrix4>,
+) {
+    read_key(clip, from, bone, first)
+    read_key(clip, to, bone, second)
+    interpolate(blend)
+    var local = Math.Matrix4()
+    local.set_pose(first)
+    crash skeleton.parents[bone]
+    var parent = skeleton.parents[bone]
+    var global = local
+    if parent >= 0 {
+        crash globals[parent]
+        var parent_global = globals[parent]
+        global = parent_global.multiplied(local)
+    }
+    globals.append(global)
+    var inverse_bind = Math.Matrix4()
+    var index = 0
+    while index < 16 {
+        crash skeleton.inverse_binds[bone * 16 + index]
+        inverse_bind.set_value(index, skeleton.inverse_binds[bone * 16 + index])
+        index = index + 1
+    }
+    var skinning = global.multiplied(inverse_bind)
+    palette.append(skinning)
+}
+
+func read_key(clip: Asset.Animation, frame: Integer, bone: Integer, pose: Math.Pose) {
+    var start = (frame * clip.bone_count + bone) * 10
+    crash clip.keys[start + 9]
+    pose.position_x = key(clip, start)
+    pose.position_y = key(clip, start + 1)
+    pose.position_z = key(clip, start + 2)
+    pose.rotation_x = key(clip, start + 3)
+    pose.rotation_y = key(clip, start + 4)
+    pose.rotation_z = key(clip, start + 5)
+    pose.rotation_w = key(clip, start + 6)
+    pose.scale_x = key(clip, start + 7)
+    pose.scale_y = key(clip, start + 8)
+    pose.scale_z = key(clip, start + 9)
+}
+
+func key(clip: Asset.Animation, index: Integer): Float {
+    crash clip.keys[index]
+    return clip.keys[index]
+}
+
+func interpolate(blend: Float) {
+    var keep = 1.0 - blend
+    first.position_x = first.position_x * keep + second.position_x * blend
+    first.position_y = first.position_y * keep + second.position_y * blend
+    first.position_z = first.position_z * keep + second.position_z * blend
+    first.scale_x = first.scale_x * keep + second.scale_x * blend
+    first.scale_y = first.scale_y * keep + second.scale_y * blend
+    first.scale_z = first.scale_z * keep + second.scale_z * blend
+    var dot = first.rotation_x * second.rotation_x + first.rotation_y * second.rotation_y + first.rotation_z * second.rotation_z + first.rotation_w * second.rotation_w
+    var sign: Float = 1.0
+    if dot < 0.0 {
+        sign = -1.0
+        dot = 0.0 - dot
+    }
+    var from_weight = keep
+    var to_weight = blend * sign
+    if dot < 0.9995 {
+        var root = scalar.square_root(1.0 - dot * dot)
+        var angle = scalar.arc_tangent2(root, dot)
+        var angle_sine = scalar.sine(angle)
+        from_weight = scalar.sine(keep * angle) / angle_sine
+        to_weight = scalar.sine(blend * angle) / angle_sine * sign
+    }
+    first.rotation_x = first.rotation_x * from_weight + second.rotation_x * to_weight
+    first.rotation_y = first.rotation_y * from_weight + second.rotation_y * to_weight
+    first.rotation_z = first.rotation_z * from_weight + second.rotation_z * to_weight
+    first.rotation_w = first.rotation_w * from_weight + second.rotation_w * to_weight
+    var length = scalar.square_root(
+        first.rotation_x * first.rotation_x + first.rotation_y * first.rotation_y + first.rotation_z * first.rotation_z + first.rotation_w * first.rotation_w,
+    )
+    first.rotation_x = first.rotation_x / length
+    first.rotation_y = first.rotation_y / length
+    first.rotation_z = first.rotation_z / length
+    first.rotation_w = first.rotation_w / length
+}

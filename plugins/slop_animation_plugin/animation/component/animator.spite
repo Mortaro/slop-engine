@@ -1,0 +1,5 @@
+var skeleton = ""
+var clip = ""
+var time: Float = 0.0
+var speed: Float = 1.0
+var looping = true

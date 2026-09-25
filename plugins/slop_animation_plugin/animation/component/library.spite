@@ -1,0 +1,2 @@
+var skeletons = Recipes.AssetSlots<Asset.Skeleton>()
+var clips = Recipes.AssetSlots<Asset.Animation>()

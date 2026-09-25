@@ -1,0 +1,8 @@
+type Loading {
+    library: Animation.Component.Library
+}
+
+func last_each(loading: Loading) {
+    loading.library.skeletons.finish_loads()
+    loading.library.clips.finish_loads()
+}

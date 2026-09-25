@@ -1,0 +1,399 @@
+var raw = Raw()
+var input: Long = 0
+var input_length = 0
+var position = 0
+var bit_buffer: Long = 0
+var bit_count = 0
+var overrun = 0
+var limit = 0
+var failed = false
+var output = Asset.Bytes()
+var literal_table = Png.HuffmanTable()
+var distance_table = Png.HuffmanTable()
+var code_length_table = Png.HuffmanTable()
+var fixed_literal_table = Png.HuffmanTable()
+var fixed_distance_table = Png.HuffmanTable()
+var fixed_ready = false
+var length_bases = [
+    3
+    4
+    5
+    6
+    7
+    8
+    9
+    10
+    11
+    13
+    15
+    17
+    19
+    23
+    27
+    31
+    35
+    43
+    51
+    59
+    67
+    83
+    99
+    115
+    131
+    163
+    195
+    227
+    258
+]
+var length_extra = [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 0]
+var distance_bases = [
+    1
+    2
+    3
+    4
+    5
+    7
+    9
+    13
+    17
+    25
+    33
+    49
+    65
+    97
+    129
+    193
+    257
+    385
+    513
+    769
+    1025
+    1537
+    2049
+    3073
+    4097
+    6145
+    8193
+    12289
+    16385
+    24577
+]
+var distance_extra = [0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13]
+var code_length_order = [16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15]
+
+func decompress(source: Asset.Bytes, expected_length: Integer): Asset.Bytes {
+    input = source.address
+    input_length = source.length
+    position = 0
+    bit_buffer = 0
+    bit_count = 0
+    overrun = 0
+    failed = false
+    limit = expected_length
+    output = Asset.Bytes()
+    output.reserve(expected_length + 1)
+    read_zlib_header()
+    decode_blocks()
+    check_adler()
+    return output
+}
+
+func fail_when(condition: Boolean) {
+    if condition {
+        failed = true
+    }
+}
+
+func read_zlib_header() {
+    var method = read_bits(8)
+    var flags = read_bits(8)
+    var check = method * 256 + flags
+    var compression = method.bits_and(15)
+    var dictionary = flags.bits_and(32)
+    fail_when(compression != 8 or check % 31 != 0 or dictionary != 0)
+}
+
+func refill() {
+    while bit_count < 56 {
+        var next: Long = 0
+        if position < input_length {
+            var value = raw.read_byte(input, position)
+            next = value.bits_and(255)
+        } else {
+            overrun = overrun + 1
+        }
+        var placed = next.shifted_left(bit_count)
+        bit_buffer = bit_buffer.bits_or(placed)
+        bit_count = bit_count + 8
+        position = position + 1
+    }
+}
+
+func read_bits(count: Integer): Integer {
+    refill()
+    var one: Long = 1
+    var bits_mask = one.shifted_left(count) - 1
+    var value: Integer = bit_buffer.bits_and(bits_mask)
+    bit_buffer = bit_buffer.shifted_right(count)
+    bit_count = bit_count - count
+    return value
+}
+
+func decode_symbol(table: Png.HuffmanTable): Integer {
+    refill()
+    var index = bit_buffer.bits_and(table.mask)
+    var entry = raw.read_integer(table.entries, index * 4)
+    var length = entry.bits_and(15)
+    fail_when(length == 0)
+    bit_buffer = bit_buffer.shifted_right(length)
+    bit_count = bit_count - length
+    return entry.shifted_right(4)
+}
+
+func decode_blocks() {
+    var last = 0
+    while last == 0 and not failed {
+        last = read_bits(1)
+        var kind = read_bits(2)
+        decode_block(kind)
+        fail_when(overrun > 16)
+    }
+}
+
+func decode_block(kind: Integer) {
+    if kind == 0 {
+        copy_stored()
+    } else if kind == 1 {
+        prepare_fixed_tables()
+        decode_symbols(fixed_literal_table, fixed_distance_table)
+    } else if kind == 2 {
+        read_dynamic_tables()
+        decode_dynamic_symbols()
+    } else {
+        failed = true
+    }
+}
+
+func decode_dynamic_symbols() {
+    assert not failed
+    decode_symbols(literal_table, distance_table)
+}
+
+func rewind_to_byte() {
+    var dropped = bit_count.bits_and(7)
+    bit_buffer = bit_buffer.shifted_right(dropped)
+    bit_count = bit_count - dropped
+    position = position - bit_count / 8
+    bit_count = 0
+    bit_buffer = 0
+    overrun = 0
+}
+
+func byte_at(index: Integer): Integer {
+    var value = raw.read_byte(input, index)
+    return value.bits_and(255)
+}
+
+func copy_stored() {
+    rewind_to_byte()
+    fail_when(position + 4 > input_length)
+    assert not failed
+    var low = byte_at(position)
+    var high = byte_at(position + 1)
+    var size = high * 256 + low
+    var complement_low = byte_at(position + 2)
+    var complement_high = byte_at(position + 3)
+    var complement = complement_high * 256 + complement_low
+    position = position + 4
+    fail_when(size + complement != 65535 or position + size > input_length)
+    ensure_room(size)
+    assert not failed
+    output.write_bytes(input + position, size)
+    position = position + size
+}
+
+func ensure_room(count: Integer) {
+    var wanted = output.length + count
+    fail_when(limit > 0 and wanted > limit)
+    output.reserve(wanted)
+}
+
+func decode_symbols(literals: Png.HuffmanTable, distances: Png.HuffmanTable) {
+    var symbol = 0
+    while symbol != 256 and not failed {
+        symbol = decode_symbol(literals)
+        if symbol < 256 {
+            put_literal(symbol)
+        } else if symbol > 256 {
+            copy_match(symbol, distances)
+        }
+    }
+}
+
+func put_literal(symbol: Integer) {
+    ensure_room(1)
+    raw.write_byte(output.address, output.length, symbol)
+    output.length = output.length + 1
+}
+
+func copy_match(symbol: Integer, distances: Png.HuffmanTable) {
+    var index = symbol - 257
+    fail_when(index >= 29)
+    assert not failed
+    crash length_bases[index]
+    crash length_extra[index]
+    var extra = read_bits(length_extra[index])
+    var length = length_bases[index] + extra
+    var distance_symbol = decode_symbol(distances)
+    fail_when(distance_symbol >= 30)
+    assert not failed
+    crash distance_bases[distance_symbol]
+    crash distance_extra[distance_symbol]
+    var distance_more = read_bits(distance_extra[distance_symbol])
+    var distance = distance_bases[distance_symbol] + distance_more
+    fail_when(distance > output.length)
+    ensure_room(length)
+    assert not failed
+    var from = output.length - distance
+    if distance >= length {
+        raw.copy(output.address + from, output.address + output.length, length)
+    } else {
+        copy_overlapping(from, length)
+    }
+    output.length = output.length + length
+}
+
+func copy_overlapping(from: Integer, count: Integer) {
+    var index = 0
+    while index < count {
+        var value = raw.read_byte(output.address, from + index)
+        raw.write_byte(output.address, output.length + index, value)
+        index = index + 1
+    }
+}
+
+func prepare_fixed_tables() {
+    assert not fixed_ready
+    var lengths = List<Integer>()
+    while lengths.count() < 144 {
+        lengths.append(8)
+    }
+    while lengths.count() < 256 {
+        lengths.append(9)
+    }
+    while lengths.count() < 280 {
+        lengths.append(7)
+    }
+    while lengths.count() < 288 {
+        lengths.append(8)
+    }
+    while lengths.count() < 320 {
+        lengths.append(5)
+    }
+    var literals_built = fixed_literal_table.build(lengths, 0, 288)
+    var distances_built = fixed_distance_table.build(lengths, 288, 32)
+    fixed_ready = literals_built and distances_built
+}
+
+func read_dynamic_tables() {
+    var literal_count = read_bits(5) + 257
+    var distance_count = read_bits(5) + 1
+    var code_length_count = read_bits(4) + 4
+    var code_lengths = List<Integer>()
+    while code_lengths.count() < 19 {
+        code_lengths.append(0)
+    }
+    var index = 0
+    while index < code_length_count {
+        crash code_length_order[index]
+        var slot = code_length_order[index]
+        var length = read_bits(3)
+        code_lengths.set_at(slot, length)
+        index = index + 1
+    }
+    var code_lengths_built = code_length_table.build(code_lengths, 0, 19)
+    fail_when(not code_lengths_built)
+    var lengths = List<Integer>()
+    var total = literal_count + distance_count
+    while lengths.count() < total and not failed {
+        read_code_length(lengths)
+    }
+    var read_count = lengths.count()
+    fail_when(read_count != total)
+    assert not failed
+    var end_length = lengths.get_at(256)
+    var literals_built = literal_table.build(lengths, 0, literal_count)
+    var distances_built = distance_table.build(lengths, literal_count, distance_count)
+    fail_when(end_length == 0 or not literals_built or not distances_built)
+}
+
+func read_code_length(lengths: List<Integer>) {
+    var symbol = decode_symbol(code_length_table)
+    if symbol < 16 {
+        lengths.append(symbol)
+    } else if symbol == 16 {
+        repeat_previous(lengths)
+    } else if symbol == 17 {
+        var short_run = read_bits(3)
+        repeat_length(lengths, 0, short_run + 3)
+    } else {
+        var long_run = read_bits(7)
+        repeat_length(lengths, 0, long_run + 11)
+    }
+}
+
+func repeat_previous(lengths: List<Integer>) {
+    var previous = lengths.last()
+    var empty = lengths.is_empty()
+    fail_when(empty)
+    assert previous
+    var run = read_bits(2)
+    repeat_length(lengths, previous, run + 3)
+}
+
+func repeat_length(lengths: List<Integer>, length: Integer, count: Integer) {
+    var index = 0
+    while index < count {
+        lengths.append(length)
+        index = index + 1
+    }
+}
+
+func check_adler() {
+    assert not failed
+    rewind_to_byte()
+    fail_when(position + 4 > input_length)
+    assert not failed
+    var first = byte_at(position)
+    var second = byte_at(position + 1)
+    var third = byte_at(position + 2)
+    var fourth = byte_at(position + 3)
+    var expected: Long = first
+    expected = expected * 256 + second
+    expected = expected * 256 + third
+    expected = expected * 256 + fourth
+    var computed = adler()
+    fail_when(expected != computed)
+}
+
+func adler(): Long {
+    var low: Long = 1
+    var high: Long = 0
+    var index = 0
+    while index < output.length {
+        var chunk_end = index + 5552
+        if chunk_end > output.length {
+            chunk_end = output.length
+        }
+        while index < chunk_end {
+            var value = raw.read_byte(output.address, index)
+            var unsigned = value.bits_and(255)
+            low = low + unsigned
+            high = high + low
+            index = index + 1
+        }
+        low = low % 65521
+        high = high % 65521
+    }
+    return high * 65536 + low
+}

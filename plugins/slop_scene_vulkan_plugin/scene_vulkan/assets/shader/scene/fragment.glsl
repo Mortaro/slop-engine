@@ -9,6 +9,9 @@ layout(location = 0) out vec4 color;
 
 void main() {
     vec4 texel = texture(base_color, surface_coordinate);
+    if (texel.a < 0.5) {
+        discard;
+    }
     vec3 light = normalize(vec3(0.45, 0.82, 0.35));
     float shade = 0.35 + 0.65 * max(dot(normalize(world_normal), light), 0.0);
     color = vec4(texel.rgb * shade, 1.0);

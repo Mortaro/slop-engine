@@ -1,0 +1,60 @@
+var space = Blend.Space()
+var file = Blend.File()
+var skeleton = Asset.Skeleton()
+var addresses = List<Long>()
+var rests = List<Math.Matrix4>()
+var armature_world = Math.Matrix4()
+
+func read(source: Blend.File, armature_object: Blend.View): Asset.Skeleton {
+    file = source
+    armature_world = space.object_world(file, armature_object)
+    var data_address = armature_object.pointer("data")
+    var armature = file.view_at(data_address)
+    crash armature
+    file.enter(armature)
+    var roots = armature.inner("bonebase")
+    var bones = file.list_addresses(roots)
+    bones.each(add_bone_tree)
+    return skeleton
+}
+
+func add_bone_tree(address: Long) {
+    var bone = file.view_at(address)
+    crash bone
+    var name = bone.text("name")
+    var parent_address = bone.pointer("parent")
+    var parent_index = index_of(parent_address)
+    addresses.append(address)
+    skeleton.names.append(name)
+    skeleton.parents.append(parent_index)
+    var rest = space.matrix_field(bone, "arm_mat")
+    rests.append(rest)
+    var placed = armature_world.multiplied(rest)
+    var bind = space.to_engine(placed)
+    var inverse_bind = bind.inverted()
+    var index = 0
+    while index < 16 {
+        var value = inverse_bind.value_at(index)
+        skeleton.inverse_binds.append(value)
+        index = index + 1
+    }
+    var children = bone.inner("childbase")
+    var child_bones = file.list_addresses(children)
+    child_bones.each(add_bone_tree)
+}
+
+func index_of(address: Long): Integer {
+    var index = 0
+    while index < addresses.count() {
+        if addresses[index] == address {
+            return index
+        }
+        index = index + 1
+    }
+    return -1
+}
+
+func rest_of(index: Integer): Math.Matrix4 {
+    crash rests[index]
+    return rests[index]
+}

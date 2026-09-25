@@ -79,6 +79,9 @@ func record_draw(
     crash index_counts[draw.mesh_slot]
     assert vertex_buffers[draw.mesh_slot] != 0
     var set_index = draw.texture_slot + 1
+    if set_index >= renderer.texture_sets.count() {
+        set_index = 0
+    }
     crash renderer.texture_sets[set_index]
     var texture_set = renderer.texture_sets[set_index]
     if texture_set == 0 {

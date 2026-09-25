@@ -1,0 +1,411 @@
+var space = Blend.Space()
+var file = Blend.File()
+var mesh = Asset.Mesh()
+var placement = Math.Matrix4()
+var attribute_names = List<String>()
+var attribute_offsets = List<Integer>()
+var positions = 0
+var corner_vertices = 0
+var coordinates = -1
+var sharp_faces = -1
+var face_offsets = 0
+var deform_vertices = 0
+var vertex_normals = List<Float>()
+var face_normals = List<Float>()
+var group_bones = List<Integer>()
+var welded = Dictionary<Integer>()
+var point = Math.Vector3()
+var direction = Math.Vector3()
+var texture_image = ""
+var texture_bytes = Asset.Bytes()
+
+func read(source: Blend.File, object: Blend.View, bone_names: List<String>): Asset.Mesh {
+    file = source
+    var world = space.object_world(file, object)
+    var target = space.to_target()
+    placement = target.multiplied(world)
+    var data_address_2 = object.pointer("data")
+    var data = file.view_at(data_address_2)
+    crash data
+    file.enter(data)
+    read_attributes(data)
+    positions = attribute_offset("position")
+    corner_vertices = attribute_offset(".corner_vert")
+    coordinates = uv_offset(data)
+    sharp_faces = attribute_offset("sharp_face")
+    var poly_offset_indices_address = data.pointer("poly_offset_indices")
+    var offsets_block = file.block_at(poly_offset_indices_address)
+    crash offsets_block
+    face_offsets = offsets_block.offset
+    deform_vertices = deform_layer(data)
+    map_groups(data, bone_names)
+    var vertex_count = data.integer("totvert")
+    var face_count = data.integer("totpoly")
+    compute_normals(vertex_count, face_count)
+    var face = 0
+    while face < face_count {
+        emit_face(face)
+        face = face + 1
+    }
+    read_texture(data)
+    return mesh
+}
+
+func read_attributes(data: Blend.View) {
+    var storage = data.inner("attribute_storage")
+    var count = storage.integer("dna_attributes_num")
+    var dna_attributes_address = storage.pointer("dna_attributes")
+    var first = file.view_at(dna_attributes_address)
+    crash first
+    var index = 0
+    while index < count {
+        var attribute = first.element(index)
+        var name_address = attribute.pointer("name")
+        var name_block = file.block_at(name_address)
+        crash name_block
+        var name = file.text_at(name_block.offset, name_block.length - 1)
+        attribute_names.append(name)
+        var wrapper_address = attribute.pointer("data")
+        var wrapper = file.view_at(wrapper_address)
+        crash wrapper
+        var values_address = wrapper.pointer("data")
+        var offset = block_offset(values_address)
+        attribute_offsets.append(offset)
+        index = index + 1
+    }
+}
+
+func deform_layer(data: Blend.View): Integer {
+    var vertex_data = data.inner("vdata")
+    var count = vertex_data.integer("totlayer")
+    var layers_address = vertex_data.pointer("layers")
+    assert count > 0 and layers_address != 0
+    var first = file.view_at(layers_address)
+    crash first
+    var index = 0
+    while index < count {
+        var layer = first.element(index)
+        if layer.integer("type") == 2 {
+            var layer_data = layer.pointer("data")
+            return block_offset(layer_data)
+        }
+        index = index + 1
+    }
+    return -1
+}
+
+func block_offset(address: Long): Integer {
+    if address == 0 {
+        return -1
+    }
+    var block = file.block_at(address)
+    crash block
+    return block.offset
+}
+
+func attribute_offset(name: String): Integer {
+    var index = 0
+    while index < attribute_names.count() {
+        if attribute_names[index] == name {
+            crash attribute_offsets[index]
+            return attribute_offsets[index]
+        }
+        index = index + 1
+    }
+    return -1
+}
+
+func uv_offset(data: Blend.View): Integer {
+    var active = data.pointer("active_uv_map_attribute")
+    if active != 0 {
+        var name_block = file.block_at(active)
+        crash name_block
+        var name = file.text_at(name_block.offset, name_block.length - 1)
+        return attribute_offset(name)
+    }
+    return attribute_offset("UVMap")
+}
+
+func map_groups(data: Blend.View, bone_names: List<String>) {
+    var groups = data.inner("vertex_group_names")
+    var views = file.list_views(groups)
+    var index = 0
+    while index < views.count() {
+        var name = views[index].text("name")
+        var bone = index_of_name(bone_names, name)
+        group_bones.append(bone)
+        index = index + 1
+    }
+}
+
+func index_of_name(names: List<String>, name: String): Integer {
+    var index = 0
+    while index < names.count() {
+        if names[index] == name {
+            return index
+        }
+        index = index + 1
+    }
+    return -1
+}
+
+func face_start(face: Integer): Integer {
+    return file.integer_at(face_offsets + face * 4)
+}
+
+func corner_vertex(corner: Integer): Integer {
+    return file.integer_at(corner_vertices + corner * 4)
+}
+
+func position(vertex: Integer, axis: Integer): Float {
+    return file.float_at(positions + vertex * 12 + axis * 4)
+}
+
+func compute_normals(vertex_count: Integer, face_count: Integer) {
+    var index = 0
+    while index < vertex_count * 3 {
+        vertex_normals.append(0.0)
+        index = index + 1
+    }
+    var face = 0
+    while face < face_count {
+        add_face_normal(face)
+        face = face + 1
+    }
+}
+
+func add_face_normal(face: Integer) {
+    var first = face_start(face)
+    var last = face_start(face + 1)
+    var normal_x: Float = 0.0
+    var normal_y: Float = 0.0
+    var normal_z: Float = 0.0
+    var corner = first
+    while corner < last {
+        var next = corner + 1
+        if next == last {
+            next = first
+        }
+        var here = corner_vertex(corner)
+        var there = corner_vertex(next)
+        var here_x = position(here, 0)
+        var here_y = position(here, 1)
+        var here_z = position(here, 2)
+        var there_x = position(there, 0)
+        var there_y = position(there, 1)
+        var there_z = position(there, 2)
+        normal_x = normal_x + (here_y - there_y) * (here_z + there_z)
+        normal_y = normal_y + (here_z - there_z) * (here_x + there_x)
+        normal_z = normal_z + (here_x - there_x) * (here_y + there_y)
+        corner = corner + 1
+    }
+    face_normals.append(normal_x)
+    face_normals.append(normal_y)
+    face_normals.append(normal_z)
+    corner = first
+    while corner < last {
+        var vertex = corner_vertex(corner)
+        accumulate(vertex * 3, normal_x)
+        accumulate(vertex * 3 + 1, normal_y)
+        accumulate(vertex * 3 + 2, normal_z)
+        corner = corner + 1
+    }
+}
+
+func accumulate(index: Integer, amount: Float) {
+    crash vertex_normals[index]
+    vertex_normals.set_at(index, vertex_normals[index] + amount)
+}
+
+func emit_face(face: Integer) {
+    var first = face_start(face)
+    var last = face_start(face + 1)
+    var middle = first + 1
+    while middle + 1 < last {
+        emit_corner(face, first)
+        emit_corner(face, middle)
+        emit_corner(face, middle + 1)
+        middle = middle + 1
+    }
+}
+
+func emit_corner(face: Integer, corner: Integer) {
+    var vertex = corner_vertex(corner)
+    var flat = sharp_faces >= 0 and file.bytes.byte_at(sharp_faces + face) != 0
+    var normal_start = vertex * 3
+    var normals = vertex_normals
+    if flat {
+        normal_start = face * 3
+        normals = face_normals
+    }
+    crash normals[normal_start]
+    crash normals[normal_start + 1]
+    crash normals[normal_start + 2]
+    placement.transform_direction(
+        direction,
+        normals[normal_start],
+        normals[normal_start + 1],
+        normals[normal_start + 2],
+    )
+    var across: Float = 0.0
+    var down: Float = 0.0
+    if coordinates >= 0 {
+        across = file.float_at(coordinates + corner * 8)
+        var up = file.float_at(coordinates + corner * 8 + 4)
+        down = 1.0 - up
+    }
+    var key = weld_key(vertex, across, down)
+    var known = welded.get(key)
+    if known {
+        mesh.indices.append(known)
+        return
+    }
+    var index = mesh.vertices.count() / 8
+    welded.set(key, index)
+    mesh.indices.append(index)
+    var position_x = position(vertex, 0)
+    var position_y = position(vertex, 1)
+    var position_z = position(vertex, 2)
+    placement.transform_point(point, position_x, position_y, position_z)
+    mesh.vertices.append(point.x_value)
+    mesh.vertices.append(point.y_value)
+    mesh.vertices.append(point.z_value)
+    mesh.vertices.append(direction.x_value)
+    mesh.vertices.append(direction.y_value)
+    mesh.vertices.append(direction.z_value)
+    mesh.vertices.append(across)
+    mesh.vertices.append(down)
+    append_skin(vertex)
+}
+
+func weld_key(vertex: Integer, across: Float, down: Float): String {
+    var normal_x: Integer = direction.x_value * 10000.0
+    var normal_y: Integer = direction.y_value * 10000.0
+    var normal_z: Integer = direction.z_value * 10000.0
+    var coordinate_across: Integer = across * 100000.0
+    var coordinate_down: Integer = down * 100000.0
+    return "{vertex} {normal_x} {normal_y} {normal_z} {coordinate_across} {coordinate_down}"
+}
+
+func append_skin(vertex: Integer) {
+    var bones = List<Integer>()
+    var weights = List<Float>()
+    if deform_vertices >= 0 {
+        collect_weights(vertex, bones, weights)
+    }
+    var total: Float = 0.0
+    var slot = 0
+    while slot < weights.count() {
+        total = total + weights[slot]
+        slot = slot + 1
+    }
+    var packed = 0
+    slot = 3
+    while slot >= 0 {
+        var bone = 0
+        var weight: Float = 0.0
+        if slot < bones.count() {
+            crash weights[slot]
+            bone = bones[slot]
+            weight = weights[slot] / total
+        }
+        packed = packed.shifted_left(8).bits_or(bone)
+        mesh.weights.append(weight)
+        slot = slot - 1
+    }
+    reverse_last_weights()
+    mesh.joints.append(packed)
+}
+
+func reverse_last_weights() {
+    var end = mesh.weights.count()
+    crash mesh.weights[end - 4]
+    crash mesh.weights[end - 3]
+    crash mesh.weights[end - 2]
+    crash mesh.weights[end - 1]
+    var first = mesh.weights[end - 4]
+    var second = mesh.weights[end - 3]
+    mesh.weights.set_at(end - 4, mesh.weights[end - 1])
+    mesh.weights.set_at(end - 3, mesh.weights[end - 2])
+    mesh.weights.set_at(end - 2, second)
+    mesh.weights.set_at(end - 1, first)
+}
+
+func collect_weights(vertex: Integer, bones: List<Integer>, weights: List<Float>) {
+    var record = deform_vertices + vertex * 16
+    var list_address = file.long_at(record)
+    var count = file.integer_at(record + 8)
+    assert list_address != 0 and count > 0
+    var entries = block_offset(list_address)
+    var entry = 0
+    while entry < count {
+        var group = file.integer_at(entries + entry * 8)
+        var weight = file.float_at(entries + entry * 8 + 4)
+        keep_heaviest(group, weight, bones, weights)
+        entry = entry + 1
+    }
+}
+
+func keep_heaviest(group: Integer, weight: Float, bones: List<Integer>, weights: List<Float>) {
+    assert group >= 0 and group < group_bones.count() and weight > 0.0
+    var bone = group_bones[group]
+    assert bone >= 0
+    var at = 0
+    while at < weights.count() and at < 4 {
+        if weight > weights[at] {
+            bones.insert(at, bone)
+            weights.insert(at, weight)
+            trim(bones, weights)
+            return
+        }
+        at = at + 1
+    }
+    if weights.count() < 4 {
+        bones.append(bone)
+        weights.append(weight)
+    }
+}
+
+func trim(bones: List<Integer>, weights: List<Float>) {
+    while weights.count() > 4 {
+        bones.remove_last()
+        weights.remove_last()
+    }
+}
+
+func read_texture(data: Blend.View) {
+    var materials_address = data.pointer("mat")
+    assert materials_address != 0
+    var materials_address_value = block_offset(materials_address)
+    var material_address = file.long_at(materials_address_value)
+    assert material_address != 0
+    var material = file.view_at(material_address)
+    crash material
+    file.enter(material)
+    var tree_address = material.pointer("nodetree")
+    assert tree_address != 0
+    var tree = file.view_at(tree_address)
+    crash tree
+    var nodes_list = tree.inner("nodes")
+    var nodes = file.list_views(nodes_list)
+    nodes.each(read_image_node)
+}
+
+func read_image_node(node: Blend.View) {
+    assert texture_image.is_empty() and node.text("idname") == "ShaderNodeTexImage"
+    var image_address = node.pointer("id")
+    assert image_address != 0
+    var image = file.view_at(image_address)
+    crash image
+    file.enter(image)
+    var packed_address = image.pointer("packedfile")
+    assert packed_address != 0
+    var packed = file.view_at(packed_address)
+    crash packed
+    var size = packed.integer("size")
+    var data_address_3 = packed.pointer("data")
+    var data_offset = block_offset(data_address_3)
+    assert data_offset >= 0
+    texture_bytes.write_bytes(file.bytes.address + data_offset, size)
+    texture_image = file.id_name(image)
+}

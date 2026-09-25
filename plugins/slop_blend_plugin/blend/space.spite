@@ -1,0 +1,87 @@
+var scalar = Math.Scalar()
+
+func to_target(): Math.Matrix4 {
+    var result = Math.Matrix4()
+    result.m5 = 0.0
+    result.m6 = -1.0
+    result.m9 = 1.0
+    result.m10 = 0.0
+    return result
+}
+
+func to_source(): Math.Matrix4 {
+    var result = Math.Matrix4()
+    result.m5 = 0.0
+    result.m6 = 1.0
+    result.m9 = -1.0
+    result.m10 = 0.0
+    return result
+}
+
+func object_world(file: Blend.File, object: Blend.View): Math.Matrix4 {
+    var local = object_local(object)
+    var parent_address = object.pointer("parent")
+    assert parent_address != 0
+    var parent = file.view_at(parent_address)
+    crash parent
+    var parent_world = object_world(file, parent)
+    var parent_inverse = matrix_field(object, "parentinv")
+    var through_parent = parent_world.multiplied(parent_inverse)
+    return through_parent.multiplied(local)
+}
+
+func object_local(object: Blend.View): Math.Matrix4 {
+    var pose = Math.Pose()
+    pose.position_x = object.float_at("loc", 0)
+    pose.position_y = object.float_at("loc", 1)
+    pose.position_z = object.float_at("loc", 2)
+    pose.scale_x = object.float_at("size", 0)
+    pose.scale_y = object.float_at("size", 1)
+    pose.scale_z = object.float_at("size", 2)
+    var rotation_mode = object.short_integer("rotmode")
+    if rotation_mode == 0 {
+        pose.rotation_w = object.float_at("quat", 0)
+        pose.rotation_x = object.float_at("quat", 1)
+        pose.rotation_y = object.float_at("quat", 2)
+        pose.rotation_z = object.float_at("quat", 3)
+    } else {
+        var rot_value = object.float_at("rot", 0)
+        var rot_value_2 = object.float_at("rot", 1)
+        var rot_value_3 = object.float_at("rot", 2)
+        euler_to(pose, rot_value, rot_value_2, rot_value_3)
+    }
+    var result = Math.Matrix4()
+    result.set_pose(pose)
+    return result
+}
+
+func euler_to(pose: Math.Pose, about_x: Float, about_y: Float, about_z: Float) {
+    var cosine_x = scalar.cosine(about_x * 0.5)
+    var sine_x = scalar.sine(about_x * 0.5)
+    var cosine_y = scalar.cosine(about_y * 0.5)
+    var sine_y = scalar.sine(about_y * 0.5)
+    var cosine_z = scalar.cosine(about_z * 0.5)
+    var sine_z = scalar.sine(about_z * 0.5)
+    pose.rotation_w = cosine_x * cosine_y * cosine_z + sine_x * sine_y * sine_z
+    pose.rotation_x = sine_x * cosine_y * cosine_z - cosine_x * sine_y * sine_z
+    pose.rotation_y = cosine_x * sine_y * cosine_z + sine_x * cosine_y * sine_z
+    pose.rotation_z = cosine_x * cosine_y * sine_z - sine_x * sine_y * cosine_z
+}
+
+func matrix_field(view: Blend.View, name: String): Math.Matrix4 {
+    var result = Math.Matrix4()
+    var index = 0
+    while index < 16 {
+        var value = view.float_at(name, index)
+        result.set_value(index, value)
+        index = index + 1
+    }
+    return result
+}
+
+func to_engine(blender: Math.Matrix4): Math.Matrix4 {
+    var target = to_target()
+    var source = to_source()
+    var converted = target.multiplied(blender)
+    return converted.multiplied(source)
+}

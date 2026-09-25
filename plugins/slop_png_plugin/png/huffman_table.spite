@@ -1,0 +1,109 @@
+var raw = Raw()
+var heap = Memory.Heap()
+var entries: Long = 0
+var maximum_bits = 1
+var mask: Long = 1
+
+func build(lengths: List<Integer>, first: Integer, count: Integer): Boolean {
+    reserve_entries()
+    var counts = List<Integer>()
+    var next_codes = List<Integer>()
+    while counts.count() < 16 {
+        counts.append(0)
+        next_codes.append(0)
+    }
+    maximum_bits = 1
+    var symbol = 0
+    while symbol < count {
+        var length = length_of(lengths, first + symbol)
+        var counted = counts.get_at(length)
+        counts.set_at(length, counted + 1)
+        if length > maximum_bits {
+            maximum_bits = length
+        }
+        symbol = symbol + 1
+    }
+    var one: Long = 1
+    mask = one.shifted_left(maximum_bits) - 1
+    clear_entries()
+    var fits = assign_first_codes(counts, next_codes)
+    assert fits
+    symbol = 0
+    while symbol < count {
+        var length = length_of(lengths, first + symbol)
+        place_symbol(symbol, length, next_codes)
+        symbol = symbol + 1
+    }
+    return true
+}
+
+func length_of(lengths: List<Integer>, index: Integer): Integer {
+    var length = lengths.get_at(index)
+    assert length > 0 and length < 16
+    return length
+}
+
+func assign_first_codes(counts: List<Integer>, next_codes: List<Integer>): Boolean {
+    var code = 0
+    var available = 1
+    var length = 1
+    while length < 16 {
+        var counted = counts.get_at(length)
+        available = available * 2 - counted
+        assert available >= 0
+        next_codes.set_at(length, code)
+        code = code + counted
+        code = code * 2
+        length = length + 1
+    }
+    return true
+}
+
+func place_symbol(symbol: Integer, length: Integer, next_codes: List<Integer>) {
+    assert length > 0
+    var code = next_codes.get_at(length)
+    next_codes.set_at(length, code + 1)
+    var slot = reversed(code, length)
+    var step = 1
+    step = step.shifted_left(length)
+    var entry = symbol.shifted_left(4)
+    entry = entry.bits_or(length)
+    var size = mask + 1
+    while slot < size {
+        raw.write_integer(entries, slot * 4, entry)
+        slot = slot + step
+    }
+}
+
+func reversed(code: Integer, length: Integer): Integer {
+    var result = 0
+    var remaining = code
+    var step = 0
+    while step < length {
+        var low = remaining.bits_and(1)
+        result = result.shifted_left(1)
+        result = result.bits_or(low)
+        remaining = remaining.shifted_right(1)
+        step = step + 1
+    }
+    return result
+}
+
+func reserve_entries() {
+    assert entries == 0
+    entries = heap.allocate(131072)
+}
+
+func clear_entries() {
+    var size = mask + 1
+    var slot = 0
+    while slot < size {
+        raw.write_integer(entries, slot * 4, 0)
+        slot = slot + 1
+    }
+}
+
+func drop() {
+    assert entries != 0
+    heap.free(entries)
+}

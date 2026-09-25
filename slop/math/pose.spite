@@ -1,0 +1,10 @@
+var position_x: Float = 0.0
+var position_y: Float = 0.0
+var position_z: Float = 0.0
+var rotation_x: Float = 0.0
+var rotation_y: Float = 0.0
+var rotation_z: Float = 0.0
+var rotation_w: Float = 1.0
+var scale_x: Float = 1.0
+var scale_y: Float = 1.0
+var scale_z: Float = 1.0

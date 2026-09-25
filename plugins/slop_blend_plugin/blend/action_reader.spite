@@ -1,0 +1,341 @@
+var space = Blend.Space()
+var scalar = Math.Scalar()
+var file = Blend.File()
+var curve_bones = List<Integer>()
+var curve_channels = List<Integer>()
+var curve_offsets = List<Integer>()
+var curve_counts = List<Integer>()
+var first_frame: Float = 0.0
+var last_frame: Float = 0.0
+var channels = List<Float>()
+
+func read(
+    source: Blend.File,
+    action: Blend.View,
+    skeleton: Asset.Skeleton,
+    rests: List<Math.Matrix4>,
+    armature_world: Math.Matrix4,
+): Asset.Animation {
+    file = source
+    file.enter(action)
+    collect_curves(action, skeleton)
+    var animation = Asset.Animation()
+    animation.name = file.id_name(action)
+    animation.bone_count = skeleton.names.count()
+    frame_range(action)
+    var frame = first_frame
+    while frame <= last_frame + 0.001 {
+        sample_frame(animation, frame, skeleton, rests, armature_world)
+        animation.frame_count = animation.frame_count + 1
+        frame = frame + 1.0
+    }
+    return animation
+}
+
+func collect_curves(action: Blend.View, skeleton: Asset.Skeleton) {
+    var layer_count = action.integer("layer_array_num")
+    if layer_count == 0 {
+        var curves_list = action.inner("curves")
+        var legacy = file.list_addresses(curves_list)
+        var legacy_index = 0
+        while legacy_index < legacy.count() {
+            add_curve(skeleton, legacy[legacy_index])
+            legacy_index = legacy_index + 1
+        }
+        return
+    }
+    var keyframe_count = action.integer("strip_keyframe_data_array_num")
+    var strip_keyframe_data_array_address = action.pointer("strip_keyframe_data_array")
+    var array_offset = block_offset(strip_keyframe_data_array_address)
+    var index = 0
+    while index < keyframe_count {
+        var data_address = file.long_at(array_offset + index * 8)
+        var data = file.view_at(data_address)
+        crash data
+        add_channelbags(data, skeleton)
+        index = index + 1
+    }
+}
+
+func add_channelbags(data: Blend.View, skeleton: Asset.Skeleton) {
+    var count = data.integer("channelbag_array_num")
+    var channelbag_array_address = data.pointer("channelbag_array")
+    var bags_offset = block_offset(channelbag_array_address)
+    var index = 0
+    while index < count {
+        var bag_address = file.long_at(bags_offset + index * 8)
+        var bag = file.view_at(bag_address)
+        crash bag
+        var curve_count = bag.integer("fcurve_array_num")
+        var fcurve_array_address = bag.pointer("fcurve_array")
+        var curves_offset = block_offset(fcurve_array_address)
+        var curve = 0
+        while curve < curve_count {
+            var curve_address = file.long_at(curves_offset + curve * 8)
+            add_curve(skeleton, curve_address)
+            curve = curve + 1
+        }
+        index = index + 1
+    }
+}
+
+func add_curve(skeleton: Asset.Skeleton, address: Long) {
+    var curve = file.view_at(address)
+    crash curve
+    var rna_path_address = curve.pointer("rna_path")
+    var path_block = file.block_at(rna_path_address)
+    crash path_block
+    var path = file.text_at(path_block.offset, path_block.length - 1)
+    assert path.starts_with("pose.bones[\"")
+    var name_end = path.index_of("\"]")
+    assert name_end > 12
+    var bone_name = path.slice(12, name_end)
+    var path_length = path.length()
+    var property = path.slice(name_end + 3, path_length)
+    var bone = index_of_name(skeleton.names, bone_name)
+    assert bone >= 0
+    var array_index = curve.integer("array_index")
+    var target_channel = -1
+    if property == "location" {
+        target_channel = array_index
+    } else if property == "rotation_quaternion" {
+        target_channel = 3 + array_index
+    } else if property == "scale" {
+        target_channel = 7 + array_index
+    }
+    assert target_channel >= 0
+    curve_bones.append(bone)
+    curve_channels.append(target_channel)
+    var bezt_address = curve.pointer("bezt")
+    var keys_offset = block_offset(bezt_address)
+    curve_offsets.append(keys_offset)
+    var key_count = curve.integer("totvert")
+    curve_counts.append(key_count)
+}
+
+func frame_range(action: Blend.View) {
+    first_frame = 1000000.0
+    last_frame = -1000000.0
+    var index = 0
+    while index < curve_offsets.count() {
+        crash curve_counts[index]
+        var keys = curve_offsets[index]
+        var count = curve_counts[index]
+        var first_key = key_frame(keys, 0)
+        var last_key = key_frame(keys, count - 1)
+        if first_key < first_frame {
+            first_frame = first_key
+        }
+        if last_key > last_frame {
+            last_frame = last_key
+        }
+        index = index + 1
+    }
+    if action.integer("flag").bits_and(4096) != 0 {
+        first_frame = action.float_at("frame_start", 0)
+        last_frame = action.float_at("frame_end", 0)
+    }
+    if first_frame > last_frame {
+        first_frame = 0.0
+        last_frame = 0.0
+    }
+}
+
+func key_frame(keys: Integer, key: Integer): Float {
+    return file.float_at(keys + key * 72 + 12)
+}
+
+func key_value(keys: Integer, key: Integer): Float {
+    return file.float_at(keys + key * 72 + 16)
+}
+
+func sample_frame(
+    animation: Asset.Animation,
+    frame: Float,
+    skeleton: Asset.Skeleton,
+    rests: List<Math.Matrix4>,
+    armature_world: Math.Matrix4,
+) {
+    var bone_count = skeleton.names.count()
+    channels.clear()
+    var bone = 0
+    while bone < bone_count {
+        rest_channels()
+        bone = bone + 1
+    }
+    var curve = 0
+    while curve < curve_offsets.count() {
+        crash curve_bones[curve]
+        crash curve_channels[curve]
+        crash curve_counts[curve]
+        var value = evaluate(curve_offsets[curve], curve_counts[curve], frame)
+        channels.set_at(curve_bones[curve] * 10 + curve_channels[curve], value)
+        curve = curve + 1
+    }
+    var posed = List<Math.Matrix4>()
+    var engine = List<Math.Matrix4>()
+    bone = 0
+    while bone < bone_count {
+        pose_bone(animation, bone, skeleton, rests, armature_world, posed, engine)
+        bone = bone + 1
+    }
+}
+
+func rest_channels() {
+    channels.append(0.0)
+    channels.append(0.0)
+    channels.append(0.0)
+    channels.append(1.0)
+    channels.append(0.0)
+    channels.append(0.0)
+    channels.append(0.0)
+    channels.append(1.0)
+    channels.append(1.0)
+    channels.append(1.0)
+}
+
+func channel(bone: Integer, index: Integer): Float {
+    crash channels[bone * 10 + index]
+    return channels[bone * 10 + index]
+}
+
+func pose_bone(
+    animation: Asset.Animation,
+    bone: Integer,
+    skeleton: Asset.Skeleton,
+    rests: List<Math.Matrix4>,
+    armature_world: Math.Matrix4,
+    posed: List<Math.Matrix4>,
+    engine: List<Math.Matrix4>,
+) {
+    var basis_pose = Math.Pose()
+    basis_pose.position_x = channel(bone, 0)
+    basis_pose.position_y = channel(bone, 1)
+    basis_pose.position_z = channel(bone, 2)
+    basis_pose.rotation_w = channel(bone, 3)
+    basis_pose.rotation_x = channel(bone, 4)
+    basis_pose.rotation_y = channel(bone, 5)
+    basis_pose.rotation_z = channel(bone, 6)
+    basis_pose.scale_x = channel(bone, 7)
+    basis_pose.scale_y = channel(bone, 8)
+    basis_pose.scale_z = channel(bone, 9)
+    normalize_rotation(basis_pose)
+    var basis = Math.Matrix4()
+    basis.set_pose(basis_pose)
+    crash rests[bone]
+    crash skeleton.parents[bone]
+    var rest = rests[bone]
+    var parent = skeleton.parents[bone]
+    var armature_pose = rest.multiplied(basis)
+    if parent >= 0 {
+        crash posed[parent]
+        crash rests[parent]
+        var parent_rest = rests[parent]
+        var parent_rest_inverse = parent_rest.inverted()
+        var parent_pose = posed[parent]
+        var through_parent = parent_pose.multiplied(parent_rest_inverse)
+        armature_pose = through_parent.multiplied(armature_pose)
+    }
+    posed.append(armature_pose)
+    var placed = armature_world.multiplied(armature_pose)
+    var in_engine = space.to_engine(placed)
+    engine.append(in_engine)
+    var local = in_engine
+    if parent >= 0 {
+        crash engine[parent]
+        var parent_engine = engine[parent]
+        var parent_inverse = parent_engine.inverted()
+        local = parent_inverse.multiplied(in_engine)
+    }
+    var local_pose = Math.Pose()
+    local.decompose(local_pose)
+    animation.keys.append(local_pose.position_x)
+    animation.keys.append(local_pose.position_y)
+    animation.keys.append(local_pose.position_z)
+    animation.keys.append(local_pose.rotation_x)
+    animation.keys.append(local_pose.rotation_y)
+    animation.keys.append(local_pose.rotation_z)
+    animation.keys.append(local_pose.rotation_w)
+    animation.keys.append(local_pose.scale_x)
+    animation.keys.append(local_pose.scale_y)
+    animation.keys.append(local_pose.scale_z)
+}
+
+func normalize_rotation(pose: Math.Pose) {
+    var length = scalar.square_root(
+        pose.rotation_x * pose.rotation_x + pose.rotation_y * pose.rotation_y + pose.rotation_z * pose.rotation_z + pose.rotation_w * pose.rotation_w,
+    )
+    assert length > 0.0
+    pose.rotation_x = pose.rotation_x / length
+    pose.rotation_y = pose.rotation_y / length
+    pose.rotation_z = pose.rotation_z / length
+    pose.rotation_w = pose.rotation_w / length
+}
+
+func evaluate(keys: Integer, count: Integer, frame: Float): Float {
+    if frame <= key_frame(keys, 0) or count == 1 {
+        return key_value(keys, 0)
+    }
+    if frame >= key_frame(keys, count - 1) {
+        return key_value(keys, count - 1)
+    }
+    var segment = 0
+    while segment + 1 < count and key_frame(keys, segment + 1) < frame {
+        segment = segment + 1
+    }
+    var start = keys + segment * 72
+    var end = start + 72
+    var interpolation = file.bytes.byte_at(start + 48)
+    var start_frame = file.float_at(start + 12)
+    var start_value = file.float_at(start + 16)
+    var end_frame = file.float_at(end + 12)
+    var end_value = file.float_at(end + 16)
+    if interpolation == 0 {
+        return start_value
+    }
+    if interpolation == 1 {
+        var linear = (frame - start_frame) / (end_frame - start_frame)
+        return start_value + (end_value - start_value) * linear
+    }
+    var handle_out_frame = file.float_at(start + 24)
+    var handle_out_value = file.float_at(start + 28)
+    var handle_in_frame = file.float_at(end)
+    var handle_in_value = file.float_at(end + 4)
+    var low: Float = 0.0
+    var high: Float = 1.0
+    var step = 0
+    while step < 30 {
+        var middle = (low + high) * 0.5
+        var at = cubic(start_frame, handle_out_frame, handle_in_frame, end_frame, middle)
+        if at < frame {
+            low = middle
+        } else {
+            high = middle
+        }
+        step = step + 1
+    }
+    var parameter = (low + high) * 0.5
+    return cubic(start_value, handle_out_value, handle_in_value, end_value, parameter)
+}
+
+func cubic(first: Float, second: Float, third: Float, fourth: Float, parameter: Float): Float {
+    var rest = 1.0 - parameter
+    return rest * rest * rest * first + 3.0 * rest * rest * parameter * second + 3.0 * rest * parameter * parameter * third + parameter * parameter * parameter * fourth
+}
+
+func block_offset(address: Long): Integer {
+    var block = file.block_at(address)
+    crash block
+    return block.offset
+}
+
+func index_of_name(names: List<String>, name: String): Integer {
+    var index = 0
+    while index < names.count() {
+        if names[index] == name {
+            return index
+        }
+        index = index + 1
+    }
+    return -1
+}

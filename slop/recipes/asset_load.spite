@@ -1,0 +1,23 @@
+generic $asset_type
+
+var path = ""
+var offset: Long = 0
+var length: Long = 0
+
+func AssetLoad(found: Recipes.Record) {
+    path = found.path
+    offset = found.offset
+    length = found.length
+}
+
+func run(): $asset_type {
+    var record = Recipes.Record()
+    record.path = path
+    record.offset = offset
+    record.length = length
+    var bytes = record.read()
+    var pack = Pack<$asset_type>()
+    var value = pack.decode(bytes)
+    crash value
+    return value
+}

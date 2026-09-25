@@ -1,0 +1,79 @@
+generic $asset_type
+
+var ids = List<String>()
+var values = List<$asset_type>()
+var ready = List<Boolean>()
+var loads = List<Parallel<$asset_type>>()
+var load_slots = List<Integer>()
+var sources = Recipes.Sources()
+var reader: Recipes.CacheReader? = null
+
+func request(id: String): Integer {
+    var index = 0
+    while index < ids.count() {
+        if ids[index] == id {
+            return index
+        }
+        index = index + 1
+    }
+    return start_loading(id)
+}
+
+func start_loading(id: String): Integer {
+    var slot = values.count()
+    ids.append(id)
+    var empty: $asset_type = null
+    values.append(empty)
+    ready.append(false)
+    var opened = opened_reader()
+    var record = opened.locate(id)
+    crash record
+    var job = Recipes.AssetLoad<$asset_type>(record)
+    var loading = Parallel(job.run)
+    loads.append(loading)
+    load_slots.append(slot)
+    return slot
+}
+
+func opened_reader(): Recipes.CacheReader {
+    if reader {
+        return reader
+    }
+    var cache_folder = sources.cache_folder()
+    var index_path = sources.index_path()
+    var created = Recipes.CacheReader(cache_folder, index_path)
+    created.read_index()
+    reader = created
+    return created
+}
+
+func is_ready(slot: Integer): Boolean {
+    crash slot < ready.count()
+    return ready[slot]
+}
+
+func value_at(slot: Integer): $asset_type {
+    crash values[slot]
+    return values[slot]
+}
+
+func finish_loads() {
+    var index = loads.count() - 1
+    while index >= 0 {
+        finish_if_done(index)
+        index = index - 1
+    }
+}
+
+func finish_if_done(index: Integer) {
+    crash loads[index]
+    crash load_slots[index]
+    var slot = load_slots[index]
+    var loading = loads[index]
+    assert loading.finished
+    var loaded: $asset_type = loading
+    values.set_at(slot, loaded)
+    ready.set_at(slot, true)
+    loads.remove_at(index)
+    load_slots.remove_at(index)
+}

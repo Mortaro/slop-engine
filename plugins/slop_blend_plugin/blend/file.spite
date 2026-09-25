@@ -1,7 +1,12 @@
 var bytes = Asset.Bytes()
 var raw = Raw()
+var floats = TypedMemory<Float>()
 var blocks = List<Blend.Block>()
 var by_address = Dictionary<Integer>()
+var same_address = List<Integer>()
+var by_offset = Dictionary<Integer>()
+var scope_start = -1
+var scope_end = -1
 var shapes = List<Blend.Shape>()
 var shape_index = Dictionary<Integer>()
 var names = List<String>()
@@ -25,6 +30,49 @@ func open(path: String) {
 
 func text_at(offset: Integer, length: Integer): String {
     return raw.text(bytes.address + offset, length)
+}
+
+func float_at(offset: Integer): Float {
+    var at = bytes.address + offset
+    return floats.read_value(at, 0)
+}
+
+func view_at(address: Long): Blend.View? {
+    assert address != 0
+    var block = block_at(address)
+    assert block
+    return view_of(block)
+}
+
+func list_views(list: Blend.View): List<Blend.View> {
+    var found = List<Blend.View>()
+    var address = list.pointer("first")
+    while address != 0 {
+        var view = view_at(address)
+        crash view
+        found.append(view)
+        address = view.pointer("next")
+    }
+    return found
+}
+
+func list_addresses(list: Blend.View): List<Long> {
+    var found = List<Long>()
+    var address = list.pointer("first")
+    while address != 0 {
+        found.append(address)
+        var view = view_at(address)
+        crash view
+        address = view.pointer("next")
+    }
+    return found
+}
+
+func id_name(view: Blend.View): String {
+    var identity = view.inner("id")
+    var full = identity.text("name")
+    var length = full.length()
+    return full.slice(2, length)
 }
 
 func integer_at(offset: Integer): Integer {
@@ -78,11 +126,28 @@ func code_at(position: Integer): String {
 func record_block(block: Blend.Block) {
     var index = blocks.count()
     blocks.append(block)
+    same_address.append(-1)
+    by_offset.set("{block.offset}", index)
     if block.code == "DNA1" {
         read_dna(block.offset)
     }
     assert block.old_address != 0
-    by_address.set("{block.old_address}", index)
+    var key = "{block.old_address}"
+    var earlier = by_address.get(key)
+    if earlier {
+        same_address.set_at(index, earlier)
+    }
+    by_address.set(key, index)
+}
+
+func enter(owner: Blend.View) {
+    var found = by_offset.get("{owner.offset}")
+    crash found
+    scope_start = found
+    scope_end = found + 1
+    while scope_end < blocks.count() and blocks[scope_end].code == "DATA" {
+        scope_end = scope_end + 1
+    }
 }
 
 func read_dna(start: Integer) {
@@ -241,7 +306,18 @@ func shape_named(name: String): Blend.Shape {
 func block_at(address: Long): Blend.Block? {
     var found = by_address["{address}"]
     assert found
-    return blocks[found]
+    var first_found = found
+    var candidate = found
+    while candidate >= 0 {
+        crash blocks[candidate]
+        var block = blocks[candidate]
+        if block.code != "DATA" or candidate > scope_start and candidate < scope_end {
+            return block
+        }
+        crash same_address[candidate]
+        candidate = same_address[candidate]
+    }
+    return blocks[first_found]
 }
 
 func view_of(block: Blend.Block): Blend.View {

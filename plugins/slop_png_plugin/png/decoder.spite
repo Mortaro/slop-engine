@@ -1,0 +1,520 @@
+var raw = Raw()
+var inflate = Png.Inflate()
+var width = 0
+var height = 0
+var depth = 0
+var color_type = 0
+var compression = 0
+var filter_method = 0
+var interlace = 0
+var channels = 0
+var palette = List<Integer>()
+var has_key = false
+var key_red = 0
+var key_green = 0
+var key_blue = 0
+var data = Asset.Bytes()
+var zero_row = Asset.Bytes()
+var broken = false
+var ended = false
+var column_starts = [0, 4, 0, 2, 0, 1, 0, 0]
+var row_starts = [0, 0, 4, 0, 2, 0, 1, 0]
+var column_steps = [8, 8, 4, 4, 2, 2, 1, 1]
+var row_steps = [8, 8, 8, 4, 4, 2, 2, 1]
+
+func decode(bytes: Asset.Bytes): Asset.Texture? {
+    reset()
+    assert has_signature(bytes)
+    read_chunks(bytes)
+    assert not broken and ended and header_is_valid()
+    var expected = inflated_length()
+    var inflated = inflate.decompress(data, expected)
+    assert not inflate.failed and inflated.length == expected
+    var texture = Asset.Texture()
+    texture.width = width
+    texture.height = height
+    var total = width * height
+    while texture.pixels.count() < total {
+        texture.pixels.append(0)
+    }
+    var unfiltered = decode_passes(inflated, texture)
+    assert unfiltered
+    return texture
+}
+
+func reset() {
+    width = 0
+    height = 0
+    depth = 0
+    color_type = 0
+    interlace = 0
+    palette.clear()
+    has_key = false
+    data.clear()
+    broken = false
+    ended = false
+}
+
+func has_signature(bytes: Asset.Bytes): Boolean {
+    var signature = [137, 80, 78, 71, 13, 10, 26, 10]
+    assert bytes.length > 8
+    var index = 0
+    var matching = true
+    while index < signature.count() {
+        var found = bytes.byte_at(index)
+        matching = matching and found == signature[index]
+        index = index + 1
+    }
+    return matching
+}
+
+func read_chunks(bytes: Asset.Bytes) {
+    var offset = 8
+    while not broken and not ended {
+        broken = offset + 12 > bytes.length
+        offset = read_chunk(bytes, offset)
+    }
+}
+
+func read_chunk(bytes: Asset.Bytes, offset: Integer): Integer {
+    assert not broken
+    var length = bytes.big_endian_integer(offset)
+    var finish: Long = length
+    finish = finish + offset + 12
+    broken = length < 0 or finish > bytes.length
+    assert not broken
+    var kind = raw.text(bytes.address + offset + 4, 4)
+    var body = offset + 8
+    if kind == "IHDR" {
+        read_header(bytes, body, length)
+    } else if kind == "PLTE" {
+        read_palette(bytes, body, length)
+    } else if kind == "tRNS" {
+        read_transparency(bytes, body, length)
+    } else if kind == "IDAT" {
+        data.write_bytes(bytes.address + body, length)
+    } else if kind == "IEND" {
+        ended = true
+    }
+    return finish
+}
+
+func read_header(bytes: Asset.Bytes, body: Integer, length: Integer) {
+    broken = length < 13
+    assert not broken
+    width = bytes.big_endian_integer(body)
+    height = bytes.big_endian_integer(body + 4)
+    depth = bytes.byte_at(body + 8)
+    color_type = bytes.byte_at(body + 9)
+    compression = bytes.byte_at(body + 10)
+    filter_method = bytes.byte_at(body + 11)
+    interlace = bytes.byte_at(body + 12)
+}
+
+func read_palette(bytes: Asset.Bytes, body: Integer, length: Integer) {
+    var entries = length / 3
+    broken = entries > 256 or length % 3 != 0
+    var index = 0
+    while index < entries {
+        var at = body + index * 3
+        var red = bytes.byte_at(at)
+        var green = bytes.byte_at(at + 1)
+        var blue = bytes.byte_at(at + 2)
+        var texel = pack(red, green, blue, 255)
+        palette.append(texel)
+        index = index + 1
+    }
+}
+
+func read_transparency(bytes: Asset.Bytes, body: Integer, length: Integer) {
+    if color_type == 3 {
+        read_palette_alpha(bytes, body, length)
+    } else if color_type == 0 {
+        has_key = length >= 2
+        key_red = key_sample(bytes, body, length, 0)
+        key_green = key_red
+        key_blue = key_red
+    } else if color_type == 2 {
+        has_key = length >= 6
+        key_red = key_sample(bytes, body, length, 0)
+        key_green = key_sample(bytes, body, length, 2)
+        key_blue = key_sample(bytes, body, length, 4)
+    }
+}
+
+func key_sample(bytes: Asset.Bytes, body: Integer, length: Integer, at: Integer): Integer {
+    assert at + 2 <= length
+    return bytes.big_endian_short(body + at)
+}
+
+func read_palette_alpha(bytes: Asset.Bytes, body: Integer, length: Integer) {
+    var index = 0
+    while index < length and index < palette.count() {
+        var alpha = bytes.byte_at(body + index)
+        var entry = palette.get_at(index)
+        var color = entry.bits_and(16777215)
+        var alpha_part = alpha.shifted_left(24)
+        var texel = color.bits_or(alpha_part)
+        palette.set_at(index, texel)
+        index = index + 1
+    }
+}
+
+func header_is_valid(): Boolean {
+    assert width > 0 and height > 0 and width <= 32768 and height <= 32768
+    var area: Long = width
+    area = area * height
+    assert area <= 67108864
+    assert compression == 0 and filter_method == 0 and interlace <= 1
+    channels = channels_of(color_type)
+    assert channels > 0 and depth_fits()
+    return color_type != 3 or not palette.is_empty()
+}
+
+func channels_of(kind: Integer): Integer {
+    if kind == 0 or kind == 3 {
+        return 1
+    } else if kind == 2 {
+        return 3
+    } else if kind == 4 {
+        return 2
+    } else if kind == 6 {
+        return 4
+    }
+    return 0
+}
+
+func depth_fits(): Boolean {
+    if color_type == 0 {
+        return depth == 1 or depth == 2 or depth == 4 or depth == 8 or depth == 16
+    } else if color_type == 3 {
+        return depth == 1 or depth == 2 or depth == 4 or depth == 8
+    }
+    return depth == 8 or depth == 16
+}
+
+func first_pass(): Integer {
+    var pass = 7
+    if interlace == 1 {
+        pass = 0
+    }
+    return pass
+}
+
+func pass_end(): Integer {
+    return 8 - interlace
+}
+
+func pass_columns(pass: Integer): Integer {
+    crash column_starts[pass]
+    crash column_steps[pass]
+    var start = column_starts[pass]
+    var step = column_steps[pass]
+    assert width > start
+    return (width - start + step - 1) / step
+}
+
+func pass_rows(pass: Integer): Integer {
+    crash row_starts[pass]
+    crash row_steps[pass]
+    var start = row_starts[pass]
+    var step = row_steps[pass]
+    assert height > start
+    return (height - start + step - 1) / step
+}
+
+func stride_of(columns: Integer): Integer {
+    var bits = columns * channels * depth
+    return (bits + 7) / 8
+}
+
+func inflated_length(): Integer {
+    var total = 0
+    var pass = first_pass()
+    var end = pass_end()
+    while pass < end {
+        var columns = pass_columns(pass)
+        var rows = pass_rows(pass)
+        var stride = stride_of(columns)
+        total = total + pass_size(columns, rows, stride)
+        pass = pass + 1
+    }
+    return total
+}
+
+func pass_size(columns: Integer, rows: Integer, stride: Integer): Integer {
+    assert columns > 0 and rows > 0
+    return rows * (stride + 1)
+}
+
+func decode_passes(inflated: Asset.Bytes, texture: Asset.Texture): Boolean {
+    var widest = stride_of(width)
+    zero_row.clear()
+    while zero_row.length < widest {
+        zero_row.write_byte(0)
+    }
+    var bytes_per_pixel = channels * depth / 8
+    if bytes_per_pixel < 1 {
+        bytes_per_pixel = 1
+    }
+    var offset = 0
+    var valid = true
+    var pass = first_pass()
+    var end = pass_end()
+    while pass < end and valid {
+        var columns = pass_columns(pass)
+        var rows = pass_rows(pass)
+        var stride = stride_of(columns)
+        var start = inflated.address + offset
+        valid = decode_pass(start, pass, columns, rows, stride, bytes_per_pixel, texture)
+        offset = offset + pass_size(columns, rows, stride)
+        pass = pass + 1
+    }
+    return valid
+}
+
+func decode_pass(
+    start: Long,
+    pass: Integer,
+    columns: Integer,
+    rows: Integer,
+    stride: Integer,
+    bytes_per_pixel: Integer,
+    texture: Asset.Texture,
+): Boolean {
+    if columns == 0 or rows == 0 {
+        return true
+    }
+    crash column_starts[pass]
+    crash column_steps[pass]
+    crash row_starts[pass]
+    crash row_steps[pass]
+    var previous = zero_row.address
+    var valid = true
+    var row = 0
+    while row < rows and valid {
+        var line = start + row * (stride + 1)
+        var filter = raw.read_byte(line, 0)
+        var pixels = line + 1
+        valid = unfilter(filter, pixels, previous, stride, bytes_per_pixel)
+        var target_row = row_starts[pass] + row * row_steps[pass]
+        place_row(pixels, columns, target_row, column_starts[pass], column_steps[pass], texture)
+        previous = pixels
+        row = row + 1
+    }
+    return valid
+}
+
+func unfilter(filter: Integer, pixels: Long, previous: Long, stride: Integer, step: Integer): Boolean {
+    if filter == 1 {
+        unfilter_sub(pixels, stride, step)
+    } else if filter == 2 {
+        unfilter_up(pixels, previous, stride)
+    } else if filter == 3 {
+        unfilter_average(pixels, previous, stride, step)
+    } else if filter == 4 {
+        unfilter_paeth(pixels, previous, stride, step)
+    }
+    return filter >= 0 and filter <= 4
+}
+
+func unsigned_at(address: Long, index: Integer): Integer {
+    var value = raw.read_byte(address, index)
+    return value.bits_and(255)
+}
+
+func unfilter_sub(pixels: Long, stride: Integer, step: Integer) {
+    var index = step
+    while index < stride {
+        var left = raw.read_byte(pixels, index - step)
+        var value = raw.read_byte(pixels, index)
+        raw.write_byte(pixels, index, value + left)
+        index = index + 1
+    }
+}
+
+func unfilter_up(pixels: Long, previous: Long, stride: Integer) {
+    var index = 0
+    while index < stride {
+        var above = raw.read_byte(previous, index)
+        var value = raw.read_byte(pixels, index)
+        raw.write_byte(pixels, index, value + above)
+        index = index + 1
+    }
+}
+
+func unfilter_average(pixels: Long, previous: Long, stride: Integer, step: Integer) {
+    var index = 0
+    while index < stride {
+        var above = unsigned_at(previous, index)
+        var left = 0
+        if index >= step {
+            left = unsigned_at(pixels, index - step)
+        }
+        var value = raw.read_byte(pixels, index)
+        var average = (left + above) / 2
+        raw.write_byte(pixels, index, value + average)
+        index = index + 1
+    }
+}
+
+func unfilter_paeth(pixels: Long, previous: Long, stride: Integer, step: Integer) {
+    var index = 0
+    while index < stride {
+        var above = unsigned_at(previous, index)
+        var left = 0
+        var corner = 0
+        if index >= step {
+            left = unsigned_at(pixels, index - step)
+            corner = unsigned_at(previous, index - step)
+        }
+        var value = raw.read_byte(pixels, index)
+        var predicted = paeth(left, above, corner)
+        raw.write_byte(pixels, index, value + predicted)
+        index = index + 1
+    }
+}
+
+func paeth(left: Integer, above: Integer, corner: Integer): Integer {
+    var to_left = distance_between(above, corner)
+    var to_above = distance_between(left, corner)
+    var sum = left + above
+    var to_corner = distance_between(sum, corner * 2)
+    if to_left <= to_above and to_left <= to_corner {
+        return left
+    } else if to_above <= to_corner {
+        return above
+    }
+    return corner
+}
+
+func distance_between(first: Integer, second: Integer): Integer {
+    if first > second {
+        return first - second
+    }
+    return second - first
+}
+
+func place_row(
+    pixels: Long,
+    columns: Integer,
+    target_row: Integer,
+    column_start: Integer,
+    column_step: Integer,
+    texture: Asset.Texture,
+) {
+    var first = target_row * width + column_start
+    var column = 0
+    while column < columns {
+        var texel = texel_at(pixels, column)
+        texture.pixels.set_at(first + column * column_step, texel)
+        column = column + 1
+    }
+}
+
+func texel_at(pixels: Long, column: Integer): Integer {
+    if color_type == 6 {
+        return rgba_texel(pixels, column)
+    } else if color_type == 2 {
+        return rgb_texel(pixels, column)
+    } else if color_type == 3 {
+        return palette_texel(pixels, column)
+    } else if color_type == 4 {
+        return grey_alpha_texel(pixels, column)
+    }
+    return grey_texel(pixels, column)
+}
+
+func rgba_texel(pixels: Long, column: Integer): Integer {
+    var index = column * 4
+    var red = sample(pixels, index)
+    var green = sample(pixels, index + 1)
+    var blue = sample(pixels, index + 2)
+    var alpha = sample(pixels, index + 3)
+    return pack_samples(red, green, blue, alpha)
+}
+
+func rgb_texel(pixels: Long, column: Integer): Integer {
+    var index = column * 3
+    var red = sample(pixels, index)
+    var green = sample(pixels, index + 1)
+    var blue = sample(pixels, index + 2)
+    var alpha = opaque_sample()
+    if has_key and red == key_red and green == key_green and blue == key_blue {
+        alpha = 0
+    }
+    return pack_samples(red, green, blue, alpha)
+}
+
+func grey_alpha_texel(pixels: Long, column: Integer): Integer {
+    var index = column * 2
+    var grey = sample(pixels, index)
+    var alpha = sample(pixels, index + 1)
+    return pack_samples(grey, grey, grey, alpha)
+}
+
+func grey_texel(pixels: Long, column: Integer): Integer {
+    var grey = sample(pixels, column)
+    var alpha = opaque_sample()
+    if has_key and grey == key_red {
+        alpha = 0
+    }
+    return pack_samples(grey, grey, grey, alpha)
+}
+
+func palette_texel(pixels: Long, column: Integer): Integer {
+    var index = sample(pixels, column)
+    if index < palette.count() {
+        return palette.get_at(index)
+    }
+    return -16777216
+}
+
+func opaque_sample(): Integer {
+    var one = 1
+    var shifted = one.shifted_left(depth)
+    return shifted - 1
+}
+
+func sample(pixels: Long, index: Integer): Integer {
+    if depth == 8 {
+        return unsigned_at(pixels, index)
+    } else if depth == 16 {
+        var high = unsigned_at(pixels, index * 2)
+        var low = unsigned_at(pixels, index * 2 + 1)
+        return high * 256 + low
+    }
+    var bit = index * depth
+    var byte_index = bit.shifted_right(3)
+    var packed = unsigned_at(pixels, byte_index)
+    var within = bit.bits_and(7)
+    var shift = 8 - depth - within
+    var shifted = packed.shifted_right(shift)
+    var sample_mask = opaque_sample()
+    return shifted.bits_and(sample_mask)
+}
+
+func to_eight_bits(value: Integer): Integer {
+    if depth == 8 {
+        return value
+    } else if depth == 16 {
+        return value.shifted_right(8)
+    }
+    var most = opaque_sample()
+    return value * 255 / most
+}
+
+func pack_samples(red: Integer, green: Integer, blue: Integer, alpha: Integer): Integer {
+    var red_eight = to_eight_bits(red)
+    var green_eight = to_eight_bits(green)
+    var blue_eight = to_eight_bits(blue)
+    var alpha_eight = to_eight_bits(alpha)
+    return pack(red_eight, green_eight, blue_eight, alpha_eight)
+}
+
+func pack(red: Integer, green: Integer, blue: Integer, alpha: Integer): Integer {
+    var alpha_part = alpha.shifted_left(24)
+    var blue_part = blue.shifted_left(16)
+    var green_part = green.shifted_left(8)
+    return alpha_part.bits_or(blue_part).bits_or(green_part).bits_or(red)
+}

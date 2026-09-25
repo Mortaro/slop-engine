@@ -47,6 +47,12 @@ func float_at(name: String, index: Integer): Float {
     return floats.read_value(address, 0)
 }
 
+func long_value(name: String): Long {
+    var described = field(name)
+    crash file
+    return file.long_at(offset + described.offset)
+}
+
 func pointer(name: String): Long {
     var described = field(name)
     crash described.pointer
