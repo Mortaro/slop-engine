@@ -286,7 +286,8 @@ var pixels = List<Integer>()
 
 ## Loaders in pure Spite
 
-No installed software is needed to read a source file:
+No installed software is needed to read a source file. Each loader is a plugin; `slop/` itself knows only the assets
+it contributes ([docs/loaders.md](docs/loaders.md)):
 
 | Loader | State |
 |---|---|
@@ -312,9 +313,9 @@ slop/                     the core, loaded by every program
   pack.spite, field.spite, list_field.spite   the derived asset codec
   asset/                  Asset.Bytes, Asset.Texture
   recipes/                Recipes.Cache, Recipes.Glsl
-  psd/, zstd/, blend/     the loaders
 plugins/                  each loaded on its own: plugins/slop_<feature>_plugin/<feature>/{component,system,assets,...}
   window/, input/, ui/, render/, render_software/, render_vulkan/
+  psd/, zstd/, blend/     the source-format loaders, loaded by whoever has a recipe that reads them
                           (window: component/window, bundle/window, system/open_window, pump_messages;
                            ui: component/button, label, text, hovered, pressed; system/interact)
 examples/

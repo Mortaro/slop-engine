@@ -25,8 +25,11 @@ producing the same events; a controller family (XInput, a console pad) is a plug
 components.
 
 `slop_platform_plugin` picks the platform from `Build` (`if build.target_operating_system == "windows"
-{ load(...) }`), which is how a program should load it. A `load` behind a `Build` condition doesn't load today (a
-Spite bug, reported), so programs load `slop_windows_plugin` directly until it is fixed.
+{ load "../../slop_windows_plugin" }`, folded at compile time, D186), which is how a program loads it.
+
+A source format is a plugin too. `slop/` knows only the assets it contributes; `slop_psd_plugin`,
+`slop_blend_plugin` and `slop_zstd_plugin` are loaded by whoever has a recipe that reads that format, usually a theme
+or a game's own plugin ([loaders.md](loaders.md)).
 
 ## A theme is one plugin
 

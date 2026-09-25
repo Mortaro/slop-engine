@@ -1,0 +1,3 @@
+func Blend() {
+    load "../../slop_zstd_plugin"
+}

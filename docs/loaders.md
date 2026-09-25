@@ -1,9 +1,21 @@
 # Loaders in pure Spite
 
-No installed software is needed to read a source file. Each format is Spite code in `slop/`, reverse-engineered where
-it had to be, and checked against a reference.
+No installed software is needed to read a source file. Each format is Spite code, reverse-engineered where it had to
+be, and checked against a reference.
 
-## PSD (`slop/psd/`)
+`slop/` knows no source format. It knows only the assets it contributes (`Asset.Bytes`, `Asset.Texture`; a mesh asset
+is next), and each loader is a plugin a program or a theme loads when one of its recipes reads that format:
+
+| Plugin | Namespace | Loads |
+|---|---|---|
+| `plugins/slop_psd_plugin` | `Psd` | nothing else |
+| `plugins/slop_zstd_plugin` | `Zstd` | nothing else |
+| `plugins/slop_blend_plugin` | `Blend` | `slop_zstd_plugin`, since Blender compresses with zstd |
+
+`click_counter_theme_plugin` loads `slop_psd_plugin` from `theme/theme.spite`, because its recipe cuts `buttons.psd`
+into textures; a game using that theme never names the PSD loader itself.
+
+## PSD (`slop_psd_plugin`)
 
 - `Psd.Document.open(path)` reads 8-bit RGB documents: the header, the layer records (bounds, channels, opacity,
   flags, masks, Pascal and Unicode names, group dividers), and builds each layer's `path` (`Plates/Primary/Normal`)
@@ -14,7 +26,7 @@ it had to be, and checked against a reference.
 
 Checked: the three primary button plates of `buttons.psd` match a reference decoder's output pixel for pixel.
 
-## zstd (`slop/zstd/`)
+## zstd (`slop_zstd_plugin`)
 
 RFC 8878, because every `.blend` Blender 5 saves is zstd-compressed.
 
@@ -25,7 +37,7 @@ RFC 8878, because every `.blend` Blender 5 saves is zstd-compressed.
 `Zstd.BitReader` reads the backward bit streams with D117's bitwise functions. Checked: byte-identical with Zig's
 standard-library decoder on a 261 MB archer file, in 0.86 s.
 
-## .blend (`slop/blend/`)
+## .blend (`slop_blend_plugin`)
 
 Blender 5.2's format (`BLENDER17-01`): a 17-byte header, then blocks with 32-byte headers (code, SDNA index, old
 address, 64-bit length and count).
