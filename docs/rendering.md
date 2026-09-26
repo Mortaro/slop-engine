@@ -52,5 +52,6 @@ through both backends and compares every pixel. Today: 0 of 256,000 differ.
 
 Spite can't pass a function to C yet, so there is no window procedure written in Spite. `OpenWindow` registers a
 window class whose procedure is `DefWindowProcA` itself, found with `GetProcAddress`. `PumpMessages` reads mouse
-messages out of the queue with `PeekMessageA` before dispatching them, and notices a closed window when `IsWindow`
-turns false. Keyboard text and resizing need a real callback; they wait on the language.
+and keyboard messages (`WM_KEYDOWN`, `WM_KEYUP`, `WM_CHAR`) out of the queue with `PeekMessageA` before dispatching
+them, and notices a closed window when `IsWindow` turns false. Resizing, fullscreen and IME need a real callback;
+they wait on the language.

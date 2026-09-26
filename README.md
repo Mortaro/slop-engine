@@ -250,7 +250,8 @@ Vulkan is called through `DynamicLibrary("vulkan-1.dll", ...)` alone. Its struct
 `RenderVulkan.Structure`, which appends fields in declaration order and pads to natural alignment.
 
 The window has no window procedure, because Spite can't pass a callback to C yet. `OpenWindow` registers
-`DefWindowProcA` itself, and `PumpMessages` reads mouse messages out of the queue before dispatching them.
+`DefWindowProcA` itself, and `PumpMessages` reads mouse and keyboard messages out of the queue before dispatching
+them. Resizing waits on callbacks.
 
 ## Recipes and assets
 
@@ -294,7 +295,7 @@ it contributes ([docs/loaders.md](docs/loaders.md)):
 | `Psd.Document`, `Psd.Layers` | 8-bit RGB, raw and PackBits, groups, masks. **Bit-exact** with a reference decoder on `buttons.psd` |
 | `Zstd.Decoder` | RFC 8878. **Byte-identical** with Zig's std decoder on a 261 MB `.blend`, in 0.86 s |
 | `Blend.File`, `Blend.View` | Blender 5.2 (`BLENDER17-01`): blocks, SDNA, any field by name, pointers, `AttributeStorage` |
-| meshes, normals, skeletons, skins, animations, packed PNG textures from `.blend` | not built yet: next |
+| meshes, normals, skeletons, skins, animations, packed PNG textures from `.blend` | built for the Kal archer ([docs/scene.md](docs/scene.md)); fan triangulation, one UV set, no custom normals |
 | GLSL to SPIR-V | still `glslangValidator` from the Vulkan SDK: the one tool dependency left |
 
 ## Layout
@@ -340,8 +341,9 @@ examples/
 | Vulkan and software backends with pixel parity | built |
 | Recipes as code, assets as declared classes, PSD, zstd, `.blend` structure | built |
 | Read-only and filter-only access, per-environment builds | not built: need compile-time reads and writes |
-| Blender meshes, skeletons, skins, animations, textures | not built: next |
-| Thread pool, parallel iteration inside one system | not built |
+| Blender meshes, skeletons, skins, animations, textures | built ([docs/scene.md](docs/scene.md)) |
+| Thread pool (`Parallel`, `Concurrent`, IO systems) | built |
+| Parallel iteration inside one system | not built |
 
 ## Numbers
 
