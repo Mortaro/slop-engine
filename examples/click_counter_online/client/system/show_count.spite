@@ -8,7 +8,7 @@ type CountText {
 }
 
 func update_each(counter: Counter, shown: CountText) {
-    var text = "{counter.count.clicks}"
+    var text = counter.count.clicks.to_string()
     if shown.text.text != text {
         shown.text.text = text
     }

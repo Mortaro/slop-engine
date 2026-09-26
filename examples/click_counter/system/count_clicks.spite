@@ -10,5 +10,5 @@ type CountText {
 
 func update_each(counter: ClickedCounter, shown: CountText) {
     counter.click_count.clicks = counter.click_count.clicks + 1
-    shown.text.text = "{counter.click_count.clicks}"
+    shown.text.text = counter.click_count.clicks
 }

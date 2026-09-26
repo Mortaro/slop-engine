@@ -27,7 +27,7 @@ func last_each(counted: Counted, shown: Shown, tested: Tested, quitting: Quittin
     var text = shown.text.text
     var texture = counted.image.texture
     var layout = counted.layout
-    var expected_text = "{progress.wanted}"
+    var expected_text = progress.wanted.to_string()
     var counted_right = clicks == progress.wanted and text == expected_text
     var placed_right = layout.left == 232.0 and layout.width == 176.0 and layout.height == 40.0
     var passed = counted_right and placed_right and texture == "ui.button.primary.hover"
