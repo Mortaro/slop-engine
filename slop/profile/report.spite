@@ -1,0 +1,3 @@
+var frame: Profile.Entry? = null
+var stages = List<Profile.Entry>()
+var systems = List<Profile.Entry>()

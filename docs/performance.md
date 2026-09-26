@@ -16,6 +16,23 @@
 
 About 150 ns per entity per system: better, and still about two orders of magnitude from a native ECS.
 
+## Measuring: the profile
+
+Every frame, the app times the whole frame, each stage and each system's `run_once` with the monotonic clock. The
+cost is two clock reads per system per frame. `app.profile()` returns a `Profile.Report`: the frame, each stage and
+each system as a `Profile.Entry` (name, phase, stage, runs, and average, last and worst microseconds).
+`app.profile_json()` writes the report as JSON; `stress` prints it after its ticks:
+
+```
+{"frame":{"name":"frame",...,"average_microseconds":9317,...},
+ "stages":[...,{"name":"stage 1","phase":"update","stage":1,"runs":20,"average_microseconds":9292,...}],
+ "systems":[...,{"name":"System.Move","phase":"update","stage":1,"runs":20,"average_microseconds":9110,...}]}
+```
+
+Systems in one stage run in parallel, so a stage takes about as long as its slowest system, not the sum. An IO
+system's time counts only the part on the frame (queueing its rows); the waits on its workers happen off the frame
+and are not in the report. GPU timestamps per pass are not built yet. The profile API is a proposal by Claude.
+
 ## Where the time goes
 
 - Every matched entity fills a row: each field is a typed read through `Slot<T>`, and a replaced component is written

@@ -32,6 +32,8 @@ var pending = 0
 var workers: List<Concurrent<Nothing>>? = null
 var worker_limit = 8
 var world = World()
+var timing = Profile.Timing()
+var clock = Clock()
 
 func Runner() {
     name = columns.key(system.class)
@@ -86,11 +88,14 @@ func note_accesses(keys: List<String>) {
 }
 
 func run_once() {
+    var started = clock.elapsed_nanoseconds()
     world.enter(buffer)
     run_phases_each()
     run_phases_all()
     last_run = columns.stage_counter
     world.enter(0)
+    var finished = clock.elapsed_nanoseconds()
+    timing.record(finished - started)
 }
 
 func run_phase_each(phase: Symbol<$system_type.phase_each>) {

@@ -1,0 +1,18 @@
+var runs = 0
+var total: Long = 0
+var last: Long = 0
+var worst: Long = 0
+
+func record(nanoseconds: Long) {
+    runs = runs + 1
+    total = total + nanoseconds
+    last = nanoseconds
+    if nanoseconds > worst {
+        worst = nanoseconds
+    }
+}
+
+func average(): Long {
+    assert runs > 0
+    return total / runs
+}

@@ -25,6 +25,8 @@ func Stress() {
     console.print("bodies", environment.bodies, "parallel", app.parallel)
     console.print("spawn milliseconds", spawn_milliseconds)
     console.print("average tick microseconds", tick_microseconds)
+    var profile = app.profile_json()
+    console.print(profile)
     despawn_every(app, ids)
 }
 

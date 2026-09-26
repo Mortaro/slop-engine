@@ -1,0 +1,18 @@
+var name = ""
+var phase = ""
+var stage = -1
+var runs = 0
+var average_microseconds: Long = 0
+var last_microseconds: Long = 0
+var worst_microseconds: Long = 0
+
+func Entry(entry_name: String, entry_phase: String, entry_stage: Integer, timing: Profile.Timing) {
+    name = entry_name
+    phase = entry_phase
+    stage = entry_stage
+    runs = timing.runs
+    var average = timing.average()
+    average_microseconds = average / 1000
+    last_microseconds = timing.last / 1000
+    worst_microseconds = timing.worst / 1000
+}
