@@ -1,0 +1,113 @@
+var cookbook = Recipes.Cookbook()
+var console = Console()
+var world = World()
+var program = Program()
+
+func RenderParity() {
+    load "../../slop"
+    load "../../plugins/slop_window_plugin"
+    load "../../plugins/slop_platform_plugin"
+    load "../../plugins/slop_input_plugin"
+    load "../../plugins/slop_ui_plugin"
+    load "../../plugins/slop_render_plugin"
+    load "../../plugins/slop_render_software_plugin"
+    load "../../plugins/slop_render_vulkan_plugin"
+    load "../../plugins/slop_psd_plugin"
+    cookbook.cook()
+    var app = App()
+    var target = spawn_target()
+    var screen_bundle = Bundle.Screen()
+    var screen = world.create_entity_from_bundle(screen_bundle)
+    var title = Bundle.Title(screen.id)
+    world.create_entity_from_bundle(title)
+    var counter_button_bundle = Bundle.CounterButton(screen.id)
+    var button = world.create_entity_from_bundle(counter_button_bundle)
+    var count_label = Bundle.CountLabel(button.id)
+    world.create_entity_from_bundle(count_label)
+    var clipped_panel_bundle = Bundle.ClippedPanel(screen.id)
+    var panel = world.create_entity_from_bundle(clipped_panel_bundle)
+    var panel_image = Bundle.PanelImage(panel.id)
+    world.create_entity_from_bundle(panel_image)
+    var panel_text = Bundle.PanelText(panel.id)
+    world.create_entity_from_bundle(panel_text)
+    app.tick()
+    app.tick()
+    app.tick()
+    var textures = Lookup<Render.Component.Textures>().of(target)
+    crash textures
+    while not textures.all_ready() {
+        program.sleep(1)
+        app.tick()
+    }
+    var draw_list = Lookup<Render.Component.DrawList>().of(target)
+    var canvas = Lookup<RenderSoftware.Component.Canvas>().of(target)
+    crash draw_list
+    crash canvas
+    var renderer = RenderVulkan.Component.Renderer()
+    renderer.ensure()
+    renderer.draw_offscreen(draw_list, textures)
+    compare(draw_list, canvas, renderer)
+    check_clipping(panel.id, canvas, draw_list.clear_color)
+    renderer.release_device()
+}
+
+func check_clipping(panel: Integer, canvas: RenderSoftware.Component.Canvas, clear_color: Integer) {
+    var layout = Lookup<Ui.Component.ComputedLayout>().of(panel)
+    crash layout
+    var row: Integer = layout.top + 13.0
+    var outside: Integer = layout.left + layout.width + 5.0
+    var inside: Integer = layout.left + 23.0
+    var beyond = canvas.pixel_at(outside, row)
+    var within = canvas.pixel_at(inside, row)
+    console.print("clipping: beside the panel", beyond, "inside it", within)
+    crash beyond == clear_color
+    crash within != clear_color and within != 3355443
+}
+
+func spawn_target(): Integer {
+    var target = world.create_entity().id
+    var offscreen = Component.Offscreen()
+    Entity(target).add_component(offscreen)
+    var draw_list = Render.Component.DrawList()
+    Entity(target).add_component(draw_list)
+    var clear_color = Render.Component.ClearColor()
+    Entity(target).add_component(clear_color)
+    var textures = Render.Component.Textures()
+    Entity(target).add_component(textures)
+    return target
+}
+
+func compare(
+    draw_list: Render.Component.DrawList,
+    canvas: RenderSoftware.Component.Canvas,
+    renderer: RenderVulkan.Component.Renderer,
+) {
+    var different = 0
+    var top = 0
+    while top < draw_list.height {
+        different = different + different_in_row(canvas, renderer, draw_list.width, top)
+        top = top + 1
+    }
+    var total = draw_list.width * draw_list.height
+    console.print("rectangles", draw_list.count, "pixels", total, "different", different)
+    crash different == 0
+}
+
+func different_in_row(
+    canvas: RenderSoftware.Component.Canvas,
+    renderer: RenderVulkan.Component.Renderer,
+    width: Integer,
+    top: Integer,
+): Integer {
+    var different = 0
+    var left = 0
+    while left < width {
+        var software = canvas.pixel_at(left, top)
+        var vulkan = renderer.pixel_at(left, top)
+        if software != vulkan {
+            different = different + 1
+        }
+        left = left + 1
+    }
+    return different
+}

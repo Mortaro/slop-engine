@@ -1,0 +1,3 @@
+func Theme() {
+    load "../../../plugins/slop_psd_plugin"
+}

@@ -1,0 +1,23 @@
+var parent = Ui.Component.Parent()
+var width = Ui.Component.Width()
+var height = Ui.Component.Height()
+var padding = Ui.Component.Padding()
+var background = Ui.Component.BackgroundColor()
+var focusable = Ui.Component.Focusable()
+var input = Ui.Component.TextInput()
+var caret = Ui.Component.Caret()
+var text = Ui.Component.Text()
+var field = Component.Field()
+
+func FormField(screen: Integer, index: Integer) {
+    parent.entity = screen
+    field.index = index
+    width.length.pixels(200.0)
+    height.length.pixels(24.0)
+    padding.top.pixels(4.0)
+    padding.right.pixels(4.0)
+    padding.bottom.pixels(4.0)
+    padding.left.pixels(4.0)
+    background.color = 2236962
+    text.scale = 2
+}

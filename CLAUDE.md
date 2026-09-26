@@ -38,4 +38,4 @@ Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
 ```
 
 `scripts/hooks/commit-msg` rejects a message without that trailer; each clone runs
-`git config core.hooksPath scripts/hooks` once. `examples/` is not committed for now.
+`git config core.hooksPath scripts/hooks` once.

@@ -1,0 +1,31 @@
+type Pending {
+    entity: Entity
+    request: Added<Component.LookupRequest>
+}
+
+type Clock {
+    frame: Component.Frame
+}
+
+var database = Mongo.Component.Database()
+var program = Program()
+var frames = Lookup<Component.Frame>()
+var world = World()
+
+func update_each(pending: Pending) {
+    program.sleep(200)
+    database.name = "spite_kal"
+    var accounts = database.collection("accounts")
+    var filter = Mongo.Document()
+    var found = accounts.find_one(filter)
+    var reply = Component.LookupReply()
+    reply.name = pending.request.value.name
+    if found {
+        reply.found = true
+    }
+    var frame = frames.of(world.entity)
+    if frame {
+        reply.frame = frame.count
+    }
+    pending.entity.add_component(reply)
+}

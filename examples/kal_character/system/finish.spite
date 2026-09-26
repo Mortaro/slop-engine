@@ -1,0 +1,70 @@
+type Checked {
+    renderer: RenderVulkan.Component.Renderer
+    view: Scene.Component.View
+    draw_list: Render.Component.DrawList
+}
+
+type Quitting {
+    quit: Component.Quit
+}
+
+var console = Console()
+var world = World()
+var environment = Environment()
+var rendered_frames = 0
+var checked_once = false
+
+func last_each(checked: Checked, quitting: Quitting) {
+    assert environment.frames > 0 and not quitting.quit.requested and checked.view.draws.count() > 0
+    var renderer = checked.renderer
+    rendered_frames = rendered_frames + 1
+    if rendered_frames == environment.frames {
+        renderer.capture_requested = true
+    }
+    assert renderer.captured and not checked_once
+    checked_once = true
+    var width = checked.draw_list.width
+    var height = checked.draw_list.height
+    var center = renderer.pixel_at(width / 2, height / 2)
+    var corner = renderer.pixel_at(2, 2)
+    var clear = checked.draw_list.clear_color
+    var center_color = center.bits_and(16777215)
+    var corner_color = corner.bits_and(16777215)
+    var palettes = checked.view.palettes.count()
+    var passed = center_color != corner_color and corner_color != clear
+    var draws_count = checked.view.draws.count()
+    console.print("draws", draws_count, "palettes", palettes, "center", center_color, "passed", passed)
+    crash passed
+    if environment.capture.is_empty() {
+        quitting.quit.requested = true
+    } else {
+        keep_capture(renderer, width, height)
+    }
+}
+
+func keep_capture(renderer: RenderVulkan.Component.Renderer, width: Integer, height: Integer) {
+    var capture = Component.Capture()
+    capture.width = width
+    capture.height = height
+    var row = height - 1
+    while row >= 0 {
+        write_row(renderer, capture.pixels, row, width)
+        row = row - 1
+    }
+    var holder = world.create_entity()
+    holder.add_component(capture)
+}
+
+func write_row(renderer: RenderVulkan.Component.Renderer, image: Asset.Bytes, row: Integer, width: Integer) {
+    var column = 0
+    while column < width {
+        var texel = renderer.pixel_at(column, row)
+        var blue = texel.bits_and(255)
+        var green = texel.shifted_right(8).bits_and(255)
+        var red = texel.shifted_right(16).bits_and(255)
+        image.write_byte(blue)
+        image.write_byte(green)
+        image.write_byte(red)
+        column = column + 1
+    }
+}

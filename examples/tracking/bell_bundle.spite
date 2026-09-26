@@ -1,0 +1,1 @@
+var bell = Component.Bell()

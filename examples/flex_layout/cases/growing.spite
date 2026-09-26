@@ -1,0 +1,80 @@
+var tree = Cases.Tree()
+var grow_root = 0
+var grow_first = 0
+var grow_second = 0
+var grow_fixed = 0
+var shrink_large = 0
+var shrink_small = 0
+var shrink_rigid = 0
+var clamp_capped = 0
+var clamp_free = 0
+var clamp_floored = 0
+var alone_capped = 0
+var alone_first = 0
+var alone_second = 0
+
+func build() {
+    grow_root = tree.screen(500.0, 100.0)
+    grow_first = tree.element(grow_root)
+    tree.grow(grow_first, 1.0)
+    tree.basis(grow_first, 100.0)
+    grow_second = tree.element(grow_root)
+    tree.grow(grow_second, 3.0)
+    tree.basis(grow_second, 100.0)
+    grow_fixed = tree.element(grow_root)
+    tree.size(grow_fixed, 50.0, -1.0)
+    var shrink_root = tree.screen(300.0, 100.0)
+    shrink_large = tree.element(shrink_root)
+    tree.basis(shrink_large, 200.0)
+    shrink_small = tree.element(shrink_root)
+    tree.basis(shrink_small, 100.0)
+    shrink_rigid = tree.element(shrink_root)
+    tree.shrink(shrink_rigid, 0.0)
+    tree.basis(shrink_rigid, 100.0)
+    build_clamps()
+}
+
+func build_clamps() {
+    var clamp_root = tree.screen(600.0, 50.0)
+    clamp_capped = flexible(clamp_root)
+    maximum_width(clamp_capped, 100.0)
+    clamp_free = flexible(clamp_root)
+    clamp_floored = flexible(clamp_root)
+    var minimum = Ui.Component.MinimumWidth()
+    minimum.length.pixels(300.0)
+    Entity(clamp_floored).add_component(minimum)
+    var alone_root = tree.screen(600.0, 50.0)
+    alone_capped = flexible(alone_root)
+    maximum_width(alone_capped, 100.0)
+    alone_first = flexible(alone_root)
+    alone_second = flexible(alone_root)
+}
+
+func flexible(root: Integer): Integer {
+    var entity = tree.element(root)
+    tree.grow(entity, 1.0)
+    tree.basis(entity, 0.0)
+    return entity
+}
+
+func maximum_width(entity: Integer, pixels: Float) {
+    var maximum = Ui.Component.MaximumWidth()
+    maximum.length.pixels(pixels)
+    Entity(entity).add_component(maximum)
+}
+
+func check() {
+    tree.expect_box("grow root", grow_root, 0.0, 0.0, 500.0, 100.0)
+    tree.expect_box("grow first", grow_first, 0.0, 0.0, 162.5, 100.0)
+    tree.expect_box("grow second", grow_second, 162.5, 0.0, 287.5, 100.0)
+    tree.expect_box("grow fixed", grow_fixed, 450.0, 0.0, 50.0, 100.0)
+    tree.expect_box("shrink large", shrink_large, 0.0, 0.0, 133.3333, 100.0)
+    tree.expect_box("shrink small", shrink_small, 133.3333, 0.0, 66.6667, 100.0)
+    tree.expect_box("shrink rigid", shrink_rigid, 200.0, 0.0, 100.0, 100.0)
+    tree.expect_box("clamp capped", clamp_capped, 0.0, 0.0, 100.0, 50.0)
+    tree.expect_box("clamp free", clamp_free, 100.0, 0.0, 200.0, 50.0)
+    tree.expect_box("clamp floored", clamp_floored, 300.0, 0.0, 300.0, 50.0)
+    tree.expect_box("alone capped", alone_capped, 0.0, 0.0, 100.0, 50.0)
+    tree.expect_box("alone first", alone_first, 100.0, 0.0, 250.0, 50.0)
+    tree.expect_box("alone second", alone_second, 350.0, 0.0, 250.0, 50.0)
+}

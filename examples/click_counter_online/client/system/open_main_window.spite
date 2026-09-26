@@ -1,0 +1,11 @@
+type Started {
+    frame: Added<Component.Frame>
+}
+
+var world = World()
+
+func update_each(_started: Started) {
+    var main_window = Window.Bundle.Window()
+    main_window.window.title = "Click counter online"
+    world.create_entity_from_bundle(main_window)
+}

@@ -1,0 +1,59 @@
+type DrivenWindow {
+    window: Window.Component.Window
+    handle: Window.Component.Handle
+    progress: Component.Progress
+}
+
+var user = DynamicLibrary("user32.dll", 'identity', "")
+var keys = Input.Key()
+
+func update_each(driven: DrivenWindow) {
+    var handle = driven.handle.value
+    var progress = driven.progress
+    progress.frame = progress.frame + 1
+    assert driven.handle.value != 0
+    var on_field: Long = 190 * 65536 + 320
+    var nothing: Long = 0
+    var left_button: Long = 1
+    if progress.frame == 5 {
+        post(handle, 512, nothing, on_field)
+        post(handle, 513, left_button, on_field)
+    } else if progress.frame == 6 {
+        post(handle, 514, nothing, on_field)
+    } else if progress.frame == 8 {
+        type_text(handle, "HELLO")
+    } else if progress.frame == 10 {
+        press(handle, keys.backspace)
+    } else if progress.frame == 12 {
+        press(handle, keys.left)
+        press(handle, keys.left)
+    } else if progress.frame == 14 {
+        type_text(handle, "X")
+    } else if progress.frame == 16 {
+        press(handle, keys.tab)
+    } else if progress.frame == 18 {
+        type_text(handle, "Y")
+    }
+    progress.done = progress.frame >= 22
+}
+
+func type_text(handle: Long, text: String) {
+    var index = 0
+    while index < text.length() {
+        var code: Long = text.code_at(index)
+        var nothing: Long = 0
+        post(handle, 258, code, nothing)
+        index = index + 1
+    }
+}
+
+func press(handle: Long, key: Integer) {
+    var code: Long = key
+    var nothing: Long = 0
+    post(handle, 256, code, nothing)
+    post(handle, 257, code, nothing)
+}
+
+func post(handle: Long, message: Integer, word: Long, position: Long) {
+    user.PostMessageA(handle, message, word, position)
+}

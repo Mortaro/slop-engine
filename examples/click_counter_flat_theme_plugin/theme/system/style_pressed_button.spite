@@ -1,0 +1,9 @@
+type PressedButton {
+    changed: Added<Ui.Component.Pressed>
+    color: Ui.Component.BackgroundColor
+    primary: Component.ButtonPrimary
+}
+
+func update_each(button: PressedButton) {
+    button.color.color = 2047880
+}

@@ -1,0 +1,67 @@
+var console = Console()
+var environment = Environment()
+var clock = Clock()
+
+func PngProbe() {
+    load "../../slop"
+    load "../../plugins/slop_png_plugin"
+    var paths = environment.source.split(";")
+    var passed = not paths.is_empty()
+    var index = 0
+    while index < paths.count() {
+        var decoded = probe(paths[index])
+        passed = passed and decoded
+        index = index + 1
+    }
+    console.print("passed", passed)
+}
+
+func probe(path: String): Boolean {
+    var bytes = Asset.Bytes()
+    var loaded = bytes.read_file(path)
+    var decoder = Png.Decoder()
+    var started = clock.elapsed_milliseconds()
+    var texture = decoder.decode(bytes)
+    var finished = clock.elapsed_milliseconds()
+    var took = finished - started
+    if loaded and texture {
+        describe(path, decoder, texture, took)
+        return true
+    }
+    console.print("rejected", path)
+    return false
+}
+
+func describe(path: String, decoder: Png.Decoder, texture: Asset.Texture, took: Long) {
+    console.print(path)
+    console.print(
+        "  width",
+        texture.width,
+        "height",
+        texture.height,
+        "color type",
+        decoder.color_type,
+        "depth",
+        decoder.depth,
+        "interlace",
+        decoder.interlace,
+        "milliseconds",
+        took,
+    )
+    var total = texture.width * texture.height
+    var checksum: Long = 0
+    var pixel = 0
+    while pixel < total {
+        var texel: Long = texture.pixels.get_at(pixel)
+        var unsigned = texel.bits_and(4294967295)
+        checksum = checksum * 31 + unsigned
+        checksum = checksum.bits_and(281474976710655)
+        pixel = pixel + 1
+    }
+    var middle = total / 2
+    var last = total - 1
+    var first_texel = texture.pixels.get_at(0)
+    var middle_texel = texture.pixels.get_at(middle)
+    var last_texel = texture.pixels.get_at(last)
+    console.print("  pixels", first_texel, middle_texel, last_texel, "checksum", checksum)
+}

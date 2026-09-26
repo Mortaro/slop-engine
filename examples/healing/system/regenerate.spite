@@ -1,0 +1,9 @@
+type Mending {
+    health: Component.Health
+    regeneration: Component.Regeneration
+    alive: Component.Alive
+}
+
+func update_each(patient: Mending) {
+    patient.health.amount = patient.health.amount + patient.regeneration.per_tick
+}

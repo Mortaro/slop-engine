@@ -1,6 +1,3 @@
-# Examples stay local for now.
-/examples/
-
 # Build caches and outputs. Nothing here is source; all of it regenerates.
 .spite-cache/
 *.exe
@@ -17,3 +14,8 @@
 store.bin
 store.bin.index
 .slop-index.json
+
+# Test outputs.
+*.log
+.test/
+round_trip.texture.bin

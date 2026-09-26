@@ -1,0 +1,33 @@
+type Playing {
+    count: Component.ClickCount
+    quit: Component.Quit
+}
+
+var world = World()
+var environment = Environment()
+var console = Console()
+var first_seen = -1
+
+func update_each(playing: Playing) {
+    var clicks = playing.count.clicks
+    if first_seen < 0 {
+        first_seen = clicks
+        console.print("bot joined and sees", clicks)
+        if environment.expect >= 0 {
+            crash clicks == environment.expect
+        }
+        send_clicks()
+    }
+    if not playing.quit.requested and clicks >= first_seen + environment.clicks {
+        console.print("bot clicked", environment.clicks, "and sees", clicks)
+        playing.quit.requested = true
+    }
+}
+
+func send_clicks() {
+    assert environment.clicks > 0
+    var request = world.create_entity()
+    var click = Component.ClickRequest()
+    click.clicks = environment.clicks
+    request.add_component(click)
+}

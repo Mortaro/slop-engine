@@ -1,0 +1,11 @@
+type Record {
+    entity: Entity
+    health: Component.Health
+    age: Component.Age
+}
+
+var console = Console()
+
+func last_each(record: Record) {
+    console.print("entity", record.entity.id, "health", record.health.amount, "age", record.age.ticks)
+}

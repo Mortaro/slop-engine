@@ -1,0 +1,9 @@
+var parent = Ui.Component.Parent()
+var text = Ui.Component.Text()
+
+func PanelText(panel: Integer) {
+    parent.entity = panel
+    text.text = "CLIPPED TEXT"
+    text.scale = 2
+    text.color = 16776960
+}

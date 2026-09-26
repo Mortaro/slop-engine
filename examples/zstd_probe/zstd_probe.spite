@@ -1,0 +1,21 @@
+var console = Console()
+var environment = Environment()
+var clock = Clock()
+
+func ZstdProbe() {
+    load "../../slop"
+    load "../../plugins/slop_zstd_plugin"
+    var compressed = Asset.Bytes()
+    var loaded = compressed.read_file(environment.source)
+    crash loaded
+    var decoder = Zstd.Decoder()
+    var started = clock.elapsed_milliseconds()
+    var plain = decoder.decompress(compressed)
+    var finished = clock.elapsed_milliseconds()
+    var header = plain.raw.text(plain.address, 24)
+    var took = finished - started
+    console.print("compressed", compressed.length, "plain", plain.length, "milliseconds", took)
+    console.print(header)
+    var saved = plain.save(environment.output)
+    crash saved
+}

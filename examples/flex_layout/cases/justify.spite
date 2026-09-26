@@ -1,0 +1,84 @@
+var tree = Cases.Tree()
+var roots = List<Integer>()
+var items = List<Integer>()
+var modes: List<String> = ["flex_start", "flex_end", "center", "space_between", "space_around", "space_evenly"]
+var expected: List<Float> = [
+    0.0
+    50.0
+    100.0
+    250.0
+    300.0
+    350.0
+    125.0
+    175.0
+    225.0
+    0.0
+    175.0
+    350.0
+    41.6667
+    175.0
+    308.3333
+    62.5
+    175.0
+    287.5
+]
+var overflow_first = 0
+var overflow_second = 0
+
+func build() {
+    modes.each(build_case)
+    var root = tree.screen(100.0, 20.0)
+    set_justify(root, "space_around")
+    overflow_first = rigid_item(root)
+    overflow_second = rigid_item(root)
+}
+
+func build_case(mode: String) {
+    var root = tree.screen(400.0, 20.0)
+    set_justify(root, mode)
+    roots.append(root)
+    var item = 0
+    while item < 3 {
+        var entity = tree.element(root)
+        tree.size(entity, 50.0, -1.0)
+        items.append(entity)
+        item = item + 1
+    }
+}
+
+func rigid_item(root: Integer): Integer {
+    var entity = tree.element(root)
+    tree.size(entity, 80.0, -1.0)
+    tree.shrink(entity, 0.0)
+    return entity
+}
+
+func set_justify(root: Integer, mode: String) {
+    var justify = Ui.Component.JustifyContent()
+    if mode == "flex_end" {
+        justify.value = 'flex_end'
+    } else if mode == "center" {
+        justify.value = 'center'
+    } else if mode == "space_between" {
+        justify.value = 'space_between'
+    } else if mode == "space_around" {
+        justify.value = 'space_around'
+    } else if mode == "space_evenly" {
+        justify.value = 'space_evenly'
+    }
+    Entity(root).add_component(justify)
+}
+
+func check() {
+    var index = 0
+    while index < items.count() {
+        crash expected[index]
+        var mode_index = index / 3
+        crash modes[mode_index]
+        var name = "justify {modes[mode_index]} item {index % 3}"
+        tree.expect_box(name, items[index], expected[index], 0.0, 50.0, 20.0)
+        index = index + 1
+    }
+    tree.expect_box("overflowing space-around first", overflow_first, 0.0, 0.0, 80.0, 20.0)
+    tree.expect_box("overflowing space-around second", overflow_second, 80.0, 0.0, 80.0, 20.0)
+}

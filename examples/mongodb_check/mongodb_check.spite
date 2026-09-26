@@ -1,0 +1,12 @@
+var console = Console()
+
+func MongodbCheck() {
+    load "../../slop"
+    load "../../plugins/slop_mongodb_plugin"
+    var database = Mongo.Component.Database()
+    database.name = "spite_kal"
+    var accounts = database.collection("accounts")
+    var empty = Mongo.Document()
+    var count = accounts.count_matching(empty)
+    console.print("accounts", count, "passed", count >= 0)
+}

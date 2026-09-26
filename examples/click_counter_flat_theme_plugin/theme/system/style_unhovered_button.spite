@@ -1,0 +1,9 @@
+type UnhoveredButton {
+    changed: Removed<Ui.Component.Hovered>
+    color: Ui.Component.BackgroundColor
+    primary: Component.ButtonPrimary
+}
+
+func update_each(button: UnhoveredButton) {
+    button.color.color = 3169216
+}

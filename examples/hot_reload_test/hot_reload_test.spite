@@ -1,0 +1,111 @@
+var cookbook = Recipes.Cookbook()
+var console = Console()
+var world = World()
+var program = Program()
+var build = Build()
+var clock = Clock()
+var worst_tick: Long = 0
+
+func HotReloadTest() {
+    load "../../slop"
+    load "../../plugins/slop_input_plugin"
+    load "../../plugins/slop_window_plugin"
+    load "../../plugins/slop_ui_plugin"
+    load "../../plugins/slop_render_plugin"
+    load "../../plugins/slop_render_software_plugin"
+    load "../../plugins/slop_render_vulkan_plugin"
+    cookbook.cook()
+    var app = App()
+    var target = spawn_target()
+    spawn_swatch()
+    var red = 16711680
+    var blue = 255
+    write_swatch("16711680")
+    var canvas = wait_for_color(app, target, red)
+    crash canvas == red
+    write_swatch("255")
+    worst_tick = 0
+    var reloaded = wait_for_color(app, target, blue)
+    console.print("worst tick while re-cooking and reloading, milliseconds", worst_tick)
+    var gpu = vulkan_pixel(target)
+    console.print("before", red, "software after", reloaded, "vulkan after", gpu)
+    crash reloaded == blue and gpu == blue
+}
+
+func write_swatch(color: String) {
+    var file = File("{build.program}/assets/test/swatch.txt")
+    var written = file.write("{color}\n")
+    crash written
+}
+
+func wait_for_color(app: App, target: Integer, wanted: Integer): Integer {
+    var seen = -1
+    var tries = 0
+    while seen != wanted and tries < 1000 {
+        var started = clock.elapsed_milliseconds()
+        app.tick()
+        var took = clock.elapsed_milliseconds() - started
+        if took > worst_tick {
+            worst_tick = took
+        }
+        program.sleep(10)
+        seen = software_pixel(target)
+        tries = tries + 1
+    }
+    return seen
+}
+
+func software_pixel(target: Integer): Integer {
+    var canvas = Lookup<RenderSoftware.Component.Canvas>().of(target)
+    if canvas {
+        if canvas.width > 5 {
+            return canvas.pixel_at(5, 5)
+        }
+    }
+    return -1
+}
+
+func vulkan_pixel(target: Integer): Integer {
+    var draw_list = Lookup<Render.Component.DrawList>().of(target)
+    var textures = Lookup<Render.Component.Textures>().of(target)
+    crash draw_list
+    crash textures
+    var renderer = RenderVulkan.Component.Renderer()
+    renderer.ensure()
+    renderer.draw_offscreen(draw_list, textures)
+    var pixel = renderer.pixel_at(5, 5)
+    renderer.release_device()
+    return pixel
+}
+
+func spawn_target(): Integer {
+    var target = world.create_entity()
+    var offscreen = Component.Offscreen()
+    target.add_component(offscreen)
+    var draw_list = Render.Component.DrawList()
+    target.add_component(draw_list)
+    var clear_color = Render.Component.ClearColor()
+    target.add_component(clear_color)
+    var textures = Render.Component.Textures()
+    target.add_component(textures)
+    return target.id
+}
+
+func spawn_swatch() {
+    var screen = world.create_entity()
+    var root = Ui.Component.Screen()
+    screen.add_component(root)
+    var swatch = world.create_entity()
+    var parent = Ui.Component.Parent()
+    parent.entity = screen.id
+    swatch.add_component(parent)
+    var width = Ui.Component.Width()
+    width.length.pixels(20.0)
+    swatch.add_component(width)
+    var height = Ui.Component.Height()
+    height.length.pixels(20.0)
+    swatch.add_component(height)
+    var image = Ui.Component.BackgroundImage()
+    image.texture = "test.swatch"
+    swatch.add_component(image)
+}

@@ -1,0 +1,6 @@
+func IoSystems() {
+    load "../../slop"
+    load "../../plugins/slop_mongodb_plugin"
+    var app = App()
+    app.run()
+}

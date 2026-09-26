@@ -1,0 +1,96 @@
+var tree = Cases.Tree()
+
+func build() {
+    cross_axis()
+    center_overflow()
+    column_alignment()
+    reversed()
+    ordered()
+    relative()
+}
+
+func cross_axis() {
+    var root = tree.screen(300.0, 100.0)
+    var start = tree.sized(root, 50.0, 20.0)
+    tree.align_self(start, "flex_start")
+    var end = tree.sized(root, 50.0, 20.0)
+    tree.align_self(end, "flex_end")
+    var center = tree.sized(root, 50.0, 20.0)
+    tree.align_self(center, "center")
+    var stretched = tree.sized(root, 50.0, -1.0)
+    var pushed = tree.sized(root, 50.0, 20.0)
+    tree.margins(pushed, -1000.0, 0.0, 0.0, 0.0)
+    var capped = tree.sized(root, 50.0, -1.0)
+    var maximum = Ui.Component.MaximumHeight()
+    maximum.length.pixels(60.0)
+    Entity(capped).add_component(maximum)
+    tree.expect_later("align-self flex-start", start, 0.0, 0.0, 50.0, 20.0)
+    tree.expect_later("align-self flex-end", end, 50.0, 80.0, 50.0, 20.0)
+    tree.expect_later("align-self center", center, 100.0, 40.0, 50.0, 20.0)
+    tree.expect_later("stretch fills the cross axis", stretched, 150.0, 0.0, 50.0, 100.0)
+    tree.expect_later("auto top margin pushes down", pushed, 200.0, 80.0, 50.0, 20.0)
+    tree.expect_later("stretch stops at the maximum", capped, 250.0, 0.0, 50.0, 60.0)
+}
+
+func center_overflow() {
+    var root = tree.screen(100.0, 20.0)
+    tree.align_items(root, "center")
+    var tall = tree.sized(root, 10.0, 40.0)
+    tree.expect_later("center overflows both ways", tall, 0.0, -10.0, 10.0, 40.0)
+}
+
+func column_alignment() {
+    var root = tree.screen(200.0, 100.0)
+    tree.direction(root, "column")
+    tree.justify(root, "center")
+    tree.align_items(root, "flex_end")
+    var item = tree.sized(root, 20.0, 20.0)
+    tree.margins(item, 5.0, 5.0, 5.0, 5.0)
+    tree.expect_later("column justifies vertically and aligns horizontally", item, 175.0, 40.0, 20.0, 20.0)
+}
+
+func reversed() {
+    var row = tree.screen(300.0, 50.0)
+    tree.direction(row, "row_reverse")
+    var row_first = tree.sized(row, 50.0, -1.0)
+    var row_second = tree.sized(row, 100.0, -1.0)
+    var column = tree.screen(100.0, 300.0)
+    tree.direction(column, "column_reverse")
+    var column_first = tree.sized(column, -1.0, 50.0)
+    var column_second = tree.sized(column, -1.0, 100.0)
+    var wrapped = tree.screen(200.0, 100.0)
+    tree.wrap(wrapped, "wrap_reverse")
+    tree.align_content(wrapped, "flex_start")
+    var wrapped_first = tree.sized(wrapped, 120.0, 30.0)
+    var wrapped_second = tree.sized(wrapped, 120.0, 30.0)
+    tree.expect_later("row-reverse first", row_first, 250.0, 0.0, 50.0, 50.0)
+    tree.expect_later("row-reverse second", row_second, 150.0, 0.0, 100.0, 50.0)
+    tree.expect_later("column-reverse first", column_first, 0.0, 250.0, 100.0, 50.0)
+    tree.expect_later("column-reverse second", column_second, 0.0, 150.0, 100.0, 100.0)
+    tree.expect_later("wrap-reverse first", wrapped_first, 0.0, 70.0, 120.0, 30.0)
+    tree.expect_later("wrap-reverse second", wrapped_second, 0.0, 40.0, 120.0, 30.0)
+}
+
+func ordered() {
+    var root = tree.screen(300.0, 10.0)
+    var last = tree.sized(root, 10.0, -1.0)
+    tree.order(last, 2)
+    var first = tree.sized(root, 10.0, -1.0)
+    var middle = tree.sized(root, 10.0, -1.0)
+    tree.order(middle, 1)
+    tree.expect_later("order 2 goes last", last, 20.0, 0.0, 10.0, 10.0)
+    tree.expect_later("order 0 goes first", first, 0.0, 0.0, 10.0, 10.0)
+    tree.expect_later("order 1 goes between", middle, 10.0, 0.0, 10.0, 10.0)
+}
+
+func relative() {
+    var root = tree.screen(300.0, 50.0)
+    var moved = tree.sized(root, 50.0, -1.0)
+    tree.position(moved, "relative")
+    tree.inset(moved, 5.0, -1000.0, -1000.0, 10.0)
+    var child = tree.sized(moved, -1.0, 10.0)
+    var sibling = tree.sized(root, 50.0, -1.0)
+    tree.expect_later("relative offset moves its box", moved, 10.0, 5.0, 50.0, 50.0)
+    tree.expect_later("content moves with its box", child, 10.0, 5.0, 50.0, 10.0)
+    tree.expect_later("siblings stay in place", sibling, 50.0, 0.0, 50.0, 50.0)
+}

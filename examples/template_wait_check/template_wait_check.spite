@@ -1,0 +1,21 @@
+type Startable {
+    start_waiting()
+}
+
+var console = Console()
+var program = Program()
+var scheduler = Scheduler()
+
+func TemplateWaitCheck() {
+    scheduler.resume_only_when_asked()
+    var driver = Driver<System.Napper>()
+    var startable: Startable = driver
+    startable.start_waiting()
+    var frame = 0
+    while driver.busy() and frame < 100 {
+        frame = frame + 1
+        scheduler.run_ready()
+        program.sleep(16)
+    }
+    console.print("loop frames", frame)
+}

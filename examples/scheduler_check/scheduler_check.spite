@@ -1,0 +1,17 @@
+var console = Console()
+var program = Program()
+var scheduler = Scheduler()
+
+func SchedulerCheck() {
+    scheduler.resume_only_when_asked()
+    var sleeper = Sleeper()
+    var napping = Concurrent(sleeper.nap)
+    var frame = 0
+    while not napping.finished and frame < 100 {
+        frame = frame + 1
+        sleeper.frame = frame
+        scheduler.run_ready()
+        program.sleep(16)
+    }
+    console.print("finished at frame", sleeper.done_frame, "loop frames", frame)
+}

@@ -1,0 +1,13 @@
+type NewWindow {
+    entity: Entity
+    window: Added<Window.Component.Window>
+}
+
+var environment = Environment()
+
+func prepare_each(created: NewWindow) {
+    created.window.value.visible = environment.show_window
+    var progress = Component.Progress()
+    progress.wanted = environment.clicks
+    created.entity.add_component(progress)
+}

@@ -1,0 +1,28 @@
+var console = Console()
+var build = Build()
+
+func AssetRoundTrip() {
+    load "../../slop"
+    var texture = Asset.Texture()
+    texture.width = 2
+    texture.height = 2
+    texture.name = "button plate"
+    texture.opaque = true
+    texture.pixels = [255, 65280, 16711680, -1]
+    var level = Asset.Level()
+    level.width = 1
+    level.height = 1
+    level.scale = 0.5
+    texture.levels.append(level)
+    var pack = Pack<Asset.Texture>()
+    var path = "{build.program}/round_trip.texture.bin"
+    var saved = pack.save(texture, path)
+    var loaded: Asset.Texture? = pack.read_file(path)
+    crash saved
+    crash loaded
+    var pixels = loaded.pixels.join(" ")
+    crash loaded.levels[0]
+    var level_count = loaded.levels.count()
+    var scale = loaded.levels[0].scale
+    console.print(loaded.width, loaded.height, loaded.name, loaded.opaque, pixels, level_count, scale)
+}

@@ -1,0 +1,9 @@
+type HoveredButton {
+    hovered: Added<Ui.Component.Hovered>
+    image: Ui.Component.BackgroundImage
+    primary: Component.ButtonPrimary
+}
+
+func update_each(button: HoveredButton) {
+    button.image.texture = "ui.button.primary.hover"
+}

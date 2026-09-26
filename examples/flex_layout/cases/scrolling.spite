@@ -1,0 +1,62 @@
+var tree = Cases.Tree()
+var console = Console()
+var panel = 0
+var items = List<Integer>()
+
+func build() {
+    var root = tree.screen(300.0, 200.0)
+    tree.align_items(root, "flex_start")
+    panel = tree.sized(root, 100.0, 100.0)
+    tree.border_box(panel)
+    tree.border_all(panel, 2.0)
+    tree.padding_all(panel, 5.0)
+    tree.direction(panel, "column")
+    var horizontal = Ui.Component.OverflowX()
+    horizontal.value = 'hidden'
+    Entity(panel).add_component(horizontal)
+    var vertical = Ui.Component.OverflowY()
+    vertical.value = 'scroll'
+    Entity(panel).add_component(vertical)
+    var position = Ui.Component.ScrollPosition()
+    position.top = 30.0
+    Entity(panel).add_component(position)
+    var index = 0
+    while index < 5 {
+        var item = tree.sized(panel, -1.0, 40.0)
+        tree.shrink(item, 0.0)
+        items.append(item)
+        index = index + 1
+    }
+}
+
+func check() {
+    crash items[0]
+    crash items[4]
+    tree.expect_box("scrolled first item", items[0], 7.0, -23.0, 86.0, 40.0)
+    tree.expect_box("scrolled last item", items[4], 7.0, 137.0, 86.0, 40.0)
+    expect_clip("item clipped to the padding box", items[4], 2.0, 2.0, 98.0, 98.0)
+    expect_clip("the panel itself is not clipped", panel, -1000000000.0, -1000000000.0, 1000000000.0, 1000000000.0)
+    expect_range("scroll range", panel, 0.0, 114.0)
+}
+
+func expect_clip(name: String, entity: Integer, left: Float, top: Float, right: Float, bottom: Float) {
+    tree.checks = tree.checks + 1
+    var clip = Lookup<Ui.Component.ComputedClip>().of(entity)
+    crash clip
+    var matches = tree.near(clip.left, left) and tree.near(clip.top, top) and tree.near(clip.right, right) and tree.near(clip.bottom, bottom)
+    if not matches {
+        tree.failures = tree.failures + 1
+        console.print("FAILED", name, "got", clip.left, clip.top, clip.right, clip.bottom)
+    }
+}
+
+func expect_range(name: String, entity: Integer, horizontal: Float, vertical: Float) {
+    tree.checks = tree.checks + 1
+    var range = Lookup<Ui.Component.ScrollRange>().of(entity)
+    crash range
+    var matches = tree.near(range.horizontal, horizontal) and tree.near(range.vertical, vertical)
+    if not matches {
+        tree.failures = tree.failures + 1
+        console.print("FAILED", name, "got", range.horizontal, range.vertical)
+    }
+}

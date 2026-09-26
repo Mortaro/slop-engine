@@ -1,0 +1,14 @@
+type ClickedCounter {
+    clicked: Ui.Component.Clicked
+    click_count: Component.ClickCount
+}
+
+type CountText {
+    label: Component.CountLabel
+    text: Ui.Component.Text
+}
+
+func update_each(counter: ClickedCounter, shown: CountText) {
+    counter.click_count.clicks = counter.click_count.clicks + 1
+    shown.text.text = "{counter.click_count.clicks}"
+}

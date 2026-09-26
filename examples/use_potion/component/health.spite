@@ -1,0 +1,7 @@
+var amount = 10
+
+func sum(healing: Integer): Component.Health {
+    var healed = Component.Health()
+    healed.amount = amount + healing
+    return healed
+}

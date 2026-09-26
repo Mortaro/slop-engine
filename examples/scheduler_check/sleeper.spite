@@ -1,0 +1,8 @@
+var program = Program()
+var done_frame = 0
+var frame = 0
+
+func nap() {
+    program.sleep(200)
+    done_frame = frame
+}

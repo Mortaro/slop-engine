@@ -1,0 +1,4 @@
+var port = 7070
+var clicks = 3
+var expect = -1
+var lifetime_seconds = 0

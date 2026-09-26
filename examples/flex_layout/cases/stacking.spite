@@ -1,0 +1,39 @@
+var tree = Cases.Tree()
+var console = Console()
+var raised = 0
+var plain = 0
+var raised_child = 0
+var sunk = 0
+
+func build() {
+    var root = tree.screen(200.0, 100.0)
+    raised = tree.sized(root, 50.0, 50.0)
+    var level = Ui.Component.ZIndex()
+    level.value = 2
+    Entity(raised).add_component(level)
+    raised_child = tree.sized(raised, 10.0, 10.0)
+    plain = tree.sized(root, 50.0, 50.0)
+    sunk = tree.sized(root, 50.0, 50.0)
+    var below = Ui.Component.ZIndex()
+    below.value = -1
+    Entity(sunk).add_component(below)
+}
+
+func check() {
+    var raised_order = order_of(raised)
+    var child_order = order_of(raised_child)
+    var plain_order = order_of(plain)
+    var sunk_order = order_of(sunk)
+    tree.checks = tree.checks + 1
+    var passed = sunk_order < plain_order and plain_order < raised_order and raised_order < child_order
+    if not passed {
+        tree.failures = tree.failures + 1
+        console.print("FAILED z-index paint order", sunk_order, plain_order, raised_order, child_order)
+    }
+}
+
+func order_of(entity: Integer): Integer {
+    var layout = Lookup<Ui.Component.ComputedLayout>().of(entity)
+    crash layout
+    return layout.order
+}

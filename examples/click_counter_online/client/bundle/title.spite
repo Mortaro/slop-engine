@@ -1,0 +1,8 @@
+var parent = Ui.Component.Parent()
+var text = Ui.Component.Text()
+
+func Title(screen: Integer) {
+    parent.entity = screen
+    text.text = "CLICK THE BUTTON"
+    text.scale = 2
+}

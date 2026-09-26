@@ -1,0 +1,15 @@
+type Counter {
+    count: Component.ClickCount
+}
+
+type CountText {
+    label: Component.CountLabel
+    text: Ui.Component.Text
+}
+
+func update_each(counter: Counter, shown: CountText) {
+    var text = "{counter.count.clicks}"
+    if shown.text.text != text {
+        shown.text.text = text
+    }
+}

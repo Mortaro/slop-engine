@@ -1,0 +1,4 @@
+var show_window = true
+var frames = 0
+var clip = "idle"
+var capture = ""

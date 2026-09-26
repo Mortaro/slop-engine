@@ -1,0 +1,9 @@
+type UnhoveredButton {
+    unhovered: Removed<Ui.Component.Hovered>
+    image: Ui.Component.BackgroundImage
+    primary: Component.ButtonPrimary
+}
+
+func update_each(button: UnhoveredButton) {
+    button.image.texture = "ui.button.primary.normal"
+}

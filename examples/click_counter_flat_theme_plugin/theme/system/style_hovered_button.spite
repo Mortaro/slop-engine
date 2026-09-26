@@ -1,0 +1,9 @@
+type HoveredButton {
+    changed: Added<Ui.Component.Hovered>
+    color: Ui.Component.BackgroundColor
+    primary: Component.ButtonPrimary
+}
+
+func update_each(button: HoveredButton) {
+    button.color.color = 4358098
+}

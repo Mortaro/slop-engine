@@ -1,0 +1,16 @@
+type NewButton {
+    entity: Entity
+    primary: Added<Component.ButtonPrimary>
+}
+
+func update_each(button: NewButton) {
+    var width = Ui.Component.Width()
+    width.length.pixels(160.0)
+    button.entity.add_component(width)
+    var height = Ui.Component.Height()
+    height.length.pixels(36.0)
+    button.entity.add_component(height)
+    var color = Ui.Component.BackgroundColor()
+    color.color = 3169216
+    button.entity.add_component(color)
+}

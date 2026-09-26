@@ -1,0 +1,18 @@
+type Started {
+    ringing: Added<Component.Ringing>
+}
+
+type Stopped {
+    ringing: Removed<Component.Ringing>
+}
+
+type Tallied {
+    tally: Component.Tally
+}
+
+func after_input_all(started: List<Started>, stopped: List<Stopped>, tallies: List<Tallied>) {
+    assert tallies.count() > 0
+    var tally = tallies[0].tally
+    tally.started_early = tally.started_early + started.count()
+    tally.stopped_early = tally.stopped_early + stopped.count()
+}

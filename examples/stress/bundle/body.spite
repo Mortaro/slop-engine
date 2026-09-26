@@ -1,0 +1,4 @@
+var position = Component.Position()
+var velocity = Component.Velocity()
+var health = Component.Health()
+var regeneration = Component.Regeneration()

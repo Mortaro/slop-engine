@@ -1,0 +1,61 @@
+var world = World()
+var environment = Environment()
+var console = Console()
+var clock = Stopwatch()
+
+func Stress() {
+    load "../../slop"
+    var app = App()
+    app.parallel = environment.parallel
+    app.release_budget = environment.release_budget
+    var description = app.describe()
+    console.print(description)
+    var spawn_start = clock.microseconds()
+    var ids = spawn_bodies()
+    world.flush()
+    var spawned = clock.microseconds()
+    var tick = 0
+    while tick < environment.ticks {
+        app.tick()
+        tick = tick + 1
+    }
+    var finished = clock.microseconds()
+    var spawn_milliseconds = (spawned - spawn_start) / 1000
+    var tick_microseconds = (finished - spawned) / environment.ticks
+    console.print("bodies", environment.bodies, "parallel", app.parallel)
+    console.print("spawn milliseconds", spawn_milliseconds)
+    console.print("average tick microseconds", tick_microseconds)
+    despawn_every(app, ids)
+}
+
+func despawn_every(app: App, ids: List<Integer>) {
+    ids.each(world.despawn)
+    var worst: Long = 0
+    var total: Long = 0
+    var tick = 0
+    while tick < 60 {
+        var start = clock.microseconds()
+        app.tick()
+        var took = clock.microseconds() - start
+        total = total + took
+        if took > worst {
+            worst = took
+        }
+        tick = tick + 1
+    }
+    var despawned = ids.count()
+    console.print("despawned", despawned, "release budget", app.release_budget)
+    console.print("worst tick microseconds", worst, "sixty ticks microseconds", total)
+}
+
+func spawn_bodies(): List<Integer> {
+    var ids = List<Integer>()
+    var index = 0
+    while index < environment.bodies {
+        var body_bundle = Bundle.Body()
+        var body = world.create_entity_from_bundle(body_bundle)
+        ids.append(body.id)
+        index = index + 1
+    }
+    return ids
+}

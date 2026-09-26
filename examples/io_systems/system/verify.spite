@@ -1,0 +1,27 @@
+type Replied {
+    reply: Component.LookupReply
+}
+
+type Quitting {
+    frame: Component.Frame
+    quit: Component.Quit
+}
+
+var console = Console()
+
+func last_all(replies: List<Replied>, quitting: List<Quitting>) {
+    var state = quitting.first()
+    crash state
+    assert replies.count() == 3 and not state.quit.requested
+    var index = 0
+    while index < replies.count() {
+        var reply = replies[index].reply
+        console.print("reply", reply.name, "found", reply.found, "at frame", reply.frame)
+        index = index + 1
+    }
+    var frame = state.frame.count
+    var passed = frame > 10
+    console.print("frames while waiting", frame, "passed", passed)
+    crash passed
+    state.quit.requested = true
+}

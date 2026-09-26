@@ -1,0 +1,11 @@
+var layers = Psd.Layers()
+
+func build() {
+    layers.open_in("../click_counter_theme_plugin/theme", "ui.buttons")
+    layers.texture("Plates/Primary/Normal", "ui.button.primary.normal")
+    layers.texture("Plates/Primary/Hover", "ui.button.primary.hover")
+    layers.texture("Plates/Primary/Pressed", "ui.button.primary.pressed")
+    layers.skip("Plates/Secondary/", "click_counter has one button, and it is primary")
+    layers.skip("Close/", "click_counter has no window to close")
+    layers.finish()
+}

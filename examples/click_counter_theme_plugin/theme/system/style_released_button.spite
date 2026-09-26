@@ -1,0 +1,10 @@
+type ReleasedButton {
+    released: Removed<Ui.Component.Pressed>
+    hovered: Ui.Component.Hovered
+    image: Ui.Component.BackgroundImage
+    primary: Component.ButtonPrimary
+}
+
+func update_each(button: ReleasedButton) {
+    button.image.texture = "ui.button.primary.hover"
+}

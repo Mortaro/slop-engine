@@ -1,0 +1,9 @@
+type Target {
+    offscreen: Component.Offscreen
+    draw_list: Render.Component.DrawList
+    clear_color: Render.Component.ClearColor
+}
+
+func prepare_each(target: Target) {
+    target.draw_list.begin(64, 64, target.clear_color.color)
+}

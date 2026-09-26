@@ -1,0 +1,9 @@
+var parent = Ui.Component.Parent()
+var text = Ui.Component.Text()
+var label = Component.CountLabel()
+
+func CountLabel(button: Integer) {
+    parent.entity = button
+    text.text = "0"
+    text.scale = 3
+}

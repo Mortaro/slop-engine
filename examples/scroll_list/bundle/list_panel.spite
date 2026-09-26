@@ -1,0 +1,25 @@
+var parent = Ui.Component.Parent()
+var width = Ui.Component.Width()
+var height = Ui.Component.Height()
+var border = Ui.Component.BorderWidth()
+var display = Ui.Component.Display()
+var direction = Ui.Component.FlexDirection()
+var vertical = Ui.Component.OverflowY()
+var horizontal = Ui.Component.OverflowX()
+var background = Ui.Component.BackgroundColor()
+var panel = Component.ListPanel()
+
+func ListPanel(screen: Integer) {
+    parent.entity = screen
+    width.length.pixels(200.0)
+    height.length.pixels(200.0)
+    border.top.pixels(2.0)
+    border.right.pixels(2.0)
+    border.bottom.pixels(2.0)
+    border.left.pixels(2.0)
+    display.value = 'flex'
+    direction.value = 'column'
+    vertical.value = 'scroll'
+    horizontal.value = 'hidden'
+    background.color = 2236962
+}

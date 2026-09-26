@@ -1,0 +1,16 @@
+var screen = Ui.Component.Screen()
+var display = Ui.Component.Display()
+var direction = Ui.Component.FlexDirection()
+var justify = Ui.Component.JustifyContent()
+var alignment = Ui.Component.AlignItems()
+var gap = Ui.Component.RowGap()
+var height = Ui.Component.Height()
+
+func Screen() {
+    display.value = 'flex'
+    direction.value = 'column'
+    justify.value = 'center'
+    alignment.value = 'center'
+    gap.length.pixels(10.0)
+    height.length.viewport_height(100.0)
+}

@@ -1,0 +1,46 @@
+var cache = Recipes.Cache()
+
+func build() {
+    var fingerprint = cache.fingerprint("ground 1")
+    assert not cache.is_current("mesh.ground", fingerprint) or not cache.is_current("texture.ground", fingerprint)
+    var mesh = Asset.Mesh()
+    corner(mesh, -15.0, -15.0)
+    corner(mesh, 15.0, -15.0)
+    corner(mesh, 15.0, 15.0)
+    corner(mesh, -15.0, 15.0)
+    mesh.indices.append(0)
+    mesh.indices.append(2)
+    mesh.indices.append(1)
+    mesh.indices.append(0)
+    mesh.indices.append(3)
+    mesh.indices.append(2)
+    mesh.texture = "texture.ground"
+    var mesh_bytes = Asset.Bytes()
+    var mesh_pack = Pack<Asset.Mesh>()
+    mesh_pack.encode(mesh, mesh_bytes)
+    cache.put("mesh.ground", fingerprint, mesh_bytes)
+    var texture = Asset.Texture()
+    texture.width = 2
+    texture.height = 2
+    var grey = -16777216 + 7372944
+    var index = 0
+    while index < 4 {
+        texture.pixels.append(grey)
+        index = index + 1
+    }
+    var texture_bytes = Asset.Bytes()
+    var texture_pack = Pack<Asset.Texture>()
+    texture_pack.encode(texture, texture_bytes)
+    cache.put("texture.ground", fingerprint, texture_bytes)
+}
+
+func corner(mesh: Asset.Mesh, across: Float, deep: Float) {
+    mesh.vertices.append(across)
+    mesh.vertices.append(0.0)
+    mesh.vertices.append(deep)
+    mesh.vertices.append(0.0)
+    mesh.vertices.append(1.0)
+    mesh.vertices.append(0.0)
+    mesh.vertices.append(0.0)
+    mesh.vertices.append(0.0)
+}

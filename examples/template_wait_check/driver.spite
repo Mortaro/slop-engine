@@ -1,0 +1,33 @@
+generic $system_type
+
+enum Phase {
+    'update'
+}
+
+var system: $system_type = null
+var workers = List<Concurrent<Nothing>>()
+
+func start_waiting() {
+    var worker = Concurrent(drain)
+    workers.append(worker)
+}
+
+func busy(): Boolean {
+    var worker = workers.first()
+    crash worker
+    return not worker.finished
+}
+
+func drain() {
+    drain_phases_each()
+}
+
+func drain_phase_each(phase: Symbol<$system_type.phase_each>) {
+    system.phase_each(made_arguments())
+}
+
+func made_argument(argument: Symbol<$system_type.phase_each>): argument.class {
+    var made: argument.class = null
+    made.length = 200
+    return made
+}

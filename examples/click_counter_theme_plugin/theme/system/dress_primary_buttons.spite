@@ -1,0 +1,16 @@
+type NewButton {
+    entity: Entity
+    primary: Added<Component.ButtonPrimary>
+}
+
+func update_each(button: NewButton) {
+    var width = Ui.Component.Width()
+    width.length.pixels(176.0)
+    button.entity.add_component(width)
+    var height = Ui.Component.Height()
+    height.length.pixels(40.0)
+    button.entity.add_component(height)
+    var image = Ui.Component.BackgroundImage()
+    image.texture = "ui.button.primary.normal"
+    button.entity.add_component(image)
+}

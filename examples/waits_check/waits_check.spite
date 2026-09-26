@@ -1,0 +1,9 @@
+func WaitsCheck() {
+    load "../../slop"
+    var blobs = Probe<Recipes.Blobs>()
+    blobs.report("blobs")
+    var catalog = Probe<Recipes.Catalog>()
+    catalog.report("catalog")
+    var slots = Probe<Recipes.AssetSlots<Asset.Mesh>>()
+    slots.report("slots")
+}

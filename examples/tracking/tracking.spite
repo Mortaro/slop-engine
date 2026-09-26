@@ -1,0 +1,31 @@
+var console = Console()
+var world = World()
+
+func Tracking() {
+    load "../../slop"
+    var app = App()
+    var tally = Component.Tally()
+    world.as_entity().add_component(tally)
+    var bell_bundle = BellBundle()
+    world.create_entity_from_bundle(bell_bundle)
+    var tick = 0
+    while tick < 12 {
+        app.tick()
+        tick = tick + 1
+    }
+    var tallies = Lookup<Component.Tally>()
+    var tally = tallies.of(world.entity)
+    crash tally
+    console.print(
+        "rung",
+        tally.rung,
+        "started",
+        tally.started_early,
+        tally.started_late,
+        "stopped",
+        tally.stopped_early,
+        tally.stopped_late,
+    )
+    crash tally.started_early == 3 and tally.started_late == 3
+    crash tally.stopped_early == 3 and tally.stopped_late == 3
+}

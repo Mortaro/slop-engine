@@ -1,0 +1,22 @@
+var world = World()
+var console = Console()
+
+func Healing() {
+    load "../../slop"
+    var app = App()
+    var index = 0
+    while index < 3 {
+        spawn_patient(index)
+        index = index + 1
+    }
+    var description = app.describe()
+    console.print(description)
+    app.tick()
+    app.tick()
+}
+
+func spawn_patient(index: Integer) {
+    var patient = Bundle.Patient()
+    patient.regeneration.per_tick = index + 1
+    world.create_entity_from_bundle(patient)
+}

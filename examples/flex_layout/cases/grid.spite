@@ -1,0 +1,90 @@
+var tree = Cases.Tree()
+
+func build() {
+    fixed_and_fractions()
+    automatic_tracks()
+    intrinsic_width()
+}
+
+func grid(entity: Integer, first: Ui.Length, second: Ui.Length, third: Ui.Length?) {
+    var display = Ui.Component.Display()
+    display.value = 'grid'
+    Entity(entity).add_component(display)
+    var columns = Ui.Component.GridTemplateColumns()
+    columns.tracks.append(first)
+    columns.tracks.append(second)
+    if third {
+        columns.tracks.append(third)
+    }
+    Entity(entity).add_component(columns)
+}
+
+func fixed_and_fractions() {
+    var root = tree.screen(400.0, 300.0)
+    tree.align_items(root, "flex_start")
+    var container = tree.sized(root, 300.0, -1.0)
+    var first = Ui.Length()
+    first.pixels(100.0)
+    var second = Ui.Length()
+    second.fraction(1.0)
+    var third = Ui.Length()
+    third.fraction(2.0)
+    grid(container, first, second, third)
+    tree.gaps(container, 5.0, 10.0)
+    var items = List<Integer>()
+    var index = 0
+    while index < 5 {
+        var item = tree.sized(container, -1.0, 20.0)
+        items.append(item)
+        index = index + 1
+    }
+    crash items[0]
+    crash items[1]
+    crash items[2]
+    crash items[3]
+    crash items[4]
+    tree.expect_later("grid fixed column", items[0], 0.0, 0.0, 100.0, 20.0)
+    tree.expect_later("grid 1fr column", items[1], 110.0, 0.0, 60.0, 20.0)
+    tree.expect_later("grid 2fr column", items[2], 180.0, 0.0, 120.0, 20.0)
+    tree.expect_later("grid second row", items[3], 0.0, 25.0, 100.0, 20.0)
+    tree.expect_later("grid second row, 1fr", items[4], 110.0, 25.0, 60.0, 20.0)
+    tree.expect_later("grid container height", container, 0.0, 0.0, 300.0, 45.0)
+}
+
+func automatic_grid(parent: Integer, width: Float): List<Integer> {
+    var container = tree.sized(parent, width, -1.0)
+    var automatic = Ui.Length()
+    grid(container, automatic, automatic, null)
+    var items = List<Integer>()
+    items.append(container)
+    var widths = [50.0, 30.0, 70.0, 10.0]
+    var index = 0
+    while index < widths.count() {
+        var item = tree.sized(container, widths[index], 10.0)
+        items.append(item)
+        index = index + 1
+    }
+    return items
+}
+
+func automatic_tracks() {
+    var root = tree.screen(400.0, 300.0)
+    tree.align_items(root, "flex_start")
+    var items = automatic_grid(root, 200.0)
+    crash items[1]
+    crash items[2]
+    crash items[3]
+    crash items[4]
+    tree.expect_later("auto track first", items[1], 0.0, 0.0, 50.0, 10.0)
+    tree.expect_later("auto track shares free space", items[2], 120.0, 0.0, 30.0, 10.0)
+    tree.expect_later("auto track second row", items[3], 0.0, 10.0, 70.0, 10.0)
+    tree.expect_later("auto track second row, second column", items[4], 120.0, 10.0, 10.0, 10.0)
+}
+
+func intrinsic_width() {
+    var root = tree.screen(400.0, 300.0)
+    tree.align_items(root, "flex_start")
+    var items = automatic_grid(root, -1.0)
+    crash items[0]
+    tree.expect_later("grid max-content width", items[0], 0.0, 0.0, 100.0, 20.0)
+}

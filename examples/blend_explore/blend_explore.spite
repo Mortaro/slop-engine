@@ -1,0 +1,27 @@
+var console = Console()
+var environment = Environment()
+
+func BlendExplore() {
+    load "../../slop"
+    load "../../plugins/slop_blend_plugin"
+    var file = Blend.File()
+    file.open(environment.source)
+    var names = environment.shapes.split(",")
+    var index = 0
+    while index < names.count() {
+        describe(file, names[index])
+        index = index + 1
+    }
+}
+
+func describe(file: Blend.File, name: String) {
+    console.print("==", name)
+    var shape = file.shape_named(name)
+    var fields = shape.fields.values()
+    var index = 0
+    while index < fields.count() {
+        var field = fields[index]
+        console.print("  ", field.offset, field.type_name, field.name, field.count, field.pointer)
+        index = index + 1
+    }
+}

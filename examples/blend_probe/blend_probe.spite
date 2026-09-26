@@ -1,0 +1,83 @@
+var console = Console()
+var environment = Environment()
+
+func BlendProbe() {
+    load "../../slop"
+    load "../../plugins/slop_blend_plugin"
+    var file = Blend.File()
+    file.open(environment.source)
+    var block_count = file.blocks.count()
+    var shape_count = file.shapes.count()
+    var version = file.version()
+    console.print("version", version, "blocks", block_count, "shapes", shape_count)
+    var codes = ["OB", "ME", "MA", "IM", "AR", "AC", "GR"]
+    var index = 0
+    while index < codes.count() {
+        list_code(file, codes[index])
+        index = index + 1
+    }
+    describe_shape(file, environment.shape)
+    list_attributes(file)
+}
+
+func list_code(file: Blend.File, code: String) {
+    var found = file.blocks_coded(code)
+    var index = 0
+    while index < found.count() {
+        var view = file.view_of(found[index])
+        var identity = view.inner("id")
+        var name = identity.text("name")
+        console.print(code, name)
+        index = index + 1
+    }
+}
+
+func describe_shape(file: Blend.File, name: String) {
+    var shape = file.shape_named(name)
+    var fields = shape.fields.values()
+    var index = 0
+    while index < fields.count() {
+        var field = fields[index]
+        console.print("  ", field.offset, field.type_name, field.name, field.count, field.pointer)
+        index = index + 1
+    }
+}
+
+func list_attributes(file: Blend.File) {
+    var meshes = file.blocks_coded("ME")
+    crash meshes[0]
+    var mesh = file.view_of(meshes[0])
+    var vertices = mesh.integer("totvert")
+    var faces = mesh.integer("totpoly")
+    var corners = mesh.integer("totloop")
+    console.print("mesh vertices", vertices, "faces", faces, "corners", corners)
+    var storage = mesh.inner("attribute_storage")
+    var count = storage.integer("dna_attributes_num")
+    var address = storage.pointer("dna_attributes")
+    var block = file.block_at(address)
+    crash block
+    var first = file.view_of(block)
+    var index = 0
+    while index < count {
+        describe_attribute(file, first, index)
+        index = index + 1
+    }
+}
+
+func describe_attribute(file: Blend.File, first: Blend.View, index: Integer) {
+    var attribute = first.element(index)
+    var name_address = attribute.pointer("name")
+    var name_block = file.block_at(name_address)
+    crash name_block
+    var name = file.text_at(name_block.offset, name_block.length - 1)
+    var data_type = attribute.short_integer("data_type")
+    var domain = attribute.small_integer("domain")
+    var storage_type = attribute.small_integer("storage_type")
+    var data_address = attribute.pointer("data")
+    var data_block = file.block_at(data_address)
+    crash data_block
+    crash file.shapes[data_block.shape]
+    var shape_name = file.shapes[data_block.shape].name
+    var length = data_block.length
+    console.print("attribute", name, data_type, domain, storage_type, shape_name, length)
+}

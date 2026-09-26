@@ -1,0 +1,4 @@
+var health = Component.Health()
+var alive = Component.Alive()
+var regeneration = Component.Regeneration()
+var age = Component.Age()

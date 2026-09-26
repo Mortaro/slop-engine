@@ -1,0 +1,34 @@
+type Checked {
+    renderer: RenderVulkan.Component.Renderer
+    view: Scene.Component.View
+    draw_list: Render.Component.DrawList
+}
+
+type Quitting {
+    frame: Component.Frame
+    quit: Component.Quit
+}
+
+var console = Console()
+var rendered_frames = 0
+
+func last_each(checked: Checked, quitting: Quitting) {
+    assert not quitting.quit.requested and checked.view.draws.count() > 0
+    var renderer = checked.renderer
+    rendered_frames = rendered_frames + 1
+    if rendered_frames == 20 {
+        renderer.capture_requested = true
+    }
+    assert renderer.captured
+    var width = checked.draw_list.width
+    var height = checked.draw_list.height
+    var center = renderer.pixel_at(width / 2, height / 2)
+    var corner = renderer.pixel_at(2, 2)
+    var clear = checked.draw_list.clear_color
+    var corner_color = corner.bits_and(16777215)
+    var center_color = center.bits_and(16777215)
+    var passed = corner_color != clear and center_color != corner_color and center_color != 0
+    console.print("center", center_color, "corner", corner_color, "clear", clear, "passed", passed)
+    crash passed
+    quitting.quit.requested = true
+}

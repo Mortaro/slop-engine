@@ -1,0 +1,34 @@
+var cache = Recipes.Cache()
+var sources = Recipes.Sources()
+var cookbook = Recipes.Cookbook()
+
+func build() {
+    var path = sources.path_of("test.swatch", "txt")
+    cookbook.note_source(path)
+    var file = File(path)
+    var text = file.read()
+    crash text
+    var fingerprint = cache.fingerprint(text)
+    assert not cache.is_current("test.swatch", fingerprint)
+    var trimmed = text.trim()
+    var color = trimmed.to_integer()
+    var red = color.shifted_right(16).bits_and(255)
+    var green = color.shifted_right(8).bits_and(255)
+    var blue = color.bits_and(255)
+    var blue_part = blue.shifted_left(16)
+    var green_part = green.shifted_left(8)
+    var texel = blue_part.bits_or(green_part).bits_or(red)
+    var opaque = -16777216
+    var texture = Asset.Texture()
+    texture.width = 2
+    texture.height = 2
+    var index = 0
+    while index < 4 {
+        texture.pixels.append(opaque + texel)
+        index = index + 1
+    }
+    var pack = Pack<Asset.Texture>()
+    var bytes = Asset.Bytes()
+    pack.encode(texture, bytes)
+    cache.put("test.swatch", fingerprint, bytes)
+}

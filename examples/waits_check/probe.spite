@@ -1,0 +1,24 @@
+generic $probed_type
+
+var console = Console()
+
+func report(label: String) {
+    var bytes = $probed_type.function_waits("bytes_of")
+    var ready = $probed_type.function_waits("ready")
+    var finish = $probed_type.function_waits("finish_loads")
+    var pipeline = $probed_type.function_waits("pipeline_ready")
+    var begin = $probed_type.function_waits("begin_window_frame")
+    console.print(
+        label,
+        "bytes_of",
+        bytes,
+        "ready",
+        ready,
+        "finish_loads",
+        finish,
+        "pipeline_ready",
+        pipeline,
+        "begin",
+        begin,
+    )
+}

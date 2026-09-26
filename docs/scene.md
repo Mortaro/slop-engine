@@ -4,6 +4,9 @@ Built and tested by `examples/kal_character`: a Kal archer read straight from it
 and animated, lit by the sun, sky and fog, casts a shadow and is tone mapped, with no Blender install and no
 exporter. Everything is split into plugins, so a game loads only what it uses and can replace any piece.
 
+The Kal assets are not in this repository. The example reads them from `D:/Projects/kal-assets`; point it elsewhere
+with `spite kal_character --kal_assets=<folder>`.
+
 | Plugin | Namespace | What it brings |
 |---|---|---|
 | `slop_transform_plugin` | `Transform` | `Transform.Component.Transform`: position, a rotation quaternion and scale |

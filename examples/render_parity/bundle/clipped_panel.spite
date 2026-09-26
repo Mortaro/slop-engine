@@ -1,0 +1,23 @@
+var parent = Ui.Component.Parent()
+var width = Ui.Component.Width()
+var height = Ui.Component.Height()
+var border = Ui.Component.BorderWidth()
+var background = Ui.Component.BackgroundColor()
+var horizontal = Ui.Component.OverflowX()
+var vertical = Ui.Component.OverflowY()
+var scroll = Ui.Component.ScrollPosition()
+
+func ClippedPanel(screen: Integer) {
+    parent.entity = screen
+    width.length.pixels(120.0)
+    height.length.pixels(50.0)
+    border.top.pixels(3.0)
+    border.right.pixels(3.0)
+    border.bottom.pixels(3.0)
+    border.left.pixels(3.0)
+    background.color = 3355443
+    horizontal.value = 'hidden'
+    vertical.value = 'scroll'
+    scroll.left = 30.0
+    scroll.top = 10.0
+}

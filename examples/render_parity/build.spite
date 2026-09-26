@@ -1,0 +1,3 @@
+func base_folder(): String {
+    return "../click_counter"
+}

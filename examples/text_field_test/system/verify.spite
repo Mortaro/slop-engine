@@ -1,0 +1,56 @@
+type FieldView {
+    entity: Entity
+    field: Component.Field
+    input: Ui.Component.TextInput
+    caret: Ui.Component.Caret
+    text: Ui.Component.Text
+}
+
+type Tested {
+    progress: Component.Progress
+}
+
+type Quitting {
+    quit: Component.Quit
+}
+
+var console = Console()
+
+func last_all(fields: List<FieldView>, tested: List<Tested>, quitting: List<Quitting>) {
+    assert fields.count() == 2 and tested.count() == 1 and quitting.count() == 1
+    assert tested[0].progress.done and not quitting[0].quit.requested
+    var first = field_at(fields, 0)
+    var second = field_at(fields, 1)
+    assert first
+    assert second
+    var first_focused = Lookup<Ui.Component.Focused>().has(first.entity.id)
+    var second_focused = Lookup<Ui.Component.Focused>().has(second.entity.id)
+    var first_right = first.input.value == "HEXLL" and first.caret.index == 3 and first.text.text == "HEXLL"
+    var second_right = second.input.value == "Y" and second_focused and not first_focused
+    var passed = first_right and second_right
+    console.print(
+        "first",
+        first.input.value,
+        "caret",
+        first.caret.index,
+        "second",
+        second.input.value,
+        "focused second",
+        second_focused,
+        "passed",
+        passed,
+    )
+    crash passed
+    quitting[0].quit.requested = true
+}
+
+func field_at(fields: List<FieldView>, index: Integer): FieldView? {
+    var position = 0
+    while position < fields.count() {
+        if fields[position].field.index == index {
+            return fields[position]
+        }
+        position = position + 1
+    }
+    return null
+}

@@ -1,0 +1,24 @@
+type Ringable {
+    entity: Entity
+    bell: Component.Bell
+}
+
+type Counting {
+    frame: Component.Frame
+    tally: Component.Tally
+}
+
+var ringing_now = false
+
+func update_each(ringable: Ringable, counting: Counting) {
+    var count = counting.frame.count
+    var start = count % 3 == 0 and count < 9
+    if start {
+        var ringing = Component.Ringing()
+        ringable.entity.add_component(ringing)
+        counting.tally.rung = counting.tally.rung + 1
+    } else if ringing_now {
+        ringable.entity.remove_component(Component.Ringing)
+    }
+    ringing_now = start
+}

@@ -1,0 +1,34 @@
+var console = Console()
+var build = Build()
+
+func PsdProbe() {
+    load "../../slop"
+    load "../../plugins/slop_psd_plugin"
+    cook()
+    var document = Psd.Document()
+    document.open("{build.program}/../click_counter_theme_plugin/theme/assets/ui/buttons.psd")
+    var layer_count = document.layers.count()
+    console.print("layers", layer_count)
+    var index = 0
+    while index < document.layers.count() {
+        describe(document, index)
+        index = index + 1
+    }
+}
+
+func describe(document: Psd.Document, index: Integer) {
+    crash document.layers[index]
+    var layer = document.layers[index]
+    var width = layer.width()
+    var height = layer.height()
+    var channels = layer.channels.count()
+    console.print(layer.path, layer.group, width, height, channels)
+}
+
+func cook() {
+    var layers = Psd.Layers()
+    layers.open_in("../click_counter_theme_plugin/theme", "ui.buttons")
+    console.print("opened", layers.fingerprint)
+    layers.texture("Plates/Primary/Normal", "ui.button.primary.normal")
+    console.print("wrote normal")
+}

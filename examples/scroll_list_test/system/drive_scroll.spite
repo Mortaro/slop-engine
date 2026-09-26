@@ -1,0 +1,44 @@
+type DrivenWindow {
+    window: Window.Component.Window
+    handle: Window.Component.Handle
+    progress: Component.Progress
+}
+
+var user = DynamicLibrary("user32.dll", 'identity', "")
+
+func update_each(driven: DrivenWindow) {
+    var handle = driven.handle.value
+    var progress = driven.progress
+    progress.frame = progress.frame + 1
+    assert driven.handle.value != 0
+    var over_panel: Long = 200 * 65536 + 320
+    var over_row: Long = 129 * 65536 + 320
+    var notch_down: Long = 65536 - 120
+    var wheel_down = notch_down * 65536
+    var nothing: Long = 0
+    var left_button: Long = 1
+    var on_thumb: Long = 150 * 65536 + 416
+    var dragged: Long = 190 * 65536 + 416
+    if progress.frame == 5 {
+        post(handle, 512, nothing, over_panel)
+    } else if progress.frame == 6 or progress.frame == 8 {
+        post(handle, 522, wheel_down, over_panel)
+    } else if progress.frame == 11 {
+        post(handle, 512, nothing, over_row)
+        post(handle, 513, left_button, over_row)
+    } else if progress.frame == 13 {
+        post(handle, 514, nothing, over_row)
+    } else if progress.frame == 15 {
+        post(handle, 512, nothing, on_thumb)
+        post(handle, 513, left_button, on_thumb)
+    } else if progress.frame == 17 {
+        post(handle, 512, left_button, dragged)
+    } else if progress.frame == 19 {
+        post(handle, 514, nothing, dragged)
+    }
+    progress.done = progress.frame >= 24
+}
+
+func post(handle: Long, message: Integer, word: Long, position: Long) {
+    user.PostMessageA(handle, message, word, position)
+}

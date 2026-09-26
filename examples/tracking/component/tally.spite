@@ -1,0 +1,5 @@
+var rung = 0
+var started_early = 0
+var started_late = 0
+var stopped_early = 0
+var stopped_late = 0

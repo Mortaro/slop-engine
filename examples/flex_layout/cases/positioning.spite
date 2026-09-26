@@ -1,0 +1,114 @@
+var tree = Cases.Tree()
+
+func build() {
+    box_model()
+    border_box_basis()
+    absolute_boxes()
+    wrapping()
+}
+
+func box_model() {
+    var root = tree.screen(400.0, 200.0)
+    tree.align_items(root, "flex_start")
+    var content_box = tree.sized(root, 100.0, -1.0)
+    tree.padding_all(content_box, 10.0)
+    tree.border_all(content_box, 2.0)
+    tree.margins(content_box, 0.0, 0.0, 0.0, 20.0)
+    var border_box = tree.sized(root, 100.0, -1.0)
+    tree.border_box(border_box)
+    tree.padding_all(border_box, 10.0)
+    var centred = tree.sized(root, 50.0, -1.0)
+    tree.margins(centred, 0.0, -1000.0, 0.0, -1000.0)
+    tree.expect_later("content-box adds padding and border", content_box, 20.0, 0.0, 124.0, 24.0)
+    tree.expect_later("border-box includes padding", border_box, 144.0, 0.0, 100.0, 20.0)
+    tree.expect_later("auto margins centre", centred, 297.0, 0.0, 50.0, 0.0)
+}
+
+func border_box_basis() {
+    var root = tree.screen(300.0, 10.0)
+    var padded = tree.element(root)
+    tree.grow(padded, 1.0)
+    tree.basis(padded, 100.0)
+    tree.border_box(padded)
+    tree.padding_sides(padded, 20.0, 20.0)
+    var plain = tree.element(root)
+    tree.grow(plain, 1.0)
+    tree.basis(plain, 100.0)
+    tree.expect_later("border-box basis includes padding", padded, 0.0, 0.0, 150.0, 10.0)
+    tree.expect_later("content-box basis", plain, 150.0, 0.0, 150.0, 10.0)
+}
+
+func absolute_boxes() {
+    var root = tree.screen(400.0, 300.0)
+    tree.justify(root, "center")
+    tree.align_items(root, "center")
+    tree.position(root, "relative")
+    var top_left = absolute(root, 50.0, 40.0)
+    tree.inset(top_left, 20.0, -1000.0, -1000.0, 10.0)
+    var bottom_right = absolute(root, 50.0, 40.0)
+    tree.inset(bottom_right, -1000.0, 10.0, 20.0, -1000.0)
+    var centred = absolute(root, 100.0, 10.0)
+    tree.inset(centred, -1000.0, 0.0, -1000.0, 0.0)
+    tree.margins(centred, 0.0, -1000.0, 0.0, -1000.0)
+    var static_box = absolute(root, 30.0, 30.0)
+    var unpositioned = tree.sized(root, 200.0, 100.0)
+    tree.padding_all(unpositioned, 5.0)
+    var escapes = absolute(unpositioned, 10.0, 10.0)
+    tree.inset(escapes, 0.0, 0.0, -1000.0, -1000.0)
+    var positioned = tree.sized(root, 50.0, 50.0)
+    tree.position(positioned, "relative")
+    tree.border_all(positioned, 3.0)
+    var corner = absolute(positioned, 10.0, 10.0)
+    tree.inset(corner, -1000.0, -1000.0, 5.0, 5.0)
+    var filling = absolute(positioned, -1.0, -1.0)
+    tree.inset(filling, 0.0, 0.0, 0.0, 0.0)
+    tree.expect_later("absolute top left", top_left, 10.0, 20.0, 50.0, 40.0)
+    tree.expect_later("absolute bottom right", bottom_right, 340.0, 240.0, 50.0, 40.0)
+    tree.expect_later("absolute auto margins centre", centred, 150.0, 145.0, 100.0, 10.0)
+    tree.expect_later("absolute static position", static_box, 185.0, 135.0, 30.0, 30.0)
+    tree.expect_later("in flow beside absolutes", unpositioned, 67.0, 95.0, 210.0, 110.0)
+    tree.expect_later("escapes to the positioned ancestor", escapes, 390.0, 0.0, 10.0, 10.0)
+    tree.expect_later("positioned item", positioned, 277.0, 122.0, 56.0, 56.0)
+    tree.expect_later("corner of a bordered box", corner, 285.0, 160.0, 10.0, 10.0)
+    tree.expect_later("insets fill the padding box", filling, 280.0, 125.0, 50.0, 50.0)
+}
+
+func absolute(parent: Integer, width: Float, height: Float): Integer {
+    var entity = tree.sized(parent, width, height)
+    tree.position(entity, "absolute")
+    return entity
+}
+
+func wrapping() {
+    var between = wrapping_row("space_between", 30.0)
+    crash between[0]
+    crash between[1]
+    crash between[2]
+    crash between[3]
+    crash between[4]
+    tree.expect_later("wrap line 1 item 1", between[0], 0.0, 0.0, 70.0, 30.0)
+    tree.expect_later("wrap line 1 item 2", between[1], 80.0, 0.0, 70.0, 30.0)
+    tree.expect_later("wrap line 1 item 3", between[2], 160.0, 0.0, 70.0, 30.0)
+    tree.expect_later("wrap line 2 item 1", between[3], 0.0, 170.0, 70.0, 30.0)
+    tree.expect_later("wrap line 2 item 2", between[4], 80.0, 170.0, 70.0, 30.0)
+    var stretched = wrapping_row("stretch", -1.0)
+    crash stretched[0]
+    crash stretched[2]
+    tree.expect_later("stretched line fills", stretched[0], 0.0, 0.0, 70.0, 95.0)
+    tree.expect_later("stretched line third item", stretched[2], 160.0, 0.0, 70.0, 95.0)
+}
+
+func wrapping_row(mode: String, item_height: Float): List<Integer> {
+    var root = tree.screen(250.0, 200.0)
+    tree.wrap(root, "wrap")
+    tree.align_content(root, mode)
+    tree.gaps(root, 10.0, 10.0)
+    var items = List<Integer>()
+    var index = 0
+    while index < 5 {
+        var item = tree.sized(root, 70.0, item_height)
+        items.append(item)
+        index = index + 1
+    }
+    return items
+}

@@ -1,0 +1,11 @@
+type ClickedRow {
+    clicked: Ui.Component.Clicked
+    row: Component.Row
+    text: Ui.Component.Text
+}
+
+func update_each(clicked: ClickedRow) {
+    var row = clicked.row
+    row.clicks = row.clicks + 1
+    clicked.text.text = "ROW {row.index} x{row.clicks}"
+}

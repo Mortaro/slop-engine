@@ -1,0 +1,12 @@
+type Request {
+    request: Component.ClickRequest
+    arrived: Network.Component.Arrived
+}
+
+type Counter {
+    count: Component.ClickCount
+}
+
+func update_each(request: Request, counter: Counter) {
+    counter.count.clicks = counter.count.clicks + request.request.clicks
+}

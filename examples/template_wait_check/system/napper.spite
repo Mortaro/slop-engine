@@ -1,0 +1,12 @@
+type Nap {
+    length: Integer
+}
+
+var program = Program()
+var console = Console()
+
+func update_each(nap: Nap) {
+    console.print("napping")
+    program.sleep(nap.length)
+    console.print("woke")
+}

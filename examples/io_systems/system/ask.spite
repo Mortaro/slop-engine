@@ -1,0 +1,17 @@
+type Started {
+    frame: Added<Component.Frame>
+}
+
+var world = World()
+var names = ["first", "second", "third"]
+
+func update_each(_started: Started) {
+    names.each(ask)
+}
+
+func ask(name: String) {
+    var entity = world.create_entity()
+    var request = Component.LookupRequest()
+    request.name = name
+    entity.add_component(request)
+}

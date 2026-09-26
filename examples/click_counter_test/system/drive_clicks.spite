@@ -1,0 +1,32 @@
+type DrivenWindow {
+    window: Window.Component.Window
+    handle: Window.Component.Handle
+    progress: Component.Progress
+}
+
+var user = DynamicLibrary("user32.dll", 'identity', "")
+
+func update_each(driven: DrivenWindow) {
+    var handle = driven.handle.value
+    var progress = driven.progress
+    progress.frame = progress.frame + 1
+    var first_frame = 5
+    var frames_per_click = 4
+    var since_first = progress.frame - first_frame
+    assert since_first >= 0 and driven.handle.value != 0
+    var phase = since_first % frames_per_click
+    if progress.sent < progress.wanted and phase == 0 {
+        post(handle, 512, 0)
+        post(handle, 513, 1)
+    } else if progress.sent < progress.wanted and phase == 2 {
+        post(handle, 514, 0)
+        progress.sent = progress.sent + 1
+    }
+    var settled = since_first >= progress.wanted * frames_per_click + 6
+    progress.done = progress.sent == progress.wanted and settled
+}
+
+func post(handle: Long, message: Integer, buttons: Integer) {
+    var button_center: Long = 220 * 65536 + 320
+    user.PostMessageA(handle, message, buttons, button_center)
+}

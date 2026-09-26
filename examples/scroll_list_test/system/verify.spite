@@ -1,0 +1,79 @@
+type Panel {
+    panel: Component.ListPanel
+    layout: Ui.Component.ComputedLayout
+    position: Ui.Component.ScrollPosition
+    range: Ui.Component.ScrollRange
+}
+
+type RowView {
+    row: Component.Row
+    layout: Ui.Component.ComputedLayout
+}
+
+type Tested {
+    progress: Component.Progress
+}
+
+type Quitting {
+    quit: Component.Quit
+}
+
+var console = Console()
+
+func last_all(panels: List<Panel>, rows: List<RowView>, tested: List<Tested>, quitting: List<Quitting>) {
+    assert panels.count() == 1 and tested.count() == 1 and quitting.count() == 1
+    var panel = panels[0]
+    var progress = tested[0].progress
+    var quit = quitting[0].quit
+    assert progress.done and not quit.requested
+    var scrolled = panel.position.top
+    var expected_first_top = panel.layout.top + 2.0 - scrolled
+    var first_top = row_top(rows, 0)
+    var clicked = clicked_row(rows)
+    var dragged_to = near(scrolled, 200.0)
+    var passed = dragged_to and first_top == expected_first_top and clicked == 3
+    console.print(
+        "scroll top",
+        scrolled,
+        "range",
+        panel.range.vertical,
+        "first row top",
+        first_top,
+        "clicked row",
+        clicked,
+        "passed",
+        passed,
+    )
+    crash passed
+    quit.requested = true
+}
+
+func near(value: Float, wanted: Float): Boolean {
+    var difference = value - wanted
+    return difference < 0.5 and difference > -0.5
+}
+
+func row_top(rows: List<RowView>, index: Integer): Float {
+    var position = 0
+    while position < rows.count() {
+        if rows[position].row.index == index {
+            return rows[position].layout.top
+        }
+        position = position + 1
+    }
+    return -1.0
+}
+
+func clicked_row(rows: List<RowView>): Integer {
+    var found = -1
+    var position = 0
+    while position < rows.count() {
+        var row = rows[position].row
+        if row.clicks > 0 {
+            crash found == -1 and row.clicks == 1
+            found = row.index
+        }
+        position = position + 1
+    }
+    return found
+}

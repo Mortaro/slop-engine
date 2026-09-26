@@ -1,0 +1,18 @@
+type Potion {
+    entity: Entity
+    item: Component.HealingItem
+    active: Component.Active
+    owner: Entity
+}
+
+type Target {
+    health: Component.Health
+    alive: Component.Alive
+}
+
+var world = World()
+
+func update_each(potion: Potion, target: Target) {
+    target.health = target.health + potion.item.healing_amount
+    world.despawn(potion.entity.id)
+}

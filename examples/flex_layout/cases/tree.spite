@@ -1,0 +1,278 @@
+singleton
+
+var world = World()
+var console = Console()
+var checks = 0
+var failures = 0
+var expected_names = List<String>()
+var expected_entities = List<Integer>()
+var expected_boxes = List<Float>()
+
+func screen(width: Float, height: Float): Integer {
+    var entity = world.create_entity().id
+    var root = Ui.Component.Screen()
+    Entity(entity).add_component(root)
+    var display = Ui.Component.Display()
+    display.value = 'flex'
+    Entity(entity).add_component(display)
+    size(entity, width, height)
+    return entity
+}
+
+func element(parent: Integer): Integer {
+    var entity = world.create_entity().id
+    var link = Ui.Component.Parent()
+    link.entity = parent
+    Entity(entity).add_component(link)
+    return entity
+}
+
+func size(entity: Integer, width: Float, height: Float) {
+    if width >= 0.0 {
+        var width_component = Ui.Component.Width()
+        width_component.length.pixels(width)
+        Entity(entity).add_component(width_component)
+    }
+    if height >= 0.0 {
+        var height_component = Ui.Component.Height()
+        height_component.length.pixels(height)
+        Entity(entity).add_component(height_component)
+    }
+}
+
+func basis(entity: Integer, pixels: Float) {
+    var component = Ui.Component.FlexBasis()
+    component.length.pixels(pixels)
+    Entity(entity).add_component(component)
+}
+
+func grow(entity: Integer, factor: Float) {
+    var component = Ui.Component.FlexGrow()
+    component.value = factor
+    Entity(entity).add_component(component)
+}
+
+func shrink(entity: Integer, factor: Float) {
+    var component = Ui.Component.FlexShrink()
+    component.value = factor
+    Entity(entity).add_component(component)
+}
+
+func expect_box(name: String, entity: Integer, left: Float, top: Float, width: Float, height: Float) {
+    checks = checks + 1
+    var layouts = Lookup<Ui.Component.ComputedLayout>()
+    var layout = layouts.of(entity)
+    crash layout
+    var matches = near(layout.left, left) and near(layout.top, top) and near(layout.width, width) and near(layout.height, height)
+    if not matches {
+        failures = failures + 1
+        console.print(
+            "FAILED",
+            name,
+            "got",
+            layout.left,
+            layout.top,
+            layout.width,
+            layout.height,
+            "wanted",
+            left,
+            top,
+            width,
+            height,
+        )
+    }
+}
+
+func near(value: Float, wanted: Float): Boolean {
+    var difference = value - wanted
+    return difference < 0.01 and difference > -0.01
+}
+
+func length_of(length: Ui.Length, value: Float) {
+    if value <= -1000.0 {
+        length.automatic()
+    } else {
+        length.pixels(value)
+    }
+}
+
+func margins(entity: Integer, top: Float, right: Float, bottom: Float, left: Float) {
+    var component = Ui.Component.Margin()
+    length_of(component.top, top)
+    length_of(component.right, right)
+    length_of(component.bottom, bottom)
+    length_of(component.left, left)
+    Entity(entity).add_component(component)
+}
+
+func padding_all(entity: Integer, value: Float) {
+    var component = Ui.Component.Padding()
+    component.top.pixels(value)
+    component.right.pixels(value)
+    component.bottom.pixels(value)
+    component.left.pixels(value)
+    Entity(entity).add_component(component)
+}
+
+func padding_sides(entity: Integer, left: Float, right: Float) {
+    var component = Ui.Component.Padding()
+    component.left.pixels(left)
+    component.right.pixels(right)
+    Entity(entity).add_component(component)
+}
+
+func border_all(entity: Integer, value: Float) {
+    var component = Ui.Component.BorderWidth()
+    component.top.pixels(value)
+    component.right.pixels(value)
+    component.bottom.pixels(value)
+    component.left.pixels(value)
+    Entity(entity).add_component(component)
+}
+
+func border_box(entity: Integer) {
+    var component = Ui.Component.BoxSizing()
+    component.value = 'border_box'
+    Entity(entity).add_component(component)
+}
+
+func position(entity: Integer, kind: String) {
+    var component = Ui.Component.Position()
+    if kind == "relative" {
+        component.value = 'relative'
+    } else {
+        component.value = 'absolute'
+    }
+    Entity(entity).add_component(component)
+}
+
+func inset(entity: Integer, top: Float, right: Float, bottom: Float, left: Float) {
+    var component = Ui.Component.Inset()
+    length_of(component.top, top)
+    length_of(component.right, right)
+    length_of(component.bottom, bottom)
+    length_of(component.left, left)
+    Entity(entity).add_component(component)
+}
+
+func align_self(entity: Integer, kind: String) {
+    var component = Ui.Component.AlignSelf()
+    if kind == "flex_start" {
+        component.value = 'flex_start'
+    } else if kind == "flex_end" {
+        component.value = 'flex_end'
+    } else if kind == "center" {
+        component.value = 'center'
+    } else {
+        component.value = 'stretch'
+    }
+    Entity(entity).add_component(component)
+}
+
+func align_items(entity: Integer, kind: String) {
+    var component = Ui.Component.AlignItems()
+    if kind == "flex_start" {
+        component.value = 'flex_start'
+    } else if kind == "flex_end" {
+        component.value = 'flex_end'
+    } else if kind == "center" {
+        component.value = 'center'
+    }
+    Entity(entity).add_component(component)
+}
+
+func direction(entity: Integer, kind: String) {
+    var component = Ui.Component.FlexDirection()
+    if kind == "row_reverse" {
+        component.value = 'row_reverse'
+    } else if kind == "column" {
+        component.value = 'column'
+    } else if kind == "column_reverse" {
+        component.value = 'column_reverse'
+    }
+    Entity(entity).add_component(component)
+}
+
+func wrap(entity: Integer, kind: String) {
+    var component = Ui.Component.FlexWrap()
+    if kind == "wrap" {
+        component.value = 'wrap'
+    } else {
+        component.value = 'wrap_reverse'
+    }
+    Entity(entity).add_component(component)
+}
+
+func align_content(entity: Integer, kind: String) {
+    var component = Ui.Component.AlignContent()
+    if kind == "flex_start" {
+        component.value = 'flex_start'
+    } else if kind == "space_between" {
+        component.value = 'space_between'
+    }
+    Entity(entity).add_component(component)
+}
+
+func gaps(entity: Integer, row: Float, column: Float) {
+    var row_gap = Ui.Component.RowGap()
+    row_gap.length.pixels(row)
+    Entity(entity).add_component(row_gap)
+    var column_gap = Ui.Component.ColumnGap()
+    column_gap.length.pixels(column)
+    Entity(entity).add_component(column_gap)
+}
+
+func order(entity: Integer, value: Integer) {
+    var component = Ui.Component.Order()
+    component.value = value
+    Entity(entity).add_component(component)
+}
+
+func justify(entity: Integer, kind: String) {
+    var component = Ui.Component.JustifyContent()
+    if kind == "center" {
+        component.value = 'center'
+    }
+    Entity(entity).add_component(component)
+}
+
+func sized(parent: Integer, width: Float, height: Float): Integer {
+    var entity = element(parent)
+    size(entity, width, height)
+    return entity
+}
+
+func expect_later(name: String, entity: Integer, left: Float, top: Float, width: Float, height: Float) {
+    expected_names.append(name)
+    expected_entities.append(entity)
+    expected_boxes.append(left)
+    expected_boxes.append(top)
+    expected_boxes.append(width)
+    expected_boxes.append(height)
+}
+
+func check_all() {
+    var index = 0
+    while index < expected_names.count() {
+        check_one(index)
+        index = index + 1
+    }
+}
+
+func check_one(index: Integer) {
+    crash expected_names[index]
+    crash expected_entities[index]
+    var at = index * 4
+    crash expected_boxes[at]
+    crash expected_boxes[at + 1]
+    crash expected_boxes[at + 2]
+    crash expected_boxes[at + 3]
+    expect_box(
+        expected_names[index],
+        expected_entities[index],
+        expected_boxes[at],
+        expected_boxes[at + 1],
+        expected_boxes[at + 2],
+        expected_boxes[at + 3],
+    )
+}

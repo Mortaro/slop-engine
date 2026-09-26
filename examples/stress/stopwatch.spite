@@ -1,0 +1,15 @@
+var raw = Raw()
+var heap = Memory.Heap()
+var kernel = DynamicLibrary("kernel32.dll", 'identity', "")
+
+func microseconds(): Long {
+    var counter = heap.allocate(8)
+    var frequency = heap.allocate(8)
+    kernel.QueryPerformanceCounter(counter)
+    kernel.QueryPerformanceFrequency(frequency)
+    var ticks = raw.read_long(counter, 0)
+    var per_second = raw.read_long(frequency, 0)
+    heap.free(counter)
+    heap.free(frequency)
+    return ticks / (per_second / 1000000)
+}

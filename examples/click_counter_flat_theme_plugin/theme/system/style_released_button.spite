@@ -1,0 +1,10 @@
+type ReleasedButton {
+    released: Removed<Ui.Component.Pressed>
+    hovered: Ui.Component.Hovered
+    color: Ui.Component.BackgroundColor
+    primary: Component.ButtonPrimary
+}
+
+func update_each(button: ReleasedButton) {
+    button.color.color = 4358098
+}

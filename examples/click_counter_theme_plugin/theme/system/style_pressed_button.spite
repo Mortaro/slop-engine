@@ -1,0 +1,9 @@
+type PressedButton {
+    pressed: Added<Ui.Component.Pressed>
+    image: Ui.Component.BackgroundImage
+    primary: Component.ButtonPrimary
+}
+
+func update_each(button: PressedButton) {
+    button.image.texture = "ui.button.primary.pressed"
+}
