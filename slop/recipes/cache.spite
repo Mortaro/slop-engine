@@ -40,7 +40,7 @@ func put(id: String, input_fingerprint: String, bytes: Asset.Bytes) {
 func point_index(id: String, input_fingerprint: String) {
     assert fingerprints[id] != input_fingerprint
     fingerprints.set(id, input_fingerprint)
-    var json = Json(fingerprints)
+    var json = JsonWriter(fingerprints)
     var text = json.write()
     var path = index_path()
     var index = File(path)
@@ -85,8 +85,8 @@ func load_index() {
     var index = File(path)
     var text = index.read()
     assert text
-    var json = Json<Dictionary<String>>(null)
-    var parsed = json.read(text)
+    var json = JsonReader<Dictionary<String>>(text)
+    var parsed = json.read()
     assert parsed
     fingerprints = parsed
 }

@@ -14,8 +14,8 @@ func read_index() {
     var index = File(index_file)
     var text = index.read()
     assert text
-    var json = Json<Dictionary<String>>(null)
-    var parsed = json.read(text)
+    var json = JsonReader<Dictionary<String>>(text)
+    var parsed = json.read()
     assert parsed
     fingerprints = parsed
 }
