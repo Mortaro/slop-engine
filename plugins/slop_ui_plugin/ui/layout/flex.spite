@@ -124,18 +124,18 @@ func set_padding_block(
 func write_layout(entity: Integer, left: Float, top: Float, width: Float, height: Float) {
     var layout = Lookup<Ui.Component.ComputedLayout>().of(entity)
     if not layout {
-        layout = created_layouts["{entity}"]
+        layout = created_layouts[entity]
     }
     crash layout
     layout.left = left
     layout.top = top
     layout.width = width
     layout.height = height
-    laid_out.set("{entity}", true)
+    laid_out.set(entity, true)
 }
 
 func children_of(entity: Integer): List<Integer> {
-    var key = "{entity}"
+    var key = entity
     if children[key] {
         return children[key]
     }
@@ -1306,7 +1306,7 @@ func record_scroll_range(entity: Integer, box: Ui.Layout.Box, left: Float, top: 
     assert horizontal or vertical
     var range = Lookup<Ui.Component.ScrollRange>().of(entity)
     if not range {
-        range = created_ranges["{entity}"]
+        range = created_ranges[entity]
     }
     assert range
     var scroll_left: Float = 0.0
@@ -1361,7 +1361,7 @@ func write_scrollbars(
 ) {
     var bars = Lookup<Ui.Component.ComputedScrollbars>().of(entity)
     if not bars {
-        bars = created_scrollbars["{entity}"]
+        bars = created_scrollbars[entity]
     }
     assert bars
     bars.thickness = bar_thickness(entity)
@@ -1428,7 +1428,7 @@ func layout_of(entity: Integer): Ui.Component.ComputedLayout? {
     if layout {
         return layout
     }
-    return created_layouts["{entity}"]
+    return created_layouts[entity]
 }
 
 func write_content_origin(entity: Integer, placement: Ui.Layout.Placement) {
@@ -1441,7 +1441,7 @@ func write_content_origin(entity: Integer, placement: Ui.Layout.Placement) {
 func write_clip(entity: Integer, inherited: Ui.Layout.Placement) {
     var clip = Lookup<Ui.Component.ComputedClip>().of(entity)
     if not clip {
-        clip = created_clips["{entity}"]
+        clip = created_clips[entity]
     }
     crash clip
     clip.left = inherited.clip_left
@@ -2245,7 +2245,7 @@ func place_grid_item(
 
 func paint(entity: Integer, depth: Integer) {
     crash depth < maximum_depth
-    var key = "{entity}"
+    var key = entity
     assert laid_out.has(key)
     var layout = layout_of(entity)
     crash layout
@@ -2268,7 +2268,7 @@ func bars_of(entity: Integer): Ui.Component.ComputedScrollbars? {
     if bars {
         return bars
     }
-    return created_scrollbars["{entity}"]
+    return created_scrollbars[entity]
 }
 
 func z_of(entity: Integer): Integer {

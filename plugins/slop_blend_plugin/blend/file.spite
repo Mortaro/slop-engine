@@ -127,12 +127,12 @@ func record_block(block: Blend.Block) {
     var index = blocks.count()
     blocks.append(block)
     same_address.append(-1)
-    by_offset.set("{block.offset}", index)
+    by_offset.set(block.offset, index)
     if block.code == "DNA1" {
         read_dna(block.offset)
     }
     assert block.old_address != 0
-    var key = "{block.old_address}"
+    var key = block.old_address
     var earlier = by_address.get(key)
     if earlier {
         same_address.set_at(index, earlier)
@@ -141,7 +141,7 @@ func record_block(block: Blend.Block) {
 }
 
 func enter(owner: Blend.View) {
-    var found = by_offset.get("{owner.offset}")
+    var found = by_offset.get(owner.offset)
     crash found
     scope_start = found
     scope_end = found + 1
@@ -304,10 +304,9 @@ func shape_named(name: String): Blend.Shape {
 }
 
 func block_at(address: Long): Blend.Block? {
-    var found = by_address["{address}"]
-    assert found
-    var first_found = found
-    var candidate = found
+    assert by_address[address]
+    var first_found = by_address[address]
+    var candidate = first_found
     while candidate >= 0 {
         crash blocks[candidate]
         var block = blocks[candidate]

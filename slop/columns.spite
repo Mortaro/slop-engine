@@ -38,14 +38,13 @@ func header(name: String): Long {
         offset = offset + 8
     }
     headers.set(name, made)
-    names_by_header.set("{made}", name)
+    names_by_header.set(made, name)
     return made
 }
 
 func name_of_header(column_header: Long): String {
-    var found = names_by_header["{column_header}"]
-    crash found
-    return found
+    crash names_by_header[column_header]
+    return names_by_header[column_header]
 }
 
 func removals_of(column_key: String): Removals {

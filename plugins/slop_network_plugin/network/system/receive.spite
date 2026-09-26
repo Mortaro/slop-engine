@@ -51,7 +51,7 @@ func local_entity(remote: Integer): Entity {
     if remote == -1 {
         return world.as_entity()
     }
-    var name = "{remote}"
+    var name = remote
     if mirrors.has(name) {
         var known = mirrors.get(name)
         crash known
