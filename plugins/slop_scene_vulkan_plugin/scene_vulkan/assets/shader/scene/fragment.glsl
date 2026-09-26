@@ -13,7 +13,10 @@ layout(std430, set = 1, binding = 2) readonly buffer Lighting {
     vec4 fog;
     vec4 eye;
     vec4 material;
+    mat4 light_view_projection;
 } lighting;
+
+layout(set = 1, binding = 3) uniform sampler2DShadow shadow_map;
 
 layout(location = 0) in vec3 world_normal;
 layout(location = 1) in vec2 surface_coordinate;
@@ -58,6 +61,25 @@ float fog_optical_depth(vec3 start, vec3 finish) {
     return density_at_start * distance_travelled * shape;
 }
 
+float sun_visibility(vec3 position, vec3 normal) {
+    vec3 offset_position = position + normal * 0.02;
+    vec4 light_clip = lighting.light_view_projection * vec4(offset_position, 1.0);
+    vec3 light_coordinate = light_clip.xyz / light_clip.w;
+    vec2 texel_coordinate = light_coordinate.xy * 0.5 + 0.5;
+    if (texel_coordinate.x <= 0.0 || texel_coordinate.x >= 1.0 || texel_coordinate.y <= 0.0 || texel_coordinate.y >= 1.0 || light_coordinate.z >= 1.0) {
+        return 1.0;
+    }
+    vec2 texel_size = 1.0 / vec2(textureSize(shadow_map, 0));
+    float lit = 0.0;
+    for (int row = -1; row <= 1; row++) {
+        for (int column = -1; column <= 1; column++) {
+            vec2 step_offset = vec2(float(column), float(row)) * texel_size;
+            lit += texture(shadow_map, vec3(texel_coordinate + step_offset, light_coordinate.z - 0.0015));
+        }
+    }
+    return lit / 9.0;
+}
+
 void main() {
     vec4 texel = texture(base_color, surface_coordinate);
     if (texel.a < 0.5) {
@@ -88,7 +110,8 @@ void main() {
         normal_dot_light = min(normal_dot_light, 1.0);
         vec3 reflected = distribution_ggx(normal_dot_half, alpha) * visibility_smith(normal_dot_view, normal_dot_light, alpha)
             * fresnel_schlick(specular_color, at_grazing, view_dot_half);
-        radiance = (diffuse_color / pi + reflected) * normal_dot_light * lighting.sun_radiance.rgb;
+        float visibility = sun_visibility(world_position, normal);
+        radiance = (diffuse_color / pi + reflected) * normal_dot_light * visibility * lighting.sun_radiance.rgb;
     }
     float upness = normal.y * 0.5 + 0.5;
     vec3 ambient = mix(lighting.ground_radiance.rgb, lighting.sky_radiance.rgb, upness);

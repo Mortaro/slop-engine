@@ -316,6 +316,9 @@ slop/                     the core, loaded by every program
 plugins/                  each loaded on its own: plugins/slop_<feature>_plugin/<feature>/{component,system,assets,...}
   window/, input/, ui/, render/, render_software/, render_vulkan/
   network/                replicated components and connections (docs/networking.md)
+  transform/, camera/, scene/, scene_vulkan/, animation/, lighting/   3D (docs/scene.md)
+  mongo/                  MongoDB over the wire protocol
+  png/                    PNG decoding
   psd/, zstd/, blend/     the source-format loaders, loaded by whoever has a recipe that reads them
                           (window: component/window, bundle/window, system/open_window, pump_messages;
                            ui: component/button, label, text, hovered, pressed; system/interact)

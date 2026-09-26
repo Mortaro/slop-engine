@@ -68,6 +68,15 @@ func set_perspective(field_of_view: Float, aspect: Float, near: Float, far: Floa
     m15 = 0.0
 }
 
+func set_orthographic(half_width: Float, half_height: Float, near: Float, far: Float) {
+    clear()
+    m0 = 1.0 / half_width
+    m5 = 1.0 / half_height
+    m10 = -1.0 / (far - near)
+    m14 = 0.0 - near / (far - near)
+    m15 = 1.0
+}
+
 func set_look_at(eye_x: Float, eye_y: Float, eye_z: Float, target_x: Float, target_y: Float, target_z: Float) {
     var forward_x = target_x - eye_x
     var forward_y = target_y - eye_y
