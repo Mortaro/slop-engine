@@ -15,7 +15,6 @@ enum Phase {
 
 var system: $system_type = null
 var matcher = Row<$row_type>()
-var found = Vector<Integer>()
 var since = -1
 var wanted = ""
 
@@ -31,14 +30,8 @@ func run_phase_each(phase: Symbol<$system_type.phase_each>) {
     matcher.begin_stream()
     var entity = matcher.next_match()
     while entity >= 0 {
-        found.clear()
-        var position = 0
-        while position < matcher.rows.count() {
-            found.append(matcher.rows[position])
-            position = position + 1
-        }
         var row: $row_type = null
-        fill_attributes(row, found, entity)
+        fill_attributes(row, matcher.rows, entity)
         system.phase_each(row)
         entity = matcher.next_match()
     }

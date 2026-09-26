@@ -45,7 +45,7 @@ likely cost:
 1. **Components are heap objects.** Columns now keep their values in `Column<T>` (a `List<T>` of references, or
    an `Items<T>` for components stored inline, see [ecs.md](ecs.md#storage)). The stress test runs at about
    41 ms per tick on the old path. With the stress components stored inline and single-row systems on the
-   `Stream` fast path, it runs at about 11 ms (2026-09-26).
+   `Stream` fast path, it runs at about 8 ms (2026-09-26, D221).
 2. **Reference counting on every visit.** Fetch, the row assignment and store add 4 to 6 retains and releases per
    component per system: about 3 to 5 million per tick.
 3. **Per-tick bookkeeping** (fixed for single-row systems): they stream the driver column and match each entity
