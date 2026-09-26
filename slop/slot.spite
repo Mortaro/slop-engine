@@ -3,8 +3,8 @@ singleton
 generic $slot_type
 
 var raw = Raw()
-var typed = TypedMemory<$slot_type>()
-var header_reader = ColumnHeader()
+var column = Column<$slot_type>()
+var columns = Columns()
 
 func tracking_kind(current: $slot_type): Integer {
     if $slot_type.has_function("tracking_kind") {
@@ -34,11 +34,8 @@ func fetch(entity: Integer, current: $slot_type, column_header: Long, row: Integ
     assert column_header != 0
     var entities = raw.read_long(column_header, 24)
     crash raw.read_long(entities, row * 8) == entity
-    if header_reader.is_marker(column_header) {
-        return current
-    }
-    var values = raw.read_long(column_header, 16)
-    return typed.read_value(values, row)
+    var name = relation_name(column_header)
+    return column.value_at(name, row)
 }
 
 func store(current: $slot_type, column_header: Long, row: Integer) {
@@ -53,11 +50,16 @@ func store(current: $slot_type, column_header: Long, row: Integer) {
 
 func store_component(current: $slot_type, column_header: Long, row: Integer) {
     assert column_header != 0
-    var values = raw.read_long(column_header, 16)
-    var stored = typed.read_value(values, row)
-    assert stored != current
-    typed.release_value(values, row)
-    typed.write_value(values, row, current)
+    var name = relation_name(column_header)
+    column.write_at(name, row, current)
+}
+
+func relation_name(column_header: Long): String {
+    var name = ""
+    if $slot_type == Entity {
+        name = columns.name_of_header(column_header)
+    }
+    return name
 }
 
 func entity_of(value: $slot_type): Integer {
@@ -68,11 +70,9 @@ func entity_of(value: $slot_type): Integer {
 }
 
 func insert(entity: Integer, value: $slot_type, name: String) {
-    var columns = Columns()
     var key = columns.key(value.class)
     if $slot_type == Entity {
         key = "Entity.{name}"
     }
-    var column = Column<$slot_type>()
     column.insert_keyed(entity, value, key)
 }

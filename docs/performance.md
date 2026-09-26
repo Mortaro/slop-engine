@@ -42,8 +42,10 @@ About 150 ns per entity per system: better, and still about two orders of magnit
 About 150 ns per entity per system at 200,000 entities, where Bevy's simple iteration is around 1 ns. In order of
 likely cost:
 
-1. **Components are heap objects.** A column stores pointers (`TypedMemory<T>`), so iterating chases 800,000
-   scattered objects. Components stored as values inline in the column would fix locality and remove the next item.
+1. **Components are heap objects.** Columns now keep their values in `Column<T>` (a `List<T>` of references, or
+   an `Items<T>` for components stored inline, see [ecs.md](ecs.md#storage)). The stress test runs at about
+   41 ms per tick with references. Filling rows straight from inline items ran at 33 ms in a trial, and that
+   path waits on D219 and D220.
 2. **Reference counting on every visit.** Fetch, the row assignment and store add 4 to 6 retains and releases per
    component per system: about 3 to 5 million per tick.
 3. **Per-tick bookkeeping** (fixed for single-row systems): they stream the driver column and match each entity

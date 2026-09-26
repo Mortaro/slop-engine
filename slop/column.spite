@@ -1,12 +1,14 @@
+singleton
+
 generic $component_type
 
-var typed = TypedMemory<$component_type>()
+var values = Items<$component_type>()
+var references = List<$component_type>()
+var relations = Dictionary<List<$component_type>>()
+var buried = List<$component_type>()
 var raw = Raw()
 var heap = Memory.Heap()
 var sample: $component_type = null
-var buried: Long = 0
-var buried_count = 0
-var buried_capacity = 0
 var columns = Columns()
 
 func prepare_column() {
@@ -26,6 +28,26 @@ func insert(entity: Integer, value: $component_type) {
     insert_keyed(entity, value, name)
 }
 
+func inline(): Boolean {
+    if $component_type.has_function("stored_inline") and $component_type.fits_vector() {
+        return true
+    }
+    return false
+}
+
+func references_of(name: String): List<$component_type> {
+    if $component_type == Entity {
+        if relations.has(name) {
+            crash relations[name]
+            return relations[name]
+        }
+        var made = List<$component_type>()
+        relations.set(name, made)
+        return made
+    }
+    return references
+}
+
 func insert_keyed(entity: Integer, value: $component_type, name: String) {
     var column_header = columns.header(name)
     record_column(name)
@@ -35,18 +57,11 @@ func insert_keyed(entity: Integer, value: $component_type, name: String) {
         raw.write_long(column_header, 56, 1)
     }
     var existing = columns.row_of(column_header, entity)
-    var values = raw.read_long(column_header, 16)
     if existing >= 0 {
-        replace_value(column_header, values, existing, value)
+        write_at(name, existing, value)
     } else {
-        append(column_header, entity, value)
+        append(column_header, entity, value, name)
     }
-}
-
-func replace_value(column_header: Long, values: Long, row: Integer, value: $component_type) {
-    assert not columns.is_marker(column_header)
-    typed.release_value(values, row)
-    typed.write_value(values, row, value)
 }
 
 func record_column(name: String) {
@@ -54,15 +69,17 @@ func record_column(name: String) {
     columns.record_releaser(name, this)
 }
 
-func append(column_header: Long, entity: Integer, value: $component_type) {
+func append(column_header: Long, entity: Integer, value: $component_type, name: String) {
     var count = raw.read_long(column_header, 0)
     grow_values(column_header, count + 1)
-    var values = raw.read_long(column_header, 16)
     var entities = raw.read_long(column_header, 24)
     var rows = raw.read_long(column_header, 32)
     var ticks = raw.read_long(column_header, 48)
-    if not columns.is_marker(column_header) {
-        typed.write_value(values, count, value)
+    if inline() {
+        values.append(value)
+    } else {
+        var stored = references_of(name)
+        stored.append(value)
     }
     raw.write_long(ticks, count * 8, columns.stage_counter)
     raw.write_long(entities, count * 8, entity)
@@ -77,15 +94,11 @@ func grow_values(column_header: Long, wanted: Integer) {
     if grown < 16 {
         grown = 16
     }
-    var bytes = typed.value_bytes()
-    var values = raw.read_long(column_header, 16)
     var entities = raw.read_long(column_header, 24)
-    var resized_values = resized(values, bytes * grown)
     var resized_entities = resized(entities, grown * 8)
     var ticks = raw.read_long(column_header, 48)
     var resized_ticks = resized(ticks, grown * 8)
     raw.write_long(column_header, 48, resized_ticks)
-    raw.write_long(column_header, 16, resized_values)
     raw.write_long(column_header, 24, resized_entities)
     raw.write_long(column_header, 8, grown)
 }
@@ -115,13 +128,30 @@ func resized(address: Long, bytes: Long): Long {
     return heap.resize(address, bytes)
 }
 
+func value_at(name: String, row: Integer): $component_type {
+    if inline() {
+        return values[row].copy()
+    }
+    var stored = references_of(name)
+    crash stored[row]
+    return stored[row]
+}
+
+func write_at(name: String, row: Integer, value: $component_type) {
+    if inline() {
+        values.set_at(row, value)
+        return
+    }
+    var stored = references_of(name)
+    crash row < stored.count()
+    stored.set_at(row, value)
+}
+
 func get(entity: Integer, name: String): $component_type {
     var column_header = columns.header(name)
     var row = columns.row_of(column_header, entity)
     crash row >= 0
-    crash not columns.is_marker(column_header)
-    var values = raw.read_long(column_header, 16)
-    return typed.read_value(values, row)
+    return value_at(name, row)
 }
 
 func store(entity: Integer, value: $component_type) {
@@ -129,11 +159,7 @@ func store(entity: Integer, value: $component_type) {
     var column_header = columns.header(name)
     var row = columns.row_of(column_header, entity)
     crash row >= 0
-    var values = raw.read_long(column_header, 16)
-    var current = typed.read_value(values, row)
-    assert current != value
-    typed.release_value(values, row)
-    typed.write_value(values, row, value)
+    write_at(name, row, value)
 }
 
 func remove_entity(column_header: Long, entity: Integer) {
@@ -141,17 +167,19 @@ func remove_entity(column_header: Long, entity: Integer) {
     assert row >= 0
     var count = raw.read_long(column_header, 0)
     var last = count - 1
-    var values = raw.read_long(column_header, 16)
     var entities = raw.read_long(column_header, 24)
     var rows = raw.read_long(column_header, 32)
-    var marker = columns.is_marker(column_header)
-    var bytes = typed.value_bytes()
-    if not marker {
-        bury(values + bytes * row, bytes)
+    var name = ""
+    if $component_type == Entity {
+        name = columns.name_of_header(column_header)
+    }
+    if inline() {
+        values.remove_swapping(row)
+    } else {
+        remove_reference(name, row, last)
     }
     if row != last {
         var moved_entity = raw.read_long(entities, last * 8)
-        move_value(values, row, last, marker)
         var ticks = raw.read_long(column_header, 48)
         var moved_tick = raw.read_long(ticks, last * 8)
         raw.write_long(ticks, row * 8, moved_tick)
@@ -162,64 +190,22 @@ func remove_entity(column_header: Long, entity: Integer) {
     raw.write_long(column_header, 0, last)
 }
 
-func move_value(values: Long, row: Integer, last: Integer, marker: Boolean) {
-    assert not marker
-    var bytes = typed.value_bytes()
-    raw.copy(values + bytes * last, values + bytes * row, bytes)
-}
-
-func bury(value: Long, bytes: Integer) {
-    if buried_count >= buried_capacity {
-        grow_buried(bytes)
+func remove_reference(name: String, row: Integer, last: Integer) {
+    var stored = references_of(name)
+    crash stored[row]
+    buried.append(stored[row])
+    if row != last {
+        crash stored[last]
+        stored.set_at(row, stored[last])
     }
-    raw.copy(value, buried + buried_count * bytes, bytes)
-    buried_count = buried_count + 1
-}
-
-func grow_buried(bytes: Integer) {
-    var grown = buried_capacity * 2
-    if grown < 64 {
-        grown = 64
-    }
-    buried = resized(buried, bytes * grown)
-    buried_capacity = grown
+    stored.remove_last()
 }
 
 func release_buried(budget: Integer): Integer {
     var released = 0
-    while released < budget and buried_count > 0 {
-        buried_count = buried_count - 1
-        typed.release_value(buried, buried_count)
+    while released < budget and buried.count() > 0 {
+        buried.remove_last()
         released = released + 1
     }
     return released
-}
-
-func release_all(column_header: Long) {
-    release_buried(buried_count)
-    if buried != 0 {
-        heap.free(buried)
-        buried = 0
-    }
-    var marker = raw.read_long(column_header, 56) == 1
-    var count = raw.read_long(column_header, 0)
-    var values = raw.read_long(column_header, 16)
-    var row = 0
-    while not marker and row < count {
-        typed.release_value(values, row)
-        row = row + 1
-    }
-    var entities = raw.read_long(column_header, 24)
-    var rows = raw.read_long(column_header, 32)
-    var ticks = raw.read_long(column_header, 48)
-    free_block(ticks)
-    free_block(values)
-    free_block(entities)
-    free_block(rows)
-    raw.write_long(column_header, 0, 0)
-}
-
-func free_block(address: Long) {
-    assert address != 0
-    heap.free(address)
 }

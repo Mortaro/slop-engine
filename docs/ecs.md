@@ -209,11 +209,26 @@ Ordering inside a phase is by name, not by data. The finer phase names carry the
 
 ## Storage
 
-Each component class has a column: a sparse set in raw `Memory`, found by its dotted class name through
-`Columns`. A column holds the values (8-byte references, retained), the entity of each row, the tick each row was
-added, and a sparse array from entity to row. Removal swaps the last row into the gap. Markers skip the values.
+Each component class has a column: a sparse set whose bookkeeping lives in raw `Memory`, found by its dotted class
+name through `Columns`. The raw header holds the entity of each row, the tick each row was added, and a sparse
+array from entity to row. `Column<T>` holds the values themselves. Removal swaps the last row into the gap.
 `Column<T>`, `Slot<T>` and `Row<T>` are generic singletons, one per type, so a system's fill is typed code with no
-lookup by name on the hot path.
+lookup by name on the hot path. Only `Entity` relation columns (`Entity.owner`) look up their name, since they
+share one `Column<Entity>` and keep one list per relation.
+
+Values are stored one of two ways:
+
+- **By reference** (the default): a `List<T>`. A system's row holds the stored object, so writing a field changes
+  the component.
+- **Inline** (proposal by Claude, for Mortaro to decide): a component that declares
+  `func stored_inline(): Boolean { return true }` and fits a `Vector` (numbers, `Boolean`, enums, `String`) is
+  kept in an `Items<T>` (D218), contiguous in memory. Today a row gets a copy, which is written back after the
+  system runs. The planned fast path fills rows with borrowed items instead: they are written in place, with no
+  copy and no reference counting. It waits on D219 (a compile-time argument count) and D220 (a borrow carried
+  through the call the runner writes).
+
+The default stays by reference because code that keeps a component and mutates it later (a `Lookup` result, a
+list from a `_all` system) depends on it.
 
 ## IO systems
 

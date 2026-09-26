@@ -3,11 +3,11 @@ singleton
 type AnyColumn {
     insert_object(Integer, Anything)
     remove_entity(Long, Integer)
-    release_all(Long)
     release_buried(Integer): Integer
 }
 
 var headers = Dictionary<Long>()
+var names_by_header = Dictionary<String>()
 var releasers = Dictionary<AnyColumn>()
 var raw = Raw()
 var heap = Memory.Heap()
@@ -38,7 +38,14 @@ func header(name: String): Long {
         offset = offset + 8
     }
     headers.set(name, made)
+    names_by_header.set("{made}", name)
     return made
+}
+
+func name_of_header(column_header: Long): String {
+    var found = names_by_header["{column_header}"]
+    crash found
+    return found
 }
 
 func removals_of(column_key: String): Removals {
@@ -90,12 +97,7 @@ func added_tick(column_header: Long, row: Integer): Integer {
     return raw.read_long(ticks, row * 8)
 }
 
-func insert_object(entity: Integer, value: Anything, relation: String) {
-    if value == Entity {
-        var column = Column<Entity>()
-        column.insert_keyed(entity, value, "Entity.{relation}")
-        return
-    }
+func insert_object(entity: Integer, value: Anything) {
     var name = key(value.class)
     crash releasers[name]
     releasers[name].insert_object(entity, value)
@@ -193,8 +195,14 @@ func drop() {
 func release_column(names: List<String>, index: Integer) {
     assert names[index]
     var column_header = header(names[index])
-    if releasers[names[index]] {
-        releasers[names[index]].release_all(column_header)
-    }
+    free_block(column_header, 24)
+    free_block(column_header, 32)
+    free_block(column_header, 48)
     heap.free(column_header)
+}
+
+func free_block(column_header: Long, offset: Integer) {
+    var address = raw.read_long(column_header, offset)
+    assert address != 0
+    heap.free(address)
 }

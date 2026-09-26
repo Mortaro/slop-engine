@@ -1,9 +1,7 @@
 generic $tracked_type
 
 var value: $tracked_type = null
-var raw = Raw()
-var typed = TypedMemory<$tracked_type>()
-var header_reader = ColumnHeader()
+var column = Column<$tracked_type>()
 var columns = Columns()
 
 func tracking_kind(): Integer {
@@ -16,7 +14,9 @@ func tracked_key(): String {
 
 func fill_from(column_header: Long, row: Integer) {
     assert column_header != 0 and row >= 0
-    assert not header_reader.is_marker(column_header)
-    var values = raw.read_long(column_header, 16)
-    value = typed.read_value(values, row)
+    var name = ""
+    if $tracked_type == Entity {
+        name = columns.name_of_header(column_header)
+    }
+    value = column.value_at(name, row)
 }

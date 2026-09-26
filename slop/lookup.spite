@@ -1,7 +1,6 @@
 generic $component_type
 
-var raw = Raw()
-var typed = TypedMemory<$component_type>()
+var column = Column<$component_type>()
 var sample: $component_type = null
 var columns = Columns()
 
@@ -9,9 +8,8 @@ func of(entity: Integer): $component_type? {
     var name = columns.key(sample.class)
     var column_header = columns.header(name)
     var row = columns.row_of(column_header, entity)
-    assert row >= 0 and not columns.is_marker(column_header)
-    var values = raw.read_long(column_header, 16)
-    return typed.read_value(values, row)
+    assert row >= 0
+    return column.value_at(name, row)
 }
 
 func has(entity: Integer): Boolean {
