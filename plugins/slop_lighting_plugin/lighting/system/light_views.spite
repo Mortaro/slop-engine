@@ -1,0 +1,40 @@
+type Lit {
+    sun: Lighting.Component.Sun
+    sky: Lighting.Component.Sky
+    fog: Lighting.Component.HeightFog
+    exposure: Lighting.Component.Exposure
+}
+
+type Target {
+    view: Scene.Component.View
+}
+
+var scalar = Math.Scalar()
+
+func render_each(lit: Lit, target: Target) {
+    var view = target.view
+    var sun = lit.sun
+    var length = scalar.square_root(
+        sun.direction_x * sun.direction_x + sun.direction_y * sun.direction_y + sun.direction_z * sun.direction_z,
+    )
+    view.sun_toward_x = 0.0 - sun.direction_x / length
+    view.sun_toward_y = 0.0 - sun.direction_y / length
+    view.sun_toward_z = 0.0 - sun.direction_z / length
+    view.sun_red = sun.red
+    view.sun_green = sun.green
+    view.sun_blue = sun.blue
+    view.sun_illuminance = sun.illuminance
+    var sky = lit.sky
+    view.sky_red = sky.red
+    view.sky_green = sky.green
+    view.sky_blue = sky.blue
+    view.sky_luminance = sky.luminance
+    view.ground_red = sky.ground_red
+    view.ground_green = sky.ground_green
+    view.ground_blue = sky.ground_blue
+    view.ground_luminance = sky.ground_luminance
+    view.fog_density = lit.fog.density
+    view.fog_falloff = lit.fog.falloff
+    view.fog_base_height = lit.fog.base_height
+    view.exposure_value = lit.exposure.value
+}

@@ -174,10 +174,18 @@ func create_device() {
     queue_creation.append_integer(queue_family)
     queue_creation.append_integer(1)
     queue_creation.append_pointer(priorities)
-    var dynamic_rendering = Structure(24)
-    dynamic_rendering.append_integer(1000044003)
+    var dynamic_rendering = Structure(80)
+    dynamic_rendering.append_integer(53)
     dynamic_rendering.append_long(0)
-    dynamic_rendering.append_integer(1)
+    var feature = 0
+    while feature < 15 {
+        var enabled = 0
+        if feature == 5 or feature == 12 {
+            enabled = 1
+        }
+        dynamic_rendering.append_integer(enabled)
+        feature = feature + 1
+    }
     var extensions = Structure(8)
     extensions.append_text("VK_KHR_swapchain")
     var creation = Structure(80)

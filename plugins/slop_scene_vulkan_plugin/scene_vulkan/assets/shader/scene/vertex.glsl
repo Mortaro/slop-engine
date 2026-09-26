@@ -29,6 +29,7 @@ layout(std430, set = 1, binding = 1) readonly buffer Palettes {
 
 layout(location = 0) out vec3 world_normal;
 layout(location = 1) out vec2 surface_coordinate;
+layout(location = 2) out vec3 world_position;
 
 void main() {
     Draw draw = draws[push.draw];
@@ -37,7 +38,9 @@ void main() {
         + palettes[draw.palette_first + joints.z] * weights.z
         + palettes[draw.palette_first + joints.w] * weights.w;
     mat4 world = draw.model * skin;
+    vec4 placed = world * vec4(position, 1.0);
     world_normal = normalize(mat3(world) * normal);
     surface_coordinate = texture_coordinate;
-    gl_Position = push.view_projection * world * vec4(position, 1.0);
+    world_position = placed.xyz;
+    gl_Position = push.view_projection * placed;
 }

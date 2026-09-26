@@ -31,6 +31,9 @@ func gather(target: Target, models: List<Modeled>, cameras: List<Viewing>) {
     view.near = camera.camera.near
     view.far = camera.camera.far
     var lens = camera.camera
+    view.eye_x = lens.eye_x
+    view.eye_y = lens.eye_y
+    view.eye_z = lens.eye_z
     view.view.set_look_at(lens.eye_x, lens.eye_y, lens.eye_z, lens.target_x, lens.target_y, lens.target_z)
     var index = 0
     while index < models.count() {

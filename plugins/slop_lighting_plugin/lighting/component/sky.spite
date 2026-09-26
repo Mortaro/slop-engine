@@ -1,0 +1,8 @@
+var red: Float = 0.45
+var green: Float = 0.6
+var blue: Float = 0.9
+var luminance: Float = 9000.0
+var ground_red: Float = 0.35
+var ground_green: Float = 0.3
+var ground_blue: Float = 0.25
+var ground_luminance: Float = 2500.0

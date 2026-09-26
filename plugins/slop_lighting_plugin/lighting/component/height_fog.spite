@@ -1,0 +1,3 @@
+var density: Float = 0.00015
+var falloff: Float = 0.004
+var base_height: Float = 150.0

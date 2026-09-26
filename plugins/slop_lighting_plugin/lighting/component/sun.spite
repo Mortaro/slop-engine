@@ -1,0 +1,7 @@
+var direction_x: Float = 0.5792
+var direction_y: Float = -0.7071
+var direction_z: Float = 0.4056
+var red: Float = 1.0
+var green: Float = 0.96
+var blue: Float = 0.9
+var illuminance: Float = 120000.0

@@ -1,0 +1,4 @@
+var sun = Lighting.Component.Sun()
+var sky = Lighting.Component.Sky()
+var fog = Lighting.Component.HeightFog()
+var exposure = Lighting.Component.Exposure()
