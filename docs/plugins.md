@@ -165,3 +165,12 @@ Replicates components between the environments of one program: state a component
 `Network.Component.Listen` or `Network.Component.Connect` on the world entity starts it. The wire is binary frames
 encoded by the engine's derived codec. TCP through the library's non-blocking `Socket`. See
 [networking.md](networking.md).
+
+## slop_mongodb_plugin
+
+The engine side of MongoDB. The driver itself (BSON, OP_MSG, `Mongo.Client`, `Mongo.Collection`,
+`Mongo.TypedCollection<T>`, the compile-time `Mongo.Codec<T>`) is its own package, `spite_mongodb_driver`, beside
+this repository, so programs that are not games use it too. The plugin loads it
+(`load "../../../../spite_mongodb_driver/mongodb"`) and adds `Mongo.Component.Database` (host, port, database
+name, and a client opened on first use). Running queries as IO systems between frames comes with the compiler's
+"does this function wait" (D209).

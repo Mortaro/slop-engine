@@ -317,7 +317,7 @@ plugins/                  each loaded on its own: plugins/slop_<feature>_plugin/
   window/, input/, ui/, render/, render_software/, render_vulkan/
   network/                replicated components and connections (docs/networking.md)
   transform/, camera/, scene/, scene_vulkan/, animation/, lighting/   3D (docs/scene.md)
-  mongo/                  MongoDB over the wire protocol
+  mongodb/                the ECS side of MongoDB; the driver is its own package, spite_mongodb_driver
   png/                    PNG decoding
   psd/, zstd/, blend/     the source-format loaders, loaded by whoever has a recipe that reads them
                           (window: component/window, bundle/window, system/open_window, pump_messages;
