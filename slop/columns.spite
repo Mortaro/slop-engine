@@ -3,6 +3,7 @@ singleton
 type AnyColumn {
     insert_object(Integer, Anything)
     remove_entity(Long, Integer)
+    remove_all(Long, List<Integer>, Removals, Integer)
     release_buried(Integer): Integer
 }
 
@@ -169,17 +170,10 @@ func remove_entities(entities: List<Integer>) {
 
 func remove_from_column(name: String, entities: List<Integer>) {
     assert releasers[name]
-    var column = releasers[name]
     var column_header = header(name)
-    var index = 0
-    while index < entities.count() {
-        var entity = entities[index]
-        if row_of(column_header, entity) >= 0 {
-            note_removal(name, entity)
-            column.remove_entity(column_header, entity)
-        }
-        index = index + 1
-    }
+    assert raw.read_long(column_header, 0) > 0
+    var records = removals_of(name)
+    releasers[name].remove_all(column_header, entities, records, stage_counter)
 }
 
 func drop() {

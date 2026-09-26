@@ -167,17 +167,48 @@ func store(entity: Integer, value: $component_type) {
     write_at(name, row, value)
 }
 
-func remove_entity(column_header: Long, entity: Integer) {
-    var row = columns.row_of(column_header, entity)
-    assert row >= 0
-    var count = raw.read_long(column_header, 0)
-    var last = count - 1
-    var entities = raw.read_long(column_header, 24)
-    var rows = raw.read_long(column_header, 32)
+func remove_all(column_header: Long, entities: List<Integer>, records: Removals, tick: Integer) {
     var name = ""
     if $component_type == Entity {
         name = columns.name_of_header(column_header)
     }
+    var capacity = raw.read_long(column_header, 40)
+    var index = 0
+    while index < entities.count() {
+        var entity = entities[index]
+        var row = row_below(column_header, capacity, entity)
+        if row >= 0 {
+            records.note(entity, tick)
+            remove_row(column_header, entity, row, name)
+        }
+        index = index + 1
+    }
+}
+
+func row_below(column_header: Long, capacity: Long, entity: Integer): Integer {
+    if entity >= capacity {
+        return -1
+    }
+    var rows = raw.read_long(column_header, 32)
+    var stored = raw.read_long(rows, entity * 8)
+    return stored - 1
+}
+
+func remove_entity(column_header: Long, entity: Integer) {
+    var row = columns.row_of(column_header, entity)
+    assert row >= 0
+    var name = ""
+    if $component_type == Entity {
+        name = columns.name_of_header(column_header)
+    }
+    remove_row(column_header, entity, row, name)
+}
+
+func remove_row(column_header: Long, entity: Integer, row: Integer, name: String) {
+    var count = raw.read_long(column_header, 0)
+    var last = count - 1
+    var entities = raw.read_long(column_header, 24)
+    var rows = raw.read_long(column_header, 32)
     if inline() {
         values.remove_swapping(row)
     } else {
