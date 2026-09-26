@@ -27,7 +27,7 @@ var buffer = 0
 var argument_count = 0
 var streamed = -1
 var pending = 0
-var workers = List<Concurrent<Nothing>>()
+var workers: List<Concurrent<Nothing>>? = null
 var worker_limit = 8
 var world = World()
 
@@ -93,7 +93,7 @@ func run_once() {
 func run_phase_each(phase: Symbol<$system_type.phase_each>) {
     if $system_type.function_waits("<phase>_each") {
         if argument_count == 0 {
-            assert pending == 0 and workers.count() == 0
+            assert pending == 0
             pending = 1
         } else {
             begin_stream_arguments()
@@ -141,17 +141,26 @@ func enqueue_argument(argument: Symbol<$system_type.phase_each>) {
 }
 
 func start_waiting() {
-    var index = workers.count() - 1
+    assert pending > 0
+    if not workers {
+        var made = List<Concurrent<Nothing>>()
+        workers = made
+    }
+    var running = workers
+    crash running
+    var index = running.count() - 1
     while index >= 0 {
-        crash workers[index]
-        if workers[index].finished {
-            workers.remove_at(index)
+        crash running[index]
+        if running[index].finished {
+            running.remove_at(index)
         }
         index = index - 1
     }
-    while workers.count() < worker_limit and workers.count() < pending {
-        var worker = Concurrent(drain)
-        workers.append(worker)
+    if $system_type.function_waits("<phase>_each") {
+        while running.count() < worker_limit and running.count() < pending {
+            var worker = Concurrent(drain)
+            running.append(worker)
+        }
     }
 }
 
