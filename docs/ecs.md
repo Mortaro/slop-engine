@@ -222,10 +222,13 @@ Values are stored one of two ways:
   the component.
 - **Inline** (proposal by Claude, for Mortaro to decide): a component that declares
   `func stored_inline(): Boolean { return true }` and fits a `Vector` (numbers, `Boolean`, enums, `String`) is
-  kept in an `Items<T>` (D218), contiguous in memory. Today a row gets a copy, which is written back after the
-  system runs. The planned fast path fills rows with borrowed items instead: they are written in place, with no
-  copy and no reference counting. It waits on D219 (a compile-time argument count) and D220 (a borrow carried
-  through the call the runner writes).
+  kept in an `Items<T>` (D218), contiguous in memory.
+
+A system with one row and no `Added`, `Removed` or relation field runs on the fast path, `Stream<System, Row>`. It
+walks the driver column and fills each row straight from the columns (D217): inline items are borrowed and written
+in place, with no copy and no reference counting, and references are handed over as they are. The runner picks
+it with `phase.argument_count() == 1` (D219), so systems with several rows still compile and use the combination
+path. Other rows get a copy of inline items, which is written back after the system runs.
 
 The default stays by reference because code that keeps a component and mutates it later (a `Lookup` result, a
 list from a `_all` system) depends on it.

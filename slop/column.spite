@@ -137,6 +137,11 @@ func value_at(name: String, row: Integer): $component_type {
     return stored[row]
 }
 
+func at(row: Integer): $component_type {
+    crash references[row]
+    return references[row]
+}
+
 func write_at(name: String, row: Integer, value: $component_type) {
     if inline() {
         values.set_at(row, value)

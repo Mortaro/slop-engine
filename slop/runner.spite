@@ -26,6 +26,8 @@ var last_run = -1
 var buffer = 0
 var argument_count = 0
 var streamed = -1
+var plain_rows = false
+var streaming_phase = ""
 var pending = 0
 var workers: List<Concurrent<Nothing>>? = null
 var worker_limit = 8
@@ -56,6 +58,7 @@ func place_phase_each(phase: Symbol<$system_type.phase_each>) {
 func prepare_argument(argument: Symbol<$system_type.phase_each>) {
     var row = Row<argument.class>()
     row.prepare()
+    plain_rows = row.is_plain()
     var keys = row.component_keys()
     note_accesses(keys)
     argument_count = argument_count + 1
@@ -118,6 +121,13 @@ func run_phase_each(phase: Symbol<$system_type.phase_each>) {
         }
         return
     }
+    if phase.argument_count() == 1 {
+        if plain_rows {
+            streaming_phase = phase.name
+            stream_arguments()
+            return
+        }
+    }
     if argument_count == 1 {
         begin_stream_arguments()
         advance_stream_arguments()
@@ -145,6 +155,11 @@ func run_phase_each(phase: Symbol<$system_type.phase_each>) {
         }
         combination = combination + 1
     }
+}
+
+func stream_argument(argument: Symbol<$system_type.phase_each>) {
+    var stream = Stream<$system_type, argument.class>(system, last_run, streaming_phase)
+    stream.run_phases_each()
 }
 
 func enqueue_chosen_argument(argument: Symbol<$system_type.phase_each>) {

@@ -1,0 +1,55 @@
+generic $system_type
+generic $row_type
+
+enum Phase {
+    'input'
+    'after_input'
+    'update'
+    'prepare'
+    'layout'
+    'render'
+    'after_render'
+    'present'
+    'last'
+}
+
+var system: $system_type = null
+var matcher = Row<$row_type>()
+var found = Vector<Integer>()
+var since = -1
+var wanted = ""
+
+func Stream(streamed_system: $system_type, last_run: Integer, wanted_phase: String) {
+    system = streamed_system
+    since = last_run
+    wanted = wanted_phase
+}
+
+func run_phase_each(phase: Symbol<$system_type.phase_each>) {
+    assert phase.name == wanted
+    matcher.since = since
+    matcher.begin_stream()
+    var entity = matcher.next_match()
+    while entity >= 0 {
+        found.clear()
+        var position = 0
+        while position < matcher.rows.count() {
+            found.append(matcher.rows[position])
+            position = position + 1
+        }
+        var row: $row_type = null
+        fill_attributes(row, found, entity)
+        system.phase_each(row)
+        entity = matcher.next_match()
+    }
+}
+
+func fill_attribute(attribute: Symbol<$row_type>, row: $row_type, rows: Vector<Integer>, entity: Integer) {
+    if attribute.class == Entity {
+        row.attributes[attribute] = Entity(entity)
+    } else if attribute.class.has_function("stored_inline") and attribute.class.fits_vector() {
+        row.attributes[attribute] = Column<attribute.class>().values[rows[attribute.index]]
+    } else {
+        row.attributes[attribute] = Column<attribute.class>().at(rows[attribute.index])
+    }
+}

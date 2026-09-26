@@ -7,7 +7,7 @@ var raw = Raw()
 var header_reader = ColumnHeader()
 var keys = List<String>()
 var headers = List<Long>()
-var rows = List<Integer>()
+var rows = Vector<Integer>()
 var relation = -1
 var kinds = List<Integer>()
 var since = -1
@@ -126,6 +126,16 @@ func smaller(current_smallest: Long, candidate: Long): Long {
     return current_smallest
 }
 
+func is_plain(): Boolean {
+    assert relation < 0
+    var index = 0
+    while index < kinds.count() {
+        assert kinds[index] != 1 and kinds[index] != 2
+        index = index + 1
+    }
+    return true
+}
+
 func matches(entity: Integer): Boolean {
     var index = 0
     var all = true
@@ -239,7 +249,6 @@ func fill_attribute(attribute: Symbol<$row_type>, row: $row_type, entity: Intege
     cursor = cursor + 1
     var slot = Slot<attribute.class>()
     crash headers[position]
-    crash rows[position]
     crash kinds[position]
     var header = headers[position]
     var found = rows[position]
@@ -264,7 +273,6 @@ func store_attribute(attribute: Symbol<$row_type>, row: $row_type, _entity: Inte
     cursor = cursor + 1
     var slot = Slot<attribute.class>()
     crash headers[position]
-    crash rows[position]
     var header = headers[position]
     var found = rows[position]
     crash kinds[position]
