@@ -19,6 +19,7 @@ var filled_entity = -1
 var stream_driver: Long = 0
 var stream_position = 0
 var stream_total = 0
+var waiting_rows = List<$row_type>()
 var stream_list = List<Integer>()
 
 func prepare() {
@@ -210,6 +211,18 @@ func fill_matched(entity: Integer) {
 
 func fill(entity: Integer) {
     fill_into(current, entity)
+}
+
+func enqueue(entity: Integer) {
+    var fresh: $row_type = null
+    fill_into(fresh, entity)
+    waiting_rows.append(fresh)
+}
+
+func dequeue(): $row_type {
+    var next = waiting_rows.remove_first()
+    crash next
+    return next
 }
 
 func fill_into(row: $row_type, entity: Integer) {

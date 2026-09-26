@@ -3,6 +3,7 @@ type Runnable {
     placed_in: String
     accesses: List<String>
     run_once()
+    start_waiting()
 }
 
 var phases = ["input", "after_input", "update", "prepare", "layout", "render", "after_render", "present", "last"]
@@ -11,6 +12,7 @@ var stages = List<List<Runnable>>()
 var stage_phases = List<String>()
 var world = World()
 var program = Program()
+var scheduler = Scheduler()
 var frame_milliseconds = 16
 var parallel = true
 var release_budget = 4096
@@ -93,8 +95,11 @@ func quit_requested(): Boolean {
 }
 
 func run() {
+    scheduler.resume_only_when_asked()
     while not quit_requested() {
         tick()
+        start_waiting_runners()
+        scheduler.run_ready()
         program.sleep(frame_milliseconds)
     }
     tick()
@@ -133,6 +138,14 @@ func run_stage(stage: List<Runnable>) {
 func start_threaded(runner: Runnable, running: List<Parallel<Nothing>>) {
     var thread = Parallel(runner.run_once)
     running.append(thread)
+}
+
+func start_waiting_runners() {
+    var index = 0
+    while index < runners.count() {
+        runners[index].start_waiting()
+        index = index + 1
+    }
 }
 
 func describe(): String {
