@@ -20,6 +20,7 @@ func take(): Socket? {
     var handle = running
     crash handle
     running = null
-    var connected: Socket? = handle
+    var connected = handle.finished_value()
+    assert connected
     return connected
 }

@@ -4,8 +4,8 @@ var ready = List<Boolean>()
 var generations = List<Integer>()
 var loads = List<Parallel<Scene.LoadedMesh>>()
 var load_slots = List<Integer>()
-var sources = Recipes.Sources()
-var reader: Recipes.CacheReader? = null
+var catalog = Recipes.Catalog()
+var unstarted = List<Integer>()
 
 func request(id: String): Integer {
     var index = 0
@@ -25,26 +25,30 @@ func start_loading(id: String): Integer {
     meshes.append(empty_mesh)
     ready.append(false)
     generations.append(0)
-    var opened = opened_reader()
-    var record = opened.locate(id)
+    unstarted.append(slot)
+    start_waiting_loads()
+    return slot
+}
+
+func start_waiting_loads() {
+    assert unstarted.count() > 0 and catalog.ready()
+    var reader = catalog.current()
+    var index = 0
+    while index < unstarted.count() {
+        start_slot(reader, unstarted[index])
+        index = index + 1
+    }
+    unstarted.clear()
+}
+
+func start_slot(reader: Recipes.CacheReader, slot: Integer) {
+    crash ids[slot]
+    var record = reader.locate(ids[slot])
     crash record
     var job = Scene.MeshLoad(record)
     var loading = Parallel(job.run)
     loads.append(loading)
     load_slots.append(slot)
-    return slot
-}
-
-func opened_reader(): Recipes.CacheReader {
-    if reader {
-        return reader
-    }
-    var cache_folder = sources.cache_folder()
-    var index_path = sources.index_path()
-    var created = Recipes.CacheReader(cache_folder, index_path)
-    created.read_index()
-    reader = created
-    return created
 }
 
 func is_ready(slot: Integer): Boolean {
@@ -63,6 +67,7 @@ func generation(slot: Integer): Integer {
 }
 
 func finish_loads() {
+    start_waiting_loads()
     var index = loads.count() - 1
     while index >= 0 {
         finish_if_done(index)
@@ -75,8 +80,8 @@ func finish_if_done(index: Integer) {
     crash load_slots[index]
     var slot = load_slots[index]
     var loading = loads[index]
-    assert loading.finished
-    var loaded: Scene.LoadedMesh = loading
+    var loaded = loading.finished_value()
+    assert loaded
     meshes.set_at(slot, loaded)
     ready.set_at(slot, true)
     crash generations[slot]

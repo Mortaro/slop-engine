@@ -1,0 +1,17 @@
+var path = ""
+var offset: Long = 0
+var length: Long = 0
+
+func BlobLoad(found: Recipes.Record) {
+    path = found.path
+    offset = found.offset
+    length = found.length
+}
+
+func run(): Asset.Bytes {
+    var record = Recipes.Record()
+    record.path = path
+    record.offset = offset
+    record.length = length
+    return record.read()
+}

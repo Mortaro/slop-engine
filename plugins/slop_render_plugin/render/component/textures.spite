@@ -8,6 +8,8 @@ var loads = List<Parallel<Render.LoadedTexture>>()
 var load_slots = List<Integer>()
 var sources = Recipes.Sources()
 var reader: Recipes.CacheReader? = null
+var catalog = Recipes.Catalog()
+var unstarted = List<Integer>()
 var loaded_fingerprints = List<String>()
 var watcher: Recipes.Watcher? = null
 var check_thread: Parallel<Render.ChangedTextures>? = null
@@ -38,21 +40,29 @@ func start_loading(id: String): Integer {
     ready.append(false)
     generations.append(0)
     loaded_fingerprints.append("")
-    load_slot(id, slot)
+    unstarted.append(slot)
+    start_waiting_loads()
     subscribe()
     return slot
+}
+
+func start_waiting_loads() {
+    assert unstarted.count() > 0 and catalog.ready()
+    var index = 0
+    while index < unstarted.count() {
+        var slot = unstarted[index]
+        crash ids[slot]
+        load_slot(ids[slot], slot)
+        index = index + 1
+    }
+    unstarted.clear()
 }
 
 func opened_reader(): Recipes.CacheReader {
     if reader {
         return reader
     }
-    var cache_folder = sources.cache_folder()
-    var index_path = sources.index_path()
-    var created = Recipes.CacheReader(cache_folder, index_path)
-    created.read_index()
-    reader = created
-    return created
+    return catalog.current()
 }
 
 func subscribe() {
@@ -96,9 +106,9 @@ func start_check() {
 func finish_check() {
     var thread = check_thread
     crash thread
-    assert thread.finished
+    var found = thread.finished_value()
+    assert found
     check_thread = null
-    var found: Render.ChangedTextures = thread
     reader = found.reader
     var index = 0
     while index < found.slots.count() {
@@ -148,6 +158,7 @@ func load_record(record: Recipes.Record, slot: Integer) {
 }
 
 func finish_loads() {
+    start_waiting_loads()
     var index = loads.count() - 1
     while index >= 0 {
         finish_if_done(index)
@@ -160,8 +171,8 @@ func finish_if_done(index: Integer) {
     crash load_slots[index]
     var slot = load_slots[index]
     var loading = loads[index]
-    assert loading.finished
-    var loaded: Render.LoadedTexture = loading
+    var loaded = loading.finished_value()
+    assert loaded
     textures.set_at(slot, loaded.texture)
     raws.set_at(slot, loaded.raw)
     ready.set_at(slot, true)

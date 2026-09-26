@@ -25,6 +25,7 @@ func App() {
     var frame_column = Column<Component.Frame>()
     var frame = Component.Frame()
     frame_column.insert(world.entity, frame)
+    scheduler.resume_only_when_asked()
     register_components()
     add_systems()
     phases.each(build_phase)
@@ -95,11 +96,8 @@ func quit_requested(): Boolean {
 }
 
 func run() {
-    scheduler.resume_only_when_asked()
     while not quit_requested() {
         tick()
-        start_waiting_runners()
-        scheduler.run_ready()
         program.sleep(frame_milliseconds)
     }
     tick()
@@ -116,6 +114,8 @@ func tick() {
         index = index + 1
     }
     columns.release_buried(release_budget)
+    start_waiting_runners()
+    scheduler.run_ready()
 }
 
 func run_stage(stage: List<Runnable>) {

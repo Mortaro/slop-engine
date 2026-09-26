@@ -10,6 +10,7 @@ func CacheReader(cache_folder: String, index_path: String) {
 
 func read_index() {
     var created = Recipes.Store("{folder}/store.bin")
+    created.scan()
     store = created
     var index = File(index_file)
     var text = index.read()

@@ -95,13 +95,25 @@ func run_phase_each(phase: Symbol<$system_type.phase_each>) {
         if argument_count == 0 {
             assert pending == 0
             pending = 1
-        } else {
+        } else if argument_count == 1 {
             begin_stream_arguments()
             advance_stream_arguments()
             while streamed >= 0 {
                 enqueue_arguments()
                 pending = pending + 1
                 advance_stream_arguments()
+            }
+        } else {
+            candidates.clear()
+            gather_arguments()
+            var total = combinations()
+            var combination = 0
+            while combination < total {
+                choose(combination)
+                position = 0
+                enqueue_chosen_arguments()
+                pending = pending + 1
+                combination = combination + 1
             }
         }
         return
@@ -133,6 +145,13 @@ func run_phase_each(phase: Symbol<$system_type.phase_each>) {
         }
         combination = combination + 1
     }
+}
+
+func enqueue_chosen_argument(argument: Symbol<$system_type.phase_each>) {
+    var row = Row<argument.class>()
+    crash chosen[position]
+    row.enqueue(chosen[position])
+    position = position + 1
 }
 
 func enqueue_argument(argument: Symbol<$system_type.phase_each>) {

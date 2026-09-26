@@ -56,6 +56,7 @@ var raw = Raw()
 var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
 
 func record(renderer: RenderVulkan.Component.Renderer, view: Scene.Component.View, meshes: Scene.Component.Meshes) {
+    assert created or shaders_ready(renderer)
     ensure_created(renderer)
     ensure_depth(renderer)
     upload_meshes(renderer, meshes)
@@ -511,6 +512,15 @@ func record_draw(
     var no_offset: Long = 0
     vulkan.vkCmdBindIndexBuffer(command_buffer, index_buffers[draw.mesh_slot], no_offset, 1)
     vulkan.vkCmdDrawIndexed(command_buffer, index_counts[draw.mesh_slot], 1, 0, 0, 0)
+}
+
+func shaders_ready(renderer: RenderVulkan.Component.Renderer): Boolean {
+    var scene_vertex = renderer.shader_ready("shader.scene.vertex")
+    var scene_fragment = renderer.shader_ready("shader.scene.fragment")
+    var shadow_fragment = renderer.shader_ready("shader.shadow.fragment")
+    var tone_vertex = renderer.shader_ready("shader.tone_map.vertex")
+    var tone_fragment = renderer.shader_ready("shader.tone_map.fragment")
+    return scene_vertex and scene_fragment and shadow_fragment and tone_vertex and tone_fragment
 }
 
 func ensure_created(renderer: RenderVulkan.Component.Renderer) {

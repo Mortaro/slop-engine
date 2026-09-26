@@ -1,0 +1,71 @@
+var catalog = Recipes.Catalog()
+var ids = List<String>()
+var loaded = List<Asset.Bytes>()
+var ready = List<Boolean>()
+var started = List<Boolean>()
+var loads = List<Parallel<Asset.Bytes>>()
+var load_slots = List<Integer>()
+
+func request(id: String): Integer {
+    var index = 0
+    while index < ids.count() {
+        if ids[index] == id {
+            return index
+        }
+        index = index + 1
+    }
+    ids.append(id)
+    var empty = Asset.Bytes()
+    loaded.append(empty)
+    ready.append(false)
+    started.append(false)
+    return ids.count() - 1
+}
+
+func bytes_of(id: String): Asset.Bytes? {
+    var slot = request(id)
+    crash slot < ready.count() and slot < started.count()
+    if not ready[slot] {
+        advance(slot)
+    }
+    assert ready[slot]
+    crash loaded[slot]
+    return loaded[slot]
+}
+
+func advance(slot: Integer) {
+    assert catalog.ready()
+    crash slot < started.count()
+    if not started[slot] {
+        start(slot)
+    }
+    var index = loads.count() - 1
+    while index >= 0 {
+        finish_if_done(index)
+        index = index - 1
+    }
+}
+
+func start(slot: Integer) {
+    crash ids[slot]
+    var reader = catalog.current()
+    var record = reader.locate(ids[slot])
+    crash record
+    var task = Recipes.BlobLoad(record)
+    var loading = Parallel(task.run)
+    loads.append(loading)
+    load_slots.append(slot)
+    started.set_at(slot, true)
+}
+
+func finish_if_done(index: Integer) {
+    crash loads[index]
+    crash load_slots[index]
+    var finished = loads[index].finished_value()
+    assert finished
+    var slot = load_slots[index]
+    loaded.set_at(slot, finished)
+    ready.set_at(slot, true)
+    loads.remove_at(index)
+    load_slots.remove_at(index)
+}

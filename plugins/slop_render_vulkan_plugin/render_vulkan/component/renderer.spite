@@ -41,7 +41,8 @@ var parts = List<Part>()
 var capture_requested = false
 var captured = false
 var raw = Raw()
-var cache = Recipes.Cache()
+var shaders = Recipes.Blobs()
+var offscreen_program = Program()
 var build = Build()
 var console = Console()
 var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
@@ -53,7 +54,7 @@ func ensure() {
     choose_physical_device()
     create_device()
     create_commands()
-    create_pipeline()
+    create_descriptors()
     console.print("vulkan: {device_name}, validation {validation}")
 }
 
@@ -293,8 +294,27 @@ func create_semaphore(): Long {
     return created.read_long(0)
 }
 
+func shader_ready(id: String): Boolean {
+    var code = shaders.bytes_of(id)
+    if code {
+        return true
+    }
+    return false
+}
+
+func pipeline_ready(): Boolean {
+    if pipeline != 0 {
+        return true
+    }
+    var vertex_ready = shader_ready("shader.rectangles.vertex")
+    var fragment_ready = shader_ready("shader.rectangles.fragment")
+    assert vertex_ready and fragment_ready
+    create_pipeline()
+    return true
+}
+
 func create_shader(id: String): Long {
-    var code = cache.read(id)
+    var code = shaders.bytes_of(id)
     crash code
     var length = code.length
     crash length > 0 and length % 4 == 0
@@ -317,7 +337,6 @@ func create_pipeline() {
     var no_allocator: Long = 0
     shader_vertex = create_shader("shader.rectangles.vertex")
     shader_fragment = create_shader("shader.rectangles.fragment")
-    create_descriptors()
     var set_layouts = Structure(8)
     set_layouts.append_long(descriptor_layout)
     var push_range = Structure(12)
@@ -1190,6 +1209,9 @@ func submit(wait_for_image: Boolean, frame_done: Long) {
 }
 
 func draw_offscreen(draw_list: Render.Component.DrawList, textures: Render.Component.Textures) {
+    while not pipeline_ready() {
+        offscreen_program.sleep(1)
+    }
     begin_frame()
     ensure_textures(textures)
     begin_commands()
@@ -1328,6 +1350,7 @@ func begin_window_frame(
     textures: Render.Component.Textures,
     swapchain: RenderVulkan.Component.Swapchain,
 ) {
+    assert pipeline_ready()
     begin_frame()
     var chosen = Structure(8)
     var forever: Long = -1

@@ -1,0 +1,13 @@
+var folder = ""
+var index_file = ""
+
+func IndexLoad(cache_folder: String, index_path: String) {
+    folder = cache_folder
+    index_file = index_path
+}
+
+func run(): Recipes.CacheReader {
+    var reader = Recipes.CacheReader(folder, index_file)
+    reader.read_index()
+    return reader
+}

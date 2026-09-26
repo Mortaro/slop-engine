@@ -1,0 +1,33 @@
+singleton
+
+var sources = Recipes.Sources()
+var reader: Recipes.CacheReader? = null
+var loading: Parallel<Recipes.CacheReader>? = null
+
+func ready(): Boolean {
+    if reader {
+        return true
+    }
+    if not loading {
+        var cache_folder = sources.cache_folder()
+        var index_path = sources.index_path()
+        var task = Recipes.IndexLoad(cache_folder, index_path)
+        loading = Parallel(task.run)
+    }
+    var handle = loading
+    crash handle
+    var loaded = handle.finished_value()
+    assert loaded
+    reader = loaded
+    loading = null
+    return true
+}
+
+func current(): Recipes.CacheReader {
+    crash reader
+    return reader
+}
+
+func replace(fresh: Recipes.CacheReader) {
+    reader = fresh
+}
