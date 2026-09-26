@@ -19,6 +19,10 @@ func has(key: String): Boolean {
 
 func locate(key: String): Recipes.Record? {
     scan()
+    return find(key)
+}
+
+func find(key: String): Recipes.Record? {
     assert offsets[key]
     assert lengths[key]
     var record = Recipes.Record()

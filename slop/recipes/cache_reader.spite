@@ -32,5 +32,5 @@ func locate(id: String): Recipes.Record? {
     assert fingerprints[id]
     assert store
     var key = "{id}#{fingerprints[id]}"
-    return store.locate(key)
+    return store.find(key)
 }

@@ -214,3 +214,29 @@ Each component class has a column: a sparse set in raw `Memory`, found by its do
 added, and a sparse array from entity to row. Removal swaps the last row into the gap. Markers skip the values.
 `Column<T>`, `Slot<T>` and `Row<T>` are generic singletons, one per type, so a system's fill is typed code with no
 lookup by name on the hot path.
+
+## IO systems
+
+A system whose phase function can reach a wait (a socket or file read, a sleep, a database call) is an **IO system**,
+found at compile time (`$system_type.function_waits`, D209). Nothing marks it; writing straight-line code is enough:
+
+```gdscript
+func update_each(pending: Pending) {
+    var accounts = database.collection("accounts")
+    var found = accounts.find_one(filter)
+    ...
+}
+```
+
+- It never runs inside a stage. Each matching row is copied into a queue during the stage, and after the tick the
+  app starts up to eight `Concurrent` workers per system on the main thread; the scheduler resumes them only
+  between frames (`Scheduler().resume_only_when_asked()` and `run_ready()` at the end of `App.tick()`), so a
+  database round trip never blocks a frame and never interleaves with a stage.
+- **Its row is a snapshot.** It runs after its frame, when the components may have moved or gone, so it changes the
+  world through commands (`entity.add_component(...)`, `world.despawn(...)`), which apply at the next flush.
+- A system with several rows queues each matching combination.
+
+Because the compiler finds every function that can wait, it also catches file reads on the frame path, which the
+no-stutter rule forbids: asset lookups go through `Recipes.Catalog`, which loads the cache index on the pool, and
+shaders through `Recipes.Blobs`. `examples/io_systems` runs three MongoDB lookups with a 200 ms wait each while
+frames keep ticking.
