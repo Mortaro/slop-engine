@@ -18,6 +18,7 @@ claim about behaviour is checked by one of the programs in `examples/` (see [tes
 | [testing.md](testing.md) | every example, what it proves, and how to run it |
 | [performance.md](performance.md) | the stress numbers, where the time goes, what would make it faster |
 | [conventions.md](conventions.md) | folders, naming, and the rules the engine enforces |
+| [roadmap.md](roadmap.md) | what is built next and in what order (proposal) |
 
 What Spite itself still lacks, and every bug found while building this, is in [../INSIGHTS.md](../INSIGHTS.md). The
 decisions behind the design are Mortaro's; where a page says "proposal", it is Claude's and unconfirmed.
