@@ -185,6 +185,11 @@ All sent to the "Language implementation review" session, which is fixing them o
 | 35 | fixed | a program that contains a `Concurrent` and uses `Parallel` leaks under `--debug-memory` by a varying amount (35 to 53 in `click_counter_test`) and allocates about a thousand more | none yet |
 | - | done (D216) | reading a finished `Parallel`'s value counts as a wait, so `function_waits` calls texture-loading systems IO systems; asked for `finished_value(): T?` that is never a wait | none |
 | 15 | fixed | a default `type` value isn't an object: every field read returns a fresh default (`return Health_default();`), so `target.health.amount = ...` is silently lost | none: blocks the decided system design (README) |
+| 36 | fixed | a singleton function call per row costs a lock: reading reference-stored components through `Column<T>.at()` took 350 ns a row against a direct `values[...]` read, and 44 ms against 25 ms when removals ran on threads | components stored inline; lock-free reads of singletons not written during a stage are being built |
+| 37 | reported | a `type` row naming a class that doesn't exist (`Server.Component.Eye` for a component in an environment folder) crashes the compiler (`Generator.shape_default`) instead of reporting the field | the right name, `Component.Eye` |
+| 38 | reported | a template instance can silently share a name with an ordinary function (`store_attribute` for an attribute `row` makes `store_row`), and the error points at line 0 with a wrong argument count | rename the helper |
+| 39 | D230 | a function can't return a borrowed `Items` item, so `Lookup.of` on an inline component returns a copy and writes to it are silently lost | components opt into inline storage (`stored_inline`) until D230 lands |
+| 40 | fixed (D227, D228) | a program can't override a package's `Build` default, and a package can't find its own files, so shader recipes only worked two folders below the repository | junctions in Theseus |
 | 8 | design | a `_name` attribute is private even to a `Symbol<Class>` template reading it | filters are named normally; sent to Mortaro's decisions file |
 | - | design | a class reopened from the program root gets new attributes, but its constructor loses to the loaded folder's version | the test sets window settings in its entry function; sent to Mortaro's decisions file |
 
@@ -364,6 +369,27 @@ state clearly. The ones the docs caused were sent to the language session:
 - metaprogramming.md says `attribute.class` prints like the type name, but interpolating it is an error (bug 6);
 - failure.md doesn't say that `crash a and b` narrows neither path (bug 12);
 - packages.md doesn't say which side wins when a program root and a loaded folder both define the same function.
+
+## Update, 2026-09-27: what the Theseus port taught
+
+Mortaro set the goals: Spite first, as the best language for AI (fastest, fewest ways to get things wrong), then
+Theseus beating its Unreal version while being simpler to maintain. The traps found while building for Theseus, and
+what each became:
+
+- **Silent copies are the worst class of bug.** An inline component read through a function returns a copy, and a
+  write to it vanishes with no error (bug 39). The fixes moved the rule into the compiler: walked rows (D217) and
+  lent borrows (D220, D230), so the only way to write is the way that sticks. The engine now also writes `_all`
+  rows back itself. An opt-in such as `stored_inline` is a trap of the same kind, a thing the game must remember;
+  it goes away with D230.
+- **Performance traps look like correct code.** A singleton call per row (bug 36), a `List` of row indices instead
+  of a `Vector` (30 ms to 11 ms), per-row name lookups (40 ms to 173 ms), and relation rows paired as a full
+  cartesian product: each was fixed in the engine or reported, but an AI writing a game would not have seen them.
+  The profile (`app.profile_json()`) and `server_bench` exist so these show up as numbers.
+- **Folded questions beat opt-ins.** `argument_count` (D219), `function_runs_in_pieces` (D229, coming) and
+  `fits_vector` let the engine choose the fast path itself; Mortaro's rule is that game code never changes for
+  speed.
+- **Wall-clock time inside systems is a bug magnet.** Animation sampled the clock per row, so a character's parts
+  drifted apart. Systems now read the fixed tick step.
 
 ## Suggested order
 
