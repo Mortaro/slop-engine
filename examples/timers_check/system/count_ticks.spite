@@ -1,0 +1,11 @@
+type Tallied {
+    rings: Component.Rings
+}
+
+func last_all(tallies: List<Tallied>) {
+    var index = 0
+    while index < tallies.count() {
+        tallies[index].rings.ticks = tallies[index].rings.ticks + 1
+        index = index + 1
+    }
+}

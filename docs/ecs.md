@@ -270,8 +270,10 @@ in place, with no copy and no reference counting, and references are handed over
 it with `phase.argument_count() == 1` (D219), so systems with several rows still compile and use the combination
 path. Other rows get a copy of inline items, which is written back after the system runs.
 
-The default stays by reference because code that keeps a component and mutates it later (a `Lookup` result, a
-list from a `_all` system) depends on it.
+A `_all` system's rows are written back after it runs, like a single row's, so writing a field of an inline
+component in a list sticks. The opt-in goes away (Mortaro, 2026-09-27: the engine should work this out, not the
+game): once a `Lookup` result can lend the stored item instead of a copy (D230, being built), every component that
+fits a `Vector` is stored inline with nothing declared.
 
 ## IO systems
 

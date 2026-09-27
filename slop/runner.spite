@@ -299,6 +299,12 @@ func store_argument(argument: Symbol<$system_type.phase_each>) {
 
 func run_phase_all(phase: Symbol<$system_type.phase_all>) {
     system.phase_all(every_arguments())
+    store_every_arguments()
+}
+
+func store_every_argument(argument: Symbol<$system_type.phase_all>) {
+    var row = Row<argument.class.element_type>()
+    row.store_every()
 }
 
 func every_argument(argument: Symbol<$system_type.phase_all>): argument.class {
