@@ -14,7 +14,7 @@ func ServerBench() {
     var app = App()
     app.frame_milliseconds = 50
     size = environment.world_size
-    grid.configure(0.0, 0.0, size, size, 32.0)
+    grid.configure(0, 0.0, 0.0, size, size, 32.0)
     var index = 0
     while index < environment.players {
         spawn(true)
@@ -52,7 +52,7 @@ func check_queries() {
         indexed = indexed + 1
     }
     var found = Vector<Integer>()
-    grid.within(probe.position_x, probe.position_z, 60.0, found)
+    grid.within(0, probe.position_x, probe.position_z, 60.0, found)
     var brute = 0
     var entity = 0
     while entity <= last_spawned {
@@ -67,7 +67,7 @@ func check_queries() {
 func reindex(transforms: Lookup<Transform.Component.Transform>, entity: Integer) {
     var placed = transforms.of(entity)
     assert placed
-    grid.insert(entity, placed.position_x, placed.position_z)
+    grid.insert(0, entity, placed.position_x, placed.position_z)
 }
 
 func inside(

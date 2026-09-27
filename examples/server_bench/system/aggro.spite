@@ -8,6 +8,6 @@ var found = Vector<Integer>()
 
 func update_each(hunting: Hunting) {
     found.clear()
-    grid.within(hunting.transform.position_x, hunting.transform.position_z, 20.0, found)
+    grid.within(0, hunting.transform.position_x, hunting.transform.position_z, 20.0, found)
     hunting.monster.nearby = found.count()
 }

@@ -1,0 +1,70 @@
+var origin_x: Float = -8192.0
+var origin_z: Float = -8192.0
+var cell_size: Float = 32.0
+var columns = 512
+var rows = 512
+var heads = Vector<Integer>()
+var touched = Vector<Integer>()
+
+func configure(left: Float, top: Float, width: Float, depth: Float, size: Float) {
+    origin_x = left
+    origin_z = top
+    cell_size = size
+    var whole_columns: Integer = width / size
+    var whole_rows: Integer = depth / size
+    columns = whole_columns + 1
+    rows = whole_rows + 1
+    heads.clear()
+    touched.clear()
+}
+
+func clear() {
+    ensure_heads()
+    var index = 0
+    while index < touched.count() {
+        heads.set_at(touched[index], -1)
+        index = index + 1
+    }
+    touched.clear()
+}
+
+func cell_at(position_x: Float, position_z: Float): Integer {
+    var column = column_of(position_x)
+    var row = row_of(position_z)
+    return row * columns + column
+}
+
+func column_of(position_x: Float): Integer {
+    var column = whole_below((position_x - origin_x) / cell_size)
+    return clamped(column, columns)
+}
+
+func row_of(position_z: Float): Integer {
+    var row = whole_below((position_z - origin_z) / cell_size)
+    return clamped(row, rows)
+}
+
+func whole_below(value: Float): Integer {
+    var whole: Integer = value
+    if value < 0.0 and whole > value {
+        whole = whole - 1
+    }
+    return whole
+}
+
+func clamped(value: Integer, limit: Integer): Integer {
+    var inside = value
+    if inside < 0 {
+        inside = 0
+    } else if inside >= limit {
+        inside = limit - 1
+    }
+    return inside
+}
+
+func ensure_heads() {
+    assert heads.count() < columns * rows
+    while heads.count() < columns * rows {
+        heads.append(-1)
+    }
+}

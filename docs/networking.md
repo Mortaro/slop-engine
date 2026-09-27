@@ -143,7 +143,7 @@ message id) in that entity's changes, and the receiver removes it from its mirro
 `slop_interest_plugin` observes by distance, as plain ECS a game can leave out. A connection entity with an
 `Interest.Component.Viewer` (`entity`, whose `Transform` is where the peer looks from, and `radius`) is given an
 `Interest.Component.Watching`, and every entity with `Spatial.Component.Indexed` is marked `Observed`. Every tick, in
-`prepare`, `Gather` asks `Spatial.Grid` what each viewer sees and compares it with what it saw: it spawns an
+`prepare`, `Gather` asks `Spatial.Grid` what each viewer sees in its entity's space and compares it with what it saw: it spawns an
 Observer child only for an entity that came into range, and despawns one only for an entity that left. The work
 follows how much changes, not how much is in sight.
 
@@ -155,8 +155,8 @@ connection.add_component(viewer)
 ```
 
 `interest_check` tests it across two processes: a bot sees 6 of 100 beacons, 11 after the server moves its eye, 10
-after the server despawns one in view, and exactly the 3 stashes observed by its connection, never the 2 others; a
-`Sealed` component the server removes from one stash disappears from the bot's mirror while the stash stays.
+after the server despawns one in view, and exactly the 3 stashes observed by its connection, never the 2 others, nor 10 beacons at the same
+places in another space; a `Sealed` component the server removes from one stash disappears from the bot's mirror while the stash stays.
 
 The game code is plain ECS on both sides:
 

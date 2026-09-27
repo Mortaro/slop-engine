@@ -18,7 +18,13 @@ func prepare_each(viewing: Viewing) {
     var transforms = Lookup<Transform.Component.Transform>()
     var placed = transforms.of(viewing.viewer.entity)
     assert placed
-    grid.within(placed.position_x, placed.position_z, viewing.viewer.radius, found)
+    var indexes = Lookup<Spatial.Component.Indexed>()
+    var index = indexes.of(viewing.viewer.entity)
+    var space = 0
+    if index {
+        space = index.space
+    }
+    grid.within(space, placed.position_x, placed.position_z, viewing.viewer.radius, found)
     stamp_found()
     kept_subjects.clear()
     kept_links.clear()

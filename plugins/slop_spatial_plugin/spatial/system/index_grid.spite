@@ -7,5 +7,5 @@ type Placed {
 var grid = Spatial.Grid()
 
 func after_input_each(placed: Placed) {
-    grid.insert(placed.entity.id, placed.transform.position_x, placed.transform.position_z)
+    grid.insert(placed.indexed.space, placed.entity.id, placed.transform.position_x, placed.transform.position_z)
 }

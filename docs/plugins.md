@@ -169,15 +169,19 @@ encoded by the engine's derived codec. TCP through the library's non-blocking `S
 ## slop_spatial_plugin
 
 A uniform grid over the ground plane, for area of interest, sight and aggro (a proposal by Claude).
-`Spatial.Grid()` is a singleton. `grid.configure(left, top, width, depth, cell_size)` sets the area (the default
-covers 16 km around the origin in 32 m cells). Every entity with a `Spatial.Component.Indexed` marker and a
-`Transform.Component.Transform` is indexed each tick. `ClearGrid` empties it in `input`, and `IndexGrid` inserts
-each entity at its `position_x`/`position_z` in `after_input`, so systems in `update` query where everyone stood at the
-start of the tick. `grid.within(x, z, radius, found)` appends the ids within `radius`.
+`Spatial.Grid()` is a singleton holding one grid per **space**, so maps that share coordinates (dungeons, instances)
+never see each other. `Spatial.Component.Indexed { space }` puts an entity in a space (0 by default, or a map
+entity's id). `grid.configure(space, left, top, width, depth, cell_size)` sizes a space's cells; a space never
+configured covers 16 km around the origin in 32 m cells.
 
-Each cell is a linked list through entity ids, so indexing is one write per entity and clearing resets only the
-cells used. `server_bench` indexes 15,000 entities in about 1.6 ms. It runs 10,000 aggro queries of 20 m in about
-2.2 ms and 5,000 area-of-interest queries of 60 m in about 3.1 ms, and checks a query against brute force.
+Every entity with `Indexed` and a `Transform.Component.Transform` is indexed each tick: `ClearGrid` empties every
+space in `input`, and `IndexGrid` inserts each entity at its `position_x`/`position_z` in `after_input`, so systems
+in `update` query where everyone stood at the start of the tick. `grid.within(space, x, z, radius, found)` appends
+the ids within `radius` in that space.
+
+Each cell is a linked list through entity ids, shared by every space since an entity is in one, so indexing is one
+write per entity and clearing resets only the cells used. `server_bench` (15,000 entities) ticks in about 6 ms with
+10,000 aggro queries of 20 m and 5,000 of 60 m, and checks a query against brute force.
 
 ## slop_interest_plugin
 

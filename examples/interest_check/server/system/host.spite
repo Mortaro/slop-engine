@@ -13,7 +13,12 @@ func update_each(_started: Started) {
     host.add_component(listen)
     var index = 0
     while index < 100 {
-        place_beacon(index)
+        place_beacon(index, 0)
+        index = index + 1
+    }
+    index = 0
+    while index < 10 {
+        place_beacon(index, 7)
         index = index + 1
     }
     var eye = world.create_entity()
@@ -24,7 +29,7 @@ func update_each(_started: Started) {
     console.print("server listening on port", environment.port)
 }
 
-func place_beacon(number: Integer) {
+func place_beacon(number: Integer, space: Integer) {
     var beacon = world.create_entity()
     var value = Component.Beacon()
     value.number = number
@@ -34,5 +39,6 @@ func place_beacon(number: Integer) {
     transform.position_x = across
     beacon.add_component(transform)
     var indexed = Spatial.Component.Indexed()
+    indexed.space = space
     beacon.add_component(indexed)
 }
