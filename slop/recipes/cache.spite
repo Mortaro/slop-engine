@@ -20,9 +20,13 @@ func key(id: String, input_fingerprint: String): String {
 
 func is_current(id: String, input_fingerprint: String): Boolean {
     load_index()
-    assert fingerprints[id]
+    if not fingerprints[id] {
+        return false
+    }
     var parts = fingerprints[id].split("#")
-    assert parts.count() == 3
+    if parts.count() != 3 {
+        return false
+    }
     var kind = parts[1]
     var schema = schema_of(kind)
     var expected = "{input_fingerprint}#{kind}#{schema}"
@@ -35,7 +39,9 @@ func is_current(id: String, input_fingerprint: String): Boolean {
 }
 
 func schema_of(kind: String): Long {
-    assert schemas[kind]
+    if not schemas[kind] {
+        return 0
+    }
     return schemas[kind]
 }
 
@@ -61,7 +67,9 @@ func put(id: String, input_fingerprint: String, bytes: Asset.Bytes) {
 }
 
 func is_packed(bytes: Asset.Bytes): Boolean {
-    assert bytes.length >= 8
+    if bytes.length < 8 {
+        return false
+    }
     var sized = bytes.byte_at(0) == 4 and bytes.byte_at(1) == 0 and bytes.byte_at(2) == 0 and bytes.byte_at(3) == 0
     var magic = bytes.byte_at(4) == 83 and bytes.byte_at(5) == 76 and bytes.byte_at(6) == 79 and bytes.byte_at(7) == 80
     return sized and magic

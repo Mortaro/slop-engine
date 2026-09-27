@@ -133,10 +133,14 @@ func smaller(current_smallest: Long, candidate: Long): Long {
 }
 
 func is_plain(): Boolean {
-    assert relation < 0
+    if relation >= 0 {
+        return false
+    }
     var index = 0
     while index < kinds.count() {
-        assert kinds[index] != 1 and kinds[index] != 2
+        if kinds[index] == 1 or kinds[index] == 2 {
+            return false
+        }
         index = index + 1
     }
     return true
@@ -170,11 +174,15 @@ func find_row(index: Integer, entity: Integer, found: Vector<Integer>): Boolean 
         return true
     }
     var capacity = raw.read_long(header, 40)
-    assert capacity > entity
+    if capacity <= entity {
+        return false
+    }
     var sparse = raw.read_long(header, 32)
     var stored = raw.read_long(sparse, entity * 8)
     found.set_at(index, stored - 1)
-    assert stored > 0
+    if stored <= 0 {
+        return false
+    }
     return kinds[index] != 1 or header_reader.added_tick(header, stored - 1) >= since
 }
 

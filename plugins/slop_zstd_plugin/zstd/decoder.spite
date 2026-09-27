@@ -236,14 +236,12 @@ func read_frame_header() {
 }
 
 func content_size_bytes(flag: Integer, single_segment: Integer): Integer {
-    if flag == 0 {
-        return single_segment
-    } else if flag == 1 {
-        return 2
-    } else if flag == 2 {
-        return 4
+    switch flag {
+        0: return single_segment
+        1: return 2
+        2: return 4
+        _: return 8
     }
-    return 8
 }
 
 func decode_blocks() {

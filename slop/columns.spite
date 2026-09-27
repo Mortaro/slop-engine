@@ -24,7 +24,9 @@ func key(kind: Spite.Class): String {
 }
 
 func namespace_of(kind: Spite.Class): String {
-    assert kind.namespace
+    if not kind.namespace {
+        return ""
+    }
     return kind.namespace.name_with_namespaces
 }
 
@@ -63,7 +65,9 @@ func note_removal(column_key: String, entity: Integer) {
 }
 
 func removed_since(column_key: String, entity: Integer, since: Integer): Boolean {
-    assert removals[column_key]
+    if not removals[column_key] {
+        return false
+    }
     return removals[column_key].removed_since(entity, since)
 }
 
@@ -123,8 +127,12 @@ func release_buried(budget: Integer): Integer {
 }
 
 func release_buried_in(names: List<String>, index: Integer, remaining: Integer): Integer {
-    assert names[index]
-    assert releasers[names[index]]
+    if not names[index] {
+        return 0
+    }
+    if not releasers[names[index]] {
+        return 0
+    }
     return releasers[names[index]].release_buried(remaining)
 }
 

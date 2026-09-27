@@ -31,7 +31,7 @@ func fetch(entity: Integer, current: $slot_type, column_header: Long, row: Integ
             return current
         }
     }
-    assert column_header != 0
+    crash column_header != 0
     var entities = raw.read_long(column_header, 24)
     crash raw.read_long(entities, row * 8) == entity
     var name = relation_name(column_header)

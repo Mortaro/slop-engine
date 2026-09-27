@@ -2,12 +2,16 @@ var task = Network.DialTask("", 0)
 var running: Parallel<Socket?>? = null
 
 func idle(): Boolean {
-    assert not running
+    if running {
+        return false
+    }
     return true
 }
 
 func ready(): Boolean {
-    assert running
+    if not running {
+        return false
+    }
     return running.finished
 }
 

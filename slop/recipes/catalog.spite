@@ -17,7 +17,9 @@ func ready(): Boolean {
     var handle = loading
     crash handle
     var loaded = handle.finished_value()
-    assert loaded
+    if not loaded {
+        return false
+    }
     reader = loaded
     loading = null
     return true

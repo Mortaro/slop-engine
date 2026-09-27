@@ -77,10 +77,14 @@ func inside(
     center_z: Float,
 ): Integer {
     var placed = transforms.of(entity)
-    assert placed
+    if not placed {
+        return 0
+    }
     var across = placed.position_x - center_x
     var down = placed.position_z - center_z
-    assert across * across + down * down <= 3600.0
+    if across * across + down * down > 3600.0 {
+        return 0
+    }
     return 1
 }
 

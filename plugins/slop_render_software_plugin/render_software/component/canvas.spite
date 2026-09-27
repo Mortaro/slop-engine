@@ -146,7 +146,9 @@ func mix(above: Integer, below: Integer, alpha: Integer): Integer {
 }
 
 func pixel_at(left: Integer, top: Integer): Integer {
-    assert left >= 0 and top >= 0 and left < width and top < height
+    if left < 0 or top < 0 or left >= width or top >= height {
+        return 0
+    }
     return raw.read_integer(pixels, (top * width + left) * 4)
 }
 

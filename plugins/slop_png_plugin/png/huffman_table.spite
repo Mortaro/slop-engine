@@ -27,7 +27,9 @@ func build(lengths: List<Integer>, first: Integer, count: Integer): Boolean {
     mask = one.shifted_left(maximum_bits) - 1
     clear_entries()
     var fits = assign_first_codes(counts, next_codes)
-    assert fits
+    if not fits {
+        return false
+    }
     symbol = 0
     while symbol < count {
         var length = length_of(lengths, first + symbol)
@@ -39,7 +41,9 @@ func build(lengths: List<Integer>, first: Integer, count: Integer): Boolean {
 
 func length_of(lengths: List<Integer>, index: Integer): Integer {
     var length = lengths.get_at(index)
-    assert length > 0 and length < 16
+    if length <= 0 or length >= 16 {
+        return 0
+    }
     return length
 }
 
@@ -50,7 +54,9 @@ func assign_first_codes(counts: List<Integer>, next_codes: List<Integer>): Boole
     while length < 16 {
         var counted = counts.get_at(length)
         available = available * 2 - counted
-        assert available >= 0
+        if available < 0 {
+            return false
+        }
         next_codes.set_at(length, code)
         code = code + counted
         code = code * 2

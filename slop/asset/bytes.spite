@@ -113,7 +113,9 @@ func remaining(): Integer {
 }
 
 func read_byte(): Integer {
-    assert fits(1)
+    if not fits(1) {
+        return 0
+    }
     var value: Integer = raw.read_byte(address, position)
     if value < 0 {
         value = value + 256
@@ -123,28 +125,36 @@ func read_byte(): Integer {
 }
 
 func read_integer(): Integer {
-    assert fits(4)
+    if not fits(4) {
+        return 0
+    }
     var value = raw.read_integer(address, position)
     position = position + 4
     return value
 }
 
 func read_long(): Long {
-    assert fits(8)
+    if not fits(8) {
+        return 0
+    }
     var value = raw.read_long(address, position)
     position = position + 8
     return value
 }
 
 func read_float(): Float {
-    assert fits(4)
+    if not fits(4) {
+        return 0.0
+    }
     var value = floats.read_value(address + position, 0)
     position = position + 4
     return value
 }
 
 func read_double(): Double {
-    assert fits(8)
+    if not fits(8) {
+        return 0.0
+    }
     var value = doubles.read_value(address + position, 0)
     position = position + 8
     return value
@@ -152,7 +162,9 @@ func read_double(): Double {
 
 func read_text(): String {
     var text_length = read_integer()
-    assert text_length >= 0 and fits(text_length)
+    if text_length < 0 or not fits(text_length) {
+        return ""
+    }
     var text = raw.text(address + position, text_length)
     position = position + text_length
     return text
@@ -182,14 +194,18 @@ func big_endian_integer(offset: Integer): Integer {
 func read_file(path: String): Boolean {
     var file = File(path)
     var size = file.size()
-    assert size
+    if not size {
+        return false
+    }
     length = 0
     position = 0
     var wanted: Integer = size
     reserve(wanted + 1)
     var start: Long = 0
     var read = file.read_bytes(start, size, address)
-    assert read
+    if not read {
+        return false
+    }
     length = wanted
     return read == size
 }

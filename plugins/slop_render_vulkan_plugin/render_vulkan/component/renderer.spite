@@ -132,9 +132,13 @@ func device_score(candidate: Long): Integer {
     var properties = Structure(1024)
     vulkan.vkGetPhysicalDeviceProperties(candidate, properties.address)
     var api_version = properties.read_integer(0)
-    assert api_version >= vulkan_version()
+    if api_version < vulkan_version() {
+        return 0
+    }
     var family = graphics_family(candidate)
-    assert family >= 0
+    if family < 0 {
+        return 0
+    }
     var device_type = properties.read_integer(16)
     if device_type == 2 {
         return 2
@@ -308,7 +312,9 @@ func pipeline_ready(): Boolean {
     }
     var vertex_ready = shader_ready("shader.rectangles.vertex")
     var fragment_ready = shader_ready("shader.rectangles.fragment")
-    assert vertex_ready and fragment_ready
+    if not vertex_ready or not fragment_ready {
+        return false
+    }
     create_pipeline()
     return true
 }
@@ -1245,7 +1251,9 @@ func record_capture() {
 }
 
 func pixel_at(left: Integer, top: Integer): Integer {
-    assert left >= 0 and top >= 0 and left < frame.target_width and top < frame.target_height
+    if left < 0 or top < 0 or left >= frame.target_width or top >= frame.target_height {
+        return 0
+    }
     var offset = (top * frame.target_width + left) * 4
     var pixel: Long = raw.read_integer(frame.readback_mapped, offset)
     if pixel < 0 {

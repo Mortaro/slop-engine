@@ -21,7 +21,9 @@ func start_forward(new_address: Long, new_length: Integer) {
 }
 
 func byte_at(index: Long): Long {
-    assert index >= 0 and index < length
+    if index < 0 or index >= length {
+        return 0
+    }
     var value: Long = raw.read_byte(address, index)
     if value < 0 {
         value = value + 256
@@ -46,13 +48,17 @@ func extract(position: Long, count: Integer): Long {
 }
 
 func read(count: Integer): Long {
-    assert count > 0
+    if count <= 0 {
+        return 0
+    }
     bit_position = bit_position - count
     if bit_position >= 0 {
         return extract(bit_position, count)
     }
     var available = bit_position + count
-    assert available > 0
+    if available <= 0 {
+        return 0
+    }
     var low = extract(0, available)
     var nothing: Long = 0
     var missing = nothing - bit_position
@@ -64,7 +70,9 @@ func overflowed(): Boolean {
 }
 
 func read_forward(count: Integer): Long {
-    assert count > 0
+    if count <= 0 {
+        return 0
+    }
     var value = extract(bit_position, count)
     bit_position = bit_position + count
     return value

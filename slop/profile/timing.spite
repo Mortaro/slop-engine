@@ -13,6 +13,8 @@ func record(nanoseconds: Long) {
 }
 
 func average(): Long {
-    assert runs > 0
+    if runs <= 0 {
+        return 0
+    }
     return total / runs
 }

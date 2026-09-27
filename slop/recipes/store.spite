@@ -106,8 +106,12 @@ func store_size(): Long {
 func load_index(): Boolean {
     var index = Asset.Bytes()
     var existing = File(index_path)
-    assert existing.exists()
-    assert index.read_file(index_path)
+    if not existing.exists() {
+        return false
+    }
+    if not index.read_file(index_path) {
+        return false
+    }
     while index.remaining() > 0 {
         var key = index.read_text()
         var data_offset = index.read_long()

@@ -127,7 +127,9 @@ func axis(address: Long, offset: Integer, dead_zone: Float): Float {
     if magnitude < 0.0 {
         magnitude = 0.0 - magnitude
     }
-    assert magnitude >= dead_zone
+    if magnitude < dead_zone {
+        return 0.0
+    }
     var span = 32767.0 - dead_zone
     var scaled = (magnitude - dead_zone) / span
     if scaled > 1.0 {

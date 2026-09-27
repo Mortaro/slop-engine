@@ -256,14 +256,12 @@ func read_direction(entity: Integer, container: Ui.Layout.Container) {
 }
 
 func direction_code(direction: Ui.Component.FlexDirection): Integer {
-    if direction.value == 'row' {
-        return 0
-    } else if direction.value == 'row_reverse' {
-        return 1
-    } else if direction.value == 'column' {
-        return 2
+    switch direction.value {
+        'row': return 0
+        'row_reverse': return 1
+        'column': return 2
+        _: return 3
     }
-    return 3
 }
 
 func wrap_code(wrap: Ui.Component.FlexWrap): Integer {
@@ -293,63 +291,47 @@ func read_container_alignment(entity: Integer, container: Ui.Layout.Container) {
 }
 
 func justify_code(justify: Ui.Component.JustifyContent): Integer {
-    if justify.value == 'flex_end' {
-        return 1
-    } else if justify.value == 'center' {
-        return 2
-    } else if justify.value == 'space_between' {
-        return 3
-    } else if justify.value == 'space_around' {
-        return 4
-    } else if justify.value == 'space_evenly' {
-        return 5
+    switch justify.value {
+        'flex_end': return 1
+        'center': return 2
+        'space_between': return 3
+        'space_around': return 4
+        'space_evenly': return 5
+        _: return 0
     }
-    return 0
 }
 
 func align_items_code(alignment: Ui.Component.AlignItems): Integer {
-    if alignment.value == 'flex_start' {
-        return 1
-    } else if alignment.value == 'flex_end' {
-        return 2
-    } else if alignment.value == 'center' {
-        return 3
-    } else if alignment.value == 'baseline' {
-        return 4
+    switch alignment.value {
+        'flex_start': return 1
+        'flex_end': return 2
+        'center': return 3
+        'baseline': return 4
+        _: return 0
     }
-    return 0
 }
 
 func align_content_code(alignment: Ui.Component.AlignContent): Integer {
-    if alignment.value == 'flex_start' {
-        return 1
-    } else if alignment.value == 'flex_end' {
-        return 2
-    } else if alignment.value == 'center' {
-        return 3
-    } else if alignment.value == 'space_between' {
-        return 4
-    } else if alignment.value == 'space_around' {
-        return 5
-    } else if alignment.value == 'space_evenly' {
-        return 6
+    switch alignment.value {
+        'flex_start': return 1
+        'flex_end': return 2
+        'center': return 3
+        'space_between': return 4
+        'space_around': return 5
+        'space_evenly': return 6
+        _: return 0
     }
-    return 0
 }
 
 func align_self_code(alignment: Ui.Component.AlignSelf): Integer {
-    if alignment.value == 'stretch' {
-        return 0
-    } else if alignment.value == 'flex_start' {
-        return 1
-    } else if alignment.value == 'flex_end' {
-        return 2
-    } else if alignment.value == 'center' {
-        return 3
-    } else if alignment.value == 'baseline' {
-        return 4
+    switch alignment.value {
+        'stretch': return 0
+        'flex_start': return 1
+        'flex_end': return 2
+        'center': return 3
+        'baseline': return 4
+        _: return -1
     }
-    return -1
 }
 
 func resolve_alignment(self_alignment: Integer, container_alignment: Integer): Integer {
@@ -766,7 +748,9 @@ func flex_round(
         }
         index = index + 1
     }
-    assert unfrozen > 0
+    if unfrozen <= 0 {
+        return false
+    }
     var remaining = container_main - outer_sum(items, line, gaps)
     if factor_sum < 1.0 {
         var limited = initial_free * factor_sum
@@ -815,7 +799,9 @@ func set_target(item: Ui.Layout.Item, growing: Boolean, remaining: Float, factor
 }
 
 func clamp_target(item: Ui.Layout.Item): Float {
-    assert not item.frozen
+    if item.frozen {
+        return 0.0
+    }
     var bounded = clamp_size(item.target, item.minimum_main, item.maximum_main)
     var clamped = larger(bounded, 0.0)
     item.violation = clamped - item.target
@@ -1256,13 +1242,17 @@ func place(
 
 func clips_horizontally(entity: Integer): Boolean {
     var overflow = Lookup<Ui.Component.OverflowX>().of(entity)
-    assert overflow
+    if not overflow {
+        return false
+    }
     return overflow.value != 'visible'
 }
 
 func clips_vertically(entity: Integer): Boolean {
     var overflow = Lookup<Ui.Component.OverflowY>().of(entity)
-    assert overflow
+    if not overflow {
+        return false
+    }
     return overflow.value != 'visible'
 }
 
@@ -1419,7 +1409,9 @@ func thumb_length(track: Float, visible: Float, range: Float): Float {
 }
 
 func thumb_offset(track: Float, thumb: Float, scrolled: Float, range: Float): Float {
-    assert range > 0.0
+    if range <= 0.0 {
+        return 0.0
+    }
     return (track - thumb) * scrolled / range
 }
 
@@ -1644,7 +1636,9 @@ func intrinsic_content_width(entity: Integer, box: Ui.Layout.Box, minimum_conten
     if box.leaf {
         return box.content_width
     }
-    assert depth < maximum_depth
+    if depth >= maximum_depth {
+        return 0.0
+    }
     var container = read_container(entity)
     if container.grid {
         return grid_intrinsic_width(entity, box, container, depth)
@@ -1695,31 +1689,34 @@ func width_contribution(child: Integer, minimum_content: Boolean, depth: Integer
 }
 
 func resolve(length: Ui.Length, font_size: Float, percent_base: Float?): Float? {
-    if length.unit == 'automatic' {
-        return null
-    } else if length.unit == 'pixels' {
-        return length.amount
-    } else if length.unit == 'em' {
-        return length.amount * font_size
-    } else if length.unit == 'root_em' {
-        return length.amount * root_font_size
-    } else if length.unit == 'viewport_width' {
-        return length.amount / 100.0 * viewport_width
-    } else if length.unit == 'viewport_height' {
-        return length.amount / 100.0 * viewport_height
+    switch length.unit {
+        'automatic': return null
+        'pixels': return length.amount
+        'em': return length.amount * font_size
+        'root_em': return length.amount * root_font_size
+        'viewport_width': return length.amount / 100.0 * viewport_width
+        'viewport_height': return length.amount / 100.0 * viewport_height
+        'fraction': return null
+        _: return percent_of(length.amount, percent_base)
     }
-    assert length.unit != 'fraction'
-    assert percent_base
-    return length.amount / 100.0 * percent_base
+}
+
+func percent_of(amount: Float, base: Float?): Float? {
+    assert base
+    return amount / 100.0 * base
 }
 
 func font_size_of(entity: Integer): Float {
     var sizes = Lookup<Ui.Component.FontSize>()
     var size = sizes.of(entity)
-    assert size
+    if not size {
+        return 0.0
+    }
     var no_base: Float? = null
     var resolved = resolve(size.length, default_font_size, no_base)
-    assert resolved
+    if not resolved {
+        return 0.0
+    }
     return resolved
 }
 

@@ -21,7 +21,9 @@ func note(entity: Integer, tick: Integer) {
 }
 
 func removed_since(entity: Integer, since: Integer): Boolean {
-    assert entity < last_capacity
+    if entity >= last_capacity {
+        return false
+    }
     var stamp = raw.read_long(last_removed, entity * 8)
     return stamp > 0 and stamp - 1 >= since
 }

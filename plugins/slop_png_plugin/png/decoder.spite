@@ -57,7 +57,9 @@ func reset() {
 
 func has_signature(bytes: Asset.Bytes): Boolean {
     var signature = [137, 80, 78, 71, 13, 10, 26, 10]
-    assert bytes.length > 8
+    if bytes.length <= 8 {
+        return false
+    }
     var index = 0
     var matching = true
     while index < signature.count() {
@@ -77,12 +79,16 @@ func read_chunks(bytes: Asset.Bytes) {
 }
 
 func read_chunk(bytes: Asset.Bytes, offset: Integer): Integer {
-    assert not broken
+    if broken {
+        return 0
+    }
     var length = bytes.big_endian_integer(offset)
     var finish: Long = length
     finish = finish + offset + 12
     broken = length < 0 or finish > bytes.length
-    assert not broken
+    if broken {
+        return 0
+    }
     var kind = raw.text(bytes.address + offset + 4, 4)
     var body = offset + 8
     if kind == "IHDR" {
@@ -143,7 +149,9 @@ func read_transparency(bytes: Asset.Bytes, body: Integer, length: Integer) {
 }
 
 func key_sample(bytes: Asset.Bytes, body: Integer, length: Integer, at: Integer): Integer {
-    assert at + 2 <= length
+    if at + 2 > length {
+        return 0
+    }
     return bytes.big_endian_short(body + at)
 }
 
@@ -161,13 +169,21 @@ func read_palette_alpha(bytes: Asset.Bytes, body: Integer, length: Integer) {
 }
 
 func header_is_valid(): Boolean {
-    assert width > 0 and height > 0 and width <= 32768 and height <= 32768
+    if width <= 0 or height <= 0 or width > 32768 or height > 32768 {
+        return false
+    }
     var area: Long = width
     area = area * height
-    assert area <= 67108864
-    assert compression == 0 and filter_method == 0 and interlace <= 1
+    if area > 67108864 {
+        return false
+    }
+    if compression != 0 or filter_method != 0 or interlace > 1 {
+        return false
+    }
     channels = channels_of(color_type)
-    assert channels > 0 and depth_fits()
+    if channels <= 0 or not depth_fits() {
+        return false
+    }
     return color_type != 3 or not palette.is_empty()
 }
 
@@ -210,7 +226,9 @@ func pass_columns(pass: Integer): Integer {
     crash column_steps[pass]
     var start = column_starts[pass]
     var step = column_steps[pass]
-    assert width > start
+    if width <= start {
+        return 0
+    }
     return (width - start + step - 1) / step
 }
 
@@ -219,7 +237,9 @@ func pass_rows(pass: Integer): Integer {
     crash row_steps[pass]
     var start = row_starts[pass]
     var step = row_steps[pass]
-    assert height > start
+    if height <= start {
+        return 0
+    }
     return (height - start + step - 1) / step
 }
 
@@ -243,7 +263,9 @@ func inflated_length(): Integer {
 }
 
 func pass_size(columns: Integer, rows: Integer, stride: Integer): Integer {
-    assert columns > 0 and rows > 0
+    if columns <= 0 or rows <= 0 {
+        return 0
+    }
     return rows * (stride + 1)
 }
 
@@ -413,16 +435,13 @@ func place_row(
 }
 
 func texel_at(pixels: Long, column: Integer): Integer {
-    if color_type == 6 {
-        return rgba_texel(pixels, column)
-    } else if color_type == 2 {
-        return rgb_texel(pixels, column)
-    } else if color_type == 3 {
-        return palette_texel(pixels, column)
-    } else if color_type == 4 {
-        return grey_alpha_texel(pixels, column)
+    switch color_type {
+        6: return rgba_texel(pixels, column)
+        2: return rgb_texel(pixels, column)
+        3: return palette_texel(pixels, column)
+        4: return grey_alpha_texel(pixels, column)
+        _: return grey_texel(pixels, column)
     }
-    return grey_texel(pixels, column)
 }
 
 func rgba_texel(pixels: Long, column: Integer): Integer {

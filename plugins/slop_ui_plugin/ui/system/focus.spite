@@ -56,7 +56,6 @@ func focused_order(holders: List<Holder>): Integer {
     if holders.count() == 0 {
         return -1
     }
-    crash holders[0]
     var holder = holders[0].entity.id
     var layout = Lookup<Component.ComputedLayout>().of(holder)
     if layout {

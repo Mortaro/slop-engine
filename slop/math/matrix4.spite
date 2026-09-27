@@ -192,52 +192,24 @@ func scale_all(factor: Float) {
 }
 
 func value_at(index: Integer): Float {
-    if index == 0 {
-        return m0
+    switch index {
+        0: return m0
+        1: return m1
+        2: return m2
+        3: return m3
+        4: return m4
+        5: return m5
+        6: return m6
+        7: return m7
+        8: return m8
+        9: return m9
+        10: return m10
+        11: return m11
+        12: return m12
+        13: return m13
+        14: return m14
+        _: return m15
     }
-    if index == 1 {
-        return m1
-    }
-    if index == 2 {
-        return m2
-    }
-    if index == 3 {
-        return m3
-    }
-    if index == 4 {
-        return m4
-    }
-    if index == 5 {
-        return m5
-    }
-    if index == 6 {
-        return m6
-    }
-    if index == 7 {
-        return m7
-    }
-    if index == 8 {
-        return m8
-    }
-    if index == 9 {
-        return m9
-    }
-    if index == 10 {
-        return m10
-    }
-    if index == 11 {
-        return m11
-    }
-    if index == 12 {
-        return m12
-    }
-    if index == 13 {
-        return m13
-    }
-    if index == 14 {
-        return m14
-    }
-    return m15
 }
 
 func set_value(index: Integer, value: Float) {

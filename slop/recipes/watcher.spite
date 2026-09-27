@@ -23,7 +23,9 @@ func start(watched: List<String>) {
 }
 
 func take_change(): Boolean {
-    assert handles != 0
+    if handles == 0 {
+        return false
+    }
     var no_wait = 0
     var signalled = kernel.WaitForMultipleObjects(count, handles, 0, no_wait)
     while signalled >= 0 and signalled < count {

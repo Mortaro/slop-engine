@@ -232,7 +232,9 @@ func read_extra_blocks(record: Psd.Layer, end: Integer) {
 
 func read_extra_block(record: Psd.Layer): Boolean {
     var signature = read_tag()
-    assert signature == "8BIM" or signature == "8B64"
+    if signature != "8BIM" and signature != "8B64" {
+        return false
+    }
     var key = read_tag()
     var length = read_unsigned()
     var start = bytes.position
