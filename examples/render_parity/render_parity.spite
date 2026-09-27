@@ -58,7 +58,7 @@ func add_wall_of_text(screen: Integer) {
     parent.entity = screen
     wall.add_component(parent)
     var text = Ui.Component.Text()
-    var line = "the quick brown fox jumps over the lazy dog "
+    var line = "the quick brown fox (100%) jumps, over the lazy dog: a/b+c=d 'e' \"f\" g_h *[#] "
     var repeated = ""
     var index = 0
     while index < 16 {
