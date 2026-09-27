@@ -46,7 +46,8 @@ What the readers do:
   - Corners are welded by vertex, normal and UV.
   - Positions go through the object's world matrix and from Blender's Z-up to Y-up, `(x, y, z) → (x, z, -y)`.
   - Skin weights come from the deform-vertex layer of the vertex data: the four heaviest groups that name a
-    bone, renormalised.
+    bone, renormalised. A mesh with no deform layer is static: it gets no joints, so it is drawn with the identity
+    palette entry. A vertex of a skinned mesh that no group weighs follows bone 0.
   - Faces are grouped by their `material_index`, one section per material slot. `Asset.Mesh.sections` holds
     three numbers per section (first index, index count, material slot), and `Asset.Mesh.textures` one texture
     id per material slot, which the recipe fills.

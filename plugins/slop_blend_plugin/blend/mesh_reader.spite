@@ -358,10 +358,13 @@ func weld_key(vertex: Integer, across: Float, down: Float): String {
 }
 
 func append_skin(vertex: Integer) {
+    assert deform_vertices >= 0
     var bones = List<Integer>()
     var weights = List<Float>()
-    if deform_vertices >= 0 {
-        collect_weights(vertex, bones, weights)
+    collect_weights(vertex, bones, weights)
+    if bones.count() == 0 {
+        bones.append(0)
+        weights.append(1.0)
     }
     var total: Float = 0.0
     var slot = 0
