@@ -144,6 +144,7 @@ func generation(slot: Integer): Integer {
 func load_slot(id: String, slot: Integer) {
     var opened = opened_reader()
     var record = opened.locate(id)
+    crash record or id == ""
     crash record
     var fingerprint = opened.fingerprint_of(id)
     loaded_fingerprints.set_at(slot, fingerprint)

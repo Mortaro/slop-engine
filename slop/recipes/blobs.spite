@@ -49,7 +49,9 @@ func advance(slot: Integer) {
 func start(slot: Integer) {
     crash ids[slot]
     var reader = catalog.current()
-    var record = reader.locate(ids[slot])
+    var never_cooked_id = ids[slot]
+    var record = reader.locate(never_cooked_id)
+    crash record or never_cooked_id == ""
     crash record
     var task = Recipes.BlobLoad(record)
     var loading = Parallel(task.run)
