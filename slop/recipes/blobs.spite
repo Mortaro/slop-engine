@@ -29,6 +29,7 @@ func bytes_of(id: String): Asset.Bytes? {
     if not ready[slot] {
         advance(slot)
     }
+    crash slot < ready.count()
     assert ready[slot]
     crash loaded[slot]
     return loaded[slot]
