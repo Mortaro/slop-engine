@@ -1,0 +1,31 @@
+var bone = ""
+var bone_index = -1
+var position_x: Float = 0.0
+var position_y: Float = 0.0
+var position_z: Float = 0.0
+var rotation_x: Float = 0.0
+var rotation_y: Float = 0.0
+var rotation_z: Float = 0.0
+var rotation_w: Float = 1.0
+var scale_x: Float = 1.0
+var scale_y: Float = 1.0
+var scale_z: Float = 1.0
+var resolved_bone = ""
+var resolved_index = -1
+
+func offset(): Math.Matrix4 {
+    var result = Math.Matrix4()
+    result.set_transform(
+        position_x,
+        position_y,
+        position_z,
+        rotation_x,
+        rotation_y,
+        rotation_z,
+        rotation_w,
+        scale_x,
+        scale_y,
+        scale_z,
+    )
+    return result
+}

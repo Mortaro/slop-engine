@@ -1,0 +1,72 @@
+type Attached {
+    attachment: Animation.Component.BoneAttachment
+    transform: Transform.Component.Transform
+    parent: Entity
+}
+
+type Carrier {
+    animator: Animation.Component.Animator
+    model: Scene.Component.Model
+    transform: Transform.Component.Transform
+}
+
+var world = World()
+var pose = Math.Pose()
+
+func prepare_each(attached: Attached, carrier: Carrier) {
+    var bones = carrier.model.bones
+    assert bones.count() > 0
+    var index = bone_of(attached.attachment, carrier.animator)
+    assert index >= 0
+    var bone_is_on_the_skeleton = index < bones.count()
+    crash bone_is_on_the_skeleton
+    crash bones[index]
+    var carried = carrier.transform.matrix()
+    var posed = carried.multiplied(bones[index])
+    var offset = attached.attachment.offset()
+    var placed = posed.multiplied(offset)
+    placed.decompose(pose)
+    var transform = attached.transform
+    transform.position_x = pose.position_x
+    transform.position_y = pose.position_y
+    transform.position_z = pose.position_z
+    transform.rotation_x = pose.rotation_x
+    transform.rotation_y = pose.rotation_y
+    transform.rotation_z = pose.rotation_z
+    transform.rotation_w = pose.rotation_w
+    transform.scale_x = pose.scale_x
+    transform.scale_y = pose.scale_y
+    transform.scale_z = pose.scale_z
+}
+
+func bone_of(attachment: Animation.Component.BoneAttachment, animator: Animation.Component.Animator): Integer {
+    if attachment.bone_index >= 0 {
+        return attachment.bone_index
+    }
+    if attachment.resolved_bone == attachment.bone and attachment.resolved_index >= 0 {
+        return attachment.resolved_index
+    }
+    var libraries = Lookup<Animation.Component.Library>()
+    var library = libraries.of(world.entity)
+    crash library
+    var slot = library.skeletons.request(animator.skeleton)
+    if not library.skeletons.is_ready(slot) {
+        return -1
+    }
+    var skeleton = library.skeletons.value_at(slot)
+    var found = -1
+    var index = 0
+    while found < 0 and index < skeleton.names.count() {
+        if skeleton.names[index] == attachment.bone {
+            found = index
+        }
+        index = index + 1
+    }
+    var missing_bone = attachment.bone
+    var skeleton_name = animator.skeleton
+    var bone_is_on_the_skeleton = found >= 0
+    crash bone_is_on_the_skeleton or missing_bone == "" or skeleton_name == ""
+    attachment.resolved_bone = attachment.bone
+    attachment.resolved_index = found
+    return found
+}

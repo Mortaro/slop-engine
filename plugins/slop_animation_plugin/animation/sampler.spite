@@ -1,5 +1,4 @@
 var scalar = Math.Scalar()
-var globals = List<Math.Matrix4>()
 var first = Math.Pose()
 var second = Math.Pose()
 
@@ -8,6 +7,7 @@ func sample(
     clip: Asset.Animation,
     animator: Animation.Component.Animator,
     palette: List<Math.Matrix4>,
+    globals: List<Math.Matrix4>,
 ) {
     var frame_count: Float = clip.frame_count
     assert clip.frame_count > 0
@@ -36,7 +36,7 @@ func sample(
     var bone = 0
     var bone_count = skeleton.names.count()
     while bone < bone_count {
-        pose_bone(skeleton, clip, bone, from, to, blend, palette)
+        pose_bone(skeleton, clip, bone, from, to, blend, palette, globals)
         bone = bone + 1
     }
 }
@@ -49,6 +49,7 @@ func pose_bone(
     to: Integer,
     blend: Float,
     palette: List<Math.Matrix4>,
+    globals: List<Math.Matrix4>,
 ) {
     read_key(clip, from, bone, first)
     read_key(clip, to, bone, second)

@@ -73,7 +73,38 @@ wall-clock time per row made the parts of one character drift apart (the face sl
 rows crossed a millisecond; the fixed step keeps every part of a character in lockstep and makes captures repeatable.
 - Position and scale are interpolated linearly.
 - Rotation uses a shortest-arc slerp, falling back to a normalised lerp for near-identical keys.
-- It writes `global · inverse_bind` for each bone into `Scene.Component.Model.palette`.
+- It writes `global · inverse_bind` for each bone into `Scene.Component.Model.palette`, and each bone's model-space
+  pose (`global`) into `Model.bones`.
+
+### Bone attachments
+
+A weapon, a shield or an effect rides a bone of another entity's animated skeleton (proposal by Claude, for Mortaro
+to decide). Give it a `Transform`, an `Animation.Component.BoneAttachment`, and make it a child of the carrier:
+
+```gdscript
+var sword = world.create_entity()
+var attachment = Animation.Component.BoneAttachment()
+attachment.bone = "Bip01 R Hand"
+attachment.rotation_z = 0.7071068
+attachment.rotation_w = 0.7071068
+sword.add_component(attachment)
+sword.add_component(model)
+sword.add_component(transform)
+sword.add_parent_entity(carrier)
+```
+
+How it's resolved:
+- **Placement:** each frame, `FollowBones` (`prepare`, after `Animate`, before the scene is gathered) writes the
+  attachment's `Transform` in world space: the carrier's `Transform`, times the bone's pose, times the attachment's
+  offset (position, rotation, scale in the bone's space).
+- **Which bone:** name the bone with `bone`, or give `bone_index` (0 or more) for an index, as monsters' effect bones
+  are. The name is looked up once in the carrier's skeleton and cached against the name, so changing `bone` later
+  looks it up again. A name the skeleton doesn't have crashes, naming the bone and the skeleton.
+- **The carrier:** it needs an `Animator`, a `Model` and a `Transform`. Until its skeleton has loaded and been posed,
+  the attachment keeps its own `Transform`.
+- **Despawning:** because the attachment is a child, it despawns with its carrier.
+
+`examples/attachment_check` checks a named bone with an offset and an indexed bone on a synthetic, turned skeleton.
 
 The scene plugin knows nothing of animation: it uploads any palette a model carries, and the vertex shader skins
 with four bones per vertex.

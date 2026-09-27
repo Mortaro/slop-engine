@@ -1,0 +1,56 @@
+var cache = Recipes.Cache()
+
+func build() {
+    var fingerprint = cache.fingerprint("rig 1")
+    assert not cache.is_current("attach.skeleton", fingerprint)
+    var skeleton = Asset.Skeleton()
+    skeleton.names.append("root")
+    skeleton.names.append("hand")
+    skeleton.parents.append(-1)
+    skeleton.parents.append(0)
+    identity(skeleton.inverse_binds)
+    identity(skeleton.inverse_binds)
+    var skeleton_bytes = Asset.Bytes()
+    var skeleton_pack = Pack<Asset.Skeleton>()
+    skeleton_pack.encode(skeleton, skeleton_bytes)
+    cache.put("attach.skeleton", fingerprint, skeleton_bytes)
+    var clip = Asset.Animation()
+    clip.name = "turned"
+    clip.frame_count = 2
+    clip.bone_count = 2
+    var frame = 0
+    while frame < 2 {
+        key(clip.keys, 0.0, 0.7071068, 0.7071068)
+        key(clip.keys, 1.0, 0.0, 1.0)
+        frame = frame + 1
+    }
+    var clip_bytes = Asset.Bytes()
+    var clip_pack = Pack<Asset.Animation>()
+    clip_pack.encode(clip, clip_bytes)
+    cache.put("attach.clip", fingerprint, clip_bytes)
+}
+
+func identity(values: List<Float>) {
+    var index = 0
+    while index < 16 {
+        if index % 5 == 0 {
+            values.append(1.0)
+        } else {
+            values.append(0.0)
+        }
+        index = index + 1
+    }
+}
+
+func key(keys: List<Float>, along_x: Float, turn_y: Float, turn_w: Float) {
+    keys.append(along_x)
+    keys.append(0.0)
+    keys.append(0.0)
+    keys.append(0.0)
+    keys.append(turn_y)
+    keys.append(0.0)
+    keys.append(turn_w)
+    keys.append(1.0)
+    keys.append(1.0)
+    keys.append(1.0)
+}

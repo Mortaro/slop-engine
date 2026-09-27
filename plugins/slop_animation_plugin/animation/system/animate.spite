@@ -20,5 +20,5 @@ func update_each(animated: Animated, shelf: Shelf) {
     animator.time = animator.time + step / 1000.0 * animator.speed
     var skeleton = library.skeletons.value_at(skeleton_slot)
     var clip = library.clips.value_at(clip_slot)
-    sampler.sample(skeleton, clip, animator, animated.model.palette)
+    sampler.sample(skeleton, clip, animator, animated.model.palette, animated.model.bones)
 }

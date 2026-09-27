@@ -1,2 +1,3 @@
 var mesh = ""
 var palette = List<Math.Matrix4>()
+var bones = List<Math.Matrix4>()
