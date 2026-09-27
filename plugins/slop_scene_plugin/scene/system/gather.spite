@@ -53,6 +53,9 @@ func add_draw(target: Target, modeled: Modeled) {
     var palette_first = 0
     var palette = modeled.model.palette
     if palette.count() > 0 {
+        var mesh_name = modeled.model.mesh
+        var palette_covers_the_mesh_joints = loaded.joint_limit <= palette.count()
+        crash palette_covers_the_mesh_joints or mesh_name == ""
         palette_first = target.view.palettes.count()
         var index = 0
         while index < palette.count() {

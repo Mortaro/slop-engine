@@ -72,6 +72,10 @@ func pose_bone(
         index = index + 1
     }
     var skinning = global.multiplied(inverse_bind)
+    var bone_matrix_is_finite = skinning.is_finite()
+    crash skeleton.names[bone]
+    var bone_name = skeleton.names[bone]
+    crash bone_matrix_is_finite or bone_name == ""
     palette.append(skinning)
 }
 

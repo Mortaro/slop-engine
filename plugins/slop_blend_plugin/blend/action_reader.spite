@@ -242,10 +242,12 @@ func pose_bone(
     engine.append(in_engine)
     var local = in_engine
     if parent >= 0 {
-        crash engine[parent]
-        var parent_engine = engine[parent]
-        var parent_inverse = parent_engine.inverted()
-        local = parent_inverse.multiplied(in_engine)
+        crash rests[parent]
+        var parent_rest_for_local = rests[parent]
+        var parent_rest_inverted = parent_rest_for_local.inverted()
+        var relative_rest = parent_rest_inverted.multiplied(rest)
+        var relative = relative_rest.multiplied(basis)
+        local = space.to_engine(relative)
     }
     var local_pose = Math.Pose()
     local.decompose(local_pose)

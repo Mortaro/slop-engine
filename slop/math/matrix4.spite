@@ -291,6 +291,19 @@ func set_value(index: Integer, value: Float) {
     }
 }
 
+func divisor_of(scale: Float): Float {
+    var divisor = scale
+    if divisor < 0.000001 {
+        divisor = 1.0
+    }
+    return divisor
+}
+
+func is_finite(): Boolean {
+    var sum = m0 + m1 + m2 + m3 + m4 + m5 + m6 + m7 + m8 + m9 + m10 + m11 + m12 + m13 + m14 + m15
+    return sum == sum and sum < 1000000000000.0 and sum > -1000000000000.0
+}
+
 func decompose(pose: Math.Pose) {
     pose.position_x = m12
     pose.position_y = m13
@@ -298,15 +311,18 @@ func decompose(pose: Math.Pose) {
     pose.scale_x = scalar.square_root(m0 * m0 + m1 * m1 + m2 * m2)
     pose.scale_y = scalar.square_root(m4 * m4 + m5 * m5 + m6 * m6)
     pose.scale_z = scalar.square_root(m8 * m8 + m9 * m9 + m10 * m10)
-    var r00 = m0 / pose.scale_x
-    var r10 = m1 / pose.scale_x
-    var r20 = m2 / pose.scale_x
-    var r01 = m4 / pose.scale_y
-    var r11 = m5 / pose.scale_y
-    var r21 = m6 / pose.scale_y
-    var r02 = m8 / pose.scale_z
-    var r12 = m9 / pose.scale_z
-    var r22 = m10 / pose.scale_z
+    var across = divisor_of(pose.scale_x)
+    var up = divisor_of(pose.scale_y)
+    var forward = divisor_of(pose.scale_z)
+    var r00 = m0 / across
+    var r10 = m1 / across
+    var r20 = m2 / across
+    var r01 = m4 / up
+    var r11 = m5 / up
+    var r21 = m6 / up
+    var r02 = m8 / forward
+    var r12 = m9 / forward
+    var r22 = m10 / forward
     var trace = r00 + r11 + r22
     if trace > 0.0 {
         var root = scalar.square_root(trace + 1.0) * 2.0

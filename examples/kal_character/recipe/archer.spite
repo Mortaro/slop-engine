@@ -5,7 +5,7 @@ var console = Console()
 var clock = Clock()
 var parts = ["Chest", "Boots", "Gloves", "Shorts part 1", "Shorts part 2", "Face 1", "Hair 1"]
 var clips = ["Idle", "Walk", "Run"]
-var version = "archer 3"
+var version = "archer 4"
 var decoder = Png.Decoder()
 var cooked_textures = List<String>()
 

@@ -2,6 +2,7 @@ var path = ""
 var offset: Long = 0
 var length: Long = 0
 var vertex_floats = 8
+var joint_limit = 0
 
 func MeshLoad(found: Recipes.Record) {
     path = found.path
@@ -28,6 +29,7 @@ func run(): Scene.LoadedMesh {
         write_vertex(loaded.vertices, mesh, vertex, skinned)
         vertex = vertex + 1
     }
+    loaded.joint_limit = joint_limit
     loaded.index_count = mesh.indices.count()
     mesh.indices.each(loaded.indices.write_integer)
     return loaded
@@ -43,7 +45,9 @@ func write_vertex(target: Asset.Bytes, mesh: Asset.Mesh, vertex: Integer, skinne
     }
     if skinned {
         crash mesh.joints[vertex]
-        target.write_integer(mesh.joints[vertex])
+        var packed = mesh.joints[vertex]
+        target.write_integer(packed)
+        note_joints(packed)
         var weight = 0
         var total: Float = 0.0
         while weight < 4 {
@@ -60,5 +64,16 @@ func write_vertex(target: Asset.Bytes, mesh: Asset.Mesh, vertex: Integer, skinne
         target.write_float(0.0)
         target.write_float(0.0)
         target.write_float(0.0)
+    }
+}
+
+func note_joints(packed: Integer) {
+    var shift = 0
+    while shift < 32 {
+        var joint = packed.shifted_right(shift).bits_and(255)
+        if joint + 1 > joint_limit {
+            joint_limit = joint + 1
+        }
+        shift = shift + 8
     }
 }
