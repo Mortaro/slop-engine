@@ -84,6 +84,39 @@ def write_psd(path, compression, depth):
     open(path, 'wb').write(body)
 
 
+def write_flat(path, compression, depth):
+    planes = [plane_bytes(c, depth) for c in [0, 1, 2, 3]]
+    row_bytes = WIDTH * depth // 8
+    if compression == 0:
+        data = b''.join(planes)
+    elif compression == 1:
+        packed = [[pack_bits(p[r * row_bytes:(r + 1) * row_bytes]) for r in range(HEIGHT)] for p in planes]
+        data = b''.join(struct.pack('>H', len(row)) for rows in packed for row in rows)
+        data += b''.join(row for rows in packed for row in rows)
+    else:
+        whole = b''.join(planes)
+        if compression == 3:
+            whole = predict(whole, depth, HEIGHT * 4)
+        data = zlib.compress(whole)
+    header = b'8BPS' + struct.pack('>H', 1) + b'\0' * 6 + struct.pack('>HIIHH', 4, HEIGHT, WIDTH, depth, 3)
+    body = header + struct.pack('>III', 0, 0, 0) + struct.pack('>H', compression) + data
+    open(path, 'wb').write(body)
+
+
+def predict(data, depth, rows):
+    row_bytes = WIDTH * depth // 8
+    out = bytearray()
+    for r in range(rows):
+        row = data[r * row_bytes:(r + 1) * row_bytes]
+        if depth == 16:
+            values = [struct.unpack('>H', row[i:i + 2])[0] for i in range(0, len(row), 2)]
+            deltas = [values[0]] + [(values[i] - values[i - 1]) % 65536 for i in range(1, len(values))]
+            out += b''.join(struct.pack('>H', d) for d in deltas)
+        else:
+            out += bytes([row[0]] + [(row[i] - row[i - 1]) % 256 for i in range(1, len(row))])
+    return bytes(out)
+
+
 def checksum(depth):
     total = 0
     for y in range(HEIGHT):
@@ -101,4 +134,5 @@ def checksum(depth):
 for depth in (8, 16):
     for compression in (0, 1, 2, 3):
         write_psd(os.path.join(HERE, 'fixtures', f'probe_{depth}_{compression}.psd'), compression, depth)
+        write_flat(os.path.join(HERE, 'fixtures', f'flat_{depth}_{compression}.psd'), compression, depth)
     print(depth, checksum(depth))

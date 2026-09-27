@@ -14,14 +14,15 @@ func PsdZipProbe() {
 func check_depth(depth: Integer) {
     var compression = 0
     while compression < 4 {
-        check_file(depth, compression)
+        check_file("probe", depth, compression)
+        check_file("flat", depth, compression)
         compression = compression + 1
     }
 }
 
-func check_file(depth: Integer, compression: Integer) {
+func check_file(kind: String, depth: Integer, compression: Integer) {
     var document = Psd.Document()
-    document.open("{build.program}/fixtures/probe_{depth}_{compression}.psd")
+    document.open("{build.program}/fixtures/{kind}_{depth}_{compression}.psd")
     var layer = document.layers.first()
     crash layer
     var texture = document.pixels_of(layer)
@@ -33,5 +34,5 @@ func check_file(depth: Integer, compression: Integer) {
     }
     var matched = total == expected
     passed = passed and matched
-    console.print("depth", depth, "compression", compression, "checksum", total, "matched", matched)
+    console.print(kind, "depth", depth, "compression", compression, "checksum", total, "matched", matched)
 }

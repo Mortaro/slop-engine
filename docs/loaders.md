@@ -24,10 +24,14 @@ into textures; a game using that theme never names the PSD loader itself.
   (the row deltas undone per byte at 8 bits and per big-endian sample at 16). ZIP goes through `Png.Inflate`, so
   the plugin loads `slop_png_plugin`. It applies the transparency channel (`-1`) and the layer mask, and answers
   an `Asset.Texture` in straight RGBA; a 16-bit sample keeps its high byte.
+- A flat document, with no layer section and only the merged image (what Photoshop writes for a single-image file,
+  and the only part Blender and OpenImageIO read), shows as one layer named `Background` covering the canvas.
+  Its channels are red, green, blue and an optional transparency, sharing one compression: raw, PackBits with every
+  channel's row counts first, or one ZIP stream for all channels, inflated once.
 - Everything outside that subset (32 bit, CMYK, `.psb`) crashes naming the reason.
 
 Checked: the three primary button plates of `buttons.psd` match a reference decoder's output pixel for pixel, and
-`psd_zip_probe` decodes eight generated files (8 and 16 bit, each of the four compressions) to the checksum
+`psd_zip_probe` decodes sixteen generated files (layered and flat, 8 and 16 bit, each of the four compressions) to the checksum
 `make_fixtures.py` works out for them.
 
 Speed: channels decode into `List<Integer>` one byte at a time. Theseus's `T_TSplat0.psd` (3328×3584, PackBits,

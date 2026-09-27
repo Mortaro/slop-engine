@@ -3,6 +3,10 @@ var layers = List<Psd.Layer>()
 var heap = Memory.Heap()
 var raw = Raw()
 var depth = 8
+var canvas_width = 0
+var canvas_height = 0
+var canvas_channels = 0
+var merged: Asset.Bytes? = null
 var inflate = Png.Inflate()
 
 func open(path: String) {
@@ -18,7 +22,9 @@ func read_header() {
     crash version == 1
     skip(6)
     var channel_count = read_short()
-    skip(8)
+    canvas_channels = channel_count
+    canvas_height = read_unsigned()
+    canvas_width = read_unsigned()
     depth = read_short()
     var colour_mode = read_short()
     crash depth == 8 or depth == 16
@@ -30,11 +36,69 @@ func read_header() {
     skip(resources_length)
     var layer_and_mask_length = read_unsigned()
     var layer_and_mask_end = bytes.position + layer_and_mask_length
-    assert layer_and_mask_length >= 4
-    var layer_information_length = read_unsigned()
-    var layer_information_end = bytes.position + layer_information_length
-    read_layers(layer_information_end)
+    if layer_and_mask_length >= 4 {
+        var layer_information_length = read_unsigned()
+        var layer_information_end = bytes.position + layer_information_length
+        read_layers(layer_information_end)
+    }
     bytes.position = layer_and_mask_end
+    if layers.count() == 0 {
+        read_merged()
+    }
+}
+
+func read_merged() {
+    var compression = read_short()
+    crash compression >= 0 and compression <= 3
+    var start = bytes.position
+    var background = Psd.Layer()
+    background.name = "Background"
+    background.path = "Background"
+    background.right = canvas_width
+    background.bottom = canvas_height
+    var used = canvas_channels
+    if used > 4 {
+        used = 4
+    }
+    var sample_bytes = depth / 8
+    var plane_bytes = canvas_width * canvas_height * sample_bytes
+    var data_offset = start + canvas_channels * canvas_height * 2
+    var index = 0
+    while index < used {
+        var channel = Psd.Channel()
+        channel.identifier = index
+        if index == 3 {
+            channel.identifier = -1
+        }
+        channel.compression = compression
+        if compression == 0 {
+            channel.offset = start + index * plane_bytes
+            channel.length = plane_bytes
+        } else if compression == 1 {
+            channel.row_counts = start + index * canvas_height * 2
+            channel.offset = data_offset
+            channel.length = packed_length(channel.row_counts)
+            data_offset = data_offset + channel.length
+        } else {
+            channel.offset = start
+            channel.length = bytes.length - start
+            channel.plane = index
+            channel.planes = canvas_channels
+        }
+        background.channels.append(channel)
+        index = index + 1
+    }
+    layers.append(background)
+}
+
+func packed_length(row_counts: Integer): Integer {
+    var total = 0
+    var row = 0
+    while row < canvas_height {
+        total = total + bytes.big_endian_short(row_counts + row * 2)
+        row = row + 1
+    }
+    return total
 }
 
 func read_layers(end: Integer) {
@@ -365,21 +429,40 @@ func high_bytes(stored: List<Integer>): List<Integer> {
 }
 
 func decode_zip(channel: Psd.Channel, row_bytes: Integer, plane_height: Integer, stored: List<Integer>) {
+    var wanted = row_bytes * plane_height
+    var unpacked = inflated(channel, row_bytes, plane_height)
+    var first = 0
+    if channel.plane >= 0 {
+        first = channel.plane * wanted
+    }
+    var index = 0
+    while index < wanted {
+        var value = unpacked.byte_at(first + index)
+        stored.append(value)
+        index = index + 1
+    }
+}
+
+func inflated(channel: Psd.Channel, row_bytes: Integer, plane_height: Integer): Asset.Bytes {
+    if channel.plane >= 0 {
+        if merged {
+            return merged
+        }
+    }
+    var rows = plane_height * channel.planes
     var packed = Asset.Bytes()
     packed.write_bytes(bytes.address + channel.offset, channel.length)
-    var wanted = row_bytes * plane_height
+    var wanted = row_bytes * rows
     var unpacked = inflate.decompress(packed, wanted)
     crash not inflate.failed
     crash unpacked.length == wanted
     if channel.compression == 3 {
-        undo_prediction(unpacked, row_bytes, plane_height)
+        undo_prediction(unpacked, row_bytes, rows)
     }
-    var index = 0
-    while index < wanted {
-        var value = unpacked.byte_at(index)
-        stored.append(value)
-        index = index + 1
+    if channel.plane >= 0 {
+        merged = unpacked
     }
+    return unpacked
 }
 
 func undo_prediction(unpacked: Asset.Bytes, row_bytes: Integer, plane_height: Integer) {
@@ -418,10 +501,15 @@ func undo_wide_row(unpacked: Asset.Bytes, start: Integer, row_bytes: Integer) {
 }
 
 func decode_run_length(channel: Psd.Channel, row_bytes: Integer, plane_height: Integer, plane: List<Integer>) {
+    var counts = channel.offset
     var offset = channel.offset + plane_height * 2
+    if channel.row_counts >= 0 {
+        counts = channel.row_counts
+        offset = channel.offset
+    }
     var row = 0
     while row < plane_height {
-        var row_length = bytes.big_endian_short(channel.offset + row * 2)
+        var row_length = bytes.big_endian_short(counts + row * 2)
         decode_pack_bits(offset, row_length, row_bytes, plane)
         offset = offset + row_length
         row = row + 1

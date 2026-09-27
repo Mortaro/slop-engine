@@ -2,3 +2,6 @@ var identifier = 0
 var compression = 0
 var offset = 0
 var length = 0
+var row_counts = -1
+var plane = -1
+var planes = 1
