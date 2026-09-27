@@ -12,6 +12,7 @@ func build() {
     assert not cache.is_current("test.swatch", fingerprint)
     var trimmed = text.trim()
     var color = trimmed.to_integer()
+    crash color
     var red = color.shifted_right(16).bits_and(255)
     var green = color.shifted_right(8).bits_and(255)
     var blue = color.bits_and(255)

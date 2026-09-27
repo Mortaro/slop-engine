@@ -17,5 +17,6 @@ func run() {
 func rebuild(recipe: String) {
     assert not recipe.is_empty()
     var index = recipe.to_integer()
+    crash index
     cookbook.rebuild(index)
 }

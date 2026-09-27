@@ -263,6 +263,7 @@ func array_count(declared: String): Integer {
             }
             var digits = declared.slice(index + 1, close)
             var dimension = digits.to_integer()
+            crash dimension
             count = count * dimension
             index = close
         }
