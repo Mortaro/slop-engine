@@ -11,6 +11,12 @@ var stamps = Vector<Integer>()
 var kept_subjects = Vector<Integer>()
 var kept_links = Vector<Integer>()
 var pass = 0
+var center_x: Float = 0.0
+var center_z: Float = 0.0
+var center_space = 0
+var keep_reach: Float = 0.0
+var positions = Lookup<Transform.Component.Transform>()
+var spaces = Lookup<Spatial.Component.Indexed>()
 
 func prepare_each(viewing: Viewing) {
     pass = pass + 1
@@ -25,6 +31,12 @@ func prepare_each(viewing: Viewing) {
         space = index.space
     }
     grid.within(space, placed.position_x, placed.position_z, viewing.viewer.radius, found)
+    found.append(viewing.viewer.entity)
+    center_x = placed.position_x
+    center_z = placed.position_z
+    center_space = space
+    var keep_radius = viewing.viewer.radius * 1.25
+    keep_reach = keep_radius * keep_radius
     stamp_found()
     kept_subjects.clear()
     kept_links.clear()
@@ -51,7 +63,8 @@ func keep_or_drop(watching: Interest.Component.Watching) {
     while index < watching.subjects.count() {
         var subject = watching.subjects[index]
         var link = watching.links[index]
-        if subject < stamps.count() and stamps[subject] == pass {
+        var found_now = subject < stamps.count() and stamps[subject] == pass
+        if found_now or still_near(subject) {
             stamps.set_at(subject, 0 - pass)
             kept_subjects.append(subject)
             kept_links.append(link)
@@ -87,4 +100,19 @@ func copy(from: Vector<Integer>, into: Vector<Integer>) {
         into.append(from[index])
         index = index + 1
     }
+}
+
+func still_near(subject: Integer): Boolean {
+    var placed = positions.of(subject)
+    if not placed {
+        return false
+    }
+    var index = spaces.of(subject)
+    var space = 0
+    if index {
+        space = index.space
+    }
+    var across = placed.position_x - center_x
+    var down = placed.position_z - center_z
+    return space == center_space and across * across + down * down <= keep_reach
 }
