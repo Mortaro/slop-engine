@@ -1,3 +1,4 @@
+var report_console = Console()
 var ids = List<String>()
 var meshes = List<Scene.LoadedMesh>()
 var ready = List<Boolean>()
@@ -45,7 +46,9 @@ func start_slot(reader: Recipes.CacheReader, slot: Integer) {
     crash ids[slot]
     var never_cooked_id = ids[slot]
     var record = reader.locate(never_cooked_id)
-    crash record or never_cooked_id == ""
+    if not record {
+        report_console.print("asset never cooked:", never_cooked_id)
+    }
     crash record
     var job = Scene.MeshLoad(record)
     var loading = Parallel(job.run)

@@ -1,3 +1,4 @@
+var report_console = Console()
 var catalog = Recipes.Catalog()
 var ids = List<String>()
 var loaded = List<Asset.Bytes>()
@@ -51,7 +52,9 @@ func start(slot: Integer) {
     var reader = catalog.current()
     var never_cooked_id = ids[slot]
     var record = reader.locate(never_cooked_id)
-    crash record or never_cooked_id == ""
+    if not record {
+        report_console.print("asset never cooked:", never_cooked_id)
+    }
     crash record
     var task = Recipes.BlobLoad(record)
     var loading = Parallel(task.run)
