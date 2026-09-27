@@ -22,6 +22,7 @@ Every behaviour the docs claim is checked by a program in `examples/`. Run them 
 | `psd_probe` | `buttons.psd`'s layer tree and sizes |
 | `interest_check/test.sh` | area of interest across two processes: a bot's view of 100 beacons follows the server's eye (6, then 11), and a despawn in view reaches it (10) |
 | `relations_check` | relations set, changed and removed at run time; a two-row system joins 10,000 items to their 1,000 parents |
+| `wire_probe` | an `Entity` field naming a mirror goes on the wire as the remote id, for an inline and a reference component alike |
 | `timers_check` | timers ring on the right ticks, a list system's writes to inline components stick, a list system whose first list is empty never runs, and `run`'s fixed-rate pacing holds 25 ms ticks |
 | `server_bench` | 5,000 players and 10,000 monsters moving on a 4 km square: spatial grid, aggro and area-of-interest queries, timers, and the profile; a grid query is checked against brute force. Run with `--optimized` |
 | `psd_zip_probe` | sixteen generated PSDs, layered and flat, 8 and 16 bit with raw, PackBits, ZIP and ZIP-with-prediction channels, decode to the expected checksum (`python make_fixtures.py` regenerates them) |

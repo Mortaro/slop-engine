@@ -1,0 +1,5 @@
+var target = Entity(-1)
+
+func stored_inline(): Boolean {
+    return true
+}
