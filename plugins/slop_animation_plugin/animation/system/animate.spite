@@ -7,33 +7,18 @@ type Shelf {
     library: Animation.Component.Library
 }
 
-var clock = Clock()
+var tick = Tick()
 var sampler = Animation.Sampler()
-var last_milliseconds: Long = -1
-var elapsed: Float = 0.0
-var ticked = -1
 
 func update_each(animated: Animated, shelf: Shelf) {
-    advance_clock()
+    var step: Float = tick.step_milliseconds
     var library = shelf.library
     var animator = animated.animator
     var skeleton_slot = library.skeletons.request(animator.skeleton)
     var clip_slot = library.clips.request(animator.clip)
     assert library.skeletons.is_ready(skeleton_slot) and library.clips.is_ready(clip_slot)
-    animator.time = animator.time + elapsed * animator.speed
+    animator.time = animator.time + step / 1000.0 * animator.speed
     var skeleton = library.skeletons.value_at(skeleton_slot)
     var clip = library.clips.value_at(clip_slot)
     sampler.sample(skeleton, clip, animator, animated.model.palette)
-}
-
-func advance_clock() {
-    var now = clock.elapsed_milliseconds()
-    assert ticked != now
-    ticked = now
-    if last_milliseconds < 0 {
-        last_milliseconds = now
-    }
-    var passed: Float = now - last_milliseconds
-    elapsed = passed / 1000.0
-    last_milliseconds = now
 }
