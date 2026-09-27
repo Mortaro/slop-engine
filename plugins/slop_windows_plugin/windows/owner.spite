@@ -108,7 +108,7 @@ func take_events(): List<Long> {
     var count = raw.read_long(shared, 16)
     var events = events_at()
     var index = 0
-    while index < count * 4 {
+    while count * 4 > index {
         var value = raw.read_long(events, index * 8)
         taken.append(value)
         index = index + 1

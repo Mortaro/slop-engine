@@ -46,7 +46,7 @@ func row_of(position_z: Float): Integer {
 
 func whole_below(value: Float): Integer {
     var whole: Integer = value
-    if value < 0.0 and whole > value {
+    if value < 0.0 and value < whole {
         whole = whole - 1
     }
     return whole

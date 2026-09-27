@@ -82,7 +82,7 @@ func candidates(): List<Integer> {
     }
     var total = raw.read_long(driver, 0)
     var row = 0
-    while row < total {
+    while total > row {
         var entities = raw.read_long(driver, 24)
         var entity = raw.read_long(entities, row * 8)
         if matches(entity) {
@@ -170,7 +170,7 @@ func find_row(index: Integer, entity: Integer, found: Vector<Integer>): Boolean 
         return true
     }
     var capacity = raw.read_long(header, 40)
-    assert entity < capacity
+    assert capacity > entity
     var sparse = raw.read_long(header, 32)
     var stored = raw.read_long(sparse, entity * 8)
     found.set_at(index, stored - 1)

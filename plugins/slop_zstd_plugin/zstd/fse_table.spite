@@ -147,7 +147,7 @@ func read_zero_repeats(reader: Zstd.BitReader, normalized: List<Integer>) {
 
 func append_zeros(normalized: List<Integer>, count: Long) {
     var index = 0
-    while index < count {
+    while count > index {
         normalized.append(0)
         index = index + 1
     }

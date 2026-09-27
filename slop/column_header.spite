@@ -13,7 +13,7 @@ func added_tick(column_header: Long, row: Integer): Integer {
 
 func row_of(column_header: Long, entity: Integer): Integer {
     var capacity = raw.read_long(column_header, 40)
-    if entity >= capacity {
+    if capacity <= entity {
         return -1
     }
     var rows = raw.read_long(column_header, 32)

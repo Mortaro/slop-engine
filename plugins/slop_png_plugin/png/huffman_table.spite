@@ -69,7 +69,7 @@ func place_symbol(symbol: Integer, length: Integer, next_codes: List<Integer>) {
     var entry = symbol.shifted_left(4)
     entry = entry.bits_or(length)
     var size = mask + 1
-    while slot < size {
+    while size > slot {
         raw.write_integer(entries, slot * 4, entry)
         slot = slot + step
     }
@@ -97,7 +97,7 @@ func reserve_entries() {
 func clear_entries() {
     var size = mask + 1
     var slot = 0
-    while slot < size {
+    while size > slot {
         raw.write_integer(entries, slot * 4, 0)
         slot = slot + 1
     }

@@ -42,7 +42,7 @@ func header_now(): Long {
 func row_of_entity(entity: Integer): Integer {
     var column_header = header_now()
     var capacity = raw.read_long(column_header, 40)
-    if entity >= capacity {
+    if capacity <= entity {
         return -1
     }
     var rows = raw.read_long(column_header, 32)
@@ -134,7 +134,7 @@ func append(column_header: Long, entity: Integer, value: $component_type, name: 
 
 func grow_values(column_header: Long, wanted: Integer) {
     var capacity = raw.read_long(column_header, 8)
-    assert wanted > capacity
+    assert capacity < wanted
     var grown = capacity * 2
     if grown < 16 {
         grown = 16
@@ -150,7 +150,7 @@ func grow_values(column_header: Long, wanted: Integer) {
 
 func grow_rows(column_header: Long, entity: Integer) {
     var capacity = raw.read_long(column_header, 40)
-    assert entity >= capacity
+    assert capacity <= entity
     var grown = capacity * 2
     if grown <= entity {
         grown = entity + 64
@@ -231,7 +231,7 @@ func remove_all(column_header: Long, entities: List<Integer>, records: Removals,
 }
 
 func row_below(column_header: Long, capacity: Long, entity: Integer): Integer {
-    if entity >= capacity {
+    if capacity <= entity {
         return -1
     }
     var rows = raw.read_long(column_header, 32)
@@ -259,7 +259,7 @@ func remove_row(column_header: Long, entity: Integer, row: Integer, name: String
     } else {
         remove_reference(name, row, last)
     }
-    if row != last {
+    if last != row {
         var moved_entity = raw.read_long(entities, last * 8)
         var ticks = raw.read_long(column_header, 48)
         var moved_tick = raw.read_long(ticks, last * 8)

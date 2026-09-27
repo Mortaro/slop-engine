@@ -330,7 +330,12 @@ func pack_pixel(
     crash alpha[pixel]
     crash mask[pixel]
     var masked = (alpha[pixel] * mask[pixel] + 127) / 255
-    return red[pixel] + green[pixel] * 256 + blue[pixel] * 65536 + masked * 16777216
+    var green_bits = green[pixel].shifted_left(8)
+    var blue_bits = blue[pixel].shifted_left(16)
+    var alpha_bits = masked.shifted_left(24)
+    var low = red[pixel].bits_or(green_bits)
+    var high = blue_bits.bits_or(alpha_bits)
+    return low.bits_or(high)
 }
 
 func channel_plane(layer: Psd.Layer, identifier: Integer): List<Integer> {
