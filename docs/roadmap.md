@@ -45,5 +45,24 @@ Recorded in full in `D:/Projects/SlopTheseus/PLAN.md`, section 8.
   beams, ribbons and projectiles. **Terrain** is splat-index shading, control maps over a 78-slice texture array,
   so textures and terrain need texture arrays.
 
+### Source material from Theseus
+
+Everything is under `D:/Projects/SlopTheseus`:
+
+- **Material graphs** (for materials and lighting): `export/material_graphs/**/*.t3d`, 132 Unreal master materials
+  as T3D text, with every expression, connection and custom HLSL. The key one is
+  `Maps/World/World_Terrain/M_Terrain.t3d`: splat-index shading from absolute world UVs, with control maps
+  (`T_ctrlIdxA/B`, `T_ctrlSclA/B`, `T_TSplat0/1`) indexing a 78-slice texture array, plus `T_Detail` and a baked
+  `T_TerrainAlbedo`, all as PSDs in `assets/textures/Maps/World/World_Terrain/`.
+- **Terrain**: `assets/maps/<map>/terrain/cell_X_Y.blend`, 256×256 quads at 320 cm (819.2 m cells), 174 cells over
+  12 maps, the World 83 dry cells. UV0 spans the whole map. Raw uint16 heightfields are in
+  `export/landscape/*.theseusland`: world Z = SourceZ + (h − 32768) · scale_z / 128.
+- **Lights**: dungeons hold thousands of dynamic point and spot lights (RoyalTomb 3,053), so clustered lighting is
+  required. Scenes are Spite records in `data/scene/<map>.spite`.
+- **Scale**: the World places 17,357 objects, dungeons 1,000 to 4,000, all as separate actors in Unreal with no
+  instancing, so instancing identical meshes is where SlopEngine gains.
+- **Characters**: `assets/characters/<class>/<class>.blend` (rig, body, actions) and `sets/set_N.blend` (one
+  armour set each, with its own copy of the rig).
+
 Waiting on the language: resizing, fullscreen and IME need callbacks from C. Value columns for components that hold
 lists or references need the language to lay such classes out inline.

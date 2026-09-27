@@ -16,6 +16,7 @@ enum Phase {
 var system: $system_type = null
 var matcher = Row<$row_type>()
 var since = -1
+var found = Vector<Integer>()
 var wanted = ""
 
 func Stream(streamed_system: $system_type, last_run: Integer, wanted_phase: String) {
@@ -28,12 +29,22 @@ func run_phase_each(phase: Symbol<$system_type.phase_each>) {
     assert phase.name == wanted
     matcher.since = since
     matcher.begin_stream()
-    var entity = matcher.next_match()
-    while entity >= 0 {
-        var row: $row_type = null
-        fill_attributes(row, matcher.rows, entity)
-        system.phase_each(row)
-        entity = matcher.next_match()
+    while found.count() < matcher.rows.count() {
+        found.append(-1)
+    }
+    run_positions(phase, 0, matcher.stream_total, found)
+}
+
+func run_positions(phase: Symbol<$system_type.phase_each>, first: Integer, end: Integer, rows: Vector<Integer>) {
+    var position = first
+    while position < end {
+        var entity = matcher.stream_entity(position)
+        if matcher.match_into(entity, rows) {
+            var row: $row_type = null
+            fill_attributes(row, rows, entity)
+            system.phase_each(row)
+        }
+        position = position + 1
     }
 }
 

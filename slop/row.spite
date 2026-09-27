@@ -137,33 +137,37 @@ func is_plain(): Boolean {
 }
 
 func matches(entity: Integer): Boolean {
+    return match_into(entity, rows)
+}
+
+func match_into(entity: Integer, found: Vector<Integer>): Boolean {
     var index = 0
     var all = true
     while all and index < headers.count() {
-        all = find_row(index, entity)
+        all = find_row(index, entity, found)
         index = index + 1
     }
     return all
 }
 
-func find_row(index: Integer, entity: Integer): Boolean {
+func find_row(index: Integer, entity: Integer, found: Vector<Integer>): Boolean {
     crash headers[index]
     crash kinds[index]
     crash keys[index]
     var header = headers[index]
     if kinds[index] == 2 {
-        rows.set_at(index, -1)
+        found.set_at(index, -1)
         return columns.removed_since(keys[index], entity, since)
     }
     if header == 0 {
-        rows.set_at(index, -1)
+        found.set_at(index, -1)
         return true
     }
     var capacity = raw.read_long(header, 40)
     assert entity < capacity
     var sparse = raw.read_long(header, 32)
     var stored = raw.read_long(sparse, entity * 8)
-    rows.set_at(index, stored - 1)
+    found.set_at(index, stored - 1)
     assert stored > 0
     return kinds[index] != 1 or header_reader.added_tick(header, stored - 1) >= since
 }
