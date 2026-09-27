@@ -48,6 +48,16 @@ Recorded in full in `D:/Projects/SlopTheseus/PLAN.md`, section 8.
   beams, ribbons and projectiles. **Terrain** is splat-index shading, control maps over a 78-slice texture array,
   so textures and terrain need texture arrays.
 
+- **Blender is the editor** (Theseus D18): each map is one `.blend` whose objects are linked from an object-library
+  `.blend`; NPCs, spawn areas, portals, safe zones and water are objects or empties with custom properties. Recipes
+  read it and cook everything else. The engine needs the Blend readers to follow library links and collection
+  instances and to read custom properties (IDProperties), a navigation bake recipe (0.8 m walkability grid with
+  water and safe planes), and a continent cooked into streaming chunks loaded on the pool as the camera moves.
+- **Particles** are a new binary asset (`Asset.ParticleSystem`: emitters, rates and bursts, lifetimes, forces,
+  curves over life, textures or flipbooks, blend modes, sprites, meshes, ribbons and beams) cooked from a recipe
+  source, simulated and drawn on the GPU (compute update, indirect draw), played by a component such as
+  `Particles.Component.Emitter`. The old C++ particle design is not to be copied.
+
 ### Source material from Theseus
 
 Everything is under `D:/Projects/SlopTheseus`:
