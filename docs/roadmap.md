@@ -18,7 +18,7 @@ items come first.
 | 4 | Networking | area of interest, removal replication and per-frame deltas are built; handshake with a version, frames over 64 KiB, rate limits, reconnect remain |
 | 5 | MongoDB | SCRAM-SHA-256 and indexes; TLS later |
 | 6 | Navigation | a walkability bitgrid cooked from terrain and collision, grid A*, line of sight |
-| 7 | Collision | heightfield, capsule and static mesh colliders, raycasts, a character controller, the same on the server |
+| 7 | Physics | fully ECS (colliders, bodies and contacts are components, stepping is systems), so it runs in parallel with everything else instead of on one locked thread as in Unreal; heightfield, capsule and static mesh colliders, raycasts, a character controller. The same 3D physics on server and client, replacing the C# server's 2D, if it keeps thousands of players within the tick budget: one simulation means the server can check movement the way the client moves, which closes many cheats |
 | 8 | Profiling | CPU time per system and stage, dumped to JSON: built first, since the first server comparison needs it ([performance.md](performance.md#measuring-the-profile)); GPU timestamps per pass still to do |
 | 9 | `.blend` | ear-clipping triangulation, custom normals, several UV sets, vertex colours, LODs, `UCX_` collision, cooking external `.psd` images; several materials per mesh is built |
 | 10 | Textures | BC1/3/4/5/7 cooked offline, mips, anisotropic filtering, raw bytes, mip streaming |
@@ -41,6 +41,9 @@ Recorded in full in `D:/Projects/SlopTheseus/PLAN.md`, section 8.
   UI needs real fonts, slot grids with drag and drop, draggable windows, tooltips, a scrolling chat log, a minimap
   render target, nameplates and floating damage numbers. PSD robustness matters for every screen.
 - **Windows only** for now; Linux later.
+- **Physics** (2026-09-27): completely ECS, a source of easy wins over Unreal's main-thread physics; and 3D on the
+  server as well as the client (the C# server is 2D) if SlopEngine beats the C# server's performance with thousands
+  of players, since a server running the client's physics can reject impossible movement.
 - **Audio drops to P2** (the Unreal client plays none). **Particles** are CPU sprites read from `particles.json`, plus
   beams, ribbons and projectiles. **Terrain** is splat-index shading, control maps over a 78-slice texture array,
   so textures and terrain need texture arrays.

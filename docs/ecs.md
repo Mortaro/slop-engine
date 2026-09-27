@@ -12,7 +12,7 @@ too: `world.as_entity()` carries the program-wide components (see [State is comp
 | Call | Does | When |
 |---|---|---|
 | `world.create_entity()` | a new `Entity` with no components; its `id` is known at once | now |
-| `world.create_entity_from_bundle(bundle)` | a new `Entity` with every component the bundle holds (an `Entity` attribute becomes a relation named after it) | components after the current stage |
+| `world.create_entity_from_bundle(bundle)` | a new `Entity` with a copy of every component the bundle holds (an `Entity` attribute becomes a relation named after it), so one bundle can be spawned any number of times as a prefab | components after the current stage |
 | `entity.add_component(component)` | adds a component, or replaces the one of that class | after the current stage |
 | `entity.remove_component(Ui.Component.Hovered)` | removes one component; the class itself is the argument | after the current stage |
 | `entity.remove()` | removes the entity and all its components | after the current stage |
@@ -57,6 +57,12 @@ compile time (a plural template over the class finds nothing), and a marker is o
 `Hovered`, `Pressed`, `Clicked`, `Alive` and `Active` cost one sparse-set entry per entity.
 
 ## Bundles
+
+Spawning a bundle is one typed command per entity: the attribute walk is written at compile time for each class in a
+`bundle/` folder, and every component goes straight into its column, deep-copied. `stress` spawns 200,000 bodies of
+four components in about 190 ms (it was about 600 ms through run-time reflection); most of what is left is a
+singleton guard per column call, which the language is removing.
+
 
 A bundle is a class in a `bundle/` folder whose attributes are components, with a constructor that sets them up.
 `world.create_entity_from_bundle(bundle)` adds each attribute, walked at run time through `attribute.value`, so a

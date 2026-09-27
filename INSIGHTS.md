@@ -190,6 +190,8 @@ All sent to the "Language implementation review" session, which is fixing them o
 | 38 | reported | a template instance can silently share a name with an ordinary function (`store_attribute` for an attribute `row` makes `store_row`), and the error points at line 0 with a wrong argument count | rename the helper |
 | 39 | D230 | a function can't return a borrowed `Items` item, so `Lookup.of` on an inline component returns a copy and writes to it are silently lost | components opt into inline storage (`stored_inline`) until D230 lands |
 | 40 | fixed (D227, D228) | a program can't override a package's `Build` default, and a package can't find its own files, so shader recipes only worked two folders below the repository | junctions in Theseus |
+| 41 | reported | comparing a value with a walked symbol's class (`given == bundle.class`) leaks the class object and its two lists, once per class | none: the leak is bounded; `debug-memory` counts are off by three per bundle class spawned |
+| 42 | reported | `var bundle: T = null` constructs a default `T`, and everything it holds, which is then thrown away; `= null` reads as "nothing yet" | `T?` |
 | 8 | design | a `_name` attribute is private even to a `Symbol<Class>` template reading it | filters are named normally; sent to Mortaro's decisions file |
 | - | design | a class reopened from the program root gets new attributes, but its constructor loses to the loaded folder's version | the test sets window settings in its entry function; sent to Mortaro's decisions file |
 

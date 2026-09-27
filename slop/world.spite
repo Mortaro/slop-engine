@@ -12,6 +12,8 @@ var runner_buffer = ThreadLocal<Integer>()
 var id_lock = Lock()
 var columns = Columns()
 
+var spawned_typed = false
+
 func prepare() {
     assert buffers.count() == 0
     add_buffer()
@@ -55,6 +57,9 @@ func create_entity(): Entity {
 
 func create_entity_from_bundle(bundle: Anything): Entity {
     var made = create_entity()
+    spawned_typed = false
+    queue_bundles(bundle, made.id)
+    assert not spawned_typed
     var attributes = bundle.attributes
     var index = 0
     while index < attributes.count() {
@@ -62,6 +67,14 @@ func create_entity_from_bundle(bundle: Anything): Entity {
         index = index + 1
     }
     return made
+}
+
+func queue_bundle(bundle: Symbol<Bundle>, given: Anything, entity: Integer) {
+    if given == bundle.class {
+        var command = SpawnBundle<bundle.class>(entity, given)
+        queue(command)
+        spawned_typed = true
+    }
 }
 
 func add_bundle_attribute(made: Entity, attribute: Spite.Attribute) {

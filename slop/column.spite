@@ -10,6 +10,8 @@ var raw = Raw()
 var heap = Memory.Heap()
 var sample: $component_type = null
 var columns = Columns()
+var own_key = ""
+var own_header: Long = 0
 
 func prepare_column() {
     var name = columns.key(sample.class)
@@ -20,6 +22,23 @@ func prepare_column() {
 func insert_object(entity: Integer, value: Anything) {
     if value == $component_type {
         insert(entity, value)
+    }
+}
+
+func insert_own(entity: Integer, value: $component_type) {
+    if own_header == 0 {
+        own_key = columns.key(sample.class)
+        insert_keyed(entity, value, own_key)
+        own_header = columns.header(own_key)
+        return
+    }
+    grow_rows(own_header, entity)
+    var rows = raw.read_long(own_header, 32)
+    var existing = raw.read_long(rows, entity * 8) - 1
+    if existing >= 0 {
+        write_at(own_key, existing, value)
+    } else {
+        append(own_header, entity, value, own_key)
     }
 }
 

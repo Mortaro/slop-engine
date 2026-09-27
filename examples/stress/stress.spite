@@ -12,8 +12,12 @@ func Stress() {
     console.print(description)
     var spawn_start = clock.microseconds()
     var ids = spawn_bodies()
+    var queued = clock.microseconds()
     world.flush()
     var spawned = clock.microseconds()
+    var queue_milliseconds = (queued - spawn_start) / 1000
+    var flush_milliseconds = (spawned - queued) / 1000
+    console.print("spawn queue milliseconds", queue_milliseconds, "flush milliseconds", flush_milliseconds)
     var tick = 0
     while tick < environment.ticks {
         app.tick()
