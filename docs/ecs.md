@@ -166,10 +166,14 @@ the names below are proposals). The change is queued like any other and applied 
 | `entity.remove_parent_entity()` | removes the relation `parent` |
 | `entity.relate(name, target)`, `entity.unrelate(name)` | any named relation: `target` for a chase, `owner`, `carrier` |
 
+Despawning an entity despawns its children too, and theirs, in the same flush: every entity whose `parent` relation
+points at it. Only `parent` cascades; a named relation such as `target` is simply left pointing at nothing.
+
 A row asks for a relation with a field of that name (`parent: Entity`), and the next row is the entity it points at.
 A system over two such rows follows the relation instead of pairing every entity of one row with every entity of the
 other: `relations_check` sums 10,000 items into the 1,000 players that hold them in 4.4 ms a tick (optimized),
-then moves some to another player and drops others, and the sums follow.
+then moves some to another player and drops others, and the sums follow; despawning a player despawns the items it
+holds and what they hold.
 
 ### What decides where a system runs
 

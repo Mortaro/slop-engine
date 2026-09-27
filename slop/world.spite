@@ -114,7 +114,14 @@ func flush() {
         index = index + 1
     }
     assert despawned.count() > 0
+    add_children(despawned)
     columns.remove_entities(despawned)
+}
+
+func add_children(despawned: List<Integer>) {
+    assert columns.headers.has("Entity.parent")
+    var finder = ChildFinder()
+    finder.add_children(despawned)
 }
 
 func apply_buffer(commands: List<Command>) {

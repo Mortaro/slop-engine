@@ -35,7 +35,29 @@ func RelationsCheck() {
     expect(0, 0)
     expect(1, 90010)
     expect(2, 0)
+    cascade(app)
     console.print("passed", passed)
+}
+
+func cascade(app: App) {
+    var gem = world.create_entity()
+    var value = Component.Item()
+    gem.add_component(value)
+    crash items[1]
+    var holder = Entity(items[1])
+    gem.add_parent_entity(holder)
+    world.flush()
+    crash players[1]
+    world.despawn(players[1])
+    world.flush()
+    app.tick()
+    var alive = Lookup<Component.Item>()
+    var kept = items.filter(alive.has)
+    var remaining = kept.count()
+    var gem_gone = not alive.has(gem.id)
+    var cascaded = remaining == 9980 and gem_gone
+    passed = passed and cascaded
+    console.print("items left after despawning player 1", remaining, "gem gone", gem_gone)
 }
 
 func spawn_item(index: Integer) {

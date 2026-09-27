@@ -1,0 +1,34 @@
+var parents = Column<Entity>()
+var columns = Columns()
+var marks = Vector<Integer>()
+
+func add_children(despawned: List<Integer>) {
+    despawned.each(mark)
+    var grown = true
+    while grown {
+        grown = false
+        var count = columns.count_of("Entity.parent")
+        var row = 0
+        while row < count {
+            var child = columns.entity_at("Entity.parent", row)
+            var parent = parents.value_at("Entity.parent", row)
+            if marked(parent.id) and not marked(child) {
+                mark(child)
+                despawned.append(child)
+                grown = true
+            }
+            row = row + 1
+        }
+    }
+}
+
+func mark(entity: Integer) {
+    while marks.count() <= entity {
+        marks.append(0)
+    }
+    marks.set_at(entity, 1)
+}
+
+func marked(entity: Integer): Boolean {
+    return entity < marks.count() and marks[entity] == 1
+}
