@@ -1,7 +1,7 @@
 singleton
 
 type AnyColumn {
-    insert_object(Integer, Anything)
+    insert_object(Integer, Anything, Boolean)
     remove_entity(Long, Integer)
     remove_all(Long, List<Integer>, Removals, Integer)
     release_buried(Integer): Integer
@@ -97,10 +97,10 @@ func added_tick(column_header: Long, row: Integer): Integer {
     return raw.read_long(ticks, row * 8)
 }
 
-func insert_object(entity: Integer, value: Anything) {
+func insert_object(entity: Integer, value: Anything, copying: Boolean) {
     var name = key(value.class)
     crash releasers[name]
-    releasers[name].insert_object(entity, value)
+    releasers[name].insert_object(entity, value, copying)
 }
 
 func remove_one(name: String, entity: Integer) {

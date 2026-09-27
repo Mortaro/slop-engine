@@ -20,9 +20,14 @@ func prepare_column() {
     record_column(name)
 }
 
-func insert_object(entity: Integer, value: Anything) {
+func insert_object(entity: Integer, value: Anything, copying: Boolean) {
     if value == $component_type {
-        insert(entity, value)
+        if copying {
+            var copied = value.deep_copy()
+            insert(entity, copied)
+        } else {
+            insert(entity, value)
+        }
     }
 }
 

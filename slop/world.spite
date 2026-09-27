@@ -80,6 +80,7 @@ func queue_bundle(bundle: Symbol<Bundle>, given: Anything, entity: Integer) {
 func add_bundle_attribute(made: Entity, attribute: Spite.Attribute) {
     assert attribute.value
     var command = AddComponent(made.id, attribute.value, attribute.name)
+    command.copying = true
     queue(command)
 }
 

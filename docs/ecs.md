@@ -58,10 +58,11 @@ compile time (a plural template over the class finds nothing), and a marker is o
 
 ## Bundles
 
-Spawning a bundle is one typed command per entity: the attribute walk is written at compile time for each class in a
-`bundle/` folder, and every component goes straight into its column, deep-copied. `stress` spawns 200,000 bodies of
-four components in about 190 ms (it was about 600 ms through run-time reflection); most of what is left is a
-singleton guard per column call, which the language is removing.
+Spawning a bundle copies each of its components, so one bundle can be spawned any number of times. The fast way is
+one typed command per entity, with the attribute walk written at compile time for each class in a `bundle/` folder:
+`stress` spawned 200,000 bodies of four components in about 190 ms that way, against about 650 ms through run-time
+reflection. Which bundle class a value is cannot yet be asked reliably at run time (both forms are language bugs,
+D237), so a bundle the typed path does not recognise takes the reflective path, which is correct, and slower.
 
 
 A bundle is a class in a `bundle/` folder whose attributes are components, with a constructor that sets them up.

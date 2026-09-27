@@ -1,6 +1,7 @@
 var entity = 0
 var component: Anything? = null
 var relation = ""
+var copying = false
 var columns = Columns()
 var entity_column = Column<Entity>()
 
@@ -16,5 +17,5 @@ func apply() {
         entity_column.insert_keyed(entity, component, "Entity.{relation}")
         return
     }
-    columns.insert_object(entity, component)
+    columns.insert_object(entity, component, copying)
 }
