@@ -30,8 +30,9 @@ Checked: the three primary button plates of `buttons.psd` match a reference deco
 `psd_zip_probe` decodes eight generated files (8 and 16 bit, each of the four compressions) to the checksum
 `make_fixtures.py` works out for them.
 
-Not fast yet: channels decode into `List<Integer>` one byte at a time, which matters for the 3,000-pixel textures
-Theseus uses.
+Speed: channels decode into `List<Integer>` one byte at a time. Theseus's `T_TSplat0.psd` (3328×3584, PackBits,
+10 MB) opens in 11 ms and decodes in 683 ms, about 57 ns a pixel (2026-09-26, optimized). That is paid once, when a
+recipe cooks; decoding straight into the texture's bytes would cut it several times over.
 
 ## zstd (`slop_zstd_plugin`)
 
