@@ -9,6 +9,11 @@ func after_input_each(device: Device) {
     var keyboard = device.keyboard
     mouse.pressed = false
     mouse.released = false
+    mouse.right_pressed = false
+    mouse.right_released = false
+    mouse.middle_pressed = false
+    mouse.middle_released = false
+    mouse.double_clicked = false
     mouse.wheel = 0
     keyboard.pressed.clear()
     keyboard.typed = ""
@@ -29,13 +34,11 @@ func apply(event: Input.Event, mouse: Component.Mouse, keyboard: Component.Keybo
     } else if event.kind == 'button_pressed' {
         mouse.left = event.left
         mouse.top = event.top
-        mouse.down = true
-        mouse.pressed = true
+        press_button(mouse, event)
     } else if event.kind == 'button_released' {
         mouse.left = event.left
         mouse.top = event.top
-        mouse.down = false
-        mouse.released = true
+        release_button(mouse, event.button)
     } else if event.kind == 'wheel_turned' {
         mouse.wheel = mouse.wheel + event.wheel
     } else if event.kind == 'key_pressed' {
@@ -46,6 +49,33 @@ func apply(event: Input.Event, mouse: Component.Mouse, keyboard: Component.Keybo
     } else if event.kind == 'character_typed' {
         keyboard.strokes.append(event)
         keyboard.typed = keyboard.typed + event.character
+    }
+}
+
+func press_button(mouse: Component.Mouse, event: Input.Event) {
+    if event.button == 1 {
+        mouse.right_down = true
+        mouse.right_pressed = true
+    } else if event.button == 2 {
+        mouse.middle_down = true
+        mouse.middle_pressed = true
+    } else {
+        mouse.down = true
+        mouse.pressed = true
+        mouse.double_clicked = event.double
+    }
+}
+
+func release_button(mouse: Component.Mouse, button: Integer) {
+    if button == 1 {
+        mouse.right_down = false
+        mouse.right_released = true
+    } else if button == 2 {
+        mouse.middle_down = false
+        mouse.middle_released = true
+    } else {
+        mouse.down = false
+        mouse.released = true
     }
 }
 

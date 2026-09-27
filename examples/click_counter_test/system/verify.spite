@@ -30,7 +30,8 @@ func last_each(counted: Counted, shown: Shown, tested: Tested, quitting: Quittin
     var expected_text = progress.wanted.to_string()
     var counted_right = clicks == progress.wanted and text == expected_text
     var placed_right = layout.left == 232.0 and layout.width == 176.0 and layout.height == 40.0
-    var passed = counted_right and placed_right and texture == "ui.button.primary.hover"
+    var buttons_seen = progress.saw_right and progress.saw_middle and progress.saw_double
+    var passed = counted_right and placed_right and texture == "ui.button.primary.hover" and buttons_seen
     console.print(
         "clicks",
         clicks,
@@ -41,6 +42,10 @@ func last_each(counted: Counted, shown: Shown, tested: Tested, quitting: Quittin
         "button at",
         layout.left,
         layout.top,
+        "right, middle, double",
+        progress.saw_right,
+        progress.saw_middle,
+        progress.saw_double,
         "passed",
         passed,
     )

@@ -116,7 +116,7 @@ func create_window(
 
 func record(message: Long) {
     var kind = raw.read_integer(message, 8)
-    var mouse = kind == 512 or kind == 513 or kind == 514 or kind == 522
+    var mouse = kind >= 512 and kind <= 522
     var keys = kind == 256 or kind == 257 or kind == 258
     assert mouse or keys
     lock()
@@ -166,7 +166,7 @@ func register_class(instance: Long, class_name: String) {
     kernel.lstrcpyA(name_bytes, class_name)
     var arrow = user.LoadCursorA_as_long(no_handle, 32512)
     var window_class = heap.allocate(72)
-    raw.write_long(window_class, 0, 3)
+    raw.write_long(window_class, 0, 11)
     raw.write_long(window_class, 8, default_procedure)
     raw.write_long(window_class, 16, 0)
     raw.write_long(window_class, 24, instance)

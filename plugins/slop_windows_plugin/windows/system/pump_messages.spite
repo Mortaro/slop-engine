@@ -56,10 +56,8 @@ func translate(kind: Integer, word: Long, position: Long): Input.Event? {
     event.top = position / 65536 % 65536
     if kind == 512 {
         event.kind = 'pointer_moved'
-    } else if kind == 513 {
-        event.kind = 'button_pressed'
-    } else if kind == 514 {
-        event.kind = 'button_released'
+    } else if kind >= 513 and kind <= 521 {
+        press_or_release(event, kind)
     } else if kind == 522 {
         event.kind = 'wheel_turned'
         event.wheel = wheel_notches(word)
@@ -75,6 +73,18 @@ func translate(kind: Integer, word: Long, position: Long): Input.Event? {
         return null
     }
     return event
+}
+
+func press_or_release(event: Input.Event, kind: Integer) {
+    var offset = kind - 513
+    event.button = offset / 3
+    var step = offset % 3
+    if step == 1 {
+        event.kind = 'button_released'
+    } else {
+        event.kind = 'button_pressed'
+        event.double = step == 2
+    }
 }
 
 func key_of(word: Long): Integer {

@@ -92,7 +92,7 @@ system reads them.
 | `Input.Component.Events` | `pending`: the events a platform delivered this tick |
 | `Input.Component.Keyboard` | on a window: `held` and `pressed` keys, `typed` characters, and `strokes` (key presses and characters in order) for the current tick |
 | `Input.Key` | names for virtual keys (`backspace`, `left`, `delete`, ...) |
-| `Input.Component.Mouse` | on a window: `left`, `top` (pixels in the window), `down`, `pressed`/`released` and `wheel` (notches) for the current tick |
+| `Input.Component.Mouse` | on a window: `left`, `top` (pixels in the window); the left button's `down`, `pressed`, `released` and `double_clicked`; the same for `right_…` and `middle_…`; and `wheel` (notches), for the current tick |
 
 ## slop_ui_plugin
 

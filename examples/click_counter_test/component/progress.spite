@@ -2,3 +2,6 @@ var frame = 0
 var sent = 0
 var wanted = 0
 var done = false
+var saw_right = false
+var saw_middle = false
+var saw_double = false

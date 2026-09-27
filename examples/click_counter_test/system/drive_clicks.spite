@@ -22,8 +22,29 @@ func update_each(driven: DrivenWindow) {
         post(handle, 514, 0)
         progress.sent = progress.sent + 1
     }
-    var settled = since_first >= progress.wanted * frames_per_click + 6
+    var extra = since_first - progress.wanted * frames_per_click
+    send_other_buttons(handle, extra)
+    var settled = since_first >= progress.wanted * frames_per_click + 12
     progress.done = progress.sent == progress.wanted and settled
+}
+
+func send_other_buttons(handle: Long, extra: Integer) {
+    var corner: Long = 10 * 65536 + 10
+    if extra == 1 {
+        user.PostMessageA(handle, 516, 2, corner)
+    } else if extra == 2 {
+        user.PostMessageA(handle, 517, 0, corner)
+    } else if extra == 3 {
+        user.PostMessageA(handle, 519, 16, corner)
+    } else if extra == 4 {
+        user.PostMessageA(handle, 520, 0, corner)
+    } else if extra == 5 {
+        user.PostMessageA(handle, 515, 1, corner)
+    } else if extra == 6 {
+        user.PostMessageA(handle, 514, 0, corner)
+    } else if extra == 7 {
+        post(handle, 512, 0)
+    }
 }
 
 func post(handle: Long, message: Integer, buttons: Integer) {

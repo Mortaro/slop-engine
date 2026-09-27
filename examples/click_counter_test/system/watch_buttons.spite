@@ -1,0 +1,15 @@
+type Watched {
+    mouse: Input.Component.Mouse
+}
+
+type Tested {
+    progress: Component.Progress
+}
+
+func update_each(watched: Watched, tested: Tested) {
+    var mouse = watched.mouse
+    var progress = tested.progress
+    progress.saw_right = progress.saw_right or mouse.right_pressed
+    progress.saw_middle = progress.saw_middle or mouse.middle_pressed
+    progress.saw_double = progress.saw_double or mouse.double_clicked
+}
