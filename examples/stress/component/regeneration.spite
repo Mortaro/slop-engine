@@ -1,5 +1,1 @@
 var per_tick = 1
-
-func stored_inline(): Boolean {
-    return true
-}

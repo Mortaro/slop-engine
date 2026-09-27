@@ -188,7 +188,7 @@ All sent to the "Language implementation review" session, which is fixing them o
 | 36 | fixed | a singleton function call per row costs a lock: reading reference-stored components through `Column<T>.at()` took 350 ns a row against a direct `values[...]` read, and 44 ms against 25 ms when removals ran on threads | components stored inline; lock-free reads of singletons not written during a stage are being built |
 | 37 | reported | a `type` row naming a class that doesn't exist (`Server.Component.Eye` for a component in an environment folder) crashes the compiler (`Generator.shape_default`) instead of reporting the field | the right name, `Component.Eye` |
 | 38 | reported | a template instance can silently share a name with an ordinary function (`store_attribute` for an attribute `row` makes `store_row`), and the error points at line 0 with a wrong argument count | rename the helper |
-| 39 | D230 | a function can't return a borrowed `Items` item, so `Lookup.of` on an inline component returns a copy and writes to it are silently lost | components opt into inline storage (`stored_inline`) until D230 lands |
+| 39 | D230 | a function can't return a borrowed `Items` item, so `Lookup.of` on an inline component returns a copy and writes to it are silently lost | fixed: `Lookup.of` lends the item (D230, D257), and inline storage is inferred |
 | 40 | fixed (D227, D228) | a program can't override a package's `Build` default, and a package can't find its own files, so shader recipes only worked two folders below the repository | junctions in Theseus |
 | 41 | reported | comparing a value with a walked symbol's class (`given == bundle.class`) leaks the class object and its two lists, once per class | none: the leak is bounded; `debug-memory` counts are off by three per bundle class spawned |
 | 42 | reported | `var bundle: T = null` constructs a default `T`, and everything it holds, which is then thrown away; `= null` reads as "nothing yet" | `T?` |
@@ -385,7 +385,9 @@ what each became:
   write to it vanishes with no error (bug 39). The fixes moved the rule into the compiler: walked rows (D217) and
   lent borrows (D220, D230), so the only way to write is the way that sticks. The engine now also writes `_all`
   rows back itself. An opt-in such as `stored_inline` is a trap of the same kind, a thing the game must remember;
-  it goes away with D230.
+  it is gone: with D257 a `Lookup` lends the stored item, so every component that fits a `Vector` is inline with
+  nothing declared. The same class showed up again in IO systems, whose rows are snapshots: a write to one is lost.
+  Spite is adding `function_writes_parameter` so the runner can refuse it.
 - **Performance traps look like correct code.** A singleton call per row (bug 36), a `List` of row indices instead
   of a `Vector` (30 ms to 11 ms), per-row name lookups (40 ms to 173 ms), and relation rows paired as a full
   cartesian product: each was fixed in the engine or reported, but an AI writing a game would not have seen them.

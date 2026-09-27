@@ -122,16 +122,21 @@ func set_padding_block(
 }
 
 func write_layout(entity: Integer, left: Float, top: Float, width: Float, height: Float) {
+    laid_out.set(entity, true)
     var layout = Lookup<Ui.Component.ComputedLayout>().of(entity)
-    if not layout {
-        layout = created_layouts[entity]
+    if layout {
+        fill_layout(layout, left, top, width, height)
+        return
     }
-    crash layout
+    crash created_layouts[entity]
+    fill_layout(created_layouts[entity], left, top, width, height)
+}
+
+func fill_layout(layout: Ui.Component.ComputedLayout, left: Float, top: Float, width: Float, height: Float) {
     layout.left = left
     layout.top = top
     layout.width = width
     layout.height = height
-    laid_out.set(entity, true)
 }
 
 func children_of(entity: Integer): List<Integer> {
@@ -1295,10 +1300,23 @@ func record_scroll_range(entity: Integer, box: Ui.Layout.Box, left: Float, top: 
     var vertical = clips_vertically(entity)
     assert horizontal or vertical
     var range = Lookup<Ui.Component.ScrollRange>().of(entity)
-    if not range {
-        range = created_ranges[entity]
+    if range {
+        fill_scroll_range(range, entity, box, left, top, width, height)
+        return
     }
-    assert range
+    crash created_ranges[entity]
+    fill_scroll_range(created_ranges[entity], entity, box, left, top, width, height)
+}
+
+func fill_scroll_range(
+    range: Ui.Component.ScrollRange,
+    entity: Integer,
+    box: Ui.Layout.Box,
+    left: Float,
+    top: Float,
+    width: Float,
+    height: Float,
+) {
     var scroll_left: Float = 0.0
     var scroll_top: Float = 0.0
     var scroll = Lookup<Ui.Component.ScrollPosition>().of(entity)
@@ -1350,10 +1368,45 @@ func write_scrollbars(
     padding_height: Float,
 ) {
     var bars = Lookup<Ui.Component.ComputedScrollbars>().of(entity)
-    if not bars {
-        bars = created_scrollbars[entity]
+    if bars {
+        fill_scrollbars(
+            bars,
+            entity,
+            range,
+            scroll_left,
+            scroll_top,
+            padding_left,
+            padding_top,
+            padding_width,
+            padding_height,
+        )
+        return
     }
-    assert bars
+    crash created_scrollbars[entity]
+    fill_scrollbars(
+        created_scrollbars[entity],
+        entity,
+        range,
+        scroll_left,
+        scroll_top,
+        padding_left,
+        padding_top,
+        padding_width,
+        padding_height,
+    )
+}
+
+func fill_scrollbars(
+    bars: Ui.Component.ComputedScrollbars,
+    entity: Integer,
+    range: Ui.Component.ScrollRange,
+    scroll_left: Float,
+    scroll_top: Float,
+    padding_left: Float,
+    padding_top: Float,
+    padding_width: Float,
+    padding_height: Float,
+) {
     bars.thickness = bar_thickness(entity)
     var horizontal = Lookup<Ui.Component.OverflowX>().of(entity)
     var vertical = Lookup<Ui.Component.OverflowY>().of(entity)
@@ -1432,10 +1485,15 @@ func write_content_origin(entity: Integer, placement: Ui.Layout.Placement) {
 
 func write_clip(entity: Integer, inherited: Ui.Layout.Placement) {
     var clip = Lookup<Ui.Component.ComputedClip>().of(entity)
-    if not clip {
-        clip = created_clips[entity]
+    if clip {
+        fill_clip(clip, inherited)
+        return
     }
-    crash clip
+    crash created_clips[entity]
+    fill_clip(created_clips[entity], inherited)
+}
+
+func fill_clip(clip: Ui.Component.ComputedClip, inherited: Ui.Layout.Placement) {
     clip.left = inherited.clip_left
     clip.top = inherited.clip_top
     clip.right = inherited.clip_right
