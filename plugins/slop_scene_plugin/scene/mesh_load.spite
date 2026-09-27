@@ -45,11 +45,15 @@ func write_vertex(target: Asset.Bytes, mesh: Asset.Mesh, vertex: Integer, skinne
         crash mesh.joints[vertex]
         target.write_integer(mesh.joints[vertex])
         var weight = 0
+        var total: Float = 0.0
         while weight < 4 {
             crash mesh.weights[vertex * 4 + weight]
+            total = total + mesh.weights[vertex * 4 + weight]
             target.write_float(mesh.weights[vertex * 4 + weight])
             weight = weight + 1
         }
+        var skinned_vertex_is_weighted = total > 0.0
+        crash skinned_vertex_is_weighted
     } else {
         target.write_integer(0)
         target.write_float(1.0)
