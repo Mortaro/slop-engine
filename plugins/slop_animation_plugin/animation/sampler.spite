@@ -11,6 +11,10 @@ func sample(
 ) {
     var frame_count: Float = clip.frame_count
     assert clip.frame_count > 0
+    var clip_made_for_this_skeleton = clip.bone_count == skeleton.names.count()
+    crash clip_made_for_this_skeleton
+    var clip_holds_every_key = clip.keys.count() == clip.frame_count * clip.bone_count * 10
+    crash clip_holds_every_key
     var position = animator.time * clip.frames_per_second
     if animator.looping {
         position = position - scalar.floor(position / frame_count) * frame_count
