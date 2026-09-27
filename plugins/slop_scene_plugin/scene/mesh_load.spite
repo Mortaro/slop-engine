@@ -19,7 +19,8 @@ func run(): Scene.LoadedMesh {
     var mesh = pack.decode(bytes)
     crash mesh
     var loaded = Scene.LoadedMesh()
-    loaded.texture = mesh.texture
+    loaded.sections = mesh.sections
+    loaded.textures = mesh.textures
     var count = mesh.vertices.count() / vertex_floats
     var skinned = mesh.joints.count() == count
     var vertex = 0

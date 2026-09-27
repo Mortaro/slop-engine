@@ -5,7 +5,7 @@ var console = Console()
 var clock = Clock()
 var parts = ["Chest", "Boots", "Gloves", "Shorts part 1", "Shorts part 2", "Face 1", "Hair 1"]
 var clips = ["Idle", "Walk", "Run"]
-var version = "archer 2"
+var version = "archer 3"
 var decoder = Png.Decoder()
 var cooked_textures = List<String>()
 
@@ -62,7 +62,7 @@ func cook_part(file: Blend.File, part: String, skeleton: Asset.Skeleton, fingerp
     var object = object_named(file, "Body - {part}")
     var reader = Blend.MeshReader()
     var mesh = reader.read(file, object, skeleton.names)
-    cook_texture(reader, mesh, fingerprint)
+    cook_textures(reader, mesh, fingerprint)
     var slug = slug_of(part)
     var bytes = Asset.Bytes()
     var pack = Pack<Asset.Mesh>()
@@ -70,13 +70,24 @@ func cook_part(file: Blend.File, part: String, skeleton: Asset.Skeleton, fingerp
     cache.put("archer.body.{slug}", fingerprint, bytes)
 }
 
-func cook_texture(reader: Blend.MeshReader, mesh: Asset.Mesh, fingerprint: String) {
-    assert not reader.texture_image.is_empty()
-    var id = "archer.texture.{reader.texture_image}"
-    mesh.texture = id
+func cook_textures(reader: Blend.MeshReader, mesh: Asset.Mesh, fingerprint: String) {
+    var material = 0
+    while material < reader.images.count() {
+        cook_texture(reader, mesh, material, fingerprint)
+        material = material + 1
+    }
+}
+
+func cook_texture(reader: Blend.MeshReader, mesh: Asset.Mesh, material: Integer, fingerprint: String) {
+    crash reader.images[material]
+    crash reader.image_bytes[material]
+    var name = reader.images[material]
+    assert not name.is_empty()
+    var id = "archer.texture.{name}"
+    mesh.textures.set_at(material, id)
     assert not cooked_textures.contains(id)
     cooked_textures.append(id)
-    var texture = decoder.decode(reader.texture_bytes)
+    var texture = decoder.decode(reader.image_bytes[material])
     crash texture
     var bytes = Asset.Bytes()
     var pack = Pack<Asset.Texture>()

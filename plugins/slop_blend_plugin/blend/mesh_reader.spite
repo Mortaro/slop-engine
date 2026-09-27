@@ -16,8 +16,10 @@ var group_bones = List<Integer>()
 var welded = Dictionary<Integer>()
 var point = Math.Vector3()
 var direction = Math.Vector3()
-var texture_image = ""
-var texture_bytes = Asset.Bytes()
+var material_faces = -1
+var images = List<String>()
+var image_bytes = List<Asset.Bytes>()
+var image_paths = List<String>()
 
 func read(source: Blend.File, object: Blend.View, bone_names: List<String>): Asset.Mesh {
     file = source
@@ -33,6 +35,7 @@ func read(source: Blend.File, object: Blend.View, bone_names: List<String>): Ass
     corner_vertices = attribute_offset(".corner_vert")
     coordinates = uv_offset(data)
     sharp_faces = attribute_offset("sharp_face")
+    material_faces = attribute_offset("material_index")
     var poly_offset_indices_address = data.pointer("poly_offset_indices")
     var offsets_block = file.block_at(poly_offset_indices_address)
     crash offsets_block
@@ -42,13 +45,38 @@ func read(source: Blend.File, object: Blend.View, bone_names: List<String>): Ass
     var vertex_count = data.integer("totvert")
     var face_count = data.integer("totpoly")
     compute_normals(vertex_count, face_count)
+    var material_count = data.short_integer("totcol")
+    if material_count < 1 {
+        material_count = 1
+    }
+    var material = 0
+    while material < material_count {
+        emit_section(material, face_count)
+        material = material + 1
+    }
+    read_materials(data, material_count)
+    return mesh
+}
+
+func emit_section(material: Integer, face_count: Integer) {
+    var first = mesh.indices.count()
     var face = 0
     while face < face_count {
-        emit_face(face)
+        if material_of(face) == material {
+            emit_face(face)
+        }
         face = face + 1
     }
-    read_texture(data)
-    return mesh
+    var count = mesh.indices.count() - first
+    assert count > 0
+    mesh.sections.append(first)
+    mesh.sections.append(count)
+    mesh.sections.append(material)
+}
+
+func material_of(face: Integer): Integer {
+    assert material_faces >= 0
+    return file.integer_at(material_faces + face * 4)
 }
 
 func read_attributes(data: Blend.View) {
@@ -373,39 +401,66 @@ func trim(bones: List<Integer>, weights: List<Float>) {
     }
 }
 
-func read_texture(data: Blend.View) {
+func read_materials(data: Blend.View, material_count: Integer) {
     var materials_address = data.pointer("mat")
-    assert materials_address != 0
-    var materials_address_value = block_offset(materials_address)
-    var material_address = file.long_at(materials_address_value)
+    var materials_offset = -1
+    if materials_address != 0 {
+        materials_offset = block_offset(materials_address)
+    }
+    var material = 0
+    while material < material_count {
+        images.append("")
+        var empty = Asset.Bytes()
+        image_bytes.append(empty)
+        image_paths.append("")
+        mesh.textures.append("")
+        read_material(materials_offset, material)
+        material = material + 1
+    }
+}
+
+func read_material(materials_offset: Integer, material: Integer) {
+    assert materials_offset >= 0
+    var material_address = file.long_at(materials_offset + material * 8)
     assert material_address != 0
-    var material = file.view_at(material_address)
-    crash material
-    file.enter(material)
-    var tree_address = material.pointer("nodetree")
+    var found = file.view_at(material_address)
+    crash found
+    file.enter(found)
+    var tree_address = found.pointer("nodetree")
     assert tree_address != 0
     var tree = file.view_at(tree_address)
     crash tree
     var nodes_list = tree.inner("nodes")
     var nodes = file.list_views(nodes_list)
-    nodes.each(read_image_node)
+    var index = 0
+    while index < nodes.count() {
+        read_image_node(nodes[index], material)
+        index = index + 1
+    }
 }
 
-func read_image_node(node: Blend.View) {
-    assert texture_image.is_empty() and node.text("idname") == "ShaderNodeTexImage"
+func read_image_node(node: Blend.View, material: Integer) {
+    crash images[material]
+    assert images[material].is_empty() and node.text("idname") == "ShaderNodeTexImage"
     var image_address = node.pointer("id")
     assert image_address != 0
     var image = file.view_at(image_address)
     crash image
     file.enter(image)
+    var name = file.id_name(image)
+    images.set_at(material, name)
     var packed_address = image.pointer("packedfile")
-    assert packed_address != 0
+    if packed_address == 0 {
+        var external = image.text("filepath")
+        image_paths.set_at(material, external)
+        return
+    }
     var packed = file.view_at(packed_address)
     crash packed
     var size = packed.integer("size")
     var data_address_3 = packed.pointer("data")
     var data_offset = block_offset(data_address_3)
     assert data_offset >= 0
-    texture_bytes.write_bytes(file.bytes.address + data_offset, size)
-    texture_image = file.id_name(image)
+    crash image_bytes[material]
+    image_bytes[material].write_bytes(file.bytes.address + data_offset, size)
 }

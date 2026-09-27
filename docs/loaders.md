@@ -55,4 +55,4 @@ per vertex), `.corner_vert` and `.corner_edge` (int per corner), `UVMap` (float2
 
 Meshes, skeletons, skins, animations and packed PNG textures are built; see [scene.md](scene.md). Not built yet:
 ear-clipping triangulation (faces are split as fans), custom split normals, more than one UV set, vertex colours,
-several materials per mesh, and images that reference external files.
+and cooking images that reference external files (the reader reports their paths).

@@ -2,7 +2,7 @@ var cache = Recipes.Cache()
 var mesh = Asset.Mesh()
 
 func build() {
-    var fingerprint = cache.fingerprint("cube 1")
+    var fingerprint = cache.fingerprint("cube 2")
     assert not cache.is_current("mesh.probe.cube", fingerprint)
     face(0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0)
     face(0.0, 0.0, -1.0, -1.0, 0.0, 0.0, 0.0, 1.0, 0.0)
@@ -10,6 +10,8 @@ func build() {
     face(-1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0)
     face(0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, -1.0)
     face(0.0, -1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0)
+    var index_count = mesh.indices.count()
+    mesh.add_section(0, index_count, "")
     var pack = Pack<Asset.Mesh>()
     var bytes = Asset.Bytes()
     pack.encode(mesh, bytes)

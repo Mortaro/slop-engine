@@ -511,7 +511,7 @@ func record_draw(
     vulkan.vkCmdBindVertexBuffers(command_buffer, 0, 1, buffers.address, offsets.address)
     var no_offset: Long = 0
     vulkan.vkCmdBindIndexBuffer(command_buffer, index_buffers[draw.mesh_slot], no_offset, 1)
-    vulkan.vkCmdDrawIndexed(command_buffer, index_counts[draw.mesh_slot], 1, 0, 0, 0)
+    vulkan.vkCmdDrawIndexed(command_buffer, draw.index_count, 1, draw.first_index, 0, 0)
 }
 
 func shaders_ready(renderer: RenderVulkan.Component.Renderer): Boolean {

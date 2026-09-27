@@ -47,7 +47,14 @@ What the readers do:
   - Positions go through the object's world matrix and from Blender's Z-up to Y-up, `(x, y, z) → (x, z, -y)`.
   - Skin weights come from the deform-vertex layer of the vertex data: the four heaviest groups that name a
     bone, renormalised.
-  - The texture is the first image-texture node's packed file.
+  - Faces are grouped by their `material_index`, one section per material slot. `Asset.Mesh.sections` holds
+    three numbers per section (first index, index count, material slot), and `Asset.Mesh.textures` one texture
+    id per material slot, which the recipe fills.
+  - Each material's image is its first image-texture node. `MeshReader.images` has the image's name per slot,
+    `image_bytes` its packed file, and `image_paths` the file path when the image is not packed (an external
+    `.psd`, for example), so the recipe can cook it. A hand-built mesh adds a section with
+    `mesh.add_section(first, count, texture)` (a proposal by Claude).
+  - The renderer draws each section on its own, with its own texture.
 - **Skeletons.** Bones are ordered so parents come first. The inverse bind is
   `(to_target · armature_world · arm_mat · to_source)⁻¹`.
 - **Actions.** Layered actions (layers, strips, channel bags) and legacy `curves` are both read.

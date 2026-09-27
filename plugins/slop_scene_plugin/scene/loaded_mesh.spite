@@ -1,4 +1,5 @@
 var vertices = Asset.Bytes()
 var indices = Asset.Bytes()
 var index_count = 0
-var texture = ""
+var sections = List<Integer>()
+var textures = List<String>()

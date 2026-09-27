@@ -1,7 +1,7 @@
 var cache = Recipes.Cache()
 
 func build() {
-    var fingerprint = cache.fingerprint("ground 1")
+    var fingerprint = cache.fingerprint("ground 2")
     assert not cache.is_current("mesh.ground", fingerprint) or not cache.is_current("texture.ground", fingerprint)
     var mesh = Asset.Mesh()
     corner(mesh, -15.0, -15.0)
@@ -14,7 +14,7 @@ func build() {
     mesh.indices.append(0)
     mesh.indices.append(3)
     mesh.indices.append(2)
-    mesh.texture = "texture.ground"
+    mesh.add_section(0, 6, "texture.ground")
     var mesh_bytes = Asset.Bytes()
     var mesh_pack = Pack<Asset.Mesh>()
     mesh_pack.encode(mesh, mesh_bytes)

@@ -2,4 +2,13 @@ var vertices = List<Float>()
 var joints = List<Integer>()
 var weights = List<Float>()
 var indices = List<Integer>()
-var texture = ""
+var sections = List<Integer>()
+var textures = List<String>()
+
+func add_section(first: Integer, count: Integer, texture: String) {
+    sections.append(first)
+    sections.append(count)
+    var material = textures.count()
+    sections.append(material)
+    textures.append(texture)
+}

@@ -20,7 +20,7 @@ items come first.
 | 6 | Navigation | a walkability bitgrid cooked from terrain and collision, grid A*, line of sight |
 | 7 | Collision | heightfield, capsule and static mesh colliders, raycasts, a character controller, the same on the server |
 | 8 | Profiling | CPU time per system and stage, dumped to JSON: built first, since the first server comparison needs it ([performance.md](performance.md#measuring-the-profile)); GPU timestamps per pass still to do |
-| 9 | `.blend` | ear-clipping triangulation, custom normals, several UV sets, vertex colours, several materials, LODs, `UCX_` collision, external `.psd` images |
+| 9 | `.blend` | ear-clipping triangulation, custom normals, several UV sets, vertex colours, LODs, `UCX_` collision, cooking external `.psd` images; several materials per mesh is built |
 | 10 | Textures | BC1/3/4/5/7 cooked offline, mips, anisotropic filtering, raw bytes, mip streaming |
 | 11 | Client | GPU-driven renderer, world streaming, terrain, foliage, materials, lighting, hierarchy and sockets, animation blending, UI, audio, particles |
 

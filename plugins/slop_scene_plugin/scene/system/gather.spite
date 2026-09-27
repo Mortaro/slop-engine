@@ -49,19 +49,40 @@ func add_draw(target: Target, modeled: Modeled) {
     var slot = target.meshes.request(modeled.model.mesh)
     assert target.meshes.is_ready(slot)
     var loaded = target.meshes.mesh_at(slot)
-    var draw = Scene.Draw()
-    draw.mesh_slot = slot
-    if not loaded.texture.is_empty() {
-        draw.texture_slot = target.textures.request(loaded.texture)
-    }
-    draw.model = modeled.transform.matrix()
+    var model = modeled.transform.matrix()
+    var palette_first = 0
     var palette = modeled.model.palette
     if palette.count() > 0 {
-        draw.palette_first = target.view.palettes.count()
+        palette_first = target.view.palettes.count()
         var index = 0
         while index < palette.count() {
             target.view.palettes.append(palette[index])
             index = index + 1
+        }
+    }
+    var section = 0
+    while section * 3 + 2 < loaded.sections.count() {
+        var draw = Scene.Draw()
+        draw.mesh_slot = slot
+        draw.model = model
+        draw.palette_first = palette_first
+        add_section(target, loaded, draw, section)
+        section = section + 1
+    }
+}
+
+func add_section(target: Target, loaded: Scene.LoadedMesh, draw: Scene.Draw, section: Integer) {
+    var at = section * 3
+    crash loaded.sections[at]
+    crash loaded.sections[at + 1]
+    crash loaded.sections[at + 2]
+    draw.first_index = loaded.sections[at]
+    draw.index_count = loaded.sections[at + 1]
+    var material = loaded.sections[at + 2]
+    if material < loaded.textures.count() {
+        var texture = loaded.textures[material]
+        if not texture.is_empty() {
+            draw.texture_slot = target.textures.request(texture)
         }
     }
     target.view.draws.append(draw)
