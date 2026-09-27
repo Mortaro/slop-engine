@@ -59,7 +59,9 @@ func create_entity_from_bundle(bundle: Anything): Entity {
     var made = create_entity()
     spawned_typed = false
     queue_bundles(bundle, made.id)
-    assert not spawned_typed
+    if spawned_typed {
+        return made
+    }
     var attributes = bundle.attributes
     var index = 0
     while index < attributes.count() {
@@ -70,7 +72,8 @@ func create_entity_from_bundle(bundle: Anything): Entity {
 }
 
 func queue_bundle(bundle: Symbol<Bundle>, given: Anything, entity: Integer) {
-    if given == bundle.class {
+    var kind = BundleKind<bundle.class>()
+    if kind.is_kind(given) {
         var command = SpawnBundle<bundle.class>(entity, given)
         queue(command)
         spawned_typed = true

@@ -21,7 +21,9 @@ func to_source(): Math.Matrix4 {
 func object_world(file: Blend.File, object: Blend.View): Math.Matrix4 {
     var local = object_local(object)
     var parent_address = object.pointer("parent")
-    assert parent_address != 0
+    if parent_address == 0 {
+        return local
+    }
     var parent = file.view_at(parent_address)
     crash parent
     var parent_world = object_world(file, parent)

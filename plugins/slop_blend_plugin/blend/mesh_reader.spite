@@ -4,6 +4,10 @@ var mesh = Asset.Mesh()
 var placement = Math.Matrix4()
 var attribute_names = List<String>()
 var attribute_offsets = List<Integer>()
+var single_names = List<String>()
+var single_offsets = List<Integer>()
+var sharp_constant = false
+var material_constant = 0
 var positions = 0
 var corner_vertices = 0
 var coordinates = -1
@@ -36,6 +40,14 @@ func read(source: Blend.File, object: Blend.View, bone_names: List<String>): Ass
     coordinates = uv_offset(data)
     sharp_faces = attribute_offset("sharp_face")
     material_faces = attribute_offset("material_index")
+    var sharp_single = single_offset("sharp_face")
+    if sharp_single >= 0 {
+        sharp_constant = file.bytes.byte_at(sharp_single) != 0
+    }
+    var material_single = single_offset("material_index")
+    if material_single >= 0 {
+        material_constant = file.integer_at(material_single)
+    }
     var poly_offset_indices_address = data.pointer("poly_offset_indices")
     var offsets_block = file.block_at(poly_offset_indices_address)
     crash offsets_block
@@ -75,8 +87,26 @@ func emit_section(material: Integer, face_count: Integer) {
 }
 
 func material_of(face: Integer): Integer {
-    assert material_faces >= 0
-    return file.integer_at(material_faces + face * 4)
+    var material = material_constant
+    if material_faces >= 0 {
+        material = file.integer_at(material_faces + face * 4)
+    }
+    return material
+}
+
+func single_offset(name: String): Integer {
+    var index = 0
+    var found = -2
+    while index < single_names.count() {
+        if single_names[index] == name {
+            crash single_offsets[index]
+            found = single_offsets[index]
+        }
+        index = index + 1
+    }
+    var value_is_in_the_file = found != -1
+    crash value_is_in_the_file
+    return found
 }
 
 func read_attributes(data: Blend.View) {
@@ -92,13 +122,23 @@ func read_attributes(data: Blend.View) {
         var name_block = file.block_at(name_address)
         crash name_block
         var name = file.text_at(name_block.offset, name_block.length - 1)
-        attribute_names.append(name)
         var wrapper_address = attribute.pointer("data")
         var wrapper = file.view_at(wrapper_address)
         crash wrapper
         var values_address = wrapper.pointer("data")
-        var offset = block_offset(values_address)
-        attribute_offsets.append(offset)
+        if wrapper.shape.name == "AttributeSingle" {
+            single_names.append(name)
+            var found = file.by_address.has(values_address)
+            var value_offset = -1
+            if found {
+                value_offset = block_offset(values_address)
+            }
+            single_offsets.append(value_offset)
+        } else {
+            attribute_names.append(name)
+            var offset = block_offset(values_address)
+            attribute_offsets.append(offset)
+        }
         index = index + 1
     }
 }
@@ -107,7 +147,9 @@ func deform_layer(data: Blend.View): Integer {
     var vertex_data = data.inner("vdata")
     var count = vertex_data.integer("totlayer")
     var layers_address = vertex_data.pointer("layers")
-    assert count > 0 and layers_address != 0
+    if count == 0 or layers_address == 0 {
+        return -1
+    }
     var first = file.view_at(layers_address)
     crash first
     var index = 0
@@ -259,7 +301,7 @@ func emit_face(face: Integer) {
 
 func emit_corner(face: Integer, corner: Integer) {
     var vertex = corner_vertex(corner)
-    var flat = sharp_faces >= 0 and file.bytes.byte_at(sharp_faces + face) != 0
+    var flat = sharp_constant or sharp_faces >= 0 and file.bytes.byte_at(sharp_faces + face) != 0
     var normal_start = vertex * 3
     var normals = vertex_normals
     if flat {
