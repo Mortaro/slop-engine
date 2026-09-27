@@ -71,6 +71,32 @@ func power_of_two(exponent: Float): Float {
     return result * sum
 }
 
+func logarithm_two(value: Float): Float {
+    crash value > 0.0
+    var whole: Float = 0.0
+    var mantissa = value
+    while mantissa >= 2.0 {
+        mantissa = mantissa * 0.5
+        whole = whole + 1.0
+    }
+    while mantissa < 1.0 {
+        mantissa = mantissa * 2.0
+        whole = whole - 1.0
+    }
+    var ratio = (mantissa - 1.0) / (mantissa + 1.0)
+    var squared = ratio * ratio
+    var term = ratio
+    var sum: Float = 0.0
+    var index = 1
+    while index < 16 {
+        var divisor: Float = index
+        sum = sum + term / divisor
+        term = term * squared
+        index = index + 2
+    }
+    return whole + 2.0 * sum / 0.6931472
+}
+
 func wrapped_angle(angle: Float): Float {
     var turns = floor((angle + pi) / two_pi)
     return angle - turns * two_pi

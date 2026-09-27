@@ -1,0 +1,215 @@
+var across = 16
+var down = 9
+var slices = 24
+var cluster_count = 16 * 9 * 24
+var near: Float = 0.5
+var far: Float = 500.0
+var slice_scale: Float = 1.0
+var across_scale: Float = 1.0
+var down_scale: Float = 1.0
+var across_tangent: Float = 1.0
+var down_tangent: Float = 1.0
+var across_norm: Float = 1.0
+var down_norm: Float = 1.0
+var visible = Vector<Integer>()
+var counts = Vector<Integer>()
+var index_count = 0
+var spans = Vector<Integer>()
+var cursors = Vector<Integer>()
+var boundaries = Vector<Float>()
+var scalar = Math.Scalar()
+var eye = Math.Vector3()
+var lights = Scene.Lights()
+var ints = TypedMemory<Integer>()
+
+func assign(view: Scene.Component.View, aspect: Float) {
+    prepare(view, aspect)
+    var light_count = lights.count()
+    var floats = lights.floats
+    var stride = lights.light_floats
+    var index = 0
+    while index < light_count {
+        place_light(view, floats, index * stride)
+        index = index + 1
+    }
+    index_count = 0
+    var cluster = 0
+    while cluster < cluster_count {
+        cursors.set_at(cluster, index_count)
+        index_count = index_count + counts[cluster]
+        cluster = cluster + 1
+    }
+}
+
+func write(ranges_at: Memory.Address, indices_at: Memory.Address) {
+    var cluster = 0
+    while cluster < cluster_count {
+        ints.write_value(ranges_at, cluster * 2, cursors[cluster])
+        ints.write_value(ranges_at, cluster * 2 + 1, counts[cluster])
+        cluster = cluster + 1
+    }
+    var at = 0
+    while at < spans.count() {
+        var slot = spans[at]
+        var slice = spans[at + 1]
+        var first_column = spans[at + 2]
+        var last_column = spans[at + 3]
+        var row = spans[at + 4]
+        var last_row = spans[at + 5]
+        while row <= last_row {
+            var cluster_at = first_column + across * (row + down * slice)
+            var column = first_column
+            while column <= last_column {
+                var cursor = cursors[cluster_at]
+                ints.write_value(indices_at, cursor, slot)
+                cursors.set_at(cluster_at, cursor + 1)
+                cluster_at = cluster_at + 1
+                column = column + 1
+            }
+            row = row + 1
+        }
+        at = at + 6
+    }
+}
+
+func prepare(view: Scene.Component.View, aspect: Float) {
+    far = view.far
+    if far < near * 2.0 {
+        far = near * 2.0
+    }
+    var slice_count: Float = slices
+    slice_scale = slice_count / scalar.logarithm_two(far / near)
+    var tangent = scalar.tangent(view.field_of_view * 0.5)
+    down_scale = 1.0 / tangent
+    across_scale = 1.0 / (tangent * aspect)
+    down_tangent = tangent
+    across_tangent = tangent * aspect
+    down_norm = scalar.square_root(1.0 + down_tangent * down_tangent)
+    across_norm = scalar.square_root(1.0 + across_tangent * across_tangent)
+    visible.clear()
+    spans.clear()
+    while counts.count() < cluster_count {
+        counts.append(0)
+        cursors.append(0)
+    }
+    var cluster = 0
+    while cluster < cluster_count {
+        counts.set_at(cluster, 0)
+        cluster = cluster + 1
+    }
+    boundaries.clear()
+    var slice = 0
+    while slice <= slices {
+        var step: Float = slice
+        var growth = scalar.power_of_two(step / slice_scale)
+        boundaries.append(near * growth)
+        slice = slice + 1
+    }
+    boundaries.set_at(0, 0.001)
+}
+
+func slice_of(depth: Float): Integer {
+    if depth <= near {
+        return 0
+    }
+    var position: Integer = scalar.logarithm_two(depth / near) * slice_scale
+    if position >= slices {
+        return slices - 1
+    }
+    return position
+}
+
+func place_light(view: Scene.Component.View, floats: Vector<Float>, at: Integer) {
+    var range = floats[at + 3]
+    view.view.transform_point(eye, floats[at], floats[at + 1], floats[at + 2])
+    var depth = 0.0 - eye.z_value
+    assert depth + range > 0.0 and depth - range < far
+    var side = depth * across_tangent
+    var rise = depth * down_tangent
+    var beside = eye.x_value - side < range * across_norm and 0.0 - eye.x_value - side < range * across_norm
+    var within = eye.y_value - rise < range * down_norm and 0.0 - eye.y_value - rise < range * down_norm
+    assert beside and within
+    var slot = visible.count()
+    var first_slice = slice_of(depth - range)
+    var last_slice = slice_of(depth + range)
+    var placed = false
+    var slice = first_slice
+    while slice <= last_slice {
+        if place_slice(slot, slice, depth, range) {
+            placed = true
+        }
+        slice = slice + 1
+    }
+    if placed {
+        visible.append(at)
+    }
+}
+
+func place_slice(slot: Integer, slice: Integer, depth: Float, range: Float): Boolean {
+    var closest = depth - range
+    var farthest = depth + range
+    var slice_near = boundaries[slice]
+    var slice_far = boundaries[slice + 1]
+    if closest < slice_near {
+        closest = slice_near
+    }
+    if farthest > slice_far {
+        farthest = slice_far
+    }
+    var left = screen_low(eye.x_value - range, closest, farthest) * across_scale
+    var right = screen_high(eye.x_value + range, closest, farthest) * across_scale
+    var bottom = screen_low(eye.y_value - range, closest, farthest) * down_scale
+    var top = screen_high(eye.y_value + range, closest, farthest) * down_scale
+    if right < -1.0 or left > 1.0 or top < -1.0 or bottom > 1.0 {
+        return false
+    }
+    var first_column = tile_of(left * 0.5 + 0.5, across)
+    var last_column = tile_of(right * 0.5 + 0.5, across)
+    var first_row = tile_of(0.5 - top * 0.5, down)
+    var last_row = tile_of(0.5 - bottom * 0.5, down)
+    spans.append(slot)
+    spans.append(slice)
+    spans.append(first_column)
+    spans.append(last_column)
+    spans.append(first_row)
+    spans.append(last_row)
+    var row = first_row
+    while row <= last_row {
+        var cluster = first_column + across * (row + down * slice)
+        var column = first_column
+        while column <= last_column {
+            counts.set_at(cluster, counts[cluster] + 1)
+            cluster = cluster + 1
+            column = column + 1
+        }
+        row = row + 1
+    }
+    return true
+}
+
+func screen_low(low: Float, closest: Float, farthest: Float): Float {
+    if low >= 0.0 {
+        return low / farthest
+    }
+    return low / closest
+}
+
+func screen_high(high: Float, closest: Float, farthest: Float): Float {
+    if high >= 0.0 {
+        return high / closest
+    }
+    return high / farthest
+}
+
+func tile_of(fraction: Float, tiles: Integer): Integer {
+    var count: Float = tiles
+    var scaled = fraction * count
+    if scaled <= 0.0 {
+        return 0
+    }
+    var tile: Integer = scaled
+    if tile >= tiles {
+        return tiles - 1
+    }
+    return tile
+}

@@ -1,0 +1,80 @@
+type Checked {
+    renderer: RenderVulkan.Component.Renderer
+    view: Scene.Component.View
+    draw_list: Render.Component.DrawList
+}
+
+type Quitting {
+    frame: Component.Frame
+    quit: Component.Quit
+}
+
+var console = Console()
+var clock = Clock()
+var environment = Environment()
+var rendered_frames = 0
+var started: Long = 0
+var capture = Capture()
+var scene_lights = Scene.Lights()
+
+func last_each(checked: Checked, quitting: Quitting) {
+    assert not quitting.quit.requested and checked.view.draws.count() > 0
+    var renderer = checked.renderer
+    rendered_frames = rendered_frames + 1
+    if rendered_frames == 20 {
+        started = clock.elapsed_nanoseconds()
+    }
+    if rendered_frames == 120 {
+        var spent = clock.elapsed_nanoseconds() - started
+        var lights = scene_lights.count()
+        console.print("lights", lights, "microseconds per frame", spent / 100000)
+        renderer.capture_requested = true
+    }
+    assert renderer.captured
+    var width = checked.draw_list.width
+    var height = checked.draw_list.height
+    var under_point = renderer.pixel_at(width / 2, height / 2)
+    var far_corner = renderer.pixel_at(2, height - 3)
+    var point_red = under_point.shifted_right(16).bits_and(255)
+    var point_green = under_point.shifted_right(8).bits_and(255)
+    var corner_brightness = far_corner.shifted_right(16).bits_and(255) + far_corner.shifted_right(8).bits_and(255)
+    var red_lit = point_red > 120 and point_red > point_green * 2
+    var corner_dark = corner_brightness < 40
+    var passed = red_lit and corner_dark or environment.extra_lights > 0
+    var point_color = under_point.bits_and(16777215)
+    var point_blue = under_point.bits_and(255)
+    var corner_color = far_corner.bits_and(16777215)
+    console.print(
+        "frame",
+        rendered_frames,
+        "under point",
+        point_color,
+        point_red,
+        point_green,
+        point_blue,
+        "far corner",
+        corner_color,
+        "passed",
+        passed,
+    )
+    if environment.save_image != "" {
+        keep(renderer, width, height)
+    }
+    crash passed
+    quitting.quit.requested = true
+}
+
+func keep(renderer: RenderVulkan.Component.Renderer, width: Integer, height: Integer) {
+    capture.width = width
+    capture.height = height
+    var top = 0
+    while top < height {
+        var left = 0
+        while left < width {
+            var pixel = renderer.pixel_at(left, top)
+            capture.pixels.append(pixel)
+            left = left + 1
+        }
+        top = top + 1
+    }
+}

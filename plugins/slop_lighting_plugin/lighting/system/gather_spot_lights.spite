@@ -1,0 +1,36 @@
+type Spotted {
+    light: Lighting.Component.SpotLight
+    transform: Transform.Component.Transform
+}
+
+var lights = Scene.Lights()
+var light = Scene.Light()
+var scalar = Math.Scalar()
+var axis = Math.Vector3()
+
+func render_each(spotted: Spotted) {
+    var spot = spotted.light
+    var at = spotted.transform
+    light.position_x = at.position_x
+    light.position_y = at.position_y
+    light.position_z = at.position_z
+    light.range = spot.range
+    var rotation = at.matrix()
+    rotation.transform_direction(axis, 0.0, 0.0, -1.0)
+    light.toward_x = axis.x_value
+    light.toward_y = axis.y_value
+    light.toward_z = axis.z_value
+    light.red = spot.red
+    light.green = spot.green
+    light.blue = spot.blue
+    light.intensity = spot.intensity
+    var cosine_inner = scalar.cosine(spot.inner_angle)
+    var cosine_outer = scalar.cosine(spot.outer_angle)
+    var spread = cosine_inner - cosine_outer
+    if spread < 0.001 {
+        spread = 0.001
+    }
+    light.cone_scale = 1.0 / spread
+    light.cone_offset = 0.0 - cosine_outer * light.cone_scale
+    lights.add(light)
+}

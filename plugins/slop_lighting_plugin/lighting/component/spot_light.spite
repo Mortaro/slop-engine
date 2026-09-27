@@ -1,0 +1,7 @@
+var red: Float = 1.0
+var green: Float = 1.0
+var blue: Float = 1.0
+var intensity: Float = 1000.0
+var range: Float = 20.0
+var inner_angle: Float = 0.35
+var outer_angle: Float = 0.6

@@ -1,0 +1,27 @@
+var cookbook = Recipes.Cookbook()
+var capture = Capture()
+var environment = Environment()
+var console = Console()
+
+func LightsCheck() {
+    load "../../slop"
+    load "../../plugins/slop_window_plugin"
+    load "../../plugins/slop_platform_plugin"
+    load "../../plugins/slop_input_plugin"
+    load "../../plugins/slop_ui_plugin"
+    load "../../plugins/slop_render_plugin"
+    load "../../plugins/slop_render_vulkan_plugin"
+    load "../../plugins/slop_transform_plugin"
+    load "../../plugins/slop_camera_plugin"
+    load "../../plugins/slop_lighting_plugin"
+    load "../../plugins/slop_scene_plugin"
+    load "../../plugins/slop_scene_vulkan_plugin"
+    cookbook.cook()
+    var app = App()
+    app.run()
+    capture.save()
+    if environment.extra_lights > 0 {
+        var profile = app.profile_json()
+        console.print(profile)
+    }
+}

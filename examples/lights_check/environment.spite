@@ -1,0 +1,3 @@
+var show_window = false
+var extra_lights = 0
+var save_image = ""

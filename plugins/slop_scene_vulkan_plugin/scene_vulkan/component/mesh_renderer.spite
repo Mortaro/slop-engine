@@ -18,7 +18,21 @@ var hdr_view: Long = 0
 var lighting_buffers = List<Long>()
 var lighting_memories = List<Long>()
 var lighting_mapped = List<Long>()
-var lighting_bytes = 176
+var lighting_bytes = 256
+var clusters = Scene.LightClusters()
+var lights = Scene.Lights()
+var light_buffers = List<Long>()
+var light_memories = List<Long>()
+var light_mapped = List<Long>()
+var light_capacities = List<Integer>()
+var cluster_buffers = List<Long>()
+var cluster_memories = List<Long>()
+var cluster_mapped = List<Long>()
+var light_index_buffers = List<Long>()
+var light_index_memories = List<Long>()
+var light_index_mapped = List<Long>()
+var light_index_capacities = List<Integer>()
+var light_stride = 64
 var shadow_pipeline: Long = 0
 var shader_shadow_fragment: Long = 0
 var shadow_image: Long = 0
@@ -61,10 +75,15 @@ func record(renderer: RenderVulkan.Component.Renderer, view: Scene.Component.Vie
     ensure_depth(renderer)
     upload_meshes(renderer, meshes)
     var slot = (renderer.frame_number - 1) % renderer.frames_in_flight
+    var frame = renderer.frame
+    var aspect: Float = frame.target_width
+    var height: Float = frame.target_height
+    aspect = aspect / height
+    clusters.assign(view, aspect)
     write_frame_data(renderer, view, slot)
+    write_local_lights(renderer, view, slot)
     aim_sun(view)
     write_lighting(view, slot)
-    var frame = renderer.frame
     var storage = RenderVulkan.Structure(8)
     crash storage_sets[slot]
     storage.append_long(storage_sets[slot])
@@ -76,9 +95,6 @@ func record(renderer: RenderVulkan.Component.Renderer, view: Scene.Component.Vie
     vulkan.vkCmdBindPipeline(frame.command_buffer, 0, pipeline)
     record_viewport(renderer)
     vulkan.vkCmdBindDescriptorSets(frame.command_buffer, 0, pipeline_layout, 1, 1, storage.address, 0, no_offsets)
-    var aspect: Float = frame.target_width
-    var height: Float = frame.target_height
-    aspect = aspect / height
     var projection = view.projection(aspect)
     var view_projection = projection.multiplied(view.view)
     var index = 0
@@ -466,6 +482,85 @@ func write_lighting(view: Scene.Component.View, slot: Integer) {
     put(at, 24, view.roughness, view.specular, view.metallic, exposure)
     var matrix_at = at + 112
     light_view_projection.write_to(matrix_at)
+    var view_at = at + 176
+    view.view.write_to(view_at)
+    put(at, 60, clusters.near, clusters.slice_scale, clusters.across_scale, clusters.down_scale)
+}
+
+func write_local_lights(renderer: RenderVulkan.Component.Renderer, view: Scene.Component.View, slot: Integer) {
+    var visible_count = clusters.visible.count()
+    var index_count = clusters.index_count
+    ensure_light_buffers(renderer, slot, visible_count, index_count)
+    crash light_mapped[slot]
+    crash cluster_mapped[slot]
+    crash light_index_mapped[slot]
+    var exposure = exposure_of(view)
+    var lights_at = light_mapped[slot]
+    var source = lights.floats
+    var visible = 0
+    while visible < visible_count {
+        var from = clusters.visible[visible]
+        var float_at = visible * 16
+        var field = 0
+        while field < 16 {
+            floats.write_value(lights_at, float_at + field, source[from + field])
+            field = field + 1
+        }
+        floats.write_value(lights_at, float_at + 11, source[from + 11] * exposure)
+        visible = visible + 1
+    }
+    clusters.write(cluster_mapped[slot], light_index_mapped[slot])
+}
+
+func ensure_light_buffers(
+    renderer: RenderVulkan.Component.Renderer,
+    slot: Integer,
+    visible_count: Integer,
+    index_count: Integer,
+) {
+    crash light_capacities[slot]
+    crash light_index_capacities[slot]
+    crash draw_buffers[slot]
+    var changed = false
+    if visible_count > light_capacities[slot] {
+        grow_lights(renderer, slot, visible_count)
+        changed = true
+    }
+    if index_count > light_index_capacities[slot] {
+        grow_light_indices(renderer, slot, index_count)
+        changed = true
+    }
+    if changed and draw_buffers[slot] != 0 {
+        write_storage_set(renderer, slot)
+    }
+}
+
+func grow_lights(renderer: RenderVulkan.Component.Renderer, slot: Integer, wanted: Integer) {
+    free_buffer(renderer, light_buffers, light_memories, slot)
+    var capacity = wanted * 2 + 64
+    var bytes = capacity * light_stride
+    var storage_usage = 32
+    var buffer = renderer.create_buffer(bytes, storage_usage)
+    var memory = renderer.host_memory_for(buffer)
+    var mapped = renderer.map(memory, bytes)
+    light_buffers.set_at(slot, buffer)
+    light_memories.set_at(slot, memory)
+    light_mapped.set_at(slot, mapped)
+    light_capacities.set_at(slot, capacity)
+}
+
+func grow_light_indices(renderer: RenderVulkan.Component.Renderer, slot: Integer, wanted: Integer) {
+    free_buffer(renderer, light_index_buffers, light_index_memories, slot)
+    var capacity = wanted * 2 + 4096
+    var bytes = capacity * 4
+    var storage_usage = 32
+    var buffer = renderer.create_buffer(bytes, storage_usage)
+    var memory = renderer.host_memory_for(buffer)
+    var mapped = renderer.map(memory, bytes)
+    light_index_buffers.set_at(slot, buffer)
+    light_index_memories.set_at(slot, memory)
+    light_index_mapped.set_at(slot, mapped)
+    light_index_capacities.set_at(slot, capacity)
 }
 
 func put(at: Long, index: Integer, first: Float, second: Float, third: Float, fourth: Float) {
@@ -542,7 +637,7 @@ func ensure_created(renderer: RenderVulkan.Component.Renderer) {
 
 func create_storage(renderer: RenderVulkan.Component.Renderer) {
     var no_allocator: Long = 0
-    var bindings = RenderVulkan.Structure(96)
+    var bindings = RenderVulkan.Structure(168)
     var binding = 0
     while binding < 3 {
         bindings.append_integer(binding)
@@ -557,11 +652,20 @@ func create_storage(renderer: RenderVulkan.Component.Renderer) {
     bindings.append_integer(1)
     bindings.append_integer(16)
     bindings.append_long(0)
+    binding = 4
+    while binding < 7 {
+        bindings.append_integer(binding)
+        bindings.append_integer(7)
+        bindings.append_integer(1)
+        bindings.append_integer(16)
+        bindings.append_long(0)
+        binding = binding + 1
+    }
     var layout_creation = RenderVulkan.Structure(32)
     layout_creation.append_integer(32)
     layout_creation.append_long(0)
     layout_creation.append_integer(0)
-    layout_creation.append_integer(4)
+    layout_creation.append_integer(7)
     layout_creation.append_pointer(bindings)
     var made = RenderVulkan.Structure(8)
     var layout_result = vulkan.vkCreateDescriptorSetLayout(
@@ -575,7 +679,7 @@ func create_storage(renderer: RenderVulkan.Component.Renderer) {
     var frames = renderer.frames_in_flight
     var pool_size = RenderVulkan.Structure(16)
     pool_size.append_integer(7)
-    pool_size.append_integer(frames * 3)
+    pool_size.append_integer(frames * 6)
     pool_size.append_integer(1)
     pool_size.append_integer(frames)
     var pool_creation = RenderVulkan.Structure(40)
@@ -624,6 +728,24 @@ func allocate_frame_slot(renderer: RenderVulkan.Component.Renderer) {
     lighting_buffers.append(lighting_buffer)
     lighting_memories.append(lighting_memory)
     lighting_mapped.append(mapped)
+    light_buffers.append(0)
+    light_memories.append(0)
+    light_mapped.append(0)
+    light_capacities.append(0)
+    light_index_buffers.append(0)
+    light_index_memories.append(0)
+    light_index_mapped.append(0)
+    light_index_capacities.append(0)
+    var slot = light_buffers.count() - 1
+    grow_lights(renderer, slot, 0)
+    grow_light_indices(renderer, slot, 0)
+    var cluster_bytes = clusters.cluster_count * 8
+    var cluster_buffer = renderer.create_buffer(cluster_bytes, lighting_usage)
+    var cluster_memory = renderer.host_memory_for(cluster_buffer)
+    var cluster_at = renderer.map(cluster_memory, cluster_bytes)
+    cluster_buffers.append(cluster_buffer)
+    cluster_memories.append(cluster_memory)
+    cluster_mapped.append(cluster_at)
 }
 
 func create_layout(renderer: RenderVulkan.Component.Renderer) {
@@ -1331,7 +1453,7 @@ func write_storage_set(renderer: RenderVulkan.Component.Renderer, slot: Integer)
     shadow_information.append_long(shadow_sampler)
     shadow_information.append_long(shadow_view)
     shadow_information.append_integer(5)
-    var writes = RenderVulkan.Structure(256)
+    var writes = RenderVulkan.Structure(448)
     append_write(writes, storage_sets[slot], 0, draw_information)
     append_write(writes, storage_sets[slot], 1, palette_information)
     append_write(writes, storage_sets[slot], 2, lighting_information)
@@ -1345,8 +1467,26 @@ func write_storage_set(renderer: RenderVulkan.Component.Renderer, slot: Integer)
     writes.append_pointer(shadow_information)
     writes.append_long(0)
     writes.append_long(0)
+    crash light_buffers[slot]
+    crash cluster_buffers[slot]
+    crash light_index_buffers[slot]
+    var light_information = whole_buffer(light_buffers[slot])
+    var cluster_information = whole_buffer(cluster_buffers[slot])
+    var light_index_information = whole_buffer(light_index_buffers[slot])
+    append_write(writes, storage_sets[slot], 4, light_information)
+    append_write(writes, storage_sets[slot], 5, cluster_information)
+    append_write(writes, storage_sets[slot], 6, light_index_information)
     var no_copies: Long = 0
-    vulkan.vkUpdateDescriptorSets(renderer.device, 4, writes.address, 0, no_copies)
+    vulkan.vkUpdateDescriptorSets(renderer.device, 7, writes.address, 0, no_copies)
+}
+
+func whole_buffer(buffer: Long): RenderVulkan.Structure {
+    var whole: Long = -1
+    var information = RenderVulkan.Structure(24)
+    information.append_long(buffer)
+    information.append_long(0)
+    information.append_long(whole)
+    return information
 }
 
 func append_write(writes: RenderVulkan.Structure, set: Long, binding: Integer, information: RenderVulkan.Structure) {
@@ -1441,6 +1581,9 @@ func release_part(renderer: RenderVulkan.Component.Renderer) {
     release_all(renderer, vertex_buffers, vertex_memories)
     release_all(renderer, index_buffers, index_memories)
     release_all(renderer, lighting_buffers, lighting_memories)
+    release_all(renderer, light_buffers, light_memories)
+    release_all(renderer, cluster_buffers, cluster_memories)
+    release_all(renderer, light_index_buffers, light_index_memories)
     vulkan.vkDestroyPipeline(renderer.device, shadow_pipeline, no_allocator)
     vulkan.vkDestroyShaderModule(renderer.device, shader_shadow_fragment, no_allocator)
     vulkan.vkDestroySampler(renderer.device, shadow_sampler, no_allocator)

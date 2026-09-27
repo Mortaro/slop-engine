@@ -1,0 +1,21 @@
+type Pointed {
+    light: Lighting.Component.PointLight
+    transform: Transform.Component.Transform
+}
+
+var lights = Scene.Lights()
+var light = Scene.Light()
+
+func render_each(pointed: Pointed) {
+    var point = pointed.light
+    var at = pointed.transform
+    light.position_x = at.position_x
+    light.position_y = at.position_y
+    light.position_z = at.position_z
+    light.range = point.range
+    light.red = point.red
+    light.green = point.green
+    light.blue = point.blue
+    light.intensity = point.intensity
+    lights.add(light)
+}

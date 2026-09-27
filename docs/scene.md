@@ -14,7 +14,7 @@ with `spite kal_character --kal_assets=<folder>`.
 | `slop_scene_plugin` | `Scene` | `Scene.Component.Model` (a mesh id and a bone palette); `Scene.Component.View` and `Scene.Component.Meshes` on each window; `Gather` collects the camera, the models and the lighting every frame |
 | `slop_scene_vulkan_plugin` | `SceneVulkan` | the Vulkan passes: sun shadow map, lit scene into HDR, tone map into the frame, then the UI draws on top |
 | `slop_animation_plugin` | `Animation` | `Animation.Component.Animator` (skeleton, clip, time, speed, looping); `Animate` samples the clip into the model's palette |
-| `slop_lighting_plugin` | `Lighting` | `Sun`, `Sky`, `HeightFog` and `Exposure` components and a `Daylight` bundle, written into each view |
+| `slop_lighting_plugin` | `Lighting` | `Sun`, `Sky`, `HeightFog` and `Exposure` components and a `Daylight` bundle, written into each view; `PointLight` and `SpotLight` components gathered into `Scene.Lights` |
 | `slop_blend_plugin` | `Blend` | `MeshReader`, `SkeletonReader` and `ActionReader`: what a recipe needs from a `.blend` |
 | `slop_png_plugin` | `Png` | a PNG decoder, pixel-exact against Pillow, for the images packed in a `.blend` |
 
@@ -98,6 +98,61 @@ The sun casts a 2048² shadow map:
 
 Cut-out texels (alpha below 0.5) are discarded in every pass.
 
+### Point and spot lights
+
+Put a `Lighting.Component.PointLight` or `SpotLight` on an entity with a `Transform`. The fields are:
+- `red`, `green`, `blue`: linear colour;
+- `intensity`: in candela;
+- `range`: in metres, where the light fades to exactly zero.
+
+A spot also has `inner_angle` and `outer_angle`, in radians from its axis. It shines along its transform's −Z.
+
+```gdscript
+var torch = world.create_entity()
+var light = Lighting.Component.PointLight()
+light.intensity = 3.0
+light.range = 6.0
+torch.add_component(light)
+torch.add_component(transform)
+```
+
+How a light is shaded:
+- **Falloff:** inverse square, floored at 1 cm and windowed to zero at the range (Karis 2013).
+- **Cone:** a spot's cone is `clamp(cos · scale + offset)²` (Frostbite).
+- **Surface response:** the same GGX and Lambert as the sun.
+
+Each frame:
+1. `ClearLights` (`prepare`) empties the `Scene.Lights` singleton.
+2. `GatherPointLights` and `GatherSpotLights` (`render`) stream every light into it, 16 floats each.
+
+Only the position is read, so a light that is a child of a moving entity needs its own transform kept in world
+space (proposal: follow the parent once transforms have a world pass).
+
+**Clustered forward shading.** `Scene.LightClusters` cuts each view into 16×9 tiles and 24 exponential depth slices
+from 0.5 m to the camera's far plane, on the CPU:
+- A light whose sphere is behind the camera, past the far plane or outside a side plane is culled.
+- Every other light is added to the clusters its bounds reach in each slice it spans.
+- A count pass and a write pass put exact per-cluster lists into the GPU buffers; nothing is capped or dropped.
+
+The scene shader finds its fragment's cluster from the view-space position and loops over that cluster's lights only.
+Set 1 carries them in bindings 4 (visible lights, 64 bytes each), 5 (a first/count pair per cluster) and 6 (the light
+index array). All three are host-visible per frame in flight, and the light and index buffers grow when a frame needs
+more.
+
+`examples/lights_check` lights a dark floor with a red point light and a blue spot. It checks the pixel under the
+point light is lit red and a far corner stays dark. Set `extra_lights` in its environment to add a grid of point
+lights for timing.
+
+With 3,000 lights (79 on screen, 12,853 cluster entries), on an RTX 3090 with validation on:
+- the clusters and their upload cost about 0.22 ms of the scene system;
+- gathering costs 0.9 to 1.1 ms. That is the ECS's per-row cost of streaming a two-component row (about 300 ns), not
+  the lights, so it drops wherever that cost does (docs/performance.md).
+
+Not built yet:
+- shadows for point and spot lights (a budgeted atlas, a proposal);
+- tighter sphere-against-cluster tests, which only cost shading a light that adds zero;
+- moving the cluster pass to a compute shader, if the CPU cost matters once many lights are on screen.
+
 Lighting data lives on the neutral `Scene.View` with daylight defaults. The lighting plugin only overwrites it from
 components, so a scene without that plugin is still lit.
 
@@ -107,7 +162,6 @@ These are what the previous Kal renderer had:
 - the ray-marched atmosphere and sky;
 - shadow cascades and contact shadows;
 - GTAO;
-- clustered point and spot lights;
 - image-based sky lighting;
 - bloom;
 - 4× MSAA;

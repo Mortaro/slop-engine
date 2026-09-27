@@ -1,0 +1,13 @@
+var position_x: Float = 0.0
+var position_y: Float = 0.0
+var position_z: Float = 0.0
+var range: Float = 10.0
+var toward_x: Float = 0.0
+var toward_y: Float = 0.0
+var toward_z: Float = 0.0
+var red: Float = 1.0
+var green: Float = 1.0
+var blue: Float = 1.0
+var intensity: Float = 100.0
+var cone_scale: Float = 0.0
+var cone_offset: Float = 1.0

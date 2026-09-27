@@ -100,6 +100,8 @@ amount of work.
 | Texture decode format | open: textures are stored as a list of `Integer`s and converted to raw bytes on the worker. Should be GPU-ready bytes (and later block-compressed) in the store |
 | Spawning a streamed region | open: needs spawning spread over frames. `create_entity_from_bundle` walks the bundle reflectively and computes each component's column key as a string, so bulk spawning got 2x slower with the entity API (200,000 bodies: 520 ms to 950 ms), and short strings brought it back to 510 ms; integer ids per component class instead of string keys are the next step |
 | Layout | open: the whole UI tree is laid out every frame. Fine for menus; an in-world UI needs dirty-subtree layout |
+| Streaming a row | open: a single-row `_each` system costs about 300 ns per entity even when its body only copies eight floats. Measured with `GatherPointLights`: 3,000 rows of `PointLight` + `Transform` in 0.9 to 1.1 ms, and 0.9 ms with both stored inline. The sparse-set join is two reads per column, so the cost is in fetching, writing inline copies back, or the call itself. Needs a native profile |
+| Point and spot lights | **measured**: 3,000 lights, 79 on screen: clustering and upload 0.22 ms, gathering as above |
 
 ## Thread affinity
 

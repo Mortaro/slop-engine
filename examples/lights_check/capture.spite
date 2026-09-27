@@ -1,0 +1,23 @@
+singleton
+
+var width = 0
+var height = 0
+var pixels = List<Integer>()
+var environment = Environment()
+
+func save() {
+    assert environment.save_image != "" and pixels.count() > 0
+    var file = File(environment.save_image)
+    var text = "P3 {width} {height} 255\n"
+    var index = 0
+    while index < pixels.count() {
+        var pixel = pixels[index]
+        var red = pixel.shifted_right(16).bits_and(255)
+        var green = pixel.shifted_right(8).bits_and(255)
+        var blue = pixel.bits_and(255)
+        text = "{text}{red} {green} {blue}\n"
+        index = index + 1
+    }
+    var wrote = file.write(text)
+    crash wrote
+}

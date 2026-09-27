@@ -1,0 +1,31 @@
+singleton
+
+var floats = Vector<Float>()
+var light_floats = 16
+
+func count(): Integer {
+    return floats.count() / light_floats
+}
+
+func clear() {
+    floats.clear()
+}
+
+func add(light: Scene.Light) {
+    floats.append(light.position_x)
+    floats.append(light.position_y)
+    floats.append(light.position_z)
+    floats.append(light.range)
+    floats.append(light.toward_x)
+    floats.append(light.toward_y)
+    floats.append(light.toward_z)
+    floats.append(0.0)
+    floats.append(light.red)
+    floats.append(light.green)
+    floats.append(light.blue)
+    floats.append(light.intensity)
+    floats.append(light.cone_scale)
+    floats.append(light.cone_offset)
+    floats.append(0.0)
+    floats.append(0.0)
+}
