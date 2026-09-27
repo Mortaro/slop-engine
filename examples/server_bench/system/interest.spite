@@ -1,0 +1,13 @@
+type Watching {
+    transform: Transform.Component.Transform
+    player: Component.Player
+}
+
+var grid = Spatial.Grid()
+var found = Vector<Integer>()
+
+func update_each(watching: Watching) {
+    found.clear()
+    grid.within(watching.transform.position_x, watching.transform.position_z, 60.0, found)
+    watching.player.visible = found.count()
+}

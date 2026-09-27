@@ -1,0 +1,21 @@
+type Moving {
+    transform: Transform.Component.Transform
+    velocity: Component.Velocity
+}
+
+var environment = Environment()
+var size: Float = 0.0
+
+func update_each(moving: Moving) {
+    size = environment.world_size
+    var transform = moving.transform
+    var velocity = moving.velocity
+    transform.position_x = transform.position_x + velocity.speed_x
+    transform.position_z = transform.position_z + velocity.speed_z
+    if transform.position_x < 0.0 or transform.position_x > size {
+        velocity.speed_x = 0.0 - velocity.speed_x
+    }
+    if transform.position_z < 0.0 or transform.position_z > size {
+        velocity.speed_z = 0.0 - velocity.speed_z
+    }
+}

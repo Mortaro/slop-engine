@@ -1,0 +1,6 @@
+var nearby = 0
+var attacks = 0
+
+func stored_inline(): Boolean {
+    return true
+}

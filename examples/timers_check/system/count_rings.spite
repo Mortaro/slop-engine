@@ -1,0 +1,13 @@
+type Counted {
+    timer: Component.Timer
+    rings: Component.Rings
+}
+
+func update_each(counted: Counted) {
+    assert counted.timer.rang
+    if counted.timer.repeating {
+        counted.rings.repeating = counted.rings.repeating + 1
+    } else {
+        counted.rings.once = counted.rings.once + 1
+    }
+}

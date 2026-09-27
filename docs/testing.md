@@ -20,6 +20,8 @@ Every behaviour the docs claim is checked by a program in `examples/`. Run them 
 | `stress` | 200,000 entities through two systems; prints the tick time |
 | `asset_round_trip` | an asset class with every kind of field saved and read back through its derived codec |
 | `psd_probe` | `buttons.psd`'s layer tree and sizes |
+| `timers_check` | timers ring on the right ticks, and `run`'s fixed-rate pacing holds 25 ms ticks |
+| `server_bench` | 5,000 players and 10,000 monsters moving on a 4 km square: spatial grid, aggro and area-of-interest queries, timers, and the profile; a grid query is checked against brute force. Run with `--optimized` |
 | `psd_zip_probe` | eight generated PSDs, 8 and 16 bit with raw, PackBits, ZIP and ZIP-with-prediction channels, decode to the expected checksum (`python make_fixtures.py` regenerates them) |
 | `zstd_probe` | decompresses a `.blend` (`-- --source=file.blend --output=plain.blend`); compared byte for byte with Zig's decoder when it was written |
 | `blend_probe` | a `.blend`'s datablocks, any SDNA struct, and a mesh's attributes (`-- --source=file.blend`) |

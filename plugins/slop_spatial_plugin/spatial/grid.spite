@@ -1,0 +1,130 @@
+singleton
+
+var origin_x: Float = -8192.0
+var origin_z: Float = -8192.0
+var cell_size: Float = 32.0
+var columns = 512
+var rows = 512
+var heads = Vector<Integer>()
+var next = Vector<Integer>()
+var xs = Vector<Float>()
+var zs = Vector<Float>()
+var touched = Vector<Integer>()
+var indexed = 0
+
+func configure(left: Float, top: Float, width: Float, depth: Float, size: Float) {
+    origin_x = left
+    origin_z = top
+    cell_size = size
+    var whole_columns: Integer = width / size
+    var whole_rows: Integer = depth / size
+    columns = whole_columns + 1
+    rows = whole_rows + 1
+    heads.clear()
+    touched.clear()
+}
+
+func clear() {
+    ensure_heads()
+    var index = 0
+    while index < touched.count() {
+        heads.set_at(touched[index], -1)
+        index = index + 1
+    }
+    touched.clear()
+    indexed = 0
+}
+
+func insert(entity: Integer, position_x: Float, position_z: Float) {
+    ensure_heads()
+    ensure_entity(entity)
+    var cell = cell_at(position_x, position_z)
+    xs.set_at(entity, position_x)
+    zs.set_at(entity, position_z)
+    var head = heads[cell]
+    if head < 0 {
+        touched.append(cell)
+    }
+    next.set_at(entity, head)
+    heads.set_at(cell, entity)
+    indexed = indexed + 1
+}
+
+func within(position_x: Float, position_z: Float, radius: Float, found: Vector<Integer>) {
+    ensure_heads()
+    var first_column = column_of(position_x - radius)
+    var last_column = column_of(position_x + radius)
+    var first_row = row_of(position_z - radius)
+    var last_row = row_of(position_z + radius)
+    var reach = radius * radius
+    var row = first_row
+    while row <= last_row {
+        var column = first_column
+        while column <= last_column {
+            collect(row * columns + column, position_x, position_z, reach, found)
+            column = column + 1
+        }
+        row = row + 1
+    }
+}
+
+func collect(cell: Integer, position_x: Float, position_z: Float, reach: Float, found: Vector<Integer>) {
+    var entity = heads[cell]
+    while entity >= 0 {
+        var across = xs[entity] - position_x
+        var down = zs[entity] - position_z
+        if across * across + down * down <= reach {
+            found.append(entity)
+        }
+        entity = next[entity]
+    }
+}
+
+func cell_at(position_x: Float, position_z: Float): Integer {
+    var column = column_of(position_x)
+    var row = row_of(position_z)
+    return row * columns + column
+}
+
+func column_of(position_x: Float): Integer {
+    var column = whole_below((position_x - origin_x) / cell_size)
+    return clamped(column, columns)
+}
+
+func row_of(position_z: Float): Integer {
+    var row = whole_below((position_z - origin_z) / cell_size)
+    return clamped(row, rows)
+}
+
+func whole_below(value: Float): Integer {
+    var whole: Integer = value
+    if value < 0.0 and whole > value {
+        whole = whole - 1
+    }
+    return whole
+}
+
+func clamped(value: Integer, limit: Integer): Integer {
+    var inside = value
+    if inside < 0 {
+        inside = 0
+    } else if inside >= limit {
+        inside = limit - 1
+    }
+    return inside
+}
+
+func ensure_heads() {
+    assert heads.count() < columns * rows
+    while heads.count() < columns * rows {
+        heads.append(-1)
+    }
+}
+
+func ensure_entity(entity: Integer) {
+    while next.count() <= entity {
+        next.append(-1)
+        xs.append(0.0)
+        zs.append(0.0)
+    }
+}

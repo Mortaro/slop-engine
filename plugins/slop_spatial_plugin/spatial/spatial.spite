@@ -1,0 +1,3 @@
+func Spatial() {
+    load "../../slop_transform_plugin"
+}

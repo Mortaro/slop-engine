@@ -1,0 +1,5 @@
+var grid = Spatial.Grid()
+
+func input_each() {
+    grid.clear()
+}

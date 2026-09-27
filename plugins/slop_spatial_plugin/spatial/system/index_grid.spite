@@ -1,0 +1,11 @@
+type Placed {
+    entity: Entity
+    transform: Transform.Component.Transform
+    indexed: Spatial.Component.Indexed
+}
+
+var grid = Spatial.Grid()
+
+func after_input_each(placed: Placed) {
+    grid.insert(placed.entity.id, placed.transform.position_x, placed.transform.position_z)
+}

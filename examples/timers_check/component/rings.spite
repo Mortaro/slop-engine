@@ -1,0 +1,6 @@
+var repeating = 0
+var once = 0
+
+func stored_inline(): Boolean {
+    return true
+}

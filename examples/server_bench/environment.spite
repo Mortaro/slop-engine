@@ -1,0 +1,4 @@
+var players = 5000
+var monsters = 10000
+var ticks = 100
+var world_size = 4096

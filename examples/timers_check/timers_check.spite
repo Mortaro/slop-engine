@@ -1,0 +1,51 @@
+var console = Console()
+var world = World()
+var clock = Clock()
+
+func TimersCheck() {
+    load "../../slop"
+    var app = App()
+    app.frame_milliseconds = 10
+    var repeating = spawn_timer(50, true)
+    var once = spawn_timer(120, false)
+    world.flush()
+    var tick = 0
+    while tick < 30 {
+        app.tick()
+        tick = tick + 1
+    }
+    var rings = Lookup<Component.Rings>()
+    var repeated = rings.of(repeating)
+    var single = rings.of(once)
+    crash repeated
+    crash single
+    var counted_right = repeated.repeating == 6 and single.once == 1
+    console.print("repeating rang", repeated.repeating, "one-shot rang", single.once, "passed", counted_right)
+    pace(app)
+}
+
+func spawn_timer(milliseconds: Integer, repeat: Boolean): Integer {
+    var entity = world.create_entity()
+    var timer = Component.Timer()
+    timer.start(milliseconds, repeat)
+    entity.add_component(timer)
+    var rings = Component.Rings()
+    entity.add_component(rings)
+    return entity.id
+}
+
+func pace(app: App) {
+    app.frame_milliseconds = 25
+    var started = clock.elapsed_milliseconds()
+    var frames = Lookup<Component.Frame>()
+    var frame = frames.of(world.entity)
+    crash frame
+    var stop_at = frame.count + 40
+    app.begin_pacing()
+    while frame.count < stop_at {
+        app.tick()
+        app.wait_for_next_tick()
+    }
+    var took = clock.elapsed_milliseconds() - started
+    console.print("forty ticks at 25 ms took", took, "milliseconds")
+}

@@ -1,0 +1,119 @@
+var console = Console()
+var world = World()
+var environment = Environment()
+var clock = Clock()
+var grid = Spatial.Grid()
+var seed: Long = 12345
+var size: Float = 0.0
+var first_player = -1
+var last_spawned = 0
+
+func ServerBench() {
+    load "../../slop"
+    load "../../plugins/slop_spatial_plugin"
+    var app = App()
+    app.frame_milliseconds = 50
+    size = environment.world_size
+    grid.configure(0.0, 0.0, size, size, 32.0)
+    var index = 0
+    while index < environment.players {
+        spawn(true)
+        index = index + 1
+    }
+    index = 0
+    while index < environment.monsters {
+        spawn(false)
+        index = index + 1
+    }
+    world.flush()
+    var started = clock.elapsed_nanoseconds()
+    var tick = 0
+    while tick < environment.ticks {
+        app.tick()
+        tick = tick + 1
+    }
+    var finished = clock.elapsed_nanoseconds()
+    var average = (finished - started) / environment.ticks / 1000
+    console.print("players", environment.players, "monsters", environment.monsters, "indexed", grid.indexed)
+    console.print("average tick microseconds", average)
+    var profile = app.profile_json()
+    console.print(profile)
+    check_queries()
+}
+
+func check_queries() {
+    var transforms = Lookup<Transform.Component.Transform>()
+    var probe = transforms.of(first_player)
+    crash probe
+    grid.clear()
+    var indexed = 0
+    while indexed <= last_spawned {
+        reindex(transforms, indexed)
+        indexed = indexed + 1
+    }
+    var found = Vector<Integer>()
+    grid.within(probe.position_x, probe.position_z, 60.0, found)
+    var brute = 0
+    var entity = 0
+    while entity <= last_spawned {
+        brute = brute + inside(transforms, entity, probe.position_x, probe.position_z)
+        entity = entity + 1
+    }
+    var from_grid = found.count()
+    var matched = brute == from_grid
+    console.print("grid found", from_grid, "brute force found", brute, "passed", matched)
+}
+
+func reindex(transforms: Lookup<Transform.Component.Transform>, entity: Integer) {
+    var placed = transforms.of(entity)
+    assert placed
+    grid.insert(entity, placed.position_x, placed.position_z)
+}
+
+func inside(
+    transforms: Lookup<Transform.Component.Transform>,
+    entity: Integer,
+    center_x: Float,
+    center_z: Float,
+): Integer {
+    var placed = transforms.of(entity)
+    assert placed
+    var across = placed.position_x - center_x
+    var down = placed.position_z - center_z
+    assert across * across + down * down <= 3600.0
+    return 1
+}
+
+func spawn(is_player: Boolean) {
+    var entity = world.create_entity()
+    last_spawned = entity.id
+    if is_player and first_player < 0 {
+        first_player = entity.id
+    }
+    var transform = Transform.Component.Transform()
+    transform.position_x = random() * size
+    transform.position_z = random() * size
+    entity.add_component(transform)
+    var velocity = Component.Velocity()
+    velocity.speed_x = random() * 2.0 - 1.0
+    velocity.speed_z = random() * 2.0 - 1.0
+    entity.add_component(velocity)
+    var indexed = Spatial.Component.Indexed()
+    entity.add_component(indexed)
+    if is_player {
+        var player = Component.Player()
+        entity.add_component(player)
+    } else {
+        var monster = Component.Monster()
+        entity.add_component(monster)
+        var timer = Component.Timer()
+        timer.start(1500, true)
+        entity.add_component(timer)
+    }
+}
+
+func random(): Float {
+    seed = (seed * 1103515245 + 12345) % 2147483648
+    var value: Float = seed
+    return value / 2147483648.0
+}

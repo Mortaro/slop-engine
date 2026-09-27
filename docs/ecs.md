@@ -202,10 +202,34 @@ Ordering inside a phase is by name, not by data. The finer phase names carry the
 | Call | Does |
 |---|---|
 | `App()` | finds every system, builds the stages |
-| `app.run()` | ticks until the world's `Component.Quit.requested`, sleeping `frame_milliseconds` (16) between ticks, then ticks once more so systems can react to quitting |
+| `app.run()` | ticks at a fixed rate, one tick every `frame_milliseconds` (16; a server sets 50 for 20 Hz), until the world's `Component.Quit.requested`, then ticks once more so systems can react to quitting. The pace is kept against the monotonic clock, so a tick's own time does not add up to drift; a tick that overruns is followed at once, without trying to catch up |
+| `app.begin_pacing()`, `app.wait_for_next_tick()` | the two halves of that pacing, for a program that drives its own loop |
 | `app.tick()` | one tick: every stage in order, changes applied after each |
 | `app.parallel = false` | runs every stage's systems one after another |
 | `app.describe()` | the stages, as text |
+
+## Timers
+
+`Component.Timer` is a timer as a component (a proposal by Claude): `timer.start(milliseconds, repeating)`, then the
+engine's `RingTimers` system counts it down by the fixed step every tick, in `input`, and sets `timer.rang` on the tick
+it reaches zero. A repeating timer starts over, a one-shot one stops. A system reacts by asking for the timer in its
+row and checking `rang`:
+
+```gdscript
+type Attacking {
+    timer: Component.Timer
+    monster: Component.Monster
+}
+
+func update_each(attacking: Attacking) {
+    assert attacking.timer.rang
+    attacking.monster.attacks = attacking.monster.attacks + 1
+}
+```
+
+The step is `Tick().step_milliseconds`, which the app sets from `frame_milliseconds`. The timer is stored inline,
+so counting down 10,000 timers costs about 0.26 ms a tick. `timers_check` tests it: a 50 ms repeating timer rings 6
+times in 30 ticks of 10 ms and a 120 ms one-shot rings once, and 40 paced ticks of 25 ms take 1,012 ms.
 
 ## Storage
 

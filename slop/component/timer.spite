@@ -1,0 +1,26 @@
+var period = 0
+var remaining = 0
+var repeating = false
+var rang = false
+
+func stored_inline(): Boolean {
+    return true
+}
+
+func start(milliseconds: Integer, repeat: Boolean) {
+    period = milliseconds
+    remaining = milliseconds
+    repeating = repeat
+    rang = false
+}
+
+func advance(elapsed: Integer) {
+    rang = false
+    assert period > 0 and remaining > 0
+    remaining = remaining - elapsed
+    assert remaining <= 0
+    rang = true
+    while repeating and remaining <= 0 {
+        remaining = remaining + period
+    }
+}
