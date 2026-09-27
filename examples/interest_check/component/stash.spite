@@ -1,4 +1,5 @@
 var amount = 0
+var near = Entity(-1)
 
 func mirrored_from(environment: String): Boolean {
     return environment == "server"

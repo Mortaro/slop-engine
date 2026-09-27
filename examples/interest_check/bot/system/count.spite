@@ -1,4 +1,5 @@
 type Seen {
+    entity: Entity
     beacon: Component.Beacon
     mirrored: Network.Component.Mirrored
 }
@@ -34,12 +35,13 @@ func update_all(beacons: List<Seen>, runs: List<Running>, stashes: List<Stashed>
         console.print("bot sees", seen, "beacons")
     }
     var stashed = stashes.count()
+    var pointed_right = points_at_beacon(beacons, stashes)
     var sealed = seals.count()
     if sealed > 0 and not saw_seal {
         saw_seal = true
         console.print("bot sees a sealed stash")
     }
-    var expected = counts.count() == 3 and counts[0] == 6 and counts[1] == 11 and counts[2] == 10 and stashed == 3 and saw_seal and sealed == 0
+    var expected = counts.count() == 3 and counts[0] == 6 and counts[1] == 11 and counts[2] == 10 and stashed == 3 and saw_seal and sealed == 0 and pointed_right
     if expected {
         console.print("bot sees", stashed, "stashes of its own, and the seal is gone")
         console.print("passed true")
@@ -49,4 +51,22 @@ func update_all(beacons: List<Seen>, runs: List<Running>, stashes: List<Stashed>
         console.print("passed false")
         running.quit.requested = true
     }
+}
+
+func points_at_beacon(beacons: List<Seen>, stashes: List<Stashed>): Boolean {
+    var target = -1
+    var index = 0
+    while index < beacons.count() {
+        if beacons[index].beacon.number == 52 {
+            target = beacons[index].entity.id
+        }
+        index = index + 1
+    }
+    var found = false
+    index = 0
+    while index < stashes.count() {
+        found = found or target >= 0 and stashes[index].stash.near.id == target
+        index = index + 1
+    }
+    return found
 }

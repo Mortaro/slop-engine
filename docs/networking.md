@@ -106,6 +106,15 @@ func sent_from(environment: String): Boolean {
   lives for one tick.
 - Both are predicates on the environment's name, so one declaration can cover one environment or many.
 
+### Entity fields travel as the receiver's entities
+
+A replicated component may hold other entities in fields typed `Entity` (a monster's `target`, an item's `owner`).
+The codec writes each such field as the sender's view of it and reads it back as the receiver's: an entity the sender
+mirrors goes out as the id it has on the other side, and an id that arrives is turned into the receiver's mirror of
+it, made on the spot if that entity has not arrived yet, so a pointer can arrive before what it points at. `Mirrors()`
+(a core singleton) holds the table; `mirrors.local_of(remote)` answers the local entity for a remote id. A field
+typed `Integer` is sent as it is.
+
 ### Who observes what
 
 There are no players in the engine, only observers (Mortaro, 2026-09-27). An entity marked
@@ -156,7 +165,8 @@ connection.add_component(viewer)
 
 `interest_check` tests it across two processes: a bot sees 6 of 100 beacons, 11 after the server moves its eye, 10
 after the server despawns one in view, and exactly the 3 stashes observed by its connection, never the 2 others, nor 10 beacons at the same
-places in another space; a `Sealed` component the server removes from one stash disappears from the bot's mirror while the stash stays.
+places in another space; a stash's `near` field, naming a beacon the bot cannot see yet, arrives as the bot's own
+mirror of that beacon; a `Sealed` component the server removes from one stash disappears from the bot's mirror while the stash stays.
 
 The game code is plain ECS on both sides:
 

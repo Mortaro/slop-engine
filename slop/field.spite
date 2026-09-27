@@ -1,5 +1,7 @@
 generic $field_type
 
+var mirrors = Mirrors()
+
 func write(value: $field_type, bytes: Asset.Bytes) {
     if $field_type == Integer {
         bytes.write_integer(value)
@@ -19,6 +21,9 @@ func write(value: $field_type, bytes: Asset.Bytes) {
         bytes.write_byte(flag)
     } else if $field_type == String {
         bytes.write_text(value)
+    } else if $field_type == Entity {
+        var wire = mirrors.field_to_wire(value.id)
+        bytes.write_integer(wire)
     } else if $field_type == List {
         var list_field = ListField<$field_type>()
         list_field.write(value, bytes)
@@ -43,6 +48,10 @@ func read(bytes: Asset.Bytes): $field_type {
         return bytes.read_byte() == 1
     } else if $field_type == String {
         return bytes.read_text()
+    } else if $field_type == Entity {
+        var wire = bytes.read_integer()
+        var local = mirrors.field_from_wire(wire)
+        return Entity(local)
     } else if $field_type == List {
         var list_field = ListField<$field_type>()
         return list_field.read(bytes)

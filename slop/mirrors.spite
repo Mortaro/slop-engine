@@ -1,0 +1,56 @@
+singleton
+
+var known = Dictionary<Integer>()
+var remotes = Dictionary<Integer>()
+var world_field = -10
+var created = Vector<Integer>()
+var created_remotes = Vector<Integer>()
+var world = World()
+
+func local_of(remote: Integer): Integer {
+    if remote == -1 {
+        return world.entity
+    }
+    var found = known.get(remote)
+    if found {
+        return found
+    }
+    var made = world.create_entity()
+    known.set(remote, made.id)
+    remotes.set(made.id, remote)
+    created.append(made.id)
+    created_remotes.append(remote)
+    return made.id
+}
+
+func forget(remote: Integer) {
+    var found = known.get(remote)
+    assert found
+    known.remove(remote)
+    remotes.remove(found)
+    world.despawn(found)
+}
+
+func field_to_wire(local: Integer): Integer {
+    if local < 0 {
+        return local
+    }
+    if local == world.entity {
+        return world_field
+    }
+    var remote = remotes.get(local)
+    if remote {
+        return remote
+    }
+    return local
+}
+
+func field_from_wire(remote: Integer): Integer {
+    if remote == world_field {
+        return world.entity
+    }
+    if remote < 0 {
+        return remote
+    }
+    return local_of(remote)
+}

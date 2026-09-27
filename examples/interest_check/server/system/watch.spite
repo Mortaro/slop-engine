@@ -8,9 +8,16 @@ type Eyed {
     eye: Component.Eye
 }
 
+type Lit {
+    entity: Entity
+    beacon: Component.Beacon
+    indexed: Spatial.Component.Indexed
+}
+
 var world = World()
 
-func update_each(joined: Joined, eyed: Eyed) {
+func update_each(joined: Joined, eyed: Eyed, lit: Lit) {
+    assert lit.beacon.number == 52 and lit.indexed.space == 0
     var viewer = Interest.Component.Viewer()
     viewer.entity = eyed.entity.id
     viewer.radius = 55.0
@@ -23,15 +30,16 @@ func update_each(joined: Joined, eyed: Eyed) {
     peer.add_component(script)
     var index = 0
     while index < 5 {
-        place_stash(joined.entity.id, index)
+        place_stash(joined.entity.id, index, lit.entity.id)
         index = index + 1
     }
 }
 
-func place_stash(connection: Integer, index: Integer) {
+func place_stash(connection: Integer, index: Integer, pointed: Integer) {
     var stash = world.create_entity()
     var value = Component.Stash()
     value.amount = index
+    value.near = Entity(pointed)
     stash.add_component(value)
     var observed = Network.Component.Observed()
     stash.add_component(observed)

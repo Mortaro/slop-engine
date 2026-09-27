@@ -4,7 +4,7 @@ type Peer {
 }
 
 var world = World()
-var mirrors = Dictionary<Integer>()
+var mirrors = Mirrors()
 var frame = Asset.Bytes()
 var understood = false
 
@@ -26,6 +26,7 @@ func after_input_each(peer: Peer) {
             stream.closed = true
         }
     }
+    mark_mirrors()
 }
 
 func decode_component(component: Symbol<Component>, message: Integer, remote: Integer, connection: Integer) {
@@ -70,27 +71,24 @@ func strip_component(component: Symbol<Component>, target: Entity, removed: Inte
 
 func forget_mirror(remote: Integer) {
     understood = frame.remaining() == 0
-    assert remote >= 0 and mirrors.has(remote)
-    var known = mirrors.get(remote)
-    crash known
-    mirrors.remove(remote)
-    world.despawn(known)
+    assert remote >= 0
+    mirrors.forget(remote)
 }
 
 func local_entity(remote: Integer): Entity {
-    if remote == -1 {
-        return world.as_entity()
+    var local = mirrors.local_of(remote)
+    return Entity(local)
+}
+
+func mark_mirrors() {
+    var index = 0
+    while index < mirrors.created.count() {
+        var mirrored = Network.Component.Mirrored()
+        mirrored.remote = mirrors.created_remotes[index]
+        var made = Entity(mirrors.created[index])
+        made.add_component(mirrored)
+        index = index + 1
     }
-    var name = remote
-    if mirrors.has(name) {
-        var known = mirrors.get(name)
-        crash known
-        return Entity(known)
-    }
-    var made = world.create_entity()
-    mirrors.set(name, made.id)
-    var mirrored = Network.Component.Mirrored()
-    mirrored.remote = remote
-    made.add_component(mirrored)
-    return made
+    mirrors.created.clear()
+    mirrors.created_remotes.clear()
 }
