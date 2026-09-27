@@ -1,0 +1,12 @@
+type Held {
+    item: Component.Item
+    parent: Entity
+}
+
+type Owner {
+    player: Component.Player
+}
+
+func update_each(held: Held, owner: Owner) {
+    owner.player.total = owner.player.total + held.item.value
+}

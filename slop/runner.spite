@@ -27,6 +27,7 @@ var buffer = 0
 var argument_count = 0
 var streamed = -1
 var plain_rows = false
+var leading_relation = false
 var streaming_phase = ""
 var pending = 0
 var workers: List<Concurrent<Nothing>>? = null
@@ -61,6 +62,9 @@ func prepare_argument(argument: Symbol<$system_type.phase_each>) {
     var row = Row<argument.class>()
     row.prepare()
     plain_rows = row.is_plain()
+    if argument_count == 0 {
+        leading_relation = row.relation >= 0
+    }
     var keys = row.component_keys()
     note_accesses(keys)
     argument_count = argument_count + 1
@@ -140,6 +144,10 @@ func run_phase_each(phase: Symbol<$system_type.phase_each>) {
             system.phase_each(row_arguments())
             advance_stream_arguments()
         }
+        return
+    }
+    if argument_count == 2 and leading_relation {
+        run_related(phase)
         return
     }
     candidates.clear()
@@ -224,6 +232,44 @@ func gather_argument(argument: Symbol<$system_type.phase_each>) {
     row.since = last_run
     var found = row.candidates()
     candidates.append(found)
+}
+
+func run_related(phase: Symbol<$system_type.phase_each>) {
+    candidates.clear()
+    gather_arguments()
+    crash candidates[0]
+    var firsts = candidates[0]
+    var index = 0
+    while index < firsts.count() {
+        chosen.clear()
+        chosen.append(firsts[index])
+        skipping = false
+        related = -1
+        position = 0
+        relate_arguments()
+        if not skipping {
+            position = 0
+            system.phase_each(row_arguments())
+            position = 0
+            store_arguments()
+        }
+        index = index + 1
+    }
+}
+
+func relate_argument(argument: Symbol<$system_type.phase_each>) {
+    var row = Row<argument.class>()
+    if position == 0 {
+        crash chosen[0]
+        row.fill(chosen[0])
+        related = row.related
+    } else if not skipping and related >= 0 and row.matches(related) {
+        row.fill(related)
+        chosen.append(related)
+    } else {
+        skipping = true
+    }
+    position = position + 1
 }
 
 func fill_argument(argument: Symbol<$system_type.phase_each>) {

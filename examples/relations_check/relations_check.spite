@@ -1,0 +1,81 @@
+var console = Console()
+var world = World()
+var clock = Clock()
+var players = List<Integer>()
+var items = List<Integer>()
+var passed = true
+
+func RelationsCheck() {
+    load "../../slop"
+    var app = App()
+    var index = 0
+    while index < 1000 {
+        var player = world.create_entity()
+        var sheet = Component.Player()
+        player.add_component(sheet)
+        players.append(player.id)
+        index = index + 1
+    }
+    world.flush()
+    index = 0
+    while index < 10000 {
+        spawn_item(index)
+        index = index + 1
+    }
+    world.flush()
+    var started = clock.elapsed_nanoseconds()
+    app.tick()
+    var took = (clock.elapsed_nanoseconds() - started) / 1000
+    console.print("tick with 10,000 held items, microseconds", took)
+    expect(0, 45000)
+    expect(7, 45070)
+    move_items()
+    world.flush()
+    app.tick()
+    expect(0, 0)
+    expect(1, 90010)
+    expect(2, 0)
+    console.print("passed", passed)
+}
+
+func spawn_item(index: Integer) {
+    var item = world.create_entity()
+    var value = Component.Item()
+    value.value = index
+    item.add_component(value)
+    crash players[index % 1000]
+    var owner = Entity(players[index % 1000])
+    item.add_parent_entity(owner)
+    items.append(item.id)
+}
+
+func move_items() {
+    var index = 0
+    while index < items.count() {
+        move_item(index)
+        index = index + 1
+    }
+}
+
+func move_item(index: Integer) {
+    assert index % 1000 == 0 or index % 1000 == 2
+    crash items[index]
+    var item = Entity(items[index])
+    if index % 1000 == 0 {
+        crash players[1]
+        var other = Entity(players[1])
+        item.add_parent_entity(other)
+    } else {
+        item.remove_parent_entity()
+    }
+}
+
+func expect(player: Integer, wanted: Integer) {
+    crash players[player]
+    var sheets = Lookup<Component.Player>()
+    var sheet = sheets.of(players[player])
+    crash sheet
+    var matched = sheet.total == wanted
+    passed = passed and matched
+    console.print("player", player, "total", sheet.total, "expected", wanted)
+}

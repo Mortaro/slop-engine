@@ -18,3 +18,26 @@ func remove_component(component_class: Spite.Class) {
 func remove() {
     world.despawn(id)
 }
+
+func add_parent_entity(parent: Entity) {
+    relate("parent", parent)
+}
+
+func add_child_entity(child: Entity) {
+    var parent = Entity(id)
+    child.add_parent_entity(parent)
+}
+
+func remove_parent_entity() {
+    unrelate("parent")
+}
+
+func relate(name: String, target: Entity) {
+    var command = AddComponent(id, target, name)
+    world.queue(command)
+}
+
+func unrelate(name: String) {
+    var command = RemoveRelation(id, name)
+    world.queue(command)
+}

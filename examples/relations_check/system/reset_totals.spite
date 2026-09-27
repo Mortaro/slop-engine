@@ -1,0 +1,7 @@
+type Owner {
+    player: Component.Player
+}
+
+func input_each(owner: Owner) {
+    owner.player.total = 0
+}

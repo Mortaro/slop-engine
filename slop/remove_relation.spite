@@ -1,0 +1,12 @@
+var entity = 0
+var key = ""
+var columns = Columns()
+
+func RemoveRelation(new_entity: Integer, name: String) {
+    entity = new_entity
+    key = "Entity.{name}"
+}
+
+func apply() {
+    columns.remove_one(key, entity)
+}
