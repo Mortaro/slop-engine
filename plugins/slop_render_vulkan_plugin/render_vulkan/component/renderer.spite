@@ -914,14 +914,14 @@ func map(buffer_memory: Long, bytes: Integer): Long {
     return mapped.read_long(0)
 }
 
-func ensure_rectangle_capacity(count: Integer) {
+func ensure_rectangle_capacity(count: Integer, stride: Integer) {
     assert count >= frame.rectangle_capacity
     release_rectangle_buffer()
     frame.rectangle_capacity = count * 2
     if frame.rectangle_capacity < 1024 {
         frame.rectangle_capacity = 1024
     }
-    var bytes = frame.rectangle_capacity * 20
+    var bytes = frame.rectangle_capacity * stride
     var vertex_buffer_usage = 128
     frame.rectangle_buffer = create_buffer(bytes, vertex_buffer_usage)
     frame.rectangle_memory = host_memory_for(frame.rectangle_buffer)
@@ -1068,8 +1068,11 @@ func barrier(
 
 func record_rectangles(draw_list: Render.Component.DrawList) {
     ensure_target(draw_list.width, draw_list.height)
-    ensure_rectangle_capacity(draw_list.count)
-    var bytes = draw_list.count * draw_list.stride()
+    var stride = draw_list.stride()
+    ensure_rectangle_capacity(draw_list.count, stride)
+    var bytes = draw_list.count * stride
+    var rectangles_fit = draw_list.count <= frame.rectangle_capacity
+    crash rectangles_fit
     raw.copy(draw_list.rectangles, frame.rectangle_mapped, bytes)
     var load_operation = 0
     if not frame.scene_drawn {

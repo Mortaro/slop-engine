@@ -13,7 +13,7 @@ Every behaviour the docs claim is checked by a program in `examples/`. Run them 
 | `click_counter_online/test.sh` | a server and three headless bots in separate processes: the first bot joins at 0 and clicks 3 times, the second joins later and sees 3 without clicking, the third sees 3 and makes it 5. Run `bash examples/click_counter_online/test.sh` |
 | `hot_reload_test` | a source file rewritten while the app runs is re-cooked on a worker, noticed by the engine's own watch on the cache, reloaded and re-uploaded: the software canvas and Vulkan follow red then blue, and it prints the worst tick meanwhile (2 ms) |
 | `flex_layout` | 91 checks: flexbox boxes (justify, grow and shrink, alignment, reversal, order, relative and absolute positioning, box model, wrapping), grid tracks, a scrolled and clipped panel, and z-index paint order, each box to 0.01 pixel |
-| `render_parity` | Vulkan and the software rasteriser draw the same frame, textured button and alpha edges included: 0 of 256,000 pixels differ |
+| `render_parity` | Vulkan and the software rasteriser draw the same frame, textured button, alpha edges and a wall of text of about 9,000 rectangles included: 0 of 256,000 pixels differ |
 | `tracking` | `Added<T>` and `Removed<T>` are each seen exactly once by a system before the change and one after it |
 | `use_potion` | two related rows: each potion heals only the hero its `owner` points at, only if that hero is `Alive`, and a replaced component is written back |
 | `healing` | headless systems, entity ids in rows, and two independent systems sharing a parallel stage |

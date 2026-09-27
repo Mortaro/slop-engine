@@ -30,6 +30,7 @@ func RenderParity() {
     world.create_entity_from_bundle(panel_image)
     var panel_text = Bundle.PanelText(panel.id)
     world.create_entity_from_bundle(panel_text)
+    add_wall_of_text(screen.id)
     app.tick()
     app.tick()
     app.tick()
@@ -49,6 +50,23 @@ func RenderParity() {
     compare(draw_list, canvas, renderer)
     check_clipping(panel.id, canvas, draw_list.clear_color)
     renderer.release_device()
+}
+
+func add_wall_of_text(screen: Integer) {
+    var wall = world.create_entity()
+    var parent = Ui.Component.Parent()
+    parent.entity = screen
+    wall.add_component(parent)
+    var text = Ui.Component.Text()
+    var line = "the quick brown fox jumps over the lazy dog "
+    var repeated = ""
+    var index = 0
+    while index < 16 {
+        repeated = repeated + line
+        index = index + 1
+    }
+    text.text = repeated
+    wall.add_component(text)
 }
 
 func check_clipping(panel: Integer, canvas: RenderSoftware.Component.Canvas, clear_color: Integer) {
