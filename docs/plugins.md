@@ -179,6 +179,12 @@ Each cell is a linked list through entity ids, so indexing is one write per enti
 cells used. `server_bench` indexes 15,000 entities in about 1.6 ms. It runs 10,000 aggro queries of 20 m in about
 2.2 ms and 5,000 area-of-interest queries of 60 m in about 3.1 ms, and checks a query against brute force.
 
+## slop_interest_plugin
+
+Area of interest for replication: `Interest.Component.Viewer` on a connection entity, `Interest.Component.Everywhere`
+on entities every peer sees, and the `Equip` and `Gather` systems that keep the connection's `Network.Component.Sees`
+filled from `Spatial.Grid`. It loads the network and spatial plugins. See [networking.md](networking.md#area-of-interest).
+
 ## slop_mongodb_plugin
 
 The engine side of MongoDB. The driver itself (BSON, OP_MSG, `Mongo.Client`, `Mongo.Collection`,

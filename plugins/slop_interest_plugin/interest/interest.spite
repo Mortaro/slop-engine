@@ -1,0 +1,4 @@
+func Interest() {
+    load "../../slop_network_plugin"
+    load "../../slop_spatial_plugin"
+}

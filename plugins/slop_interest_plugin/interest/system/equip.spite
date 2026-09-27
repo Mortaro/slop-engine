@@ -1,0 +1,10 @@
+type Joined {
+    entity: Entity
+    viewer: Added<Interest.Component.Viewer>
+}
+
+func update_each(joined: Joined) {
+    var sees = Network.Component.Sees()
+    var peer = Entity(joined.entity.id)
+    peer.add_component(sees)
+}

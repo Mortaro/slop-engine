@@ -9,7 +9,7 @@ type Eyed {
 }
 
 func update_each(joined: Joined, eyed: Eyed) {
-    var viewer = Network.Component.Viewer()
+    var viewer = Interest.Component.Viewer()
     viewer.entity = eyed.entity.id
     viewer.radius = 55.0
     var peer = Entity(joined.entity.id)

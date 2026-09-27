@@ -1,0 +1,33 @@
+type Watching {
+    viewer: Interest.Component.Viewer
+    sees: Network.Component.Sees
+}
+
+type Everywhere {
+    entity: Entity
+    everywhere: Interest.Component.Everywhere
+}
+
+var grid = Spatial.Grid()
+
+func prepare_all(watchers: List<Watching>, globals: List<Everywhere>) {
+    var index = 0
+    while index < watchers.count() {
+        gather(watchers[index], globals)
+        index = index + 1
+    }
+}
+
+func gather(watching: Watching, globals: List<Everywhere>) {
+    var found = watching.sees.entities
+    found.clear()
+    var index = 0
+    while index < globals.count() {
+        found.append(globals[index].entity.id)
+        index = index + 1
+    }
+    var transforms = Lookup<Transform.Component.Transform>()
+    var placed = transforms.of(watching.viewer.entity)
+    assert placed
+    grid.within(placed.position_x, placed.position_z, watching.viewer.radius, found)
+}

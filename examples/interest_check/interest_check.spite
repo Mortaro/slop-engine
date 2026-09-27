@@ -2,7 +2,7 @@ var build = Build()
 
 func InterestCheck() {
     load "../../slop"
-    load "../../plugins/slop_network_plugin"
+    load "../../plugins/slop_interest_plugin"
     if build.environment == "server" {
         load "server"
     }

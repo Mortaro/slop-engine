@@ -1,3 +1,0 @@
-func Network() {
-    load "../../slop_spatial_plugin"
-}

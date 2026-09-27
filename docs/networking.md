@@ -108,26 +108,28 @@ func sent_from(environment: String): Boolean {
 
 ### Area of interest
 
-A peer sees everything unless its connection entity carries a `Network.Component.Viewer` (a proposal by Claude):
-`entity`, whose `Transform` is where the peer looks from, and `radius`. Such a peer is sent:
+Who sees what is plain ECS, so a game that does not need it leaves it out. The network plugin knows only
+`Network.Component.Sees` on a connection entity: a list of entity ids. A peer with one is sent the world entity and
+the replicated entities in that list; a peer without one is sent everything.
 
-- entities with no `Spatial.Component.Indexed` (world state, counters): always;
-- indexed entities within `radius` of the viewer's entity, found through `Spatial.Grid`.
-
-The plugin keeps, per peer, which entities the peer knows. An entity that enters a peer's view is sent in full, one that
-stays is sent only the frames that changed since the last tick, and one that leaves the view, loses its last
-replicated component or is despawned is sent a removal frame (message `-3`), on which the receiver despawns its
-mirror. The server gives a joining player a viewer, usually around the player's own avatar:
+`slop_interest_plugin` fills that list from distance (Mortaro, 2026-09-27: use `Viewer`, as ECS that can be
+left out). A connection entity with an `Interest.Component.Viewer` (`entity`, whose `Transform` is where the peer
+looks from, and `radius`) is given a `Sees`. Every tick, in `prepare`, the plugin's `Gather` system fills it with
+the entities `Spatial.Grid` finds within the radius, plus every entity marked `Interest.Component.Everywhere`. The
+server gives a joining player a viewer, usually around the player's own avatar:
 
 ```gdscript
-var viewer = Network.Component.Viewer()
+var viewer = Interest.Component.Viewer()
 viewer.entity = avatar.id
 viewer.radius = 60.0
 connection.add_component(viewer)
 ```
 
-Each tick every replicated component is encoded once into a per-entity buffer and compared frame by frame with the
-last tick (`Network.Frames`), so a peer's view costs a grid query and one copy per visible entity, not an encode.
+The plugin keeps, per peer, which entities the peer knows. An entity that enters a peer's view is sent in full, one that
+stays is sent only the frames that changed since the last tick, and one that leaves the view, loses its last
+replicated component or is despawned is sent a removal frame (message `-3`), on which the receiver despawns its
+mirror. Each tick every replicated component is encoded once into a per-entity buffer and compared frame by frame
+with the last tick (`Network.Frames`), so a peer's view costs one copy per visible entity, not an encode.
 `interest_check` tests it across two processes: a bot sees 6 of 100 beacons, 11 after the server moves its eye, and
 10 after the server despawns one in view.
 
