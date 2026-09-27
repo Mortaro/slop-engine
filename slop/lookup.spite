@@ -1,19 +1,13 @@
 generic $component_type
 
 var column = Column<$component_type>()
-var sample: $component_type = null
-var columns = Columns()
 
 func of(entity: Integer): $component_type? {
-    var name = columns.key(sample.class)
-    var column_header = columns.header(name)
-    var row = columns.row_of(column_header, entity)
+    var row = column.row_of_entity(entity)
     assert row >= 0
-    return column.value_at(name, row)
+    return column.value_at(column.own_key, row)
 }
 
 func has(entity: Integer): Boolean {
-    var name = columns.key(sample.class)
-    var column_header = columns.header(name)
-    return columns.row_of(column_header, entity) >= 0
+    return column.row_of_entity(entity) >= 0
 }

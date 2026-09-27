@@ -12,6 +12,7 @@ var sample: $component_type = null
 var columns = Columns()
 var own_key = ""
 var own_header: Long = 0
+var own_recorded = false
 
 func prepare_column() {
     var name = columns.key(sample.class)
@@ -25,13 +26,33 @@ func insert_object(entity: Integer, value: Anything) {
     }
 }
 
-func insert_own(entity: Integer, value: $component_type) {
+func header_now(): Long {
     if own_header == 0 {
         own_key = columns.key(sample.class)
-        insert_keyed(entity, value, own_key)
         own_header = columns.header(own_key)
+    }
+    return own_header
+}
+
+func row_of_entity(entity: Integer): Integer {
+    var column_header = header_now()
+    var capacity = raw.read_long(column_header, 40)
+    if entity >= capacity {
+        return -1
+    }
+    var rows = raw.read_long(column_header, 32)
+    var stored = raw.read_long(rows, entity * 8)
+    return stored - 1
+}
+
+func insert_own(entity: Integer, value: $component_type) {
+    if not own_recorded {
+        own_recorded = true
+        var name = columns.key(sample.class)
+        insert_keyed(entity, value, name)
         return
     }
+    header_now()
     grow_rows(own_header, entity)
     var rows = raw.read_long(own_header, 32)
     var existing = raw.read_long(rows, entity * 8) - 1
