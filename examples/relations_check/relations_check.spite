@@ -58,6 +58,15 @@ func cascade(app: App) {
     var cascaded = remaining == 9980 and gem_gone
     passed = passed and cascaded
     console.print("items left after despawning player 1", remaining, "gem gone", gem_gone)
+    var late = world.create_entity()
+    var late_value = Component.Item()
+    late.add_component(late_value)
+    late.add_parent_entity(holder)
+    world.flush()
+    app.tick()
+    var late_gone = not alive.has(late.id)
+    passed = passed and late_gone
+    console.print("child linked to an already despawned parent gone", late_gone)
 }
 
 func spawn_item(index: Integer) {

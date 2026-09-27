@@ -21,6 +21,7 @@ func remove() {
 
 func add_parent_entity(parent: Entity) {
     relate("parent", parent)
+    world.parent_linked()
 }
 
 func add_child_entity(child: Entity) {

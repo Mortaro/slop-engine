@@ -13,6 +13,8 @@ var id_lock = Lock()
 var columns = Columns()
 
 var spawned_typed = false
+var parents_linked = false
+var dead = Vector<Long>()
 
 func prepare() {
     assert buffers.count() == 0
@@ -117,15 +119,33 @@ func flush() {
         take_despawns(despawn_buffers[index], despawned)
         index = index + 1
     }
-    assert despawned.count() > 0
+    assert despawned.count() > 0 or parents_linked
+    parents_linked = false
     add_children(despawned)
+    despawned.each(bury)
+    assert despawned.count() > 0
     columns.remove_entities(despawned)
+}
+
+func bury(despawned: Integer) {
+    var word = despawned / 64
+    while dead.count() <= word {
+        dead.append(0)
+    }
+    var bit: Long = 1
+    var shifted = bit.shifted_left(despawned % 64)
+    var buried = dead[word].bits_or(shifted)
+    dead.set_at(word, buried)
+}
+
+func parent_linked() {
+    parents_linked = true
 }
 
 func add_children(despawned: List<Integer>) {
     assert columns.headers.has("Entity.parent")
     var finder = ChildFinder()
-    finder.add_children(despawned)
+    finder.add_children(despawned, dead)
 }
 
 func apply_buffer(commands: List<Command>) {

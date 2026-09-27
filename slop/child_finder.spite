@@ -2,7 +2,7 @@ var parents = Column<Entity>()
 var columns = Columns()
 var marks = Vector<Integer>()
 
-func add_children(despawned: List<Integer>) {
+func add_children(despawned: List<Integer>, dead: Vector<Long>) {
     despawned.each(mark)
     var grown = true
     while grown {
@@ -12,7 +12,8 @@ func add_children(despawned: List<Integer>) {
         while row < count {
             var child = columns.entity_at("Entity.parent", row)
             var parent = parents.value_at("Entity.parent", row)
-            if marked(parent.id) and not marked(child) {
+            var parent_gone = marked(parent.id) or buried(dead, parent.id)
+            if parent_gone and not marked(child) and not buried(dead, child) {
                 mark(child)
                 despawned.append(child)
                 grown = true
@@ -31,4 +32,14 @@ func mark(entity: Integer) {
 
 func marked(entity: Integer): Boolean {
     return entity < marks.count() and marks[entity] == 1
+}
+
+func buried(dead: Vector<Long>, entity: Integer): Boolean {
+    var word = entity / 64
+    if word >= dead.count() {
+        return false
+    }
+    var bit: Long = 1
+    var shifted = bit.shifted_left(entity % 64)
+    return dead[word].bits_and(shifted) != 0
 }

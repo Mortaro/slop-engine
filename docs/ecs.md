@@ -173,6 +173,9 @@ the names below are proposals). The change is queued like any other and applied 
 
 Despawning an entity despawns its children too, and theirs, in the same flush: every entity whose `parent` relation
 points at it. Only `parent` cascades; a named relation such as `target` is simply left pointing at nothing.
+A child linked to a parent that is already gone (a stale id held across a frame) is despawned in the flush that links
+it, so no child outlives its parent. Entity ids are never reused, and the world keeps one bit per despawned id to
+know which parents are gone.
 
 A row asks for a relation with a field of that name (`parent: Entity`), and the next row is the entity it points at.
 A system over two such rows follows the relation instead of pairing every entity of one row with every entity of the

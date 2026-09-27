@@ -22,7 +22,7 @@ Every behaviour the docs claim is checked by a program in `examples/`. Run them 
 | `asset_round_trip` | an asset class with every kind of field saved and read back through its derived codec |
 | `psd_probe` | `buttons.psd`'s layer tree and sizes |
 | `interest_check/test.sh` | area of interest across two processes: a bot's view of 100 beacons follows the server's eye (6, then 11), and a despawn in view reaches it (10) |
-| `relations_check` | relations set, changed and removed at run time; a two-row system joins 10,000 items to their 1,000 parents |
+| `relations_check` | relations set, changed and removed at run time; a two-row system joins 10,000 items to their 1,000 parents; a despawn cascades to children, and a child linked to an already despawned parent goes in that flush |
 | `wire_probe` | an `Entity` field naming a mirror goes on the wire as the remote id, for an inline and a reference component alike |
 | `timers_check` | timers ring on the right ticks, a list system's writes to inline components stick, a list system whose first list is empty never runs, and `run`'s fixed-rate pacing holds 25 ms ticks |
 | `server_bench` | 5,000 players and 10,000 monsters moving on a 4 km square: spatial grid, aggro and area-of-interest queries, timers, and the profile; a grid query is checked against brute force. Run with `--optimized` |
