@@ -80,16 +80,45 @@ func forget(entity: Integer) {
 
 func collect_changes(fresh: Asset.Bytes, stored: Asset.Bytes, differences: Asset.Bytes) {
     var at = 0
-    var before = 0
     while at < fresh.length {
         var size = raw.read_integer(fresh.address, at) + 4
-        var same = before + size <= stored.length and same_bytes(fresh, at, stored, before, size)
+        var message = raw.read_integer(fresh.address, at + 4)
+        var before = frame_with(stored, message)
+        var same = before >= 0 and raw.read_integer(stored.address, before) + 4 == size and same_bytes(fresh, at, stored, before, size)
         if not same {
             differences.write_bytes(fresh.address + at, size)
         }
         at = at + size
+    }
+    collect_removals(fresh, stored, differences)
+}
+
+func collect_removals(fresh: Asset.Bytes, stored: Asset.Bytes, differences: Asset.Bytes) {
+    var before = 0
+    while before < stored.length {
+        var size = raw.read_integer(stored.address, before) + 4
+        var message = raw.read_integer(stored.address, before + 4)
+        if frame_with(fresh, message) < 0 {
+            var entity = raw.read_integer(stored.address, before + 8)
+            differences.write_integer(12)
+            differences.write_integer(-4)
+            differences.write_integer(entity)
+            differences.write_integer(message)
+        }
         before = before + size
     }
+}
+
+func frame_with(frames: Asset.Bytes, message: Integer): Integer {
+    var at = 0
+    var found = -1
+    while found < 0 and at < frames.length {
+        if raw.read_integer(frames.address, at + 4) == message {
+            found = at
+        }
+        at = at + raw.read_integer(frames.address, at) + 4
+    }
+    return found
 }
 
 func same_bytes(fresh: Asset.Bytes, at: Integer, stored: Asset.Bytes, before: Integer, size: Integer): Boolean {

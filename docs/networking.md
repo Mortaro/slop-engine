@@ -133,8 +133,10 @@ The network plugin collects each connection's observed entities every tick (`Add
 connection, which entities the peer knows. An entity that becomes observed is sent in full, one that stays is sent
 only the frames that changed since the last tick, and one that stops being observed or is despawned is sent a
 removal frame (message `-3`), on which the receiver despawns its mirror. Each tick every replicated component is
-encoded once into a per-entity buffer and compared frame by frame with the last tick (`Network.Frames`), so an
-observer costs one copy per observed entity, not an encode.
+encoded once into a per-entity buffer and compared, component by component, with the last tick (`Network.Frames`),
+so an observer costs one copy per observed entity, not an encode. A component removed from an entity that lives on
+(a buff ending, an item unequipped) becomes a component-removal frame (message `-4`, carrying the component's
+message id) in that entity's changes, and the receiver removes it from its mirror.
 
 ### Area of interest
 
@@ -153,7 +155,8 @@ connection.add_component(viewer)
 ```
 
 `interest_check` tests it across two processes: a bot sees 6 of 100 beacons, 11 after the server moves its eye, 10
-after the server despawns one in view, and exactly the 3 stashes observed by its connection, never the 2 others.
+after the server despawns one in view, and exactly the 3 stashes observed by its connection, never the 2 others; a
+`Sealed` component the server removes from one stash disappears from the bot's mirror while the stash stays.
 
 The game code is plain ECS on both sides:
 
@@ -234,7 +237,6 @@ In rough order of need:
 - **Change detection by write, not by comparing.** Encoding every mirrored value every tick to compare bytes is
   fine for a counter and wrong for a world. It needs `Changed<T>`, which needs the compiler to say what a system
   writes (item 109).
-- **Removing one component** from an entity that keeps others (today only whole entities are removed).
 - **A handshake** carrying the environment and a hash of every replicated component, so mismatched builds refuse
   each other instead of misreading, and a compile-time check that no two components hash to the same message id.
 - **Unreliable delivery** (UDP) for state that is superseded every tick, prediction, and rates.

@@ -17,6 +17,8 @@ func after_input_each(peer: Peer) {
         understood = false
         if message == -3 {
             forget_mirror(remote)
+        } else if message == -4 {
+            strip_mirror(remote)
         } else {
             decode_components(message, remote, peer.entity.id)
         }
@@ -49,6 +51,21 @@ func target_entity(remote: Integer, connection: Integer): Entity {
     var marker = Network.Component.Arrived()
     arrived.add_component(marker)
     return arrived
+}
+
+func strip_mirror(remote: Integer) {
+    var removed = frame.read_integer()
+    understood = frame.remaining() == 0 and not frame.failed
+    assert understood
+    var target = local_entity(remote)
+    strip_components(target, removed)
+}
+
+func strip_component(component: Symbol<Component>, target: Entity, removed: Integer) {
+    var codec = Network.Codec<component.class>()
+    if codec.replicated() and codec.id() == removed {
+        target.remove_component(component.class)
+    }
 }
 
 func forget_mirror(remote: Integer) {

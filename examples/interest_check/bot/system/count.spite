@@ -8,6 +8,11 @@ type Stashed {
     mirrored: Network.Component.Mirrored
 }
 
+type Seal {
+    sealed: Component.Sealed
+    mirrored: Network.Component.Mirrored
+}
+
 type Running {
     frame: Component.Frame
     quit: Component.Quit
@@ -15,8 +20,9 @@ type Running {
 
 var console = Console()
 var counts = List<Integer>()
+var saw_seal = false
 
-func update_all(beacons: List<Seen>, runs: List<Running>, stashes: List<Stashed>) {
+func update_all(beacons: List<Seen>, runs: List<Running>, stashes: List<Stashed>, seals: List<Seal>) {
     var running = runs.first()
     crash running
     assert not running.quit.requested
@@ -28,9 +34,14 @@ func update_all(beacons: List<Seen>, runs: List<Running>, stashes: List<Stashed>
         console.print("bot sees", seen, "beacons")
     }
     var stashed = stashes.count()
-    var expected = counts.count() == 3 and counts[0] == 6 and counts[1] == 11 and counts[2] == 10 and stashed == 3
+    var sealed = seals.count()
+    if sealed > 0 and not saw_seal {
+        saw_seal = true
+        console.print("bot sees a sealed stash")
+    }
+    var expected = counts.count() == 3 and counts[0] == 6 and counts[1] == 11 and counts[2] == 10 and stashed == 3 and saw_seal and sealed == 0
     if expected {
-        console.print("bot sees", stashed, "stashes of its own")
+        console.print("bot sees", stashed, "stashes of its own, and the seal is gone")
         console.print("passed true")
         running.quit.requested = true
     }

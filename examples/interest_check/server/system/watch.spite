@@ -35,6 +35,10 @@ func place_stash(connection: Integer, index: Integer) {
     stash.add_component(value)
     var observed = Network.Component.Observed()
     stash.add_component(observed)
+    if index == 0 {
+        var sealed = Component.Sealed()
+        stash.add_component(sealed)
+    }
     assert index < 3
     var link = world.create_entity()
     var observer = Network.Component.Observer()
