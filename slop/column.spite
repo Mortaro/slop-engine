@@ -8,14 +8,13 @@ var relations = Dictionary<List<$component_type>>()
 var buried = List<$component_type>()
 var raw = Raw()
 var heap = Memory.Heap()
-var sample: $component_type = null
 var columns = Columns()
 var own_key = ""
 var own_header: Long = 0
 var own_recorded = false
 
 func prepare_column() {
-    var name = columns.key(sample.class)
+    var name = columns.key($component_type)
     columns.header(name)
     record_column(name)
 }
@@ -33,7 +32,7 @@ func insert_object(entity: Integer, value: Anything, copying: Boolean) {
 
 func header_now(): Long {
     if own_header == 0 {
-        own_key = columns.key(sample.class)
+        own_key = columns.key($component_type)
         own_header = columns.header(own_key)
     }
     return own_header
@@ -53,7 +52,7 @@ func row_of_entity(entity: Integer): Integer {
 func insert_own(entity: Integer, value: $component_type) {
     if not own_recorded {
         own_recorded = true
-        var name = columns.key(sample.class)
+        var name = columns.key($component_type)
         insert_keyed(entity, value, name)
         return
     }

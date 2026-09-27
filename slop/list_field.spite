@@ -14,7 +14,7 @@ func write(value: $list_type, bytes: Asset.Bytes) {
 
 func read(bytes: Asset.Bytes): $list_type {
     var count = bytes.read_integer()
-    var list: $list_type = null
+    var list: $list_type = $list_type()
     if not bytes.count_fits(count) {
         return list
     }

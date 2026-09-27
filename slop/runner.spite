@@ -12,7 +12,7 @@ enum Phase {
     'last'
 }
 
-var system: $system_type = null
+var system: $system_type = $system_type()
 var name = ""
 var placed_in = ""
 var accesses = List<String>()

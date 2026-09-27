@@ -5,11 +5,10 @@ var columns = Columns()
 var world = World()
 var build = Build()
 var raw = Raw()
-var sample: $component_type = null
 var scratch = Asset.Bytes()
 
 func key(): String {
-    return columns.key(sample.class)
+    return columns.key($component_type)
 }
 
 func id(): Integer {
@@ -78,7 +77,7 @@ func replicated(): Boolean {
 }
 
 func read(frame: Asset.Bytes): $component_type? {
-    var value: $component_type = null
+    var value: $component_type = $component_type()
     if $component_type.has_function("mirrored_from") or $component_type.has_function("sent_from") {
         var pack = Pack<$component_type>()
         pack.read_into(value, frame)

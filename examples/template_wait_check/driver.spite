@@ -4,7 +4,7 @@ enum Phase {
     'update'
 }
 
-var system: $system_type = null
+var system: $system_type = $system_type()
 var workers = List<Concurrent<Nothing>>()
 
 func start_waiting() {
@@ -27,7 +27,7 @@ func drain_phase_each(phase: Symbol<$system_type.phase_each>) {
 }
 
 func made_argument(argument: Symbol<$system_type.phase_each>): argument.class {
-    var made: argument.class = null
+    var made: argument.class = argument.class()
     made.length = 200
     return made
 }

@@ -1,6 +1,6 @@
 generic $tracked_type
 
-var value: $tracked_type = null
+var value: $tracked_type = $tracked_type()
 var column = Column<$tracked_type>()
 var columns = Columns()
 

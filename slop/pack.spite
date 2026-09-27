@@ -1,7 +1,5 @@
 generic $value_type
 
-var sample: $value_type = null
-
 func save(value: $value_type, path: String): Boolean {
     var bytes = Asset.Bytes()
     encode(value, bytes)
@@ -9,11 +7,11 @@ func save(value: $value_type, path: String): Boolean {
 }
 
 func kind(): String {
-    return sample.class.name
+    return $value_type.name
 }
 
 func schema(): Long {
-    var writer = BinaryWriter<$value_type>(sample)
+    var writer = BinaryWriter<$value_type>(null)
     return writer.schema()
 }
 
@@ -37,8 +35,8 @@ func decode(bytes: Asset.Bytes): $value_type? {
     var stored_kind = bytes.read_text()
     var stored_schema = bytes.read_long()
     var expected_schema = schema()
-    assert magic == "SLOP" and stored_kind == sample.class.name and stored_schema == expected_schema
-    var value: $value_type = null
+    assert magic == "SLOP" and stored_kind == kind() and stored_schema == expected_schema
+    var value: $value_type = $value_type()
     read_into(value, bytes)
     return value
 }

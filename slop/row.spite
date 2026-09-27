@@ -13,7 +13,7 @@ var kinds = List<Integer>()
 var since = -1
 var related = -1
 var prepared = false
-var current: $row_type = null
+var current: $row_type = $row_type()
 var cursor = 0
 var every_rows = List<$row_type>()
 var every_entities = Vector<Integer>()
@@ -234,7 +234,7 @@ func fill(entity: Integer) {
 }
 
 func enqueue(entity: Integer) {
-    var fresh: $row_type = null
+    var fresh: $row_type = $row_type()
     fill_into(fresh, entity)
     waiting_rows.append(fresh)
 }
@@ -297,12 +297,13 @@ func every(): List<$row_type> {
     every_entities.clear()
     var index = 0
     while index < found.count() {
-        var row: $row_type = null
-        fill_into(row, found[index])
+        var entity = found[index]
+        var row: $row_type = $row_type()
+        fill_into(row, entity)
         every_row.append(row)
         if holds_copies {
             every_rows.append(row)
-            every_entities.append(found[index])
+            every_entities.append(entity)
         }
         index = index + 1
     }

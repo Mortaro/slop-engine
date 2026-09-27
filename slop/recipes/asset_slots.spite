@@ -19,7 +19,7 @@ func request(id: String): Integer {
     }
     var slot = values.count()
     ids.append(id)
-    var empty: $asset_type = null
+    var empty: $asset_type = $asset_type()
     values.append(empty)
     ready.append(false)
     unstarted.append(slot)
