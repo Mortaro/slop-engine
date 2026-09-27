@@ -19,7 +19,7 @@ func TimersCheck() {
     var single = rings.of(once)
     crash repeated
     crash single
-    var counted_right = repeated.repeating == 6 and single.once == 1 and repeated.ticks == 30
+    var counted_right = repeated.repeating == 6 and single.once == 1 and repeated.ticks == 30 and repeated.gated == 0
     console.print(
         "repeating rang",
         repeated.repeating,

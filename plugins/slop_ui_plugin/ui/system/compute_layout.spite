@@ -8,7 +8,7 @@ type Root {
     screen: Component.Screen
 }
 
-func layout_all(children: List<Child>, roots: List<Root>) {
+func layout_all(roots: List<Root>, children: List<Child>) {
     var flex = Ui.Layout.Flex()
     var index = 0
     while index < children.count() {

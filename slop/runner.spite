@@ -28,6 +28,7 @@ var argument_count = 0
 var streamed = -1
 var plain_rows = false
 var leading_relation = false
+var gate_open = true
 var streaming_phase = ""
 var pending = 0
 var workers: List<Concurrent<Nothing>>? = null
@@ -298,8 +299,21 @@ func store_argument(argument: Symbol<$system_type.phase_each>) {
 }
 
 func run_phase_all(phase: Symbol<$system_type.phase_all>) {
+    gate_open = true
+    position = 0
+    gate_arguments()
+    assert gate_open
     system.phase_all(every_arguments())
     store_every_arguments()
+}
+
+func gate_argument(argument: Symbol<$system_type.phase_all>) {
+    if position == 0 {
+        var row = Row<argument.class.element_type>()
+        row.since = last_run
+        gate_open = row.has_any()
+    }
+    position = position + 1
 }
 
 func store_every_argument(argument: Symbol<$system_type.phase_all>) {

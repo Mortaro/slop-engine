@@ -1,0 +1,15 @@
+type Pending {
+    due: Component.Due
+}
+
+type Tallied {
+    rings: Component.Rings
+}
+
+func last_all(_pending: List<Pending>, tallies: List<Tallied>) {
+    var index = 0
+    while index < tallies.count() {
+        tallies[index].rings.gated = tallies[index].rings.gated + 1
+        index = index + 1
+    }
+}

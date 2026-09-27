@@ -13,7 +13,7 @@ type Target {
     textures: Render.Component.Textures
 }
 
-func render_all(models: List<Modeled>, cameras: List<Viewing>, targets: List<Target>) {
+func render_all(targets: List<Target>, models: List<Modeled>, cameras: List<Viewing>) {
     var index = 0
     while index < targets.count() {
         gather(targets[index], models, cameras)

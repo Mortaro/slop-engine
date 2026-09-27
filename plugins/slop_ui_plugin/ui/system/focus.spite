@@ -21,9 +21,9 @@ type Keys {
 var keys = Input.Key()
 
 func after_input_all(
+    pointers: List<Pointer>,
     candidates: List<Candidate>,
     holders: List<Holder>,
-    pointers: List<Pointer>,
     keyboards: List<Keys>,
 ) {
     var index = 0

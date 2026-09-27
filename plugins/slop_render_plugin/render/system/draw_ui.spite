@@ -15,7 +15,7 @@ type Target {
     textures: Component.Textures
 }
 
-func render_all(elements: List<Element>, bars: List<Bars>, targets: List<Target>) {
+func render_all(targets: List<Target>, elements: List<Element>, bars: List<Bars>) {
     var painted = paint_slots(elements, bars)
     var index = 0
     while index < targets.count() {

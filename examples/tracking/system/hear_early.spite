@@ -10,7 +10,7 @@ type Tallied {
     tally: Component.Tally
 }
 
-func after_input_all(started: List<Started>, stopped: List<Stopped>, tallies: List<Tallied>) {
+func after_input_all(tallies: List<Tallied>, started: List<Started>, stopped: List<Stopped>) {
     assert tallies.count() > 0
     var tally = tallies[0].tally
     tally.started_early = tally.started_early + started.count()

@@ -309,6 +309,11 @@ func every(): List<$row_type> {
     return every_row
 }
 
+func has_any(): Boolean {
+    begin_stream()
+    return next_match() >= 0
+}
+
 func store_every() {
     var index = 0
     while index < every_rows.count() {

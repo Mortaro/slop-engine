@@ -114,7 +114,11 @@ A system has one function, and its name says when it runs and how (D116):
 
 - `<phase>_each(row: Row, ...)` runs once for every matching combination of rows;
 - `<phase>_each()`, with no parameters, runs once per tick;
-- `<phase>_all(rows: List<Row>, ...)` runs once with every match.
+- `<phase>_all(rows: List<Row>, ...)` runs once with every match, **unless its first list is empty**: then it does
+  not run and none of its lists is built (Mortaro, 2026-09-27: the fastest way to skip idle work). The first list is
+  the system's subject and the rest are context, so a system that must run on every tick puts something always
+  present first (render targets, tallies), and a system that acts only now and then puts its trigger first, for
+  example a marker added on the ticks it should act.
 
 A row is a `type` declared in the system's file; its fields are what the system queries (D114). The runner walks the
 fields with a plural template, so nothing is declared twice.
