@@ -8,9 +8,21 @@ func save(value: $value_type, path: String): Boolean {
     return bytes.save(path)
 }
 
+func kind(): String {
+    return sample.class.name
+}
+
+func schema(): Long {
+    var writer = BinaryWriter<$value_type>(sample)
+    return writer.schema()
+}
+
 func encode(value: $value_type, bytes: Asset.Bytes) {
     bytes.write_text("SLOP")
-    bytes.write_text(sample.class.name)
+    var written_kind = kind()
+    bytes.write_text(written_kind)
+    var written_schema = schema()
+    bytes.write_long(written_schema)
     write(value, bytes)
 }
 
@@ -22,8 +34,10 @@ func read_file(path: String): $value_type? {
 
 func decode(bytes: Asset.Bytes): $value_type? {
     var magic = bytes.read_text()
-    var kind = bytes.read_text()
-    assert magic == "SLOP" and kind == sample.class.name
+    var stored_kind = bytes.read_text()
+    var stored_schema = bytes.read_long()
+    var expected_schema = schema()
+    assert magic == "SLOP" and stored_kind == sample.class.name and stored_schema == expected_schema
     var value: $value_type = null
     read_into(value, bytes)
     return value

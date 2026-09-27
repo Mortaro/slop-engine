@@ -81,6 +81,15 @@ scan; if it is missing or disagrees with the store's size, the store is rescanne
 Each program keeps a small `.slop-index.json`: which fingerprint each id currently means for it. A second run
 builds nothing, and a program whose inputs another program already cooked builds nothing either.
 
+**A format change re-cooks by itself** (a proposal by Claude, asked for by Theseus). `Pack<T>` writes the asset's
+kind and its schema, the hash `BinaryWriter<T>.schema()` works out from the class's attributes (D215), after the
+`SLOP` header, and `decode` refuses bytes whose schema differs instead of misreading them. `put` stamps each
+record as `id#fingerprint#kind#schema`, and `is_current` compares that stamp with the schema of the kind as the
+program is compiled now; the cache knows every schema by walking the classes in `asset/` folders. So adding a field
+to `Asset.Mesh` makes every mesh stale on the next run and it re-cooks, with no version string to bump. Bytes not
+written by `Pack` (compiled shaders, for example) are stamped with an empty kind and schema 0. Stale records stay
+in the append-only store.
+
 ## Worktrees and shared cooking
 
 Mortaro's requirement: a worktree must be nearly free. Godot and Unreal copy every asset and all the code into a
@@ -126,7 +135,8 @@ app runs, and checks both the software canvas and Vulkan follow; the worst tick 
 
 Known gaps: the watcher is Windows-only and interim (a standard-library file watcher that Spite's own hot reload
 would share is Mortaro's decision); and
-changing a recipe's *code* doesn't invalidate its cooked outputs, since fingerprints cover sources only.
+changing a recipe's *code* doesn't invalidate its cooked outputs, since fingerprints cover sources and asset
+formats only.
 
 ## Background loading
 

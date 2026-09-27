@@ -4,6 +4,7 @@ var sources = Recipes.Sources()
 var fingerprints = Dictionary<String>()
 var store: Recipes.Store? = null
 var loaded = false
+var schemas = Dictionary<Long>()
 
 func folder(): String {
     return sources.cache_folder()
@@ -19,22 +20,58 @@ func key(id: String, input_fingerprint: String): String {
 
 func is_current(id: String, input_fingerprint: String): Boolean {
     load_index()
-    var entry = key(id, input_fingerprint)
+    assert fingerprints[id]
+    var parts = fingerprints[id].split("#")
+    assert parts.count() == 3
+    var kind = parts[1]
+    var schema = schema_of(kind)
+    var expected = "{input_fingerprint}#{kind}#{schema}"
+    var entry = key(id, expected)
     var cooked = opened_store().has(entry)
     if cooked {
-        point_index(id, input_fingerprint)
+        point_index(id, expected)
     }
     return cooked
 }
 
+func schema_of(kind: String): Long {
+    assert schemas[kind]
+    return schemas[kind]
+}
+
 func put(id: String, input_fingerprint: String, bytes: Asset.Bytes) {
     load_index()
-    var entry = key(id, input_fingerprint)
+    var kind = ""
+    var schema: Long = 0
+    if is_packed(bytes) {
+        var read_from = bytes.position
+        bytes.position = 0
+        bytes.read_text()
+        kind = bytes.read_text()
+        schema = bytes.read_long()
+        bytes.position = read_from
+    }
+    var stamped = "{input_fingerprint}#{kind}#{schema}"
+    var entry = key(id, stamped)
     var cooked = opened_store()
     if not cooked.has(entry) {
         cooked.write(entry, bytes)
     }
-    point_index(id, input_fingerprint)
+    point_index(id, stamped)
+}
+
+func is_packed(bytes: Asset.Bytes): Boolean {
+    assert bytes.length >= 8
+    var sized = bytes.byte_at(0) == 4 and bytes.byte_at(1) == 0 and bytes.byte_at(2) == 0 and bytes.byte_at(3) == 0
+    var magic = bytes.byte_at(4) == 83 and bytes.byte_at(5) == 76 and bytes.byte_at(6) == 79 and bytes.byte_at(7) == 80
+    return sized and magic
+}
+
+func register_asset(asset: Symbol<Asset>) {
+    var pack = Pack<asset.class>()
+    var kind = pack.kind()
+    var schema = pack.schema()
+    schemas.set(kind, schema)
 }
 
 func point_index(id: String, input_fingerprint: String) {
@@ -78,6 +115,7 @@ func opened_store(): Recipes.Store {
 func load_index() {
     assert not loaded
     loaded = true
+    register_assets()
     var cache_folder = folder()
     var directory = Directory(cache_folder)
     directory.create()
