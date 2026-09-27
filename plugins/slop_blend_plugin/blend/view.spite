@@ -4,6 +4,7 @@ var offset = 0
 var floats = TypedMemory<Float>()
 
 func field(name: String): Blend.Field {
+    crash shape.fields.has(name)
     crash shape.fields[name]
     return shape.fields[name]
 }

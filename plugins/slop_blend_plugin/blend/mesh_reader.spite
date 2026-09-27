@@ -451,7 +451,7 @@ func read_image_node(node: Blend.View, material: Integer) {
     images.set_at(material, name)
     var packed_address = image.pointer("packedfile")
     if packed_address == 0 {
-        var external = image.text("filepath")
+        var external = image.text("name")
         image_paths.set_at(material, external)
         return
     }
