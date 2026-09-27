@@ -1,0 +1,12 @@
+type Watched {
+    watcher: Network.Component.Observer
+}
+
+var connections = Lookup<Network.Component.Connection>()
+
+func present_each(watched: Watched) {
+    var link = watched.watcher
+    var connection = connections.of(link.observer)
+    assert connection
+    connection.visible.append(link.subject)
+}

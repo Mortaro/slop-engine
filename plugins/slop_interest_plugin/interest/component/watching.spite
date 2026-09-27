@@ -1,0 +1,2 @@
+var subjects = Vector<Integer>()
+var links = Vector<Integer>()

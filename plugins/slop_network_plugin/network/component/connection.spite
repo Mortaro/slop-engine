@@ -2,3 +2,4 @@ var stream = Network.Stream()
 var fresh = true
 var known = Vector<Integer>()
 var known_list = Vector<Integer>()
+var visible = Vector<Integer>()

@@ -8,6 +8,8 @@ type Eyed {
     eye: Component.Eye
 }
 
+var world = World()
+
 func update_each(joined: Joined, eyed: Eyed) {
     var viewer = Interest.Component.Viewer()
     viewer.entity = eyed.entity.id
@@ -19,4 +21,24 @@ func update_each(joined: Joined, eyed: Eyed) {
     peer.add_component(timer)
     var script = Component.Script()
     peer.add_component(script)
+    var index = 0
+    while index < 5 {
+        place_stash(joined.entity.id, index)
+        index = index + 1
+    }
+}
+
+func place_stash(connection: Integer, index: Integer) {
+    var stash = world.create_entity()
+    var value = Component.Stash()
+    value.amount = index
+    stash.add_component(value)
+    var observed = Network.Component.Observed()
+    stash.add_component(observed)
+    assert index < 3
+    var link = world.create_entity()
+    var observer = Network.Component.Observer()
+    observer.subject = stash.id
+    observer.observer = connection
+    link.add_component(observer)
 }

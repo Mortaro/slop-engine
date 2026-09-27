@@ -181,9 +181,9 @@ cells used. `server_bench` indexes 15,000 entities in about 1.6 ms. It runs 10,0
 
 ## slop_interest_plugin
 
-Area of interest for replication: `Interest.Component.Viewer` on a connection entity, `Interest.Component.Everywhere`
-on entities every peer sees, and the `Equip` and `Gather` systems that keep the connection's `Network.Component.Sees`
-filled from `Spatial.Grid`. It loads the network and spatial plugins. See [networking.md](networking.md#area-of-interest).
+Observing by distance: `Interest.Component.Viewer` on a connection entity, and the `Equip`, `MarkObserved` and
+`Gather` systems that keep `Network.Component.Observer` children on every indexed entity in a viewer's range. It
+loads the network and spatial plugins. See [networking.md](networking.md#area-of-interest).
 
 ## slop_mongodb_plugin
 

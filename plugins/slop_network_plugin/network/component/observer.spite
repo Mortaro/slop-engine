@@ -1,0 +1,6 @@
+var subject = -1
+var observer = -1
+
+func stored_inline(): Boolean {
+    return true
+}

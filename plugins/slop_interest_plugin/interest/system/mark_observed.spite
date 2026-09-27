@@ -1,0 +1,10 @@
+type Placed {
+    entity: Entity
+    indexed: Added<Spatial.Component.Indexed>
+}
+
+func update_each(placed: Placed) {
+    var observed = Network.Component.Observed()
+    var target = Entity(placed.entity.id)
+    target.add_component(observed)
+}

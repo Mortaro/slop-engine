@@ -7,13 +7,15 @@ var world = World()
 var frames = Network.Frames()
 var messages = Asset.Bytes()
 var removals = Asset.Bytes()
-var visible = Vector<Integer>()
+var everyone = Vector<Integer>()
+var still = Vector<Integer>()
 
 func last_all(peers: List<Peer>) {
     messages.clear()
     frames.begin()
     encode_components()
     frames.finish()
+    find_everyone()
     peers.each(deliver)
 }
 
@@ -23,17 +25,27 @@ func encode_component(component: Symbol<Component>) {
     codec.send(messages)
 }
 
+func find_everyone() {
+    everyone.clear()
+    var observed = Lookup<Network.Component.Observed>()
+    var index = 0
+    while index < frames.touched.count() {
+        var entity = frames.touched[index]
+        if not observed.has(entity) {
+            everyone.append(entity)
+        }
+        index = index + 1
+    }
+}
+
 func deliver(peer: Peer) {
     var connection = peer.connection
     var stream = connection.stream
     connection.fresh = false
-    gather_visible(peer.entity.id)
     removals.clear()
-    var index = 0
-    while index < visible.count() {
-        send_entity(connection, visible[index])
-        index = index + 1
-    }
+    send_all(connection, everyone)
+    send_all(connection, connection.visible)
+    connection.visible.clear()
     forget_hidden(connection)
     stream.queue(removals)
     stream.queue(messages)
@@ -44,40 +56,16 @@ func deliver(peer: Peer) {
     }
 }
 
-func gather_visible(peer_entity: Integer) {
-    visible.clear()
-    var audiences = Lookup<Network.Component.Sees>()
-    var sees = audiences.of(peer_entity)
-    if sees {
-        see_chosen(sees.entities)
-    } else {
-        copy_all(frames.touched, visible)
-    }
-}
-
-func see_chosen(chosen: Vector<Integer>) {
-    if frames.encoded(world.entity) {
-        visible.append(world.entity)
-    }
+func send_all(connection: Network.Component.Connection, entities: Vector<Integer>) {
     var index = 0
-    while index < chosen.count() {
-        var entity = chosen[index]
-        if frames.encoded(entity) and entity != world.entity {
-            visible.append(entity)
-        }
-        index = index + 1
-    }
-}
-
-func copy_all(from: Vector<Integer>, into: Vector<Integer>) {
-    var index = 0
-    while index < from.count() {
-        into.append(from[index])
+    while index < entities.count() {
+        send_entity(connection, entities[index])
         index = index + 1
     }
 }
 
 func send_entity(connection: Network.Component.Connection, entity: Integer) {
+    assert frames.encoded(entity)
     var known = connection.known
     while known.count() <= entity {
         known.append(0)
@@ -90,6 +78,7 @@ func send_entity(connection: Network.Component.Connection, entity: Integer) {
     } else {
         var full = frames.full(entity)
         stream.queue(full)
+        connection.known_list.append(entity)
     }
     known.set_at(entity, frames.tick)
 }
@@ -97,10 +86,13 @@ func send_entity(connection: Network.Component.Connection, entity: Integer) {
 func forget_hidden(connection: Network.Component.Connection) {
     var known = connection.known
     var kept = connection.known_list
+    still.clear()
     var index = 0
     while index < kept.count() {
         var entity = kept[index]
-        if known[entity] != frames.tick {
+        if known[entity] == frames.tick {
+            still.append(entity)
+        } else {
             known.set_at(entity, 0)
             write_removal(entity)
         }
@@ -108,8 +100,8 @@ func forget_hidden(connection: Network.Component.Connection) {
     }
     kept.clear()
     index = 0
-    while index < visible.count() {
-        kept.append(visible[index])
+    while index < still.count() {
+        kept.append(still[index])
         index = index + 1
     }
 }

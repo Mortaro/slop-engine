@@ -106,17 +106,44 @@ func sent_from(environment: String): Boolean {
   lives for one tick.
 - Both are predicates on the environment's name, so one declaration can cover one environment or many.
 
+### Who observes what
+
+There are no players in the engine, only observers (Mortaro, 2026-09-27). An entity marked
+`Network.Component.Observed` is sent only to the connections that observe it; an unmarked entity (world state, a
+counter) is sent to every connection. An observation is its own entity, a child of the observed one:
+`Network.Component.Observer { subject, observer }`, where `observer` is a connection entity. An entity has as many
+Observer children as it has observers, and systems keep them up to date:
+
+- an item has one Observer, its owner's connection;
+- a monster or another player has one for every connection whose viewer is near it (`slop_interest_plugin`, below);
+- private state, such as a player's own stats, lives on a separate entity whose only Observer is that player's
+  connection, while the public entity is observed by everyone in sight.
+
+```gdscript
+var item_view = world.create_entity()
+var observer = Network.Component.Observer()
+observer.subject = item.id
+observer.observer = owner_connection
+item_view.add_component(observer)
+```
+
+(`subject` names the observed entity until the engine has a parent relation; both ids are proposals by Claude.)
+
+The network plugin collects each connection's observed entities every tick (`Address`, in `present`). It keeps, per
+connection, which entities the peer knows. An entity that becomes observed is sent in full, one that stays is sent
+only the frames that changed since the last tick, and one that stops being observed or is despawned is sent a
+removal frame (message `-3`), on which the receiver despawns its mirror. Each tick every replicated component is
+encoded once into a per-entity buffer and compared frame by frame with the last tick (`Network.Frames`), so an
+observer costs one copy per observed entity, not an encode.
+
 ### Area of interest
 
-Who sees what is plain ECS, so a game that does not need it leaves it out. The network plugin knows only
-`Network.Component.Sees` on a connection entity: a list of entity ids. A peer with one is sent the world entity and
-the replicated entities in that list; a peer without one is sent everything.
-
-`slop_interest_plugin` fills that list from distance (Mortaro, 2026-09-27: use `Viewer`, as ECS that can be
-left out). A connection entity with an `Interest.Component.Viewer` (`entity`, whose `Transform` is where the peer
-looks from, and `radius`) is given a `Sees`. Every tick, in `prepare`, the plugin's `Gather` system fills it with
-the entities `Spatial.Grid` finds within the radius, plus every entity marked `Interest.Component.Everywhere`. The
-server gives a joining player a viewer, usually around the player's own avatar:
+`slop_interest_plugin` observes by distance, as plain ECS a game can leave out. A connection entity with an
+`Interest.Component.Viewer` (`entity`, whose `Transform` is where the peer looks from, and `radius`) is given an
+`Interest.Component.Watching`, and every entity with `Spatial.Component.Indexed` is marked `Observed`. Every tick, in
+`prepare`, `Gather` asks `Spatial.Grid` what each viewer sees and compares it with what it saw: it spawns an
+Observer child only for an entity that came into range, and despawns one only for an entity that left. The work
+follows how much changes, not how much is in sight.
 
 ```gdscript
 var viewer = Interest.Component.Viewer()
@@ -125,13 +152,8 @@ viewer.radius = 60.0
 connection.add_component(viewer)
 ```
 
-The plugin keeps, per peer, which entities the peer knows. An entity that enters a peer's view is sent in full, one that
-stays is sent only the frames that changed since the last tick, and one that leaves the view, loses its last
-replicated component or is despawned is sent a removal frame (message `-3`), on which the receiver despawns its
-mirror. Each tick every replicated component is encoded once into a per-entity buffer and compared frame by frame
-with the last tick (`Network.Frames`), so a peer's view costs one copy per visible entity, not an encode.
-`interest_check` tests it across two processes: a bot sees 6 of 100 beacons, 11 after the server moves its eye, and
-10 after the server despawns one in view.
+`interest_check` tests it across two processes: a bot sees 6 of 100 beacons, 11 after the server moves its eye, 10
+after the server despawns one in view, and exactly the 3 stashes observed by its connection, never the 2 others.
 
 The game code is plain ECS on both sides:
 
@@ -212,8 +234,7 @@ In rough order of need:
 - **Change detection by write, not by comparing.** Encoding every mirrored value every tick to compare bytes is
   fine for a counter and wrong for a world. It needs `Changed<T>`, which needs the compiler to say what a system
   writes (item 109).
-- **Audience beyond distance**: `OwnedBy(connection)` for state only its owner sees, and removing one component
-  from an entity that keeps others (today only whole entities are removed).
+- **Removing one component** from an entity that keeps others (today only whole entities are removed).
 - **A handshake** carrying the environment and a hash of every replicated component, so mismatched builds refuse
   each other instead of misreading, and a compile-time check that no two components hash to the same message id.
 - **Unreliable delivery** (UDP) for state that is superseded every tick, prediction, and rates.

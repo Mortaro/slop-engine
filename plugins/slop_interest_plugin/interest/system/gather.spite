@@ -1,33 +1,84 @@
-type Watching {
-    viewer: Interest.Component.Viewer
-    sees: Network.Component.Sees
-}
-
-type Everywhere {
+type Viewing {
     entity: Entity
-    everywhere: Interest.Component.Everywhere
+    viewer: Interest.Component.Viewer
+    watching: Interest.Component.Watching
 }
 
 var grid = Spatial.Grid()
+var world = World()
+var found = Vector<Integer>()
+var stamps = Vector<Integer>()
+var kept_subjects = Vector<Integer>()
+var kept_links = Vector<Integer>()
+var pass = 0
 
-func prepare_all(watchers: List<Watching>, globals: List<Everywhere>) {
+func prepare_each(viewing: Viewing) {
+    pass = pass + 1
+    found.clear()
+    var transforms = Lookup<Transform.Component.Transform>()
+    var placed = transforms.of(viewing.viewer.entity)
+    assert placed
+    grid.within(placed.position_x, placed.position_z, viewing.viewer.radius, found)
+    stamp_found()
+    kept_subjects.clear()
+    kept_links.clear()
+    keep_or_drop(viewing.watching)
+    link_new(viewing.entity.id)
+    copy(kept_subjects, viewing.watching.subjects)
+    copy(kept_links, viewing.watching.links)
+}
+
+func stamp_found() {
     var index = 0
-    while index < watchers.count() {
-        gather(watchers[index], globals)
+    while index < found.count() {
+        var entity = found[index]
+        while stamps.count() <= entity {
+            stamps.append(0)
+        }
+        stamps.set_at(entity, pass)
         index = index + 1
     }
 }
 
-func gather(watching: Watching, globals: List<Everywhere>) {
-    var found = watching.sees.entities
-    found.clear()
+func keep_or_drop(watching: Interest.Component.Watching) {
     var index = 0
-    while index < globals.count() {
-        found.append(globals[index].entity.id)
+    while index < watching.subjects.count() {
+        var subject = watching.subjects[index]
+        var link = watching.links[index]
+        if subject < stamps.count() and stamps[subject] == pass {
+            stamps.set_at(subject, 0 - pass)
+            kept_subjects.append(subject)
+            kept_links.append(link)
+        } else {
+            world.despawn(link)
+        }
         index = index + 1
     }
-    var transforms = Lookup<Transform.Component.Transform>()
-    var placed = transforms.of(watching.viewer.entity)
-    assert placed
-    grid.within(placed.position_x, placed.position_z, watching.viewer.radius, found)
+}
+
+func link_new(connection: Integer) {
+    var index = 0
+    while index < found.count() {
+        var subject = found[index]
+        if stamps[subject] == pass {
+            stamps.set_at(subject, 0 - pass)
+            var link = world.create_entity()
+            var observer = Network.Component.Observer()
+            observer.subject = subject
+            observer.observer = connection
+            link.add_component(observer)
+            kept_subjects.append(subject)
+            kept_links.append(link.id)
+        }
+        index = index + 1
+    }
+}
+
+func copy(from: Vector<Integer>, into: Vector<Integer>) {
+    into.clear()
+    var index = 0
+    while index < from.count() {
+        into.append(from[index])
+        index = index + 1
+    }
 }
