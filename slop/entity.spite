@@ -34,7 +34,8 @@ func remove_parent_entity() {
 }
 
 func relate(name: String, target: Entity) {
-    var command = AddComponent(id, target, name)
+    var kept = Entity(target.id)
+    var command = AddComponent(id, kept, name)
     world.queue(command)
 }
 
