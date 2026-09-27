@@ -1,14 +1,14 @@
 generic $tracked_type
 
-var value: $tracked_type = null
-var columns = Columns()
+var column = Column<$tracked_type>()
 
 func tracking_kind(): Integer {
     return 2
 }
 
 func tracked_key(): String {
-    return columns.key(value.class)
+    column.header_now()
+    return column.own_key
 }
 
 func fill_from(column_header: Long, row: Integer) {

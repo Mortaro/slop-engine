@@ -155,7 +155,7 @@ func update_each(potion: Potion, target: Target) {
 | `entity: Entity` (named `entity`) | the entity's own id; not a filter |
 | any other `Entity` field, e.g. `owner: Entity` | a relation: stored as the component `Entity.owner`, and the next row is the entity it points at |
 | `Added<T>` | `T` was added since this system last ran; `.value` is the component |
-| `Removed<T>` | `T` was removed since this system last ran |
+| `Removed<T>` | `T` was removed (or its entity despawned) since this system last ran; the component itself is gone, so there is no `.value` to read |
 
 Replacing a component in the row (`target.health = target.health + ...`) is written back after the call.
 
