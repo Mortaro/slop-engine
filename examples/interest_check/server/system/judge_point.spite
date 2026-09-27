@@ -1,0 +1,20 @@
+type Pointed {
+    point: Component.Point
+    arrived: Network.Component.Arrived
+}
+
+type Judged {
+    verdict: Component.Verdict
+}
+
+var beacons = Lookup<Component.Beacon>()
+
+func update_each(pointed: Pointed, judged: Judged) {
+    var named = beacons.of(pointed.point.target.id)
+    var correct = false
+    if named {
+        correct = named.number == 52
+    }
+    judged.verdict.heard = true
+    judged.verdict.correct = correct
+}

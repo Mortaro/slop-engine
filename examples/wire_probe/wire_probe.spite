@@ -29,7 +29,19 @@ func WireProbe() {
     nudge_pack.write(stored_nudge, nudge_bytes)
     var poke_wire = poke_bytes.read_integer()
     var nudge_wire = nudge_bytes.read_integer()
-    var passed = poke_wire == 5000 and nudge_wire == 5000
-    console.print("local", local, "inline wire", poke_wire, "reference wire", nudge_wire, "passed", passed)
+    var poke_back = mirrors.field_from_wire(poke_wire)
+    var passed = poke_wire == -5100 and nudge_wire == -5100 and poke_back == 5000
+    console.print(
+        "local",
+        local,
+        "inline wire",
+        poke_wire,
+        "reference wire",
+        nudge_wire,
+        "read back on the other side",
+        poke_back,
+        "passed",
+        passed,
+    )
     app.tick()
 }

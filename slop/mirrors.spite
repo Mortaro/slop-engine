@@ -3,6 +3,7 @@ singleton
 var known = Dictionary<Integer>()
 var remotes = Dictionary<Integer>()
 var world_field = -10
+var receivers_own_first = -100
 var created = Vector<Integer>()
 var created_remotes = Vector<Integer>()
 var world = World()
@@ -40,17 +41,20 @@ func field_to_wire(local: Integer): Integer {
     }
     var remote = remotes.get(local)
     if remote {
-        return remote
+        return receivers_own_first - remote
     }
     return local
 }
 
-func field_from_wire(remote: Integer): Integer {
-    if remote == world_field {
+func field_from_wire(wire: Integer): Integer {
+    if wire == world_field {
         return world.entity
     }
-    if remote < 0 {
-        return remote
+    if wire <= receivers_own_first {
+        return receivers_own_first - wire
     }
-    return local_of(remote)
+    if wire < 0 {
+        return wire
+    }
+    return local_of(wire)
 }

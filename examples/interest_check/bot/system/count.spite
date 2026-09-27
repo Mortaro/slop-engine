@@ -22,6 +22,9 @@ type Running {
 var console = Console()
 var counts = List<Integer>()
 var saw_seal = false
+var pointed = false
+var world = World()
+var verdicts = Lookup<Component.Verdict>()
 
 func update_all(runs: List<Running>, beacons: List<Seen>, stashes: List<Stashed>, seals: List<Seal>) {
     var running = runs.first()
@@ -36,12 +39,14 @@ func update_all(runs: List<Running>, beacons: List<Seen>, stashes: List<Stashed>
     }
     var stashed = stashes.count()
     var pointed_right = points_at_beacon(beacons, stashes)
+    point_at_beacon(beacons)
+    var verdict_correct = server_agrees()
     var sealed = seals.count()
     if sealed > 0 and not saw_seal {
         saw_seal = true
         console.print("bot sees a sealed stash")
     }
-    var expected = counts.count() == 3 and counts[0] == 6 and counts[1] == 11 and counts[2] == 10 and stashed == 3 and saw_seal and sealed == 0 and pointed_right
+    var expected = counts.count() == 3 and counts[0] == 6 and counts[1] == 11 and counts[2] == 10 and stashed == 3 and saw_seal and sealed == 0 and pointed_right and verdict_correct
     if expected {
         console.print("bot sees", stashed, "stashes of its own, and the seal is gone")
         console.print("passed true")
@@ -69,4 +74,32 @@ func points_at_beacon(beacons: List<Seen>, stashes: List<Stashed>): Boolean {
         index = index + 1
     }
     return found
+}
+
+func point_at_beacon(beacons: List<Seen>) {
+    assert not pointed
+    var index = 0
+    while index < beacons.count() {
+        if beacons[index].beacon.number == 52 {
+            send_point(beacons[index].entity.id)
+        }
+        index = index + 1
+    }
+}
+
+func send_point(target: Integer) {
+    pointed = true
+    var message = world.create_entity()
+    var point = Component.Point()
+    point.target = Entity(target)
+    message.add_component(point)
+}
+
+func server_agrees(): Boolean {
+    var verdict = verdicts.of(world.entity)
+    var agrees = false
+    if verdict {
+        agrees = verdict.heard and verdict.correct
+    }
+    return agrees
 }

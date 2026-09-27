@@ -108,12 +108,18 @@ func sent_from(environment: String): Boolean {
 
 ### Entity fields travel as the receiver's entities
 
-A replicated component may hold other entities in fields typed `Entity` (a monster's `target`, an item's `owner`).
-The codec writes each such field as the sender's view of it and reads it back as the receiver's: an entity the sender
-mirrors goes out as the id it has on the other side, and an id that arrives is turned into the receiver's mirror of
-it, made on the spot if that entity has not arrived yet, so a pointer can arrive before what it points at. `Mirrors()`
-(a core singleton) holds the table; `mirrors.local_of(remote)` answers the local entity for a remote id. A field
-typed `Integer` is sent as it is.
+A replicated component may hold other entities in fields typed `Entity` (a monster's `target`, an item's `owner`),
+and each side reads them as its own entities. On the wire a field says whose entity it is:
+
+- an entity of the sender's own goes as its id; the receiver turns it into its mirror of that entity, made on the
+  spot if it has not arrived yet, so a pointer can arrive before what it points at;
+- a mirror goes as the id it has on the other side, marked (`-100 - id`), so a client naming a server monster
+  through its mirror names the server's own entity, and the server uses it as it is;
+- the world entity and "no entity" (a negative id) keep their meaning on both sides.
+
+`Mirrors()` (a core singleton) holds the table; `mirrors.local_of(remote)` answers the local entity for a remote id.
+A field typed `Integer` is sent as it is. `interest_check` tests both directions: a server-side pointer arrives as the
+bot's mirror, and a bot message naming a beacon through its mirror reaches the server as the server's own beacon.
 
 ### Who observes what
 
