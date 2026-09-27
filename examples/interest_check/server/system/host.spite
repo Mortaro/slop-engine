@@ -1,0 +1,38 @@
+type Started {
+    frame: Added<Component.Frame>
+}
+
+var world = World()
+var environment = Environment()
+var console = Console()
+
+func update_each(_started: Started) {
+    var listen = Network.Component.Listen()
+    listen.port = environment.port
+    var host = world.as_entity()
+    host.add_component(listen)
+    var index = 0
+    while index < 100 {
+        place_beacon(index)
+        index = index + 1
+    }
+    var eye = world.create_entity()
+    var marker = Component.Eye()
+    eye.add_component(marker)
+    var transform = Transform.Component.Transform()
+    eye.add_component(transform)
+    console.print("server listening on port", environment.port)
+}
+
+func place_beacon(number: Integer) {
+    var beacon = world.create_entity()
+    var value = Component.Beacon()
+    value.number = number
+    beacon.add_component(value)
+    var transform = Transform.Component.Transform()
+    var across: Float = number * 10
+    transform.position_x = across
+    beacon.add_component(transform)
+    var indexed = Spatial.Component.Indexed()
+    beacon.add_component(indexed)
+}

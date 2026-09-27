@@ -1,0 +1,2 @@
+var port = 7272
+var lifetime_seconds = 30

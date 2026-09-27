@@ -1,0 +1,2 @@
+var entity = -1
+var radius: Float = 100.0

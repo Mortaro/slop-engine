@@ -1,0 +1,34 @@
+type Seen {
+    beacon: Component.Beacon
+    mirrored: Network.Component.Mirrored
+}
+
+type Running {
+    frame: Component.Frame
+    quit: Component.Quit
+}
+
+var console = Console()
+var counts = List<Integer>()
+
+func update_all(beacons: List<Seen>, runs: List<Running>) {
+    var running = runs.first()
+    crash running
+    assert not running.quit.requested
+    var seen = beacons.count()
+    var last = counts.last()
+    var changed = seen > 0 and last != seen
+    if changed {
+        counts.append(seen)
+        console.print("bot sees", seen, "beacons")
+    }
+    var expected = counts.count() == 3 and counts[0] == 6 and counts[1] == 11 and counts[2] == 10
+    if expected {
+        console.print("passed true")
+        running.quit.requested = true
+    }
+    if running.frame.count > 1200 {
+        console.print("passed false")
+        running.quit.requested = true
+    }
+}

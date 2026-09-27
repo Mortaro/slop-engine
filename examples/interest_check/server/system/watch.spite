@@ -1,0 +1,22 @@
+type Joined {
+    entity: Entity
+    joined: Added<Network.Component.Connection>
+}
+
+type Eyed {
+    entity: Entity
+    eye: Component.Eye
+}
+
+func update_each(joined: Joined, eyed: Eyed) {
+    var viewer = Network.Component.Viewer()
+    viewer.entity = eyed.entity.id
+    viewer.radius = 55.0
+    var peer = Entity(joined.entity.id)
+    peer.add_component(viewer)
+    var timer = Component.Timer()
+    timer.start(1000, true)
+    peer.add_component(timer)
+    var script = Component.Script()
+    peer.add_component(script)
+}

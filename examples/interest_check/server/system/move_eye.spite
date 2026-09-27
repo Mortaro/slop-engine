@@ -1,0 +1,17 @@
+type Staged {
+    timer: Component.Timer
+    script: Component.Script
+}
+
+type Eyed {
+    eye: Component.Eye
+    transform: Transform.Component.Transform
+}
+
+func update_each(staged: Staged, eyed: Eyed) {
+    assert staged.timer.rang
+    staged.script.step = staged.script.step + 1
+    if staged.script.step == 1 {
+        eyed.transform.position_x = 500.0
+    }
+}

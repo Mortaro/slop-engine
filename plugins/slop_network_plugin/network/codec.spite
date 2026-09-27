@@ -25,13 +25,13 @@ func id(): Integer {
     return narrow
 }
 
-func mirror(mirrored: Dictionary<Asset.Bytes>, changed: Asset.Bytes) {
+func mirror(frames: Network.Frames) {
     if $component_type.has_function("mirrored_from") {
-        mirror_column(mirrored, changed)
+        mirror_column(frames)
     }
 }
 
-func mirror_column(mirrored: Dictionary<Asset.Bytes>, changed: Asset.Bytes) {
+func mirror_column(frames: Network.Frames) {
     var name = key()
     var message = id()
     var count = columns.count_of(name)
@@ -41,15 +41,8 @@ func mirror_column(mirrored: Dictionary<Asset.Bytes>, changed: Asset.Bytes) {
         var value = column.get(entity, name)
         if value.mirrored_from(build.environment) {
             var remote = remote_of(entity)
-            scratch.clear()
-            write_frame(scratch, message, remote, value)
-            var slot = "{message} {remote}"
-            var stored = stored_frame(mirrored, slot)
-            if not same(stored, scratch) {
-                stored.clear()
-                stored.write_bytes(scratch.address, scratch.length)
-                changed.write_bytes(scratch.address, scratch.length)
-            }
+            var buffer = frames.buffer_for(entity)
+            write_frame(buffer, message, remote, value)
         }
         row = row + 1
     }
@@ -105,26 +98,6 @@ func write_frame(frames: Asset.Bytes, message: Integer, entity: Integer, value: 
     }
     var size = frames.length - start - 4
     raw.write_integer(frames.address, start, size)
-}
-
-func stored_frame(mirrored: Dictionary<Asset.Bytes>, slot: String): Asset.Bytes {
-    var found = mirrored.get(slot)
-    if found {
-        return found
-    }
-    var made = Asset.Bytes()
-    mirrored.set(slot, made)
-    return made
-}
-
-func same(stored: Asset.Bytes, fresh: Asset.Bytes): Boolean {
-    assert stored.length == fresh.length
-    var index = 0
-    while index < fresh.length {
-        assert stored.byte_at(index) == fresh.byte_at(index)
-        index = index + 1
-    }
-    return true
 }
 
 func remote_of(entity: Integer): Integer {

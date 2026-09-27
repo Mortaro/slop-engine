@@ -1,0 +1,115 @@
+var current = List<Asset.Bytes>()
+var previous = List<Asset.Bytes>()
+var delta = List<Asset.Bytes>()
+var stamped = Vector<Integer>()
+var touched = Vector<Integer>()
+var last_touched = Vector<Integer>()
+var gone = Vector<Integer>()
+var tick = 0
+var raw = Raw()
+
+func begin() {
+    tick = tick + 1
+    last_touched.clear()
+    var index = 0
+    while index < touched.count() {
+        last_touched.append(touched[index])
+        index = index + 1
+    }
+    touched.clear()
+    gone.clear()
+}
+
+func buffer_for(entity: Integer): Asset.Bytes {
+    ensure(entity)
+    crash current[entity]
+    if stamped[entity] != tick {
+        stamped.set_at(entity, tick)
+        current[entity].clear()
+        touched.append(entity)
+    }
+    return current[entity]
+}
+
+func finish() {
+    var index = 0
+    while index < touched.count() {
+        settle(touched[index])
+        index = index + 1
+    }
+    index = 0
+    while index < last_touched.count() {
+        forget(last_touched[index])
+        index = index + 1
+    }
+}
+
+func encoded(entity: Integer): Boolean {
+    return entity < stamped.count() and stamped[entity] == tick
+}
+
+func full(entity: Integer): Asset.Bytes {
+    crash previous[entity]
+    return previous[entity]
+}
+
+func changed(entity: Integer): Asset.Bytes {
+    crash delta[entity]
+    return delta[entity]
+}
+
+func settle(entity: Integer) {
+    crash current[entity]
+    crash previous[entity]
+    crash delta[entity]
+    var fresh = current[entity]
+    var stored = previous[entity]
+    var differences = delta[entity]
+    differences.clear()
+    collect_changes(fresh, stored, differences)
+    previous.set_at(entity, fresh)
+    current.set_at(entity, stored)
+}
+
+func forget(entity: Integer) {
+    assert stamped[entity] != tick
+    gone.append(entity)
+    crash previous[entity]
+    previous[entity].clear()
+}
+
+func collect_changes(fresh: Asset.Bytes, stored: Asset.Bytes, differences: Asset.Bytes) {
+    var at = 0
+    var before = 0
+    while at < fresh.length {
+        var size = raw.read_integer(fresh.address, at) + 4
+        var same = before + size <= stored.length and same_bytes(fresh, at, stored, before, size)
+        if not same {
+            differences.write_bytes(fresh.address + at, size)
+        }
+        at = at + size
+        before = before + size
+    }
+}
+
+func same_bytes(fresh: Asset.Bytes, at: Integer, stored: Asset.Bytes, before: Integer, size: Integer): Boolean {
+    var index = 0
+    var same = true
+    while same and index < size {
+        same = fresh.byte_at(at + index) == stored.byte_at(before + index)
+        index = index + 1
+    }
+    return same
+}
+
+func ensure(entity: Integer) {
+    while stamped.count() <= entity {
+        stamped.append(0)
+        var made_current = Asset.Bytes()
+        current.append(made_current)
+        var made_previous = Asset.Bytes()
+        previous.append(made_previous)
+        var made_delta = Asset.Bytes()
+        delta.append(made_delta)
+    }
+}

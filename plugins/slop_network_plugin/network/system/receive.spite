@@ -15,7 +15,11 @@ func after_input_each(peer: Peer) {
         var message = frame.read_integer()
         var remote = frame.read_integer()
         understood = false
-        decode_components(message, remote, peer.entity.id)
+        if message == -3 {
+            forget_mirror(remote)
+        } else {
+            decode_components(message, remote, peer.entity.id)
+        }
         if not understood {
             stream.closed = true
         }
@@ -45,6 +49,15 @@ func target_entity(remote: Integer, connection: Integer): Entity {
     var marker = Network.Component.Arrived()
     arrived.add_component(marker)
     return arrived
+}
+
+func forget_mirror(remote: Integer) {
+    understood = frame.remaining() == 0
+    assert remote >= 0 and mirrors.has(remote)
+    var known = mirrors.get(remote)
+    crash known
+    mirrors.remove(remote)
+    world.despawn(known)
 }
 
 func local_entity(remote: Integer): Entity {

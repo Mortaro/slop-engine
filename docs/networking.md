@@ -106,6 +106,31 @@ func sent_from(environment: String): Boolean {
   lives for one tick.
 - Both are predicates on the environment's name, so one declaration can cover one environment or many.
 
+### Area of interest
+
+A peer sees everything unless its connection entity carries a `Network.Component.Viewer` (a proposal by Claude):
+`entity`, whose `Transform` is where the peer looks from, and `radius`. Such a peer is sent:
+
+- entities with no `Spatial.Component.Indexed` (world state, counters): always;
+- indexed entities within `radius` of the viewer's entity, found through `Spatial.Grid`.
+
+The plugin keeps, per peer, which entities the peer knows. An entity that enters a peer's view is sent in full, one that
+stays is sent only the frames that changed since the last tick, and one that leaves the view, loses its last
+replicated component or is despawned is sent a removal frame (message `-3`), on which the receiver despawns its
+mirror. The server gives a joining player a viewer, usually around the player's own avatar:
+
+```gdscript
+var viewer = Network.Component.Viewer()
+viewer.entity = avatar.id
+viewer.radius = 60.0
+connection.add_component(viewer)
+```
+
+Each tick every replicated component is encoded once into a per-entity buffer and compared frame by frame with the
+last tick (`Network.Frames`), so a peer's view costs a grid query and one copy per visible entity, not an encode.
+`interest_check` tests it across two processes: a bot sees 6 of 100 beacons, 11 after the server moves its eye, and
+10 after the server despawns one in view.
+
 The game code is plain ECS on both sides:
 
 ```gdscript
@@ -145,7 +170,7 @@ Connections are entities. Settings and state are components on the world entity:
 | `input` | `Accept` | opens the listener, accepts every waiting connection |
 | `input` | `Dial` | starts a connect on the thread pool and polls it; a failed dial waits 60 ticks |
 | `after_input` | `Receive` | reads every socket, decodes each frame, mirrors state and spawns arrived messages |
-| `last` | `Send` | encodes mirrored state that changed and every outgoing message, writes to every peer |
+| `last` | `Send` | encodes mirrored state once, picks each peer's frames by its area of interest, writes to every peer |
 | `last` | `ForgetArrived` | despawns arrived messages |
 
 Nothing blocks a frame: sockets are non-blocking and are polled once per tick, and the one call that can take
@@ -185,9 +210,8 @@ In rough order of need:
 - **Change detection by write, not by comparing.** Encoding every mirrored value every tick to compare bytes is
   fine for a counter and wrong for a world. It needs `Changed<T>`, which needs the compiler to say what a system
   writes (item 109).
-- **Interest and audience.** Every mirrored value goes to every peer. The direction is markers on entities:
-  `ReplicatedTo(connection)`, an area of interest per player, `OwnedBy(connection)`.
-- **Removals.** A despawned or removed mirrored component is not replicated.
+- **Audience beyond distance**: `OwnedBy(connection)` for state only its owner sees, and removing one component
+  from an entity that keeps others (today only whole entities are removed).
 - **A handshake** carrying the environment and a hash of every replicated component, so mismatched builds refuse
   each other instead of misreading, and a compile-time check that no two components hash to the same message id.
 - **Unreliable delivery** (UDP) for state that is superseded every tick, prediction, and rates.

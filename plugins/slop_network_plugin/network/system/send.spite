@@ -4,37 +4,141 @@ type Peer {
 }
 
 var world = World()
-var mirrored = Dictionary<Asset.Bytes>()
-var changed = Asset.Bytes()
+var frames = Network.Frames()
 var messages = Asset.Bytes()
+var removals = Asset.Bytes()
+var globals = Vector<Integer>()
+var visible = Vector<Integer>()
+var nearby = Vector<Integer>()
+var grid = Spatial.Grid()
 
 func last_all(peers: List<Peer>) {
-    changed.clear()
     messages.clear()
+    frames.begin()
     encode_components()
+    frames.finish()
+    find_globals()
     peers.each(deliver)
 }
 
 func encode_component(component: Symbol<Component>) {
     var codec = Network.Codec<component.class>()
-    codec.mirror(mirrored, changed)
+    codec.mirror(frames)
     codec.send(messages)
+}
+
+func find_globals() {
+    globals.clear()
+    var indexed = Lookup<Spatial.Component.Indexed>()
+    var index = 0
+    while index < frames.touched.count() {
+        var entity = frames.touched[index]
+        if not indexed.has(entity) {
+            globals.append(entity)
+        }
+        index = index + 1
+    }
 }
 
 func deliver(peer: Peer) {
     var connection = peer.connection
     var stream = connection.stream
-    if connection.fresh {
-        connection.fresh = false
-        var snapshot = mirrored.values()
-        snapshot.each(stream.queue)
-    } else {
-        stream.queue(changed)
+    connection.fresh = false
+    gather_visible(peer.entity.id)
+    removals.clear()
+    var index = 0
+    while index < visible.count() {
+        send_entity(connection, visible[index])
+        index = index + 1
     }
+    forget_hidden(connection)
+    stream.queue(removals)
     stream.queue(messages)
     stream.flush()
     if stream.closed {
         stream.close()
         world.despawn(peer.entity.id)
     }
+}
+
+func gather_visible(peer_entity: Integer) {
+    visible.clear()
+    var viewers = Lookup<Network.Component.Viewer>()
+    var viewer = viewers.of(peer_entity)
+    if viewer {
+        gather_around(viewer)
+    } else {
+        copy_all(frames.touched, visible)
+    }
+}
+
+func gather_around(viewer: Network.Component.Viewer) {
+    copy_all(globals, visible)
+    var transforms = Lookup<Transform.Component.Transform>()
+    var placed = transforms.of(viewer.entity)
+    assert placed
+    nearby.clear()
+    grid.within(placed.position_x, placed.position_z, viewer.radius, nearby)
+    var index = 0
+    while index < nearby.count() {
+        var entity = nearby[index]
+        if frames.encoded(entity) {
+            visible.append(entity)
+        }
+        index = index + 1
+    }
+}
+
+func copy_all(from: Vector<Integer>, into: Vector<Integer>) {
+    var index = 0
+    while index < from.count() {
+        into.append(from[index])
+        index = index + 1
+    }
+}
+
+func send_entity(connection: Network.Component.Connection, entity: Integer) {
+    var known = connection.known
+    while known.count() <= entity {
+        known.append(0)
+    }
+    var stream = connection.stream
+    if known[entity] == frames.tick - 1 {
+        var changed = frames.changed(entity)
+        stream.queue(changed)
+    } else {
+        var full = frames.full(entity)
+        stream.queue(full)
+    }
+    known.set_at(entity, frames.tick)
+}
+
+func forget_hidden(connection: Network.Component.Connection) {
+    var known = connection.known
+    var kept = connection.known_list
+    var index = 0
+    while index < kept.count() {
+        var entity = kept[index]
+        if known[entity] != frames.tick {
+            known.set_at(entity, 0)
+            write_removal(entity)
+        }
+        index = index + 1
+    }
+    kept.clear()
+    index = 0
+    while index < visible.count() {
+        kept.append(visible[index])
+        index = index + 1
+    }
+}
+
+func write_removal(entity: Integer) {
+    removals.write_integer(8)
+    removals.write_integer(-3)
+    var remote = entity
+    if entity == world.entity {
+        remote = -1
+    }
+    removals.write_integer(remote)
 }

@@ -1,0 +1,2 @@
+var step = 0
+var dropped = false

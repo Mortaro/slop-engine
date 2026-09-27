@@ -1,0 +1,16 @@
+type Staged {
+    script: Component.Script
+}
+
+type Placed {
+    entity: Entity
+    beacon: Component.Beacon
+}
+
+var world = World()
+
+func update_each(staged: Staged, placed: Placed) {
+    assert staged.script.step == 2 and not staged.script.dropped and placed.beacon.number == 50
+    staged.script.dropped = true
+    world.despawn(placed.entity.id)
+}
