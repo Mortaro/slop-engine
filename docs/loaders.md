@@ -17,14 +17,21 @@ into textures; a game using that theme never names the PSD loader itself.
 
 ## PSD (`slop_psd_plugin`)
 
-- `Psd.Document.open(path)` reads 8-bit RGB documents: the header, the layer records (bounds, channels, opacity,
+- `Psd.Document.open(path)` reads 8- and 16-bit RGB documents: the header, the layer records (bounds, channels, opacity,
   flags, masks, Pascal and Unicode names, group dividers), and builds each layer's `path` (`Plates/Primary/Normal`)
   from the flat, bottom-first record list.
-- `pixels_of(layer)` decodes raw and PackBits channels, applies the layer mask to transparency, and answers an
-  `Asset.Texture` in straight RGBA.
-- Everything outside that subset (16 and 32 bit, CMYK, `.psb`, ZIP channels) crashes naming the reason.
+- `pixels_of(layer)` decodes every channel compression PSD uses: raw, PackBits, ZIP, and ZIP with prediction
+  (the row deltas undone per byte at 8 bits and per big-endian sample at 16). ZIP goes through `Png.Inflate`, so
+  the plugin loads `slop_png_plugin`. It applies the transparency channel (`-1`) and the layer mask, and answers
+  an `Asset.Texture` in straight RGBA; a 16-bit sample keeps its high byte.
+- Everything outside that subset (32 bit, CMYK, `.psb`) crashes naming the reason.
 
-Checked: the three primary button plates of `buttons.psd` match a reference decoder's output pixel for pixel.
+Checked: the three primary button plates of `buttons.psd` match a reference decoder's output pixel for pixel, and
+`psd_zip_probe` decodes eight generated files (8 and 16 bit, each of the four compressions) to the checksum
+`make_fixtures.py` works out for them.
+
+Not fast yet: channels decode into `List<Integer>` one byte at a time, which matters for the 3,000-pixel textures
+Theseus uses.
 
 ## zstd (`slop_zstd_plugin`)
 

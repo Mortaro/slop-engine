@@ -292,7 +292,7 @@ it contributes ([docs/loaders.md](docs/loaders.md)):
 
 | Loader | State |
 |---|---|
-| `Psd.Document`, `Psd.Layers` | 8-bit RGB, raw and PackBits, groups, masks. **Bit-exact** with a reference decoder on `buttons.psd` |
+| `Psd.Document`, `Psd.Layers` | 8- and 16-bit RGB; raw, PackBits, ZIP and ZIP with prediction; transparency, groups, masks. **Bit-exact** with a reference decoder on `buttons.psd` |
 | `Zstd.Decoder` | RFC 8878. **Byte-identical** with Zig's std decoder on a 261 MB `.blend`, in 0.86 s |
 | `Blend.File`, `Blend.View` | Blender 5.2 (`BLENDER17-01`): blocks, SDNA, any field by name, pointers, `AttributeStorage` |
 | meshes, normals, skeletons, skins, animations, packed PNG textures from `.blend` | built for the Kal archer ([docs/scene.md](docs/scene.md)); fan triangulation, one UV set, no custom normals |

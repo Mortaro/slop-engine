@@ -1,0 +1,37 @@
+var console = Console()
+var build = Build()
+var expected: Long = 2079483703
+var passed = true
+
+func PsdZipProbe() {
+    load "../../slop"
+    load "../../plugins/slop_psd_plugin"
+    var depths = [8, 16]
+    depths.each(check_depth)
+    console.print("passed", passed)
+}
+
+func check_depth(depth: Integer) {
+    var compression = 0
+    while compression < 4 {
+        check_file(depth, compression)
+        compression = compression + 1
+    }
+}
+
+func check_file(depth: Integer, compression: Integer) {
+    var document = Psd.Document()
+    document.open("{build.program}/fixtures/probe_{depth}_{compression}.psd")
+    var layer = document.layers.first()
+    crash layer
+    var texture = document.pixels_of(layer)
+    var total: Long = 0
+    var index = 0
+    while index < texture.pixels.count() {
+        total = total + texture.pixels[index]
+        index = index + 1
+    }
+    var matched = total == expected
+    passed = passed and matched
+    console.print("depth", depth, "compression", compression, "checksum", total, "matched", matched)
+}

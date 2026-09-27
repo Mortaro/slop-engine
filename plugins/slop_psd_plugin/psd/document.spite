@@ -2,6 +2,8 @@ var bytes = Asset.Bytes()
 var layers = List<Psd.Layer>()
 var heap = Memory.Heap()
 var raw = Raw()
+var depth = 8
+var inflate = Png.Inflate()
 
 func open(path: String) {
     var loaded = bytes.read_file(path)
@@ -17,9 +19,9 @@ func read_header() {
     skip(6)
     var channel_count = read_short()
     skip(8)
-    var depth = read_short()
+    depth = read_short()
     var colour_mode = read_short()
-    crash depth == 8
+    crash depth == 8 or depth == 16
     crash colour_mode == 3
     crash channel_count >= 3
     var colour_mode_length = read_unsigned()
@@ -71,8 +73,8 @@ func locate_channel(record: Psd.Layer, index: Integer) {
     var start = bytes.position
     if stored_length >= 2 {
         var compression = read_short()
-        crash compression == 0 or compression == 1
-        record.channels[index].compressed = compression == 1
+        crash compression >= 0 and compression <= 3
+        record.channels[index].compression = compression
     }
     record.channels[index].offset = start + 2
     record.channels[index].length = stored_length - 2
@@ -334,22 +336,93 @@ func filled(count: Integer, value: Integer): List<Integer> {
 }
 
 func decode_channel(channel: Psd.Channel, plane_width: Integer, plane_height: Integer): List<Integer> {
-    var plane = List<Integer>()
-    if channel.compressed {
-        decode_run_length(channel, plane_width, plane_height, plane)
+    var sample_bytes = depth / 8
+    var row_bytes = plane_width * sample_bytes
+    var stored = List<Integer>()
+    if channel.compression == 1 {
+        decode_run_length(channel, row_bytes, plane_height, stored)
+    } else if channel.compression >= 2 {
+        decode_zip(channel, row_bytes, plane_height, stored)
     } else {
-        copy_bytes(channel.offset, plane_width * plane_height, plane)
+        copy_bytes(channel.offset, row_bytes * plane_height, stored)
     }
-    crash plane.count() == plane_width * plane_height
+    crash stored.count() == row_bytes * plane_height
+    if sample_bytes == 1 {
+        return stored
+    }
+    return high_bytes(stored)
+}
+
+func high_bytes(stored: List<Integer>): List<Integer> {
+    var plane = List<Integer>()
+    var index = 0
+    while index + 1 < stored.count() {
+        crash stored[index]
+        plane.append(stored[index])
+        index = index + 2
+    }
     return plane
 }
 
-func decode_run_length(channel: Psd.Channel, plane_width: Integer, plane_height: Integer, plane: List<Integer>) {
+func decode_zip(channel: Psd.Channel, row_bytes: Integer, plane_height: Integer, stored: List<Integer>) {
+    var packed = Asset.Bytes()
+    packed.write_bytes(bytes.address + channel.offset, channel.length)
+    var wanted = row_bytes * plane_height
+    var unpacked = inflate.decompress(packed, wanted)
+    crash not inflate.failed
+    crash unpacked.length == wanted
+    if channel.compression == 3 {
+        undo_prediction(unpacked, row_bytes, plane_height)
+    }
+    var index = 0
+    while index < wanted {
+        var value = unpacked.byte_at(index)
+        stored.append(value)
+        index = index + 1
+    }
+}
+
+func undo_prediction(unpacked: Asset.Bytes, row_bytes: Integer, plane_height: Integer) {
+    var row = 0
+    while row < plane_height {
+        if depth == 16 {
+            undo_wide_row(unpacked, row * row_bytes, row_bytes)
+        } else {
+            undo_narrow_row(unpacked, row * row_bytes, row_bytes)
+        }
+        row = row + 1
+    }
+}
+
+func undo_narrow_row(unpacked: Asset.Bytes, start: Integer, row_bytes: Integer) {
+    var column = 1
+    while column < row_bytes {
+        var previous = unpacked.byte_at(start + column - 1)
+        var current = unpacked.byte_at(start + column)
+        var sum = (previous + current) % 256
+        raw.write_byte(unpacked.address, start + column, sum)
+        column = column + 1
+    }
+}
+
+func undo_wide_row(unpacked: Asset.Bytes, start: Integer, row_bytes: Integer) {
+    var column = 2
+    while column + 1 < row_bytes {
+        var previous = unpacked.byte_at(start + column - 2) * 256 + unpacked.byte_at(start + column - 1)
+        var current = unpacked.byte_at(start + column) * 256 + unpacked.byte_at(start + column + 1)
+        var sum = (previous + current) % 65536
+        raw.write_byte(unpacked.address, start + column, sum / 256)
+        raw.write_byte(unpacked.address, start + column + 1, sum % 256)
+        column = column + 2
+    }
+}
+
+func decode_run_length(channel: Psd.Channel, row_bytes: Integer, plane_height: Integer, plane: List<Integer>) {
     var offset = channel.offset + plane_height * 2
     var row = 0
     while row < plane_height {
         var row_length = bytes.big_endian_short(channel.offset + row * 2)
-        decode_pack_bits(offset, row_length, plane_width, plane)
+        decode_pack_bits(offset, row_length, row_bytes, plane)
         offset = offset + row_length
         row = row + 1
     }

@@ -1,4 +1,4 @@
 var identifier = 0
-var compressed = false
+var compression = 0
 var offset = 0
 var length = 0

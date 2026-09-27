@@ -1,0 +1,3 @@
+func Psd() {
+    load "../../slop_png_plugin"
+}

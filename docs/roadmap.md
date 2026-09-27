@@ -13,7 +13,7 @@ items come first.
 | Order | Item | What it means |
 |---|---|---|
 | 1 | ECS throughput | despawn and spawn in bulk within a frame budget (200,000 despawns: 224 ms, now 22 ms), parallel iteration inside one system: automatic, with no opt-in (Mortaro, 2026-09-26: whatever performs best, as long as game code does not change); waits on a folded race check from the language |
-| 2 | PSD | ZIP-compressed channels (a re-saved file can crash a build today), alpha, 16-bit, then PSB |
+| 2 | PSD | ZIP and ZIP-with-prediction channels, alpha and 16-bit are built; PSB and a faster decode remain |
 | 3 | Headless server | a fixed-rate tick, timers as components, one spatial grid for replication, sight and aggro; 5,000 players and 10,000 monsters |
 | 4 | Networking | area of interest, removal replication, handshake with a version, delta compression, frames over 64 KiB, rate limits, reconnect |
 | 5 | MongoDB | SCRAM-SHA-256 and indexes; TLS later |

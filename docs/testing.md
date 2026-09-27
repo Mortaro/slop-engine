@@ -20,6 +20,7 @@ Every behaviour the docs claim is checked by a program in `examples/`. Run them 
 | `stress` | 200,000 entities through two systems; prints the tick time |
 | `asset_round_trip` | an asset class with every kind of field saved and read back through its derived codec |
 | `psd_probe` | `buttons.psd`'s layer tree and sizes |
+| `psd_zip_probe` | eight generated PSDs, 8 and 16 bit with raw, PackBits, ZIP and ZIP-with-prediction channels, decode to the expected checksum (`python make_fixtures.py` regenerates them) |
 | `zstd_probe` | decompresses a `.blend` (`-- --source=file.blend --output=plain.blend`); compared byte for byte with Zig's decoder when it was written |
 | `blend_probe` | a `.blend`'s datablocks, any SDNA struct, and a mesh's attributes (`-- --source=file.blend`) |
 
