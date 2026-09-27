@@ -1324,18 +1324,17 @@ func fill_scroll_range(
         scroll_left = scroll.left
         scroll_top = scroll.top
     }
-    var content_right = left + box.border_at(3)
-    var content_bottom = top + box.border_at(0)
+    var content = Ui.Layout.Placement()
+    content.left = left + box.border_at(3)
+    content.top = top + box.border_at(0)
     var children = children_of(entity)
     var index = 0
     while index < children.count() {
-        var child = layout_of(children[index])
-        if child {
-            content_right = larger(content_right, child.left + child.width + scroll_left)
-            content_bottom = larger(content_bottom, child.top + child.height + scroll_top)
-        }
+        reach_child(content, children[index], scroll_left, scroll_top)
         index = index + 1
     }
+    var content_right = content.left
+    var content_bottom = content.top
     var padding_right = left + width - box.border_at(1)
     var padding_bottom = top + height - box.border_at(2)
     var needed_right = content_right + box.padding_at(1)
@@ -1468,17 +1467,37 @@ func thumb_offset(track: Float, thumb: Float, scrolled: Float, range: Float): Fl
     return (track - thumb) * scrolled / range
 }
 
-func layout_of(entity: Integer): Ui.Component.ComputedLayout? {
-    var layout = Lookup<Ui.Component.ComputedLayout>().of(entity)
+func reach_child(content: Ui.Layout.Placement, child: Integer, scroll_left: Float, scroll_top: Float) {
+    var layout = Lookup<Ui.Component.ComputedLayout>().of(child)
     if layout {
-        return layout
+        reach_layout(content, layout, scroll_left, scroll_top)
+        return
     }
-    return created_layouts[entity]
+    assert created_layouts[child]
+    reach_layout(content, created_layouts[child], scroll_left, scroll_top)
+}
+
+func reach_layout(
+    content: Ui.Layout.Placement,
+    layout: Ui.Component.ComputedLayout,
+    scroll_left: Float,
+    scroll_top: Float,
+) {
+    content.left = larger(content.left, layout.left + layout.width + scroll_left)
+    content.top = larger(content.top, layout.top + layout.height + scroll_top)
 }
 
 func write_content_origin(entity: Integer, placement: Ui.Layout.Placement) {
-    var layout = layout_of(entity)
-    crash layout
+    var layout = Lookup<Ui.Component.ComputedLayout>().of(entity)
+    if layout {
+        fill_content_origin(layout, placement)
+        return
+    }
+    crash created_layouts[entity]
+    fill_content_origin(created_layouts[entity], placement)
+}
+
+func fill_content_origin(layout: Ui.Component.ComputedLayout, placement: Ui.Layout.Placement) {
     layout.content_left = placement.left
     layout.content_top = placement.top
 }
@@ -2302,9 +2321,7 @@ func paint(entity: Integer, depth: Integer) {
     crash depth < maximum_depth
     var key = entity
     assert laid_out.has(key)
-    var layout = layout_of(entity)
-    crash layout
-    layout.order = paint_order
+    order_layout(entity)
     paint_order = paint_order + 1
     var stacked = children_by_z(entity)
     var index = 0
@@ -2312,18 +2329,32 @@ func paint(entity: Integer, depth: Integer) {
         paint(stacked[index], depth + 1)
         index = index + 1
     }
-    var bars = bars_of(entity)
-    assert bars
-    bars.order = paint_order
-    paint_order = paint_order + 1
+    if order_bars(entity) {
+        paint_order = paint_order + 1
+    }
 }
 
-func bars_of(entity: Integer): Ui.Component.ComputedScrollbars? {
+func order_layout(entity: Integer) {
+    var layout = Lookup<Ui.Component.ComputedLayout>().of(entity)
+    if layout {
+        layout.order = paint_order
+        return
+    }
+    crash created_layouts[entity]
+    created_layouts[entity].order = paint_order
+}
+
+func order_bars(entity: Integer): Boolean {
     var bars = Lookup<Ui.Component.ComputedScrollbars>().of(entity)
     if bars {
-        return bars
+        bars.order = paint_order
+        return true
     }
-    return created_scrollbars[entity]
+    if created_scrollbars[entity] {
+        created_scrollbars[entity].order = paint_order
+        return true
+    }
+    return false
 }
 
 func z_of(entity: Integer): Integer {

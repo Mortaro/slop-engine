@@ -1,0 +1,13 @@
+type Labelled {
+    label: Component.Label
+    wrap: Component.Wrap
+}
+
+type Ticking {
+    frame: Component.Frame
+}
+
+func update_each(labelled: Labelled, ticking: Ticking) {
+    var label = labelled.label
+    label.value = "paired {ticking.frame.count} with more text"
+}

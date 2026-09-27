@@ -1,0 +1,2 @@
+var label = Component.Label()
+var wrap = Component.Wrap()
