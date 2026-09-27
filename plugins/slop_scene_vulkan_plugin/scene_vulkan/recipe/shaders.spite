@@ -1,8 +1,8 @@
 var glsl = Recipes.Glsl()
-var settings = Build()
 
 func build() {
-    var root = "{settings.plugins_folder}/slop_scene_vulkan_plugin/scene_vulkan"
+    var recipe_folder = class.source_folder()
+    var root = "{recipe_folder}/.."
     glsl.compile(root, "shader.scene.vertex", "vert")
     glsl.compile(root, "shader.scene.fragment", "frag")
     glsl.compile(root, "shader.shadow.fragment", "frag")

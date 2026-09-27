@@ -41,8 +41,17 @@ func path_of(id: String, extension: String): String {
 
 func path_in(root: String, id: String, extension: String): String {
     var relative = relative_path(id, extension)
-    var path = "{build.program}/{root}/{relative}"
+    var rooted_folder = rooted(root)
+    var path = "{rooted_folder}/{relative}"
     var file = File(path)
     crash file.exists()
     return path
+}
+
+func rooted(root: String): String {
+    var absolute = root.starts_with("/") or root.length() > 1 and root.code_at(1) == 58
+    if absolute {
+        return root
+    }
+    return "{build.program}/{root}"
 }
