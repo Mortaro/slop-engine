@@ -296,8 +296,9 @@ generics.
 - **A singleton's automatic lock covers whole calls (D183).** A never-ending loop written as a singleton method
   (`Windows.Owner.run()`) holds it forever and every other thread's call waits: the click test hung. Long-running
   loops and long tasks now live in plain objects holding raw addresses (`Windows.Pump`, `Recipes.CookTask`), and the
-  frame thread never calls a singleton a worker is inside (`System.Recook` owns the cook's handle). Mortaro has
-  the design question (item 156).
+  frame thread never calls a singleton a worker is inside (`System.Recook` owns the cook's handle). Settled by
+  D211 (item 156): the lock stays whole-call, so this is the pattern to keep. Waiting on a `Parallel` that calls back
+  into the locked singleton is now a compile error (D264).
 - **A SlopEngine bug found by the language session's AddressSanitizer build**: `Added<T>` (and three other readers)
   read a marker component's value slot, which a marker column never writes, so it retained heap garbage from
   `Memory.resize` and crashed intermittently. Readers now skip markers. My first diagnosis (that `Parallel` doesn't
