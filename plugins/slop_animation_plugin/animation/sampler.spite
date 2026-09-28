@@ -7,6 +7,7 @@ func sample(
     skeleton: Asset.Skeleton,
     clip: Asset.Animation,
     animator: Animation.Component.Animator,
+    looping: Boolean,
     palette: List<Math.Matrix4>,
     globals: List<Math.Matrix4>,
 ) {
@@ -17,7 +18,7 @@ func sample(
     var clip_holds_every_key = clip.keys.count() == clip.frame_count * clip.bone_count * 10
     crash clip_holds_every_key
     var position = animator.time * clip.frames_per_second
-    if animator.looping {
+    if looping {
         position = position - scalar.floor(position / frame_count) * frame_count
     } else {
         position = scalar.clamp(position, 0.0, frame_count - 1.0)
@@ -28,7 +29,7 @@ func sample(
     var to = from + 1
     if to >= clip.frame_count {
         to = 0
-        if not animator.looping {
+        if not looping {
             to = from
         }
     }
