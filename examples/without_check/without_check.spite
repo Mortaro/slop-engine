@@ -1,0 +1,34 @@
+var world = World()
+var console = Console()
+
+func WithoutCheck() {
+    load "../../slop"
+    var app = App()
+    var free = world.create_entity()
+    var free_health = Component.Health()
+    free.add_component(free_health)
+    var held = world.create_entity()
+    var held_health = Component.Health()
+    held.add_component(held_health)
+    var frost = Component.Frozen()
+    held.add_component(frost)
+    world.flush()
+    app.tick()
+    app.tick()
+    var free_after = health_of(free.id)
+    var held_after = health_of(held.id)
+    held.remove_component(Component.Frozen)
+    world.flush()
+    app.tick()
+    var held_thawed = health_of(held.id)
+    var passed = free_after == 2 and held_after == 0 and held_thawed == 1
+    console.print("free", free_after, "frozen", held_after, "after thawing", held_thawed, "passed", passed)
+    crash passed
+}
+
+func health_of(entity: Integer): Integer {
+    var healths = Lookup<Component.Health>()
+    var health = healths.of(entity)
+    crash health
+    return health.value
+}

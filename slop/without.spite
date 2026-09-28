@@ -1,0 +1,13 @@
+generic $excluded_type
+
+var columns = Columns()
+
+func tracking_kind(): Integer {
+    return 4
+}
+
+func tracked_key(): String {
+    return columns.key($excluded_type)
+}
+
+func fill_from(_column_header: Long, _row: Integer) {}
