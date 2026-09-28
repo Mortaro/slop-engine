@@ -105,6 +105,7 @@ func run_once() {
 
 func run_phase_each(phase: Symbol<$system_type.phase_each>) {
     if $system_type.function_waits("<phase>_each") {
+        refuse_snapshot_writes(phase)
         if argument_count == 0 {
             assert pending == 0
             pending = 1
@@ -181,6 +182,22 @@ func enqueue_chosen_argument(argument: Symbol<$system_type.phase_each>) {
     crash chosen[position]
     row.enqueue(chosen[position])
     position = position + 1
+}
+
+func refuse_snapshot_writes(phase: Symbol<$system_type.phase_each>) {
+    crash phase.argument_count() <= 4
+    if phase.argument_count() > 0 {
+        crash not $system_type.function_writes_parameter("<phase>_each", 0)
+    }
+    if phase.argument_count() > 1 {
+        crash not $system_type.function_writes_parameter("<phase>_each", 1)
+    }
+    if phase.argument_count() > 2 {
+        crash not $system_type.function_writes_parameter("<phase>_each", 2)
+    }
+    if phase.argument_count() > 3 {
+        crash not $system_type.function_writes_parameter("<phase>_each", 3)
+    }
 }
 
 func enqueue_argument(argument: Symbol<$system_type.phase_each>) {

@@ -1,0 +1,10 @@
+type Quitting {
+    quit: Component.Quit
+}
+
+var program = Program()
+
+func last_each(quitting: Quitting) {
+    program.sleep(1)
+    quitting.quit.requested = true
+}

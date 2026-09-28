@@ -1,0 +1,5 @@
+func SnapshotWriteRefused() {
+    load "../../slop"
+    var app = App()
+    app.tick()
+}
