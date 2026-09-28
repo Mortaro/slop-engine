@@ -23,6 +23,7 @@ var parallel = true
 var release_budget = 4096
 var columns = Columns()
 var frame_column = Column<Component.Frame>()
+var rule_breaks = 0
 
 func App() {
     var frame = Component.Frame()
@@ -36,6 +37,8 @@ func App() {
 func register_component(component: Symbol<Component>) {
     var column = Column<component.class>()
     column.prepare_column()
+    var rule = ComponentRule<component.class>()
+    rule_breaks = rule_breaks + rule.check()
 }
 
 func add_system(system: Symbol<System>) {

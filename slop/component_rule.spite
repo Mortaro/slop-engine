@@ -1,0 +1,31 @@
+generic $component_type
+
+var console = Console()
+var columns = Columns()
+var broken = 0
+
+func check(): Integer {
+    broken = 0
+    check_attributes()
+    if $component_type.has_function("stored_inline") {
+        report("stored_inline()", "is declared: storage is inferred, so remove it")
+    }
+    return broken
+}
+
+func check_attribute(attribute: Symbol<$component_type>) {
+    var type_name: String = attribute.class
+    if type_name == "Boolean" {
+        report(attribute.name, "is a Boolean: a state is a marker component, added when it holds and removed when not")
+    } else if type_name == "Entity" {
+        report(attribute.name, "is an Entity: a link is a relation, entity.relate(name, target)")
+    } else if type_name.ends_with("?") {
+        report(attribute.name, "is optional: whether it is there is another component")
+    }
+}
+
+func report(member: String, why: String) {
+    var name = columns.key($component_type)
+    console.error("ECS rule: {name}.{member} {why} (docs/ecs.md#components-hold-data)")
+    broken = broken + 1
+}
