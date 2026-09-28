@@ -39,6 +39,8 @@ func header_now(): Long {
 }
 
 func row_of_entity(entity: Integer): Integer {
+    var looked_up_a_real_entity_not_a_negative_id = entity >= 0
+    crash looked_up_a_real_entity_not_a_negative_id
     var column_header = header_now()
     var capacity = raw.read_long(column_header, 40)
     if capacity <= entity {

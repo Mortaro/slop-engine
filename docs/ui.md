@@ -227,6 +227,9 @@ more markers:
 | `Ui.Component.Hovered` | the mouse is over it |
 | `Ui.Component.Pressed` | a press started on it and is held |
 | `Ui.Component.Clicked` | a press was released over it, this tick |
+| `Ui.Component.RightPressed` | a right press started on it and is held |
+| `Ui.Component.RightClicked` | a right press was released over it, this tick |
+| `Ui.Component.DoubleClicked` | a double click landed on it, this tick (its two clicks are `Clicked` too, as on the web) |
 
 A press only counts when it starts inside the button, and a click only when it also ends inside, so dragging off a
 pressed button cancels it, as on the web. `Clicked` is removed on Interact's next run, so every system sees a click
@@ -246,8 +249,9 @@ up and `Ui.Component.DropTarget` to one that accepts drops. `Ui.System.Interact`
 | `Ui.Component.DropMissed` | a draggable | released over no target, this tick |
 
 - The topmost target is the one painted last (highest `ComputedLayout.order`); a draggable is never its own target.
-- A drag is never a click: releasing a drag gives no `Clicked`, even over the element it started on, so an element
-  can be both a `Button` and `Draggable`, as an inventory slot is.
+- A drag is never a click: the tick a drag ends gives no element a `Clicked`, neither the element it started on
+  nor a `Button` around it (Theseus A79: a skill book row learned its skill when a drag ended inside it), so an
+  element can be both a `Button` and `Draggable`, as an inventory slot is.
 - `Dropped` and `DropMissed` are removed on Interact's next run, as `Clicked` is.
 - The dragged element stays where it is. A game shows what it carries by spawning its own element, positioned from
   `Input.Component.Mouse` and `Dragging`'s grab offset, with a high `ZIndex`, and despawning it when `Dragging` goes.

@@ -94,7 +94,7 @@ func interact(pressable: Pressable, pointer: Pointer, on_bar: Boolean) {
     var clicked_before = Lookup<Ui.Component.Clicked>().has(entity)
     var started_here = pressed_before or mouse.pressed and hovered
     var pressed = started_here and mouse.down
-    var clicked = mouse.released and hovered and started_here and not drag_ended.contains(entity)
+    var clicked = mouse.released and hovered and started_here and drag_ended.is_empty()
     if clicked and not clicked_before {
         var clicked_marker = Ui.Component.Clicked()
         owner.add_component(clicked_marker)
@@ -112,6 +112,38 @@ func interact(pressable: Pressable, pointer: Pointer, on_bar: Boolean) {
         owner.add_component(pressed_marker)
     } else if pressed_before and not pressed {
         owner.remove_component(Ui.Component.Pressed)
+    }
+    interact_other_buttons(pressable, pointer, hovered)
+}
+
+func interact_other_buttons(pressable: Pressable, pointer: Pointer, hovered: Boolean) {
+    var mouse = pointer.mouse
+    var owner = pressable.entity
+    var entity = owner.id
+    var right_before = Lookup<Ui.Component.RightPressed>().has(entity)
+    var right_clicked_before = Lookup<Ui.Component.RightClicked>().has(entity)
+    var double_before = Lookup<Ui.Component.DoubleClicked>().has(entity)
+    var right_started = right_before or mouse.right_pressed and hovered
+    var right_held = right_started and mouse.right_down
+    var right_clicked = mouse.right_released and hovered and right_started
+    var doubled = mouse.double_clicked and hovered
+    if right_held and not right_before {
+        var right_marker = Ui.Component.RightPressed()
+        owner.add_component(right_marker)
+    } else if right_before and not right_held {
+        owner.remove_component(Ui.Component.RightPressed)
+    }
+    if right_clicked and not right_clicked_before {
+        var right_clicked_marker = Ui.Component.RightClicked()
+        owner.add_component(right_clicked_marker)
+    } else if right_clicked_before and not right_clicked {
+        owner.remove_component(Ui.Component.RightClicked)
+    }
+    if doubled and not double_before {
+        var double_marker = Ui.Component.DoubleClicked()
+        owner.add_component(double_marker)
+    } else if double_before and not doubled {
+        owner.remove_component(Ui.Component.DoubleClicked)
     }
 }
 

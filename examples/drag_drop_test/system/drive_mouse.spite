@@ -11,6 +11,9 @@ var overs = Lookup<Ui.Component.DragOver>()
 var drops = Lookup<Ui.Component.Dropped>()
 var misses = Lookup<Ui.Component.DropMissed>()
 var clicks = Lookup<Ui.Component.Clicked>()
+var right_presses = Lookup<Ui.Component.RightPressed>()
+var right_clicks = Lookup<Ui.Component.RightClicked>()
+var double_clicks = Lookup<Ui.Component.DoubleClicked>()
 var mouse_move = 512
 var button_down = 513
 var button_up = 514
@@ -62,7 +65,44 @@ func update_each(driven: Driven) {
         post(handle, button_up, 0, source_x, source_y)
         progress.step = 9
     } else if step == 9 and progress.clicks_seen > 0 {
+        post(handle, mouse_move, 0, source_x, source_y)
+        post(handle, button_down, left_held, source_x, source_y)
         progress.step = 10
+    } else if step >= 10 {
+        later_steps(progress, handle, source_x, source_y)
+    }
+}
+
+func later_steps(progress: Component.Progress, handle: Long, source_x: Integer, source_y: Integer) {
+    var step = progress.step
+    if step >= 10 and step <= 13 and clicks.has(progress.holder) {
+        progress.holder_clicks_in_drag = progress.holder_clicks_in_drag + 1
+    }
+    if step == 10 and presses.has(progress.source) {
+        post(handle, mouse_move, left_held, source_x + 20, source_y)
+        progress.step = 11
+    } else if step == 11 and drags.has(progress.source) {
+        post(handle, button_up, 0, source_x + 20, source_y)
+        progress.step = 12
+    } else if step == 12 and misses.has(progress.source) {
+        progress.step = 13
+    } else if step == 13 {
+        post(handle, mouse_move, 0, source_x, source_y)
+        post(handle, 516, 2, source_x, source_y)
+        progress.step = 14
+    } else if step == 14 and right_presses.has(progress.source) {
+        post(handle, 517, 0, source_x, source_y)
+        progress.step = 15
+    } else if step == 15 and right_clicks.has(progress.source) {
+        progress.right_clicked = true
+        post(handle, button_down, left_held, source_x, source_y)
+        post(handle, button_up, 0, source_x, source_y)
+        post(handle, 515, left_held, source_x, source_y)
+        post(handle, button_up, 0, source_x, source_y)
+        progress.step = 16
+    } else if step == 16 and double_clicks.has(progress.source) {
+        progress.double_clicked = true
+        progress.step = 17
     }
 }
 
