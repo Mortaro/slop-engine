@@ -1,8 +1,10 @@
 var path = ""
 var offset: Long = 0
 var length: Long = 0
+var id = ""
 
-func ArrayLoad(found: Recipes.Record) {
+func ArrayLoad(found: Recipes.Record, cooked_id: String) {
+    id = cooked_id
     path = found.path
     offset = found.offset
     length = found.length
@@ -14,6 +16,12 @@ func run(): Scene.LoadedArray {
     record.offset = offset
     record.length = length
     var bytes = record.read()
+    var magic = bytes.read_text()
+    var stored_kind = bytes.read_text()
+    bytes.position = 0
+    var array_id = id
+    var cooked_as_a_texture_array = magic == "SLOP" and stored_kind == "TextureArray"
+    crash cooked_as_a_texture_array or array_id == ""
     var pack = Pack<Asset.TextureArray>()
     var array = pack.decode(bytes)
     crash array

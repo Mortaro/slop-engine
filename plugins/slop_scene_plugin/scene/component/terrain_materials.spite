@@ -141,7 +141,7 @@ func start_array(reader: Recipes.CacheReader, slot: Integer, which: Integer, id:
         report_console.print("asset never cooked:", never_cooked_id)
     }
     crash record
-    var job = Scene.ArrayLoad(record)
+    var job = Scene.ArrayLoad(record, never_cooked_id)
     var loading = Parallel(job.run)
     array_loads.append(loading)
     array_load_places.append(slot * arrays_per_material + which)

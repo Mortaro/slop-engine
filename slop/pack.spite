@@ -35,7 +35,11 @@ func decode(bytes: Asset.Bytes): $value_type? {
     var stored_kind = bytes.read_text()
     var stored_schema = bytes.read_long()
     var expected_schema = schema()
-    assert magic == "SLOP" and stored_kind == kind() and stored_schema == expected_schema
+    var expected_kind = kind()
+    var stored_as_this_kind = magic == "SLOP" and stored_kind == expected_kind
+    crash stored_as_this_kind or stored_kind == expected_kind
+    var stored_with_this_schema = stored_schema == expected_schema
+    crash stored_with_this_schema or stored_schema == expected_schema
     var value: $value_type = $value_type()
     read_into(value, bytes)
     return value
