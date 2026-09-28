@@ -45,6 +45,6 @@ func begin() {
 
 func projection(aspect: Float): Math.Matrix4 {
     var result = Math.Matrix4()
-    result.set_perspective(field_of_view, aspect, near, far)
+    result.set_reversed_perspective(field_of_view, aspect, near, far)
     return result
 }

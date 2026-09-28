@@ -362,7 +362,7 @@ func create_shadow_pipeline(renderer: RenderVulkan.Component.Renderer): Long {
     multisample.append_long(0)
     multisample.append_integer(0)
     multisample.append_integer(0)
-    var depth = depth_state()
+    var depth = depth_state(1)
     var blend = RenderVulkan.Structure(64)
     blend.append_integer(26)
     blend.append_long(0)
@@ -809,7 +809,7 @@ func create_pipeline(renderer: RenderVulkan.Component.Renderer) {
     multisample.append_long(0)
     multisample.append_integer(0)
     multisample.append_integer(0)
-    var depth = depth_state()
+    var depth = depth_state(4)
     var blend = blend_state()
     var dynamic_states = RenderVulkan.Structure(8)
     dynamic_states.append_integer(0)
@@ -903,14 +903,14 @@ func append_attribute(attributes: RenderVulkan.Structure, location: Integer, for
     attributes.append_integer(offset)
 }
 
-func depth_state(): RenderVulkan.Structure {
+func depth_state(compare: Integer): RenderVulkan.Structure {
     var state = RenderVulkan.Structure(104)
     state.append_integer(25)
     state.append_long(0)
     state.append_integer(0)
     state.append_integer(1)
     state.append_integer(1)
-    state.append_integer(1)
+    state.append_integer(compare)
     state.append_integer(0)
     state.append_integer(0)
     var field = 0
@@ -1305,7 +1305,7 @@ func begin_rendering(renderer: RenderVulkan.Component.Renderer, view: Scene.Comp
     depth.append_integer(0)
     depth.append_integer(1)
     depth.append_integer(1)
-    depth.append_float(1.0)
+    depth.append_float(0.0)
     depth.append_integer(0)
     depth.append_integer(0)
     depth.append_integer(0)

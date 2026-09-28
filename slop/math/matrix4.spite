@@ -68,6 +68,17 @@ func set_perspective(field_of_view: Float, aspect: Float, near: Float, far: Floa
     m15 = 0.0
 }
 
+func set_reversed_perspective(field_of_view: Float, aspect: Float, near: Float, far: Float) {
+    var focal = 1.0 / scalar.tangent(field_of_view * 0.5)
+    clear()
+    m0 = focal / aspect
+    m5 = 0.0 - focal
+    m10 = near / (far - near)
+    m11 = -1.0
+    m14 = near * far / (far - near)
+    m15 = 0.0
+}
+
 func set_orthographic(half_width: Float, half_height: Float, near: Float, far: Float) {
     clear()
     m0 = 1.0 / half_width
