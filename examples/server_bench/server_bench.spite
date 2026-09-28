@@ -45,8 +45,6 @@ func check_queries() {
     var transforms = Lookup<Transform.Component.Transform>()
     var probe = transforms.of(first_player)
     crash probe
-    var probe_x = probe.position_x
-    var probe_z = probe.position_z
     grid.clear()
     var indexed = 0
     while indexed <= last_spawned {
@@ -54,11 +52,11 @@ func check_queries() {
         indexed = indexed + 1
     }
     var found = Vector<Integer>()
-    grid.within(0, probe_x, probe_z, 60.0, found)
+    grid.within(0, probe.position_x, probe.position_z, 60.0, found)
     var brute = 0
     var entity = 0
     while entity <= last_spawned {
-        brute = brute + inside(transforms, entity, probe_x, probe_z)
+        brute = brute + inside(transforms, entity, probe.position_x, probe.position_z)
         entity = entity + 1
     }
     var from_grid = found.count()

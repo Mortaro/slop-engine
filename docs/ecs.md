@@ -276,15 +276,11 @@ share one `Column<Entity>` and keep one list per relation.
 
 Values are stored one of two ways:
 
-- **Inline**: every component that fits a `Vector` (its fields are numbers, `Boolean`, enums or `String`) is kept
-  in an `Items<T>` (D218), contiguous in memory. Nothing is declared; `Column.inline()` works it out at compile
-  time, and `Row` and `Stream` test the same thing.
-- **By reference**: any other component (one holding a list, another object, a nullable field) is a `List<T>`. A
-  system's row holds the stored object, so writing a field changes the component.
-
-`Lookup<T>().of(entity)` lends the stored item either way (D230), so writing a field of what it returns changes the
-component. A borrowed result can't be replaced: `var layout = lookup.of(entity)` followed by `layout = made` is a
-compile error, so pass the found and the new item to a small writer function instead.
+- **By reference** (the default): a `List<T>`. A system's row holds the stored object, so writing a field changes
+  the component.
+- **Inline** (proposal by Claude, for Mortaro to decide): a component that declares
+  `func stored_inline(): Boolean { return true }` and fits a `Vector` (numbers, `Boolean`, enums, `String`) is
+  kept in an `Items<T>` (D218), contiguous in memory.
 
 A system with one row and no `Added`, `Removed` or relation field runs on the fast path, `Stream<System, Row>`. It
 walks the driver column and fills each row straight from the columns (D217): inline items are borrowed and written
@@ -293,7 +289,9 @@ it with `phase.argument_count() == 1` (D219), so systems with several rows still
 path. Other rows get a copy of inline items, which is written back after the system runs.
 
 A `_all` system's rows are written back after it runs, like a single row's, so writing a field of an inline
-component in a list sticks.
+component in a list sticks. The opt-in goes away (Mortaro, 2026-09-27: the engine should work this out, not the
+game): once a `Lookup` result can lend the stored item instead of a copy (D230, being built), every component that
+fits a `Vector` is stored inline with nothing declared.
 
 ## IO systems
 

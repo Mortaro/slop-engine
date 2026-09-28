@@ -32,7 +32,7 @@ func prepare() {
 }
 
 func describe_attribute(attribute: Symbol<$row_type>, row: $row_type) {
-    if attribute.class.fits_vector() and attribute.class != Entity {
+    if attribute.class.has_function("stored_inline") and attribute.class.fits_vector() {
         holds_copies = true
     }
     var name = attribute.name

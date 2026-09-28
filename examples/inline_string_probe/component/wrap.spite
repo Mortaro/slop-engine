@@ -1,6 +1,0 @@
-enum Mode {
-    'no_wrap'
-    'wrap'
-}
-
-var value: Mode = 'no_wrap'

@@ -3,6 +3,10 @@ var remaining = 0
 var repeating = false
 var rang = false
 
+func stored_inline(): Boolean {
+    return true
+}
+
 func start(milliseconds: Integer, repeat: Boolean) {
     period = milliseconds
     remaining = milliseconds

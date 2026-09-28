@@ -73,10 +73,10 @@ func insert(entity: Integer, value: $component_type) {
 }
 
 func inline(): Boolean {
-    if $component_type == Entity {
-        return false
+    if $component_type.has_function("stored_inline") and $component_type.fits_vector() {
+        return true
     }
-    return $component_type.fits_vector()
+    return false
 }
 
 func references_of(name: String): List<$component_type> {

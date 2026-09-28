@@ -46,12 +46,14 @@ func spawn_timer(milliseconds: Integer, repeat: Boolean): Integer {
 func pace(app: App) {
     app.frame_milliseconds = 25
     var started = clock.elapsed_milliseconds()
+    var frames = Lookup<Component.Frame>()
+    var frame = frames.of(world.entity)
+    crash frame
+    var stop_at = frame.count + 40
     app.begin_pacing()
-    var ticks = 0
-    while ticks < 40 {
+    while frame.count < stop_at {
         app.tick()
         app.wait_for_next_tick()
-        ticks = ticks + 1
     }
     var took = clock.elapsed_milliseconds() - started
     console.print("forty ticks at 25 ms took", took, "milliseconds")

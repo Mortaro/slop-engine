@@ -1,1 +1,5 @@
 var visible = 0
+
+func stored_inline(): Boolean {
+    return true
+}

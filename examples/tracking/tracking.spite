@@ -4,8 +4,8 @@ var world = World()
 func Tracking() {
     load "../../slop"
     var app = App()
-    var starting_tally = Component.Tally()
-    world.as_entity().add_component(starting_tally)
+    var tally = Component.Tally()
+    world.as_entity().add_component(tally)
     var bell_bundle = BellBundle()
     world.create_entity_from_bundle(bell_bundle)
     var tick = 0

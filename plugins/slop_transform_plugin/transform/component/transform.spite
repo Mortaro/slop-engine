@@ -25,3 +25,7 @@ func matrix(): Math.Matrix4 {
     )
     return result
 }
+
+func stored_inline(): Boolean {
+    return true
+}

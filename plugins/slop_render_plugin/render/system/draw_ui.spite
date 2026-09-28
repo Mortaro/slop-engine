@@ -78,7 +78,7 @@ func paint_element(target: Target, element: Element) {
     }
     var image = Lookup<Ui.Component.BackgroundImage>().of(entity)
     if image {
-        paint_image(target, layout, image.texture)
+        paint_image(target, layout, image)
     }
     var text = Lookup<Ui.Component.Text>().of(entity)
     assert text
@@ -91,10 +91,10 @@ func paint_element(target: Target, element: Element) {
     draw_list.append_rectangle(caret_left, layout.content_top, text.scale, 7 * text.scale, text.color)
 }
 
-func paint_image(target: Target, layout: Ui.Component.ComputedLayout, texture_name: String) {
-    assert texture_name != ""
+func paint_image(target: Target, layout: Ui.Component.ComputedLayout, image: Ui.Component.BackgroundImage) {
+    assert image.texture != ""
     var textures = target.textures
-    var texture = textures.request(texture_name)
+    var texture = textures.request(image.texture)
     assert textures.is_ready(texture)
     target.draw_list.append_image(layout.left, layout.top, layout.width, layout.height, texture)
 }
