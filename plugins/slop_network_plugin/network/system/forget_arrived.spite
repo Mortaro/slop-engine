@@ -1,10 +1,83 @@
 type Delivered {
     entity: Entity
     arrived: Network.Component.Arrived
+    sender: Network.Component.Sender
 }
 
 var world = World()
+var console = Console()
+var connections = Lookup<Network.Component.Connection>()
+var pending_limit = 256
+var pending_connections = List<Integer>()
+var pending_counts = List<Integer>()
+var oldest_messages = List<Integer>()
+var held = false
+var held_name = ""
 
-func last_each(delivered: Delivered) {
-    world.despawn(delivered.entity.id)
+func last_all(delivered: List<Delivered>) {
+    pending_connections.clear()
+    pending_counts.clear()
+    oldest_messages.clear()
+    var index = 0
+    while index < delivered.count() {
+        forget_or_keep(delivered[index])
+        index = index + 1
+    }
+    index = 0
+    while index < pending_connections.count() {
+        close_if_flooded(index)
+        index = index + 1
+    }
+}
+
+func forget_or_keep(message: Delivered) {
+    var connection = connections.of(message.sender.connection)
+    var open = false
+    if connection {
+        open = not connection.stream.closed
+    }
+    held = false
+    holds_components(message.entity, message.arrived.message)
+    if not open or not held {
+        world.despawn(message.entity.id)
+        return
+    }
+    count_pending(message.sender.connection, message.arrived.message)
+}
+
+func holds_component(component: Symbol<Component>, entity: Entity, message: Integer) {
+    var codec = Network.Codec<component.class>()
+    if codec.replicated() and codec.id() == message {
+        var holders = Lookup<component.class>()
+        held = holders.has(entity.id)
+        held_name = codec.key()
+    }
+}
+
+func count_pending(connection: Integer, message: Integer) {
+    var index = 0
+    while index < pending_connections.count() {
+        if pending_connections.get_at(index) == connection {
+            var counted = pending_counts.get_at(index)
+            pending_counts.set_at(index, counted + 1)
+            return
+        }
+        index = index + 1
+    }
+    pending_connections.append(connection)
+    pending_counts.append(1)
+    oldest_messages.append(message)
+}
+
+func close_if_flooded(index: Integer) {
+    var count = pending_counts.get_at(index)
+    assert count > pending_limit
+    var connection_id = pending_connections.get_at(index)
+    var connection = connections.of(connection_id)
+    crash connection
+    var oldest = oldest_messages.get_at(index)
+    var anywhere = world.as_entity()
+    holds_components(anywhere, oldest)
+    console.error("closing connection {connection_id}: {count} messages nobody handled, the oldest a {held_name}")
+    connection.stream.closed = true
 }
