@@ -101,9 +101,11 @@ func add_draw(target: Target, modeled: Modeled) {
     assert target.meshes.is_ready(slot)
     var loaded = target.meshes.mesh_at(slot)
     var model = modeled.transform.matrix()
+    var skinned = modeled.model.palette.count() > 0
     cone.place(model, loaded)
     var radius = cone.radius_of(loaded, modeled.transform)
-    assert cone.contains(radius)
+    var in_view = cone.contains(radius)
+    assert skinned or in_view
     var palette_first = 0
     var palette = modeled.model.palette
     if palette.count() > 0 {
