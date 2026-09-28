@@ -24,7 +24,9 @@ var glyph_risers = List<Integer>()
 var pending_sizes = List<Integer>()
 var pending_codes = List<Integer>()
 var waiting_faces = List<String>()
-var atlas_side = 1024
+var first_atlas_side = 256
+var largest_atlas_side = 4096
+var atlas_sides = List<Integer>()
 var glyphs_per_frame = 32
 var outline = TrueType.Outline()
 var rasterizer = TrueType.Rasterizer()
@@ -60,20 +62,11 @@ func size_slot(font: String, face_index: Integer, pixels: Integer): Integer {
     ascents.append(ascent)
     line_heights.append(line_height)
     var atlas = Asset.Texture()
-    atlas.width = atlas_side
-    atlas.height = atlas_side
-    while atlas.pixels.count() < atlas_side * atlas_side {
-        atlas.pixels.append(16777215)
-    }
-    atlases.append(atlas)
     var texels = Asset.Bytes()
-    texels.reserve(atlas_side * atlas_side * 4 + 4)
-    var blank = 0
-    while blank < atlas_side * atlas_side {
-        texels.write_integer(16777215)
-        blank = blank + 1
-    }
+    fill_blank(atlas, texels, first_atlas_side)
+    atlases.append(atlas)
     atlas_texels.append(texels)
+    atlas_sides.append(first_atlas_side)
     atlas_changed.append(false)
     shelf_lefts.append(1)
     shelf_tops.append(1)
@@ -203,10 +196,13 @@ func add_glyph(size: Integer, codepoint: Integer) {
     }
     var place = glyph_lefts.count()
     var packed = pack(size, bitmap.width, bitmap.height)
-    var atlas_has_room = packed >= 0
-    crash atlas_has_room
-    var left = packed % atlas_side
-    var top = packed / atlas_side
+    while packed < 0 {
+        grow(size)
+        packed = pack(size, bitmap.width, bitmap.height)
+    }
+    var side = atlas_sides.get_at(size)
+    var left = packed % side
+    var top = packed / side
     copy_into_atlas(size, left, top)
     glyph_lefts.append(left)
     glyph_tops.append(top)
@@ -228,6 +224,7 @@ func pack(size: Integer, width: Integer, height: Integer): Integer {
     var left = shelf_lefts.get_at(size)
     var top = shelf_tops.get_at(size)
     var shelf = shelf_heights.get_at(size)
+    var atlas_side = atlas_sides.get_at(size)
     if left + width + 1 > atlas_side {
         top = top + shelf + 1
         left = 1
@@ -248,6 +245,7 @@ func pack(size: Integer, width: Integer, height: Integer): Integer {
 func copy_into_atlas(size: Integer, left: Integer, top: Integer) {
     var atlas = atlases.get_at(size)
     var texels = atlas_texels.get_at(size)
+    var atlas_side = atlas_sides.get_at(size)
     var row = 0
     while row < bitmap.height {
         var column = 0
@@ -261,6 +259,66 @@ func copy_into_atlas(size: Integer, left: Integer, top: Integer) {
             column = column + 1
         }
         row = row + 1
+    }
+}
+
+func fill_blank(atlas: Asset.Texture, texels: Asset.Bytes, side: Integer) {
+    atlas.width = side
+    atlas.height = side
+    while atlas.pixels.count() < side * side {
+        atlas.pixels.append(16777215)
+    }
+    texels.reserve(side * side * 4 + 4)
+    var blank = 0
+    while blank < side * side {
+        texels.write_integer(16777215)
+        blank = blank + 1
+    }
+}
+
+func grow(size: Integer) {
+    var old_side = atlas_sides.get_at(size)
+    var side = old_side * 2
+    var atlas_fits_the_largest_side = side <= largest_atlas_side
+    crash atlas_fits_the_largest_side
+    var old_atlas = atlases.get_at(size)
+    var old_texels = atlas_texels.get_at(size)
+    var atlas = Asset.Texture()
+    var texels = Asset.Bytes()
+    fill_blank(atlas, texels, side)
+    var row = 0
+    while row < old_side {
+        copy_row(old_atlas, old_texels, old_side, atlas, texels, side, row)
+        row = row + 1
+    }
+    atlases.set_at(size, atlas)
+    atlas_texels.set_at(size, texels)
+    atlas_sides.set_at(size, side)
+    if not atlas_changed.contains(true) {
+        var marker = Ui.Component.AtlasChanged()
+        var shelf = world.as_entity()
+        shelf.add_component(marker)
+    }
+    atlas_changed.set_at(size, true)
+}
+
+func copy_row(
+    old_atlas: Asset.Texture,
+    old_texels: Asset.Bytes,
+    old_side: Integer,
+    atlas: Asset.Texture,
+    texels: Asset.Bytes,
+    side: Integer,
+    row: Integer,
+) {
+    var source = old_texels.address + row * old_side * 4
+    var target = texels.address + row * side * 4
+    raw.copy(source, target, old_side * 4)
+    var column = 0
+    while column < old_side {
+        var texel = old_atlas.pixels.get_at(row * old_side + column)
+        atlas.pixels.set_at(row * side + column, texel)
+        column = column + 1
     }
 }
 

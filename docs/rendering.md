@@ -34,9 +34,9 @@ size / rectangle size, in integers) and blended with straight alpha,
   buffer, offscreen target and in-flight staging buffers, and a frame waits only for the fence of the frame two
   before it.
 
-A texture that finished loading is staged with one `memcpy` and its copy is recorded at the start of the frame's own
-command buffer, at most `upload_budget_bytes` (8 MiB) per frame; its staging buffer is freed when that frame's
-fence has passed. A draw whose texture is not resident yet is skipped, as it is before the texture has loaded. See
+A texture that finished loading is copied into the frame's persistent staging buffer and from there into its image
+by the frame's own command buffer, at most `upload_budget_bytes` (4 MiB) per frame, shared with mesh uploads. A
+larger texture streams in bands of rows over several frames and replaces the old image only after its last band. A draw whose texture is not resident yet is skipped, as it is before the texture has loaded. See
 [performance.md](performance.md#no-stutters). The device is released by
 `ReleaseRenderer` in the final tick after quit, not at program exit.
 

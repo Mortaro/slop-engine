@@ -12,8 +12,19 @@ var frames = List<RenderVulkan.Frame>()
 var frame = RenderVulkan.Frame()
 var frame_number = 0
 var frames_in_flight = 2
-var upload_budget_bytes = 8388608
-var staged_bytes = 0
+var upload_budget_bytes = 4194304
+var frame_staged = 0
+var stream_index = -1
+var stream_slot = 0
+var stream_generation = 0
+var stream_image: Long = 0
+var stream_memory: Long = 0
+var stream_width = 0
+var stream_height = 0
+var stream_mips = 0
+var stream_row = 0
+var stream_pixels = Asset.Bytes()
+var stream_cursor = 0
 var presentation_semaphores = List<Long>()
 var shader_vertex: Long = 0
 var shader_fragment: Long = 0
@@ -504,33 +515,134 @@ func ensure_slots(count: Integer) {
         texture_images.append(0)
         texture_memories.append(0)
         texture_views.append(0)
-        texture_generations.append(0)
+        texture_generations.append(-1)
     }
 }
 
-func ensure_textures(textures: Render.Component.Textures) {
-    var wanted = textures.textures.count() + 1
-    ensure_slots(wanted)
-    staged_bytes = 0
+func stream_textures(textures: Render.Component.Textures) {
+    var count = textures.textures.count()
+    ensure_slots(count + 1)
+    ensure_staging()
+    frame_staged = 0
+    var looked = 0
+    while frame_staged < upload_budget_bytes and (stream_index >= 0 or looked < count) {
+        if stream_index < 0 {
+            looked = looked + 1
+            try_start(textures, count)
+        } else {
+            stream_band()
+        }
+    }
+}
+
+func uploads_pending(textures: Render.Component.Textures): Boolean {
+    if stream_index >= 0 {
+        return true
+    }
+    var count = textures.textures.count()
+    ensure_slots(count + 1)
     var slot = 0
-    while slot < textures.textures.count() {
-        upload_if_ready(textures, slot)
+    while slot < count {
+        if outdated(textures, slot) {
+            return true
+        }
         slot = slot + 1
     }
+    return false
 }
 
-func upload_if_ready(textures: Render.Component.Textures, slot: Integer) {
-    crash texture_sets[slot + 1]
+func outdated(textures: Render.Component.Textures, slot: Integer): Boolean {
     crash texture_generations[slot + 1]
     var generation = textures.generation(slot)
-    var outdated = texture_sets[slot + 1] == 0 or texture_generations[slot + 1] != generation
-    assert outdated and textures.is_ready(slot)
+    return textures.is_ready(slot) and texture_generations[slot + 1] != generation
+}
+
+func ensure_staging() {
+    assert frame.staging_buffer == 0
+    var transfer_source = 1
+    frame.staging_buffer = create_buffer(upload_budget_bytes, transfer_source)
+    frame.staging_memory = host_memory_for(frame.staging_buffer)
+    frame.staging_mapped = map(frame.staging_memory, upload_budget_bytes)
+}
+
+func try_start(textures: Render.Component.Textures, count: Integer) {
+    assert count > 0
+    var slot = stream_cursor % count
+    stream_cursor = slot + 1
+    assert outdated(textures, slot)
     var texture = textures.texture(slot)
-    var raw = textures.raw(slot)
-    var within_budget = staged_bytes + raw.length <= upload_budget_bytes
-    assert staged_bytes == 0 or within_budget
-    staged_bytes = staged_bytes + raw.length
-    stage_pixels(slot + 1, texture.width, texture.height, raw, generation)
+    var pixels = textures.raw(slot)
+    var pixels_match_the_size = pixels.length == texture.width * texture.height * 4
+    crash pixels_match_the_size
+    stream_index = slot + 1
+    stream_slot = slot
+    stream_generation = textures.generation(slot)
+    stream_width = texture.width
+    stream_height = texture.height
+    stream_mips = mip_count_of(texture.width, texture.height)
+    stream_row = 0
+    stream_pixels = pixels
+    stream_image = create_texture_image(stream_width, stream_height, stream_mips)
+    stream_memory = created_memory
+    level_barrier(stream_image, 0, 4096, 0, 7, 1, 4096, 0, stream_mips)
+}
+
+func stream_band() {
+    var row_bytes = stream_width * 4
+    var row_fits_the_budget = row_bytes <= upload_budget_bytes
+    crash row_fits_the_budget
+    var room = upload_budget_bytes - frame_staged
+    var rows = room / row_bytes
+    if rows == 0 {
+        frame_staged = upload_budget_bytes
+        return
+    }
+    var left = stream_height - stream_row
+    if rows > left {
+        rows = left
+    }
+    var bytes = rows * row_bytes
+    var source = stream_pixels.address + stream_row * row_bytes
+    raw.copy(source, frame.staging_mapped + frame_staged, bytes)
+    var region = Structure(56)
+    var offset: Long = frame_staged
+    region.append_long(offset)
+    region.append_integer(0)
+    region.append_integer(0)
+    append_color_layers(region)
+    region.append_integer(0)
+    region.append_integer(stream_row)
+    region.append_integer(0)
+    region.append_integer(stream_width)
+    region.append_integer(rows)
+    region.append_integer(1)
+    vulkan.vkCmdCopyBufferToImage(frame.command_buffer, frame.staging_buffer, stream_image, 7, 1, region.address)
+    frame_staged = frame_staged + bytes
+    stream_row = stream_row + rows
+    if stream_row == stream_height {
+        finish_stream()
+    }
+}
+
+func finish_stream() {
+    record_mips(stream_image, stream_width, stream_height, stream_mips)
+    var index = stream_index
+    crash texture_sets[index]
+    if texture_sets[index] != 0 {
+        retire_slot(index)
+    }
+    var view = create_view_levels(stream_image, 37, stream_mips)
+    var set = allocate_texture_set(view)
+    texture_images.set_at(index, stream_image)
+    texture_memories.set_at(index, stream_memory)
+    texture_views.set_at(index, view)
+    texture_sets.set_at(index, set)
+    texture_generations.set_at(index, stream_generation)
+    stream_index = -1
+    stream_image = 0
+    stream_memory = 0
+    var released = Asset.Bytes()
+    stream_pixels = released
 }
 
 func stage_pixels(index: Integer, width: Integer, height: Integer, pixels: Asset.Bytes, generation: Integer) {
@@ -613,6 +725,12 @@ func record_upload(index: Integer) {
     region.append_integer(height)
     region.append_integer(1)
     vulkan.vkCmdCopyBufferToImage(frame.command_buffer, staging, image, 7, 1, region.address)
+    record_mips(image, width, height, mips)
+}
+
+func record_mips(image: Long, top_width: Integer, top_height: Integer, mips: Integer) {
+    var width = top_width
+    var height = top_height
     var level = 1
     while level < mips {
         level_barrier(image, 4096, 2048, 7, 6, 4096, 4096, level - 1, 1)
@@ -1025,6 +1143,35 @@ func create_buffer(bytes: Integer, usage: Integer): Long {
     return created.read_long(0)
 }
 
+func device_memory_for(buffer: Long): Long {
+    var requirements = Structure(24)
+    vulkan.vkGetBufferMemoryRequirements(device, buffer, requirements.address)
+    var device_local = 1
+    var buffer_memory = allocate_memory(requirements, device_local)
+    var no_offset: Long = 0
+    var result = vulkan.vkBindBufferMemory(device, buffer, buffer_memory, no_offset)
+    crash result == 0
+    return buffer_memory
+}
+
+func staging_room(): Integer {
+    return upload_budget_bytes - frame_staged
+}
+
+func stage(source: Long, count: Integer): Integer {
+    var fits = count > 0 and count <= staging_room()
+    crash fits
+    var offset = frame_staged
+    raw.copy(source, frame.staging_mapped + offset, count)
+    frame_staged = frame_staged + count
+    return offset
+}
+
+func release_later(buffer: Long, buffer_memory: Long) {
+    frame.in_flight_stagings.append(buffer)
+    frame.in_flight_staging_memories.append(buffer_memory)
+}
+
 func host_memory_for(buffer: Long): Long {
     var requirements = Structure(24)
     vulkan.vkGetBufferMemoryRequirements(device, buffer, requirements.address)
@@ -1412,12 +1559,24 @@ func draw_offscreen(draw_list: Render.Component.DrawList, textures: Render.Compo
     while not pipeline_ready() {
         offscreen_program.sleep(1)
     }
+    while uploads_pending(textures) {
+        upload_only_frame(textures)
+    }
     begin_frame()
-    ensure_textures(textures)
     begin_commands()
     record_uploads()
     record_rectangles(draw_list)
     record_capture()
+    var no_semaphore: Long = 0
+    submit(false, no_semaphore)
+    wait_frame()
+}
+
+func upload_only_frame(textures: Render.Component.Textures) {
+    begin_frame()
+    begin_commands()
+    record_uploads()
+    stream_textures(textures)
     var no_semaphore: Long = 0
     submit(false, no_semaphore)
     wait_frame()
@@ -1607,10 +1766,10 @@ func begin_window_frame(
         return
     }
     crash acquired == 0 or acquired == 1000001003
-    ensure_textures(textures)
     swapchain.acquired = chosen.read_integer(0)
     begin_commands()
     record_uploads()
+    stream_textures(textures)
     ensure_target(draw_list.width, draw_list.height)
     frame.scene_drawn = false
 }
@@ -1722,11 +1881,29 @@ func release_frames() {
         release_target()
         release_rectangle_buffer()
         release_in_flight(frame)
+        release_staging(frame)
         vulkan.vkDestroySemaphore(device, frame.image_ready, no_allocator)
         vulkan.vkDestroyFence(device, frame.fence, no_allocator)
         index = index + 1
     }
     release_unrecorded_uploads()
+    release_stream()
+}
+
+func release_staging(finished: RenderVulkan.Frame) {
+    var no_allocator: Long = 0
+    assert finished.staging_buffer != 0
+    vulkan.vkDestroyBuffer(device, finished.staging_buffer, no_allocator)
+    vulkan.vkFreeMemory(device, finished.staging_memory, no_allocator)
+    finished.staging_buffer = 0
+}
+
+func release_stream() {
+    var no_allocator: Long = 0
+    assert stream_image != 0
+    vulkan.vkDestroyImage(device, stream_image, no_allocator)
+    vulkan.vkFreeMemory(device, stream_memory, no_allocator)
+    stream_image = 0
 }
 
 func release_unrecorded_uploads() {
