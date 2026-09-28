@@ -1,5 +1,7 @@
-var lights = Scene.Lights()
+type Lit {
+    lights: Scene.Component.Lights
+}
 
-func prepare_each() {
-    lights.clear()
+func prepare_each(lit: Lit) {
+    lit.lights.clear()
 }

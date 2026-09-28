@@ -1,14 +1,17 @@
+type Lit {
+    lights: Scene.Component.Lights
+}
+
 type Spotted {
     light: Lighting.Component.SpotLight
     transform: Transform.Component.Transform
 }
 
-var lights = Scene.Lights()
 var light = Scene.Light()
 var scalar = Math.Scalar()
 var axis = Math.Vector3()
 
-func render_each(spotted: Spotted) {
+func render_each(lit: Lit, spotted: Spotted) {
     var spot = spotted.light
     var at = spotted.transform
     light.position_x = at.position_x
@@ -32,5 +35,5 @@ func render_each(spotted: Spotted) {
     }
     light.cone_scale = 1.0 / spread
     light.cone_offset = 0.0 - cosine_outer * light.cone_scale
-    lights.add(light)
+    lit.lights.add(light)
 }

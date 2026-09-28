@@ -6,11 +6,12 @@ type Target {
     view: Scene.Component.View
     meshes: Scene.Component.Meshes
     terrain_materials: Scene.Component.TerrainMaterials
+    lights: Scene.Component.Lights
 }
 
 func after_render_each(target: Target) {
     var renderer = target.renderer
     assert not target.window.closed and renderer.device != 0
     assert target.swapchain.acquired >= 0 and target.view.has_camera
-    target.mesh_renderer.record(renderer, target.view, target.meshes, target.terrain_materials)
+    target.mesh_renderer.record(renderer, target.view, target.meshes, target.terrain_materials, target.lights)
 }

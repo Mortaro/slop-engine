@@ -7,6 +7,8 @@ func after_input_each(created: NewWindow) {
     var window = created.entity
     var meshes = Component.Meshes()
     window.add_component(meshes)
+    var lights = Component.Lights()
+    window.add_component(lights)
     var terrain_materials = Component.TerrainMaterials()
     window.add_component(terrain_materials)
     var view = Component.View()

@@ -20,7 +20,6 @@ var lighting_memories = List<Long>()
 var lighting_mapped = List<Long>()
 var lighting_bytes = 256
 var clusters = Scene.LightClusters()
-var lights = Scene.Lights()
 var terrain = SceneVulkan.TerrainPass()
 var sections_per_mesh = 64
 var key_counts = Vector<Integer>()
@@ -86,6 +85,7 @@ func record(
     view: Scene.Component.View,
     meshes: Scene.Component.Meshes,
     terrain_materials: Scene.Component.TerrainMaterials,
+    lights: Scene.Component.Lights,
 ) {
     assert created or shaders_ready(renderer)
     ensure_created(renderer)
@@ -97,9 +97,9 @@ func record(
     var height: Float = frame.target_height
     aspect = aspect / height
     view.aspect = aspect
-    clusters.assign(view, aspect)
+    clusters.assign(view, lights, aspect)
     write_frame_data(renderer, view, slot)
-    write_local_lights(renderer, view, slot)
+    write_local_lights(renderer, view, lights, slot)
     terrain.upload_step(renderer, terrain_materials)
     release_retired_scene_sets(renderer)
     aim_sun(view)
@@ -515,7 +515,12 @@ func write_lighting(view: Scene.Component.View, slot: Integer) {
     put(at, 60, clusters.near, clusters.slice_scale, clusters.across_scale, clusters.down_scale)
 }
 
-func write_local_lights(renderer: RenderVulkan.Component.Renderer, view: Scene.Component.View, slot: Integer) {
+func write_local_lights(
+    renderer: RenderVulkan.Component.Renderer,
+    view: Scene.Component.View,
+    lights: Scene.Component.Lights,
+    slot: Integer,
+) {
     var visible_count = clusters.visible.count()
     var index_count = clusters.index_count
     ensure_light_buffers(renderer, slot, visible_count, index_count)
@@ -1019,7 +1024,12 @@ func vertex_input_state(): RenderVulkan.Structure {
     return state
 }
 
-func append_attribute(attributes: RenderVulkan.Structure, location: Integer, format: Integer, offset: Integer) {
+func append_attribute(
+    attributes: RenderVulkan.Structure,
+    location: Integer,
+    format: Integer,
+    offset: Integer,
+) {
     attributes.append_integer(location)
     attributes.append_integer(0)
     attributes.append_integer(format)
@@ -1669,7 +1679,12 @@ func whole_buffer(buffer: Long): RenderVulkan.Structure {
     return information
 }
 
-func append_write(writes: RenderVulkan.Structure, set: Long, binding: Integer, information: RenderVulkan.Structure) {
+func append_write(
+    writes: RenderVulkan.Structure,
+    set: Long,
+    binding: Integer,
+    information: RenderVulkan.Structure,
+) {
     writes.append_integer(35)
     writes.append_long(0)
     writes.append_long(set)

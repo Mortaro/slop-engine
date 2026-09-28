@@ -5,13 +5,13 @@ type Animated {
 
 type Shelf {
     library: Animation.Component.Library
+    frame: Component.Frame
 }
 
-var tick = Tick()
 var sampler = Animation.Sampler()
 
 func update_each(animated: Animated, shelf: Shelf) {
-    var step: Float = tick.step_milliseconds
+    var step: Float = shelf.frame.step_milliseconds
     var library = shelf.library
     var animator = animated.animator
     var skeleton_slot = library.skeletons.request(animator.skeleton)

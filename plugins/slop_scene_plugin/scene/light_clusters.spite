@@ -19,10 +19,9 @@ var cursors = Vector<Integer>()
 var boundaries = Vector<Float>()
 var scalar = Math.Scalar()
 var eye = Math.Vector3()
-var lights = Scene.Lights()
 var ints = TypedMemory<Integer>()
 
-func assign(view: Scene.Component.View, aspect: Float) {
+func assign(view: Scene.Component.View, lights: Scene.Component.Lights, aspect: Float) {
     prepare(view, aspect)
     var light_count = lights.count()
     var floats = lights.floats

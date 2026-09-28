@@ -1,9 +1,11 @@
+type Clocked {
+    frame: Component.Frame
+}
+
 type Ringing {
     timer: Component.Timer
 }
 
-var tick = Tick()
-
-func input_each(ringing: Ringing) {
-    ringing.timer.advance(tick.step_milliseconds)
+func input_each(clocked: Clocked, ringing: Ringing) {
+    ringing.timer.advance(clocked.frame.step_milliseconds)
 }
