@@ -1,0 +1,31 @@
+type NewWindow {
+    entity: Entity
+    window: Added<Window.Component.Window>
+}
+
+var world = World()
+var labels = ["First", "Second", "Third"]
+
+func update_each(created: NewWindow) {
+    var screen_bundle = Bundle.Screen()
+    var screen = world.create_entity_from_bundle(screen_bundle)
+    var box_bundle = Ui.Bundle.ComboBox(screen.id)
+    var box = world.create_entity_from_bundle(box_bundle)
+    var label_bundle = Ui.Bundle.ComboLabel(box.id, "Choose")
+    var label = world.create_entity_from_bundle(label_bundle)
+    var popup_bundle = Ui.Bundle.ComboPopup(box.id)
+    var popup = world.create_entity_from_bundle(popup_bundle)
+    var progress = Component.Progress()
+    progress.box = box.id
+    progress.popup = popup.id
+    progress.label = label.id
+    var index = 0
+    while index < labels.count() {
+        var label = labels.get_at(index)
+        var option_bundle = Ui.Bundle.ComboOption(popup.id, index, label)
+        var option = world.create_entity_from_bundle(option_bundle)
+        progress.third = option.id
+        index = index + 1
+    }
+    created.entity.add_component(progress)
+}

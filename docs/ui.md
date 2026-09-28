@@ -268,6 +268,33 @@ func update_each(slot: Slot) {
 Tested by `examples/drag_drop_test`: a drag onto a target, a drag onto nothing and a plain click on the same
 element, driving the real window with posted mouse messages, each step waiting for the marker it causes.
 
+## Combo box
+
+**Proposal** (Claude's). A combo box is four bundles and one system, `Ui.System.Choose` (`update`):
+
+```gdscript
+var box = world.create_entity_from_bundle(Ui.Bundle.ComboBox(panel.id))
+world.create_entity_from_bundle(Ui.Bundle.ComboLabel(box.id, "Choose"))
+var popup = world.create_entity_from_bundle(Ui.Bundle.ComboPopup(box.id))
+world.create_entity_from_bundle(Ui.Bundle.ComboOption(popup.id, 0, "First"))
+world.create_entity_from_bundle(Ui.Bundle.ComboOption(popup.id, 1, "Second"))
+```
+
+(each bundle built into a variable first, as Spite wants). The box is a `Button` with
+`Ui.Component.ComboBox { selected }`; the popup is positioned absolutely under it (`top: 100%`, `z-index: 100`)
+and hidden (`display: none`) until the box is clicked. Choose then:
+
+- gives the box `Ui.Component.ComboOpen` and shows the popup (`display: flex`, a column);
+- on a click on an option, sets `ComboBox.selected` to its `ComboOption.index`, puts its text in the box's
+  `ComboLabel`, closes the popup and gives the box `Ui.Component.SelectionChanged` until Choose's next run;
+- closes it on any other click, on the box or anywhere else.
+
+Style the parts with the usual components on the same entities. Tested by `examples/combo_box_test`.
+
+**An element with text is a leaf.** `Text` (and any `ContentSize`) makes an element's size come from its content,
+and its children would get no layout, so an element with text that has children crashes the layout. Put the text
+on a child, as `ComboLabel` and the click counter's `CountLabel` do.
+
 ## Reacting to a click
 
 Ask for the marker. The count label is a child entity, so the system takes two rows and the game's own

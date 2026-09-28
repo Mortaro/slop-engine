@@ -1,0 +1,131 @@
+type Box {
+    entity: Entity
+    combo: Component.ComboBox
+}
+
+type Label {
+    label: Component.ComboLabel
+    parent: Component.Parent
+    text: Component.Text
+}
+
+type Popup {
+    entity: Entity
+    popup: Component.ComboPopup
+    parent: Component.Parent
+    display: Component.Display
+}
+
+type Choice {
+    entity: Entity
+    option: Component.ComboOption
+    parent: Component.Parent
+    text: Component.Text
+}
+
+type Pointer {
+    mouse: Input.Component.Mouse
+}
+
+var clicks = Lookup<Component.Clicked>()
+var opened = Lookup<Component.ComboOpen>()
+var changes = Lookup<Component.SelectionChanged>()
+var released = false
+
+func update_all(
+    boxes: List<Box>,
+    labels: List<Label>,
+    popups: List<Popup>,
+    choices: List<Choice>,
+    pointers: List<Pointer>,
+) {
+    released = false
+    var index = 0
+    while index < pointers.count() {
+        released = released or pointers[index].mouse.released
+        index = index + 1
+    }
+    index = 0
+    while index < boxes.count() {
+        choose(boxes[index], labels, popups, choices)
+        index = index + 1
+    }
+}
+
+func choose(box: Box, labels: List<Label>, popups: List<Popup>, choices: List<Choice>) {
+    var owner = box.entity
+    if changes.has(owner.id) {
+        owner.remove_component(Component.SelectionChanged)
+    }
+    var popup = popup_of(popups, owner.id)
+    var combo_has_a_popup = popup >= 0
+    crash combo_has_a_popup
+    var picked = picked_choice(popups, choices, popup)
+    var open = opened.has(owner.id)
+    if picked >= 0 {
+        var choice = choices.get_at(picked)
+        box.combo.selected = choice.option.index
+        show_label(labels, box.entity.id, choice.text.text)
+        var changed = Component.SelectionChanged()
+        owner.add_component(changed)
+        close(owner, popups, popup)
+        return
+    }
+    if clicks.has(owner.id) and not open {
+        var marker = Component.ComboOpen()
+        owner.add_component(marker)
+        show(popups, popup, 'flex')
+        return
+    }
+    var clicked_away = clicks.has(owner.id) or released
+    assert open and clicked_away
+    close(owner, popups, popup)
+}
+
+func close(owner: Entity, popups: List<Popup>, popup: Integer) {
+    if opened.has(owner.id) {
+        owner.remove_component(Component.ComboOpen)
+    }
+    show(popups, popup, 'none')
+}
+
+func show(popups: List<Popup>, popup: Integer, shown: Component.Display.Kind) {
+    var found = popups.get_at(popup)
+    found.display.value = shown
+}
+
+func popup_of(popups: List<Popup>, box: Integer): Integer {
+    var index = 0
+    while index < popups.count() {
+        if popups[index].parent.entity == box {
+            return index
+        }
+        index = index + 1
+    }
+    return -1
+}
+
+func picked_choice(popups: List<Popup>, choices: List<Choice>, popup_index: Integer): Integer {
+    var popup = popups.get_at(popup_index)
+    var popup_entity = popup.entity.id
+    var index = 0
+    while index < choices.count() {
+        var choice = choices[index]
+        if clicks.has(choice.entity.id) and choice.parent.entity == popup_entity {
+            return index
+        }
+        index = index + 1
+    }
+    return -1
+}
+
+func show_label(labels: List<Label>, box: Integer, shown: String) {
+    var index = 0
+    while index < labels.count() {
+        var label = labels[index]
+        if label.parent.entity == box {
+            label.text.text = shown
+        }
+        index = index + 1
+    }
+}

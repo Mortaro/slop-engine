@@ -1,0 +1,17 @@
+var parent = Component.Parent()
+var popup = Component.ComboPopup()
+var display = Component.Display()
+var direction = Component.FlexDirection()
+var position = Component.Position()
+var inset = Component.Inset()
+var z_index = Component.ZIndex()
+
+func ComboPopup(combo: Integer) {
+    parent.entity = combo
+    display.value = 'none'
+    direction.value = 'column'
+    position.value = 'absolute'
+    inset.top.percent(100.0)
+    inset.left.pixels(0.0)
+    z_index.value = 100
+}

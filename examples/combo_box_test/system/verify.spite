@@ -1,0 +1,32 @@
+type Tested {
+    progress: Component.Progress
+}
+
+type Quitting {
+    quit: Component.Quit
+}
+
+var console = Console()
+var displays = Lookup<Ui.Component.Display>()
+
+func last_each(tested: Tested, quitting: Quitting) {
+    var progress = tested.progress
+    assert progress.step == 8 and not quitting.quit.requested
+    var popup_display = displays.of(progress.popup)
+    crash popup_display
+    var hidden = popup_display.value == 'none'
+    var picked_third = progress.selected == 2 and progress.shown == "Third"
+    var passed = picked_third and progress.closed_by_pick and hidden
+    console.print(
+        "selected",
+        progress.selected,
+        "shown",
+        progress.shown,
+        "closed by the pick",
+        progress.closed_by_pick,
+        "passed",
+        passed,
+    )
+    crash passed
+    quitting.quit.requested = true
+}

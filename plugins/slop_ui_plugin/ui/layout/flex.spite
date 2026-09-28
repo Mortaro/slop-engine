@@ -1811,6 +1811,8 @@ func read_box(entity: Integer, containing_width: Float?, containing_height: Floa
     var contents = Lookup<Ui.Component.ContentSize>()
     var content = contents.of(entity)
     if content {
+        var an_element_with_text_has_no_children = not children.has(entity)
+        crash an_element_with_text_has_no_children
         box.leaf = true
         box.content_width = content.width
         box.content_height = content.height

@@ -1,0 +1,9 @@
+var parent = Component.Parent()
+var button = Component.Button()
+var combo = Component.ComboBox()
+var position = Component.Position()
+
+func ComboBox(owner: Integer) {
+    parent.entity = owner
+    position.value = 'relative'
+}
