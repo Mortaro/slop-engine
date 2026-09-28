@@ -312,9 +312,11 @@ func update_each(pending: Pending) {
   database round trip never blocks a frame and never interleaves with a stage.
 - **Its row is a snapshot.** It runs after its frame, when the components may have moved or gone, so it changes the
   world through commands (`entity.add_component(...)`, `world.despawn(...)`), which apply at the next flush.
-  **Known silent failure:** a write to a row component in an IO system (`quitting.quit.requested = true`) lands on
-  the snapshot and is lost. It also makes a debugging `File.append` in a `last` system turn it into an IO system. The
-  runner will refuse this at compile time once Spite answers `function_writes_parameter` (reported 2026-09-27).
+  **Known silent failure:** a reference-stored component in the row is the stored object itself, so a write to it
+  lands (after the frame). An inline component (`Transform`, `Timer`, anything declaring `stored_inline`) is a copy,
+  and a write to it is lost. A file or socket call added for debugging turns a system into an IO system, with the
+  same effect. The runner will refuse a write to a row holding an inline component at compile time once D261's
+  question can be asked per row (reported 2026-09-27).
 - A system with several rows queues each matching combination.
 
 Because the compiler finds every function that can wait, it also catches file reads on the frame path, which the
