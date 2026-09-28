@@ -314,11 +314,11 @@ func update_each(pending: Pending) {
   database round trip never blocks a frame and never interleaves with a stage.
 - **Its row is a snapshot.** It runs after its frame, when the components may have moved or gone, so it changes the
   world through commands (`entity.add_component(...)`, `world.despawn(...)`), which apply at the next flush.
-  **Known silent failure:** a reference-stored component in the row is the stored object itself, so a write to it
-  lands (after the frame). An inline component (any that fits a `Vector`, such as `Transform` or `Timer`) is a copy,
-  and a write to it is lost. A file or socket call added for debugging turns a system into an IO system, with the
-  same effect. The runner will refuse a write to a row holding an inline component at compile time once D261's
-  question can be asked per row (reported 2026-09-27).
+  A reference-stored component in the row is the stored object itself, so a write to it lands (after the frame).
+  An inline component (any that fits a `Vector`, such as `Transform` or `Timer`) would be a copy, so **writing one is
+  a compile error** naming the line (D261): the runner asks `function_writes_parameter` for every row that holds an
+  inline component. A file or socket call added for debugging turns a system into an IO system, so it can surface
+  this error too.
 - A system with several rows queues each matching combination.
 
 Because the compiler finds every function that can wait, it also catches file reads on the frame path, which the
