@@ -1,11 +1,13 @@
 type Counted {
-    timer: Component.Timer
+    entity: Entity
+    rang: Component.Rang
     rings: Component.Rings
 }
 
+var repeating = Lookup<Component.Repeating>()
+
 func update_each(counted: Counted) {
-    assert counted.timer.rang
-    if counted.timer.repeating {
+    if repeating.has(counted.entity.id) {
         counted.rings.repeating = counted.rings.repeating + 1
     } else {
         counted.rings.once = counted.rings.once + 1

@@ -36,8 +36,12 @@ func TimersCheck() {
 func spawn_timer(milliseconds: Integer, repeat: Boolean): Integer {
     var entity = world.create_entity()
     var timer = Component.Timer()
-    timer.start(milliseconds, repeat)
+    timer.start(milliseconds)
     entity.add_component(timer)
+    if repeat {
+        var again = Component.Repeating()
+        entity.add_component(again)
+    }
     var rings = Component.Rings()
     entity.add_component(rings)
     return entity.id

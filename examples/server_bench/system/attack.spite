@@ -1,9 +1,8 @@
 type Attacking {
-    timer: Component.Timer
+    rang: Component.Rang
     monster: Component.Monster
 }
 
 func update_each(attacking: Attacking) {
-    assert attacking.timer.rang
     attacking.monster.attacks = attacking.monster.attacks + 1
 }

@@ -113,8 +113,10 @@ func spawn(is_player: Boolean) {
         var monster = Component.Monster()
         entity.add_component(monster)
         var timer = Component.Timer()
-        timer.start(1500, true)
+        timer.start(1500)
         entity.add_component(timer)
+        var again = Component.Repeating()
+        entity.add_component(again)
     }
 }
 

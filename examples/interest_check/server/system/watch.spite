@@ -24,8 +24,10 @@ func update_each(joined: Joined, eyed: Eyed, lit: Lit) {
     var peer = Entity(joined.entity.id)
     peer.add_component(viewer)
     var timer = Component.Timer()
-    timer.start(1000, true)
+    timer.start(1000)
     peer.add_component(timer)
+    var again = Component.Repeating()
+    peer.add_component(again)
     var script = Component.Script()
     peer.add_component(script)
     var index = 0

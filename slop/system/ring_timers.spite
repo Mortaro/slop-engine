@@ -3,9 +3,62 @@ type Clocked {
 }
 
 type Ringing {
+    entity: Entity
     timer: Component.Timer
 }
 
-func input_each(clocked: Clocked, ringing: Ringing) {
-    ringing.timer.advance(clocked.frame.step_milliseconds)
+type Rung {
+    entity: Entity
+    rang: Component.Rang
+}
+
+var repeating = Lookup<Component.Repeating>()
+var rang = Lookup<Component.Rang>()
+var rang_now = List<Integer>()
+
+func input_all(clocks: List<Clocked>, ringing: List<Ringing>, rung: List<Rung>) {
+    rang_now.clear()
+    var clock_count = clocks.count()
+    var one_clock = clock_count == 1
+    crash one_clock
+    crash clocks[0]
+    var step = clocks[0].frame.step_milliseconds
+    var count = ringing.count()
+    var index = 0
+    while index < count {
+        ring(ringing[index], step)
+        index = index + 1
+    }
+    var rung_count = rung.count()
+    index = 0
+    while index < rung_count {
+        silence(rung[index])
+        index = index + 1
+    }
+}
+
+func ring(ringing: Ringing, step: Integer) {
+    var timer = ringing.timer
+    var owner = ringing.entity
+    assert timer.period > 0 and timer.remaining > 0
+    timer.remaining = timer.remaining - step
+    assert timer.remaining <= 0
+    rang_now.append(owner.id)
+    if not rang.has(owner.id) {
+        var marker = Component.Rang()
+        owner.add_component(marker)
+    }
+    if repeating.has(owner.id) {
+        while timer.remaining <= 0 {
+            timer.remaining = timer.remaining + timer.period
+        }
+        return
+    }
+    owner.remove_component(Component.Timer)
+}
+
+func silence(rung: Rung) {
+    var owner = rung.entity
+    assert not rang_now.contains(owner.id)
+    owner.remove_component(Component.Rang)
 }
