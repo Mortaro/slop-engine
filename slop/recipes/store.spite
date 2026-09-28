@@ -6,6 +6,7 @@ var end: Long = 0
 var scanned = false
 var raw = Raw()
 var heap = Memory.Heap()
+var lock = Recipes.StoreLock()
 
 func Store(store_path: String) {
     path = store_path
@@ -29,6 +30,7 @@ func find(key: String): Recipes.Record? {
     record.path = path
     record.offset = offsets[key]
     record.length = lengths[key]
+    record.key = key
     return record
 }
 
@@ -40,6 +42,7 @@ func read(key: String): Asset.Bytes? {
 
 func write(key: String, data: Asset.Bytes) {
     scan()
+    lock.hold("{path}.lock")
     var record = Asset.Bytes()
     record.write_text(key)
     var data_length: Long = data.length
@@ -52,6 +55,7 @@ func write(key: String, data: Asset.Bytes) {
     var entry = Asset.Bytes()
     write_entry(entry, key)
     append_bytes(index_path, entry)
+    lock.release()
 }
 
 func note(key: String, data_offset: Long, data_length: Long) {
@@ -82,10 +86,20 @@ func append_bytes(file_path: String, bytes: Asset.Bytes): Long {
 func scan() {
     assert not scanned
     scanned = true
+    lock.hold("{path}.lock")
     var size = store_size()
-    assert size > 0
-    var indexed = load_index()
-    assert not indexed or end != size
+    var indexed = false
+    if size > 0 {
+        indexed = load_index()
+    }
+    var index_disagrees = not indexed or end != size
+    if size > 0 and index_disagrees {
+        rescan()
+    }
+    lock.release()
+}
+
+func rescan() {
     offsets = Dictionary<Long>()
     lengths = Dictionary<Long>()
     end = 0

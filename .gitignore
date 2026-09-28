@@ -13,7 +13,7 @@
 # Cooked assets: the content-addressed store and each program's index.
 store.bin
 store.bin.index
-.slop-index.json
+.slop-index*.json
 
 # Test outputs.
 *.log

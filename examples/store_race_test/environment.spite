@@ -1,0 +1,4 @@
+var role = "check"
+var writer = 0
+var records = 2000
+var store_path = ""

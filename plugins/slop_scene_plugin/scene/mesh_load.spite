@@ -1,6 +1,7 @@
 var path = ""
 var offset: Long = 0
 var length: Long = 0
+var key = ""
 var vertex_floats = 8
 var joint_limit = 0
 var scalar = Math.Scalar()
@@ -9,6 +10,7 @@ func MeshLoad(found: Recipes.Record) {
     path = found.path
     offset = found.offset
     length = found.length
+    key = found.key
 }
 
 func run(): Scene.LoadedMesh {
@@ -16,6 +18,7 @@ func run(): Scene.LoadedMesh {
     record.path = path
     record.offset = offset
     record.length = length
+    record.key = key
     var bytes = record.read()
     var pack = Pack<Asset.Mesh>()
     var mesh = pack.decode(bytes)

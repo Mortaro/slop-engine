@@ -1,0 +1,63 @@
+var environment = Environment()
+var console = Console()
+
+func StoreRaceTest() {
+    load "../../slop"
+    if environment.role == "write" {
+        write_records()
+        return
+    }
+    check_records()
+}
+
+func write_records() {
+    var store = Recipes.Store(environment.store_path)
+    var index = 0
+    while index < environment.records {
+        var key = "writer{environment.writer}.record{index}"
+        var data = Asset.Bytes()
+        fill(data, key)
+        store.write(key, data)
+        index = index + 1
+    }
+}
+
+func fill(data: Asset.Bytes, key: String) {
+    var repeat = 0
+    while repeat < 200 {
+        data.write_text(key)
+        repeat = repeat + 1
+    }
+}
+
+func check_records() {
+    var store = Recipes.Store(environment.store_path)
+    var writer = 0
+    var good = 0
+    var wrong = 0
+    while writer < 4 {
+        var index = 0
+        while index < environment.records {
+            var key = "writer{writer}.record{index}"
+            if matches(store, key) {
+                good = good + 1
+            } else {
+                wrong = wrong + 1
+            }
+            index = index + 1
+        }
+        writer = writer + 1
+    }
+    var passed = wrong == 0 and good == 4 * environment.records
+    console.print("records read back", good, "wrong", wrong, "passed", passed)
+    crash passed
+}
+
+func matches(store: Recipes.Store, key: String): Boolean {
+    var data = store.read(key)
+    if not data {
+        return false
+    }
+    var first = data.read_text()
+    return first == key
+}

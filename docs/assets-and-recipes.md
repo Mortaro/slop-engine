@@ -78,8 +78,20 @@ content-addressed: each record is keyed `id#fingerprint`, where the fingerprint 
 Beside it, `store.bin.index` lists every record's key, offset and length, so opening the store is one read, not a
 scan; if it is missing or disagrees with the store's size, the store is rescanned and the index rewritten.
 
-Each program keeps a small `.slop-index.json`: which fingerprint each id currently means for it. A second run
-builds nothing, and a program whose inputs another program already cooked builds nothing either.
+Each executable keeps a small `.slop-index-<executable>.json` beside its program: which fingerprint each id
+currently means for it. A second run builds nothing, and a program whose inputs another program already cooked builds
+nothing either. The index is per executable, not per program folder, because several builds of one program
+(Theseus's agents' test clients beside the player's) run from the same folder with different code: with one shared
+index, the player's running client followed the others' re-cooks and its models switched materials mid-session.
+
+**Several processes share one store safely.** Every write, and every rescan with its index rewrite, holds an
+exclusive lock on `store.bin.lock` (`Recipes.StoreLock`, `LockFileEx`), so appends never interleave. Before, a
+writer took the end of the file as its record's offset and then wrote, and a second process appending in between
+made that offset point into the other's record: a reader then decoded another asset of the same kind, silently.
+Each read also checks that the header at its offset names the key it asked for and the same length, and crashes
+naming both if not (`store_entry_at_its_offset_is_the_key_asked_for`), so a store damaged by an older build is
+loud. `examples/store_race_test` has four processes write 2,000 records each at once and reads all 8,000 back:
+without the lock 5,965 came back wrong or missing, with it none.
 
 **A format change re-cooks by itself** (a proposal by Claude, asked for by Theseus). `Pack<T>` writes the asset's
 kind and its schema, the hash `BinaryWriter<T>.schema()` works out from the class's attributes (D215), after the
