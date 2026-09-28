@@ -11,7 +11,8 @@ func compile(root: String, id: String, stage: String) {
     var source_file = File(source_path)
     var text = source_file.read()
     crash text
-    var fingerprint = cache.fingerprint("{stage}\n{text}")
+    var included = included_text(source_path, id, text)
+    var fingerprint = cache.fingerprint("{stage}\n{text}\n{included}")
     assert not cache.is_current(id, fingerprint)
     var output_path = cache.scratch_path(id)
     var arguments = List<String>()
@@ -33,6 +34,33 @@ func compile(root: String, id: String, stage: String) {
     cache.put(id, fingerprint, compiled)
     c_runtime.remove(output_path)
     console.print("recipe: compiled {id} ({stage})")
+}
+
+func included_text(source_path: String, id: String, text: String): String {
+    var parts = id.split(".")
+    var file_name = parts.last()
+    crash file_name
+    var path_length = source_path.length()
+    var folder_length = path_length - file_name.length() - 6
+    var folder = source_path.slice(0, folder_length)
+    var joined = ""
+    var lines = text.split("\n")
+    var index = 0
+    while index < lines.count() {
+        var line = lines[index].trim()
+        if line.starts_with("#include \"") {
+            var line_length = line.length()
+            var name = line.slice(10, line_length - 1)
+            var include_path = "{folder}/{name}"
+            cookbook.note_source(include_path)
+            var include_file = File(include_path)
+            var include = include_file.read()
+            crash include
+            joined = "{joined}{name}\n{include}\n"
+        }
+        index = index + 1
+    }
+    return joined
 }
 
 func compiler_path(): String {
