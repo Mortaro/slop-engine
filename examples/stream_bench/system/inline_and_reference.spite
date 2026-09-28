@@ -1,0 +1,10 @@
+type Carried {
+    heat: Component.Heat
+    bag: Component.Bag
+}
+
+var counted = 0
+
+func update_each(carried: Carried) {
+    counted = counted + carried.bag.items.count()
+}

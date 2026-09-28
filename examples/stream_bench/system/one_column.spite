@@ -1,0 +1,9 @@
+type Warm {
+    heat: Component.Heat
+}
+
+var counted: Float = 0.0
+
+func update_each(warm: Warm) {
+    counted = counted + warm.heat.value
+}

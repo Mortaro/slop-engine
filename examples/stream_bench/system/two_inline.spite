@@ -1,0 +1,10 @@
+type Tagged {
+    heat: Component.Heat
+    tag: Component.Tag
+}
+
+var counted = 0
+
+func update_each(tagged: Tagged) {
+    counted = counted + tagged.tag.value
+}

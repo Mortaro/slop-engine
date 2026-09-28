@@ -1,0 +1,35 @@
+var world = World()
+var console = Console()
+var count = 100000
+var environment = Environment()
+
+func StreamBench() {
+    load "../../slop"
+    var app = App()
+    app.parallel = environment.parallel
+    var index = 0
+    while index < count {
+        var entity = world.create_entity()
+        var heat = Component.Heat()
+        entity.add_component(heat)
+        var tag = Component.Tag()
+        entity.add_component(tag)
+        var bag = Component.Bag()
+        entity.add_component(bag)
+        index = index + 1
+    }
+    world.flush()
+    var tick = 0
+    while tick < 40 {
+        app.tick()
+        tick = tick + 1
+    }
+    var report = app.profile()
+    var system = 0
+    while system < report.systems.count() {
+        var entry = report.systems[system]
+        var nanoseconds_per_row = entry.average_microseconds * 1000 / count
+        console.print(entry.name, "ns per row", nanoseconds_per_row)
+        system = system + 1
+    }
+}

@@ -1,0 +1,8 @@
+type Warm {
+    heat: Component.Heat
+}
+
+func update_each(warm: Warm) {
+    var heat = warm.heat
+    heat.value = heat.value + 0.5
+}

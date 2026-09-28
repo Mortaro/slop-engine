@@ -17,6 +17,7 @@ Every behaviour the docs claim is checked by a program in `examples/`. Run them 
 | `lights_check` | a red point light and a blue spot light on a dark floor through the clustered shader: the pixel under the point light is lit red and a far corner stays dark; `extra_lights` adds a grid of lights for timing |
 | `attachment_check` | a bone attachment follows a named bone with an offset, and another follows a bone index, on a synthetic skeleton turned a quarter: both land where the maths says and carry the turn |
 | `inline_string_probe` | inline components holding long text and an enum: `_each`, `_all` and two-row systems, bundle spawns and writes through `Lookup.of` stay balanced under `--debug-memory` |
+| `stream_bench` | nanoseconds per row of single-row systems by shape (one inline component, two, `Entity` plus one, inline plus reference) over 100,000 entities; run `--optimized`, and `-- --parallel=false` for sequential stages |
 | `tracking` | `Added<T>` and `Removed<T>` are each seen exactly once by a system before the change and one after it |
 | `use_potion` | two related rows: each potion heals only the hero its `owner` points at, only if that hero is `Alive`, and a replaced component is written back |
 | `healing` | headless systems, entity ids in rows, and two independent systems sharing a parallel stage |

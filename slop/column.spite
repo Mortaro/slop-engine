@@ -182,8 +182,7 @@ func value_at(name: String, row: Integer): $component_type {
 }
 
 func at(row: Integer): $component_type {
-    crash references[row]
-    return references[row]
+    return references.get_at(row)
 }
 
 func write_at(name: String, row: Integer, value: $component_type) {
