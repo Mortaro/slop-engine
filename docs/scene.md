@@ -129,6 +129,10 @@ The sun casts a 2048² shadow map:
 
 Cut-out texels (alpha below 0.5) are discarded in every pass.
 
+**Texture filtering.** Every texture is uploaded with a full mip chain, made on the GPU by blitting each level from the
+one above. Scene textures sample trilinearly with 16× anisotropic filtering (when the device has it) and repeat
+addressing. The UI samples the same images through its own nearest, top-level-only sampler, so it stays pixel-exact.
+
 ### Terrain
 
 A terrain cell is an entity with a `Transform` and a `Scene.Component.TerrainCell { mesh, material }`, with no
@@ -223,6 +227,5 @@ These are what the previous Kal renderer had:
 - bloom;
 - 4× MSAA;
 - automatic exposure from a histogram;
-- mipmaps and anisotropic filtering for scene textures;
 - Blender's custom split normals (`custom_normal` is ignored and normals are recomputed);
 - blending between clips.

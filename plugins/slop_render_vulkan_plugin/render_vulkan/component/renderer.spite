@@ -33,6 +33,9 @@ var pending_stagings = List<Long>()
 var pending_staging_memories = List<Long>()
 var pending_widths = List<Integer>()
 var pending_heights = List<Integer>()
+var pending_mips = List<Integer>()
+var anisotropy_supported = false
+var scene_sampler: Long = 0
 var surfaces = List<Long>()
 var swapchains = List<Long>()
 var device_name = ""
@@ -193,6 +196,24 @@ func create_device() {
     }
     var extensions = Structure(8)
     extensions.append_text("VK_KHR_swapchain")
+    var available = Structure(224)
+    var feature_index = 0
+    while feature_index < 55 {
+        available.append_integer(0)
+        feature_index = feature_index + 1
+    }
+    vulkan.vkGetPhysicalDeviceFeatures(physical_device, available.address)
+    anisotropy_supported = available.read_integer(76) == 1
+    var wanted = Structure(224)
+    feature_index = 0
+    while feature_index < 55 {
+        var wanted_flag = 0
+        if feature_index == 19 and anisotropy_supported {
+            wanted_flag = 1
+        }
+        wanted.append_integer(wanted_flag)
+        feature_index = feature_index + 1
+    }
     var creation = Structure(80)
     creation.append_integer(3)
     creation.append_pointer(dynamic_rendering)
@@ -203,7 +224,7 @@ func create_device() {
     creation.append_long(0)
     creation.append_integer(1)
     creation.append_pointer(extensions)
-    creation.append_long(0)
+    creation.append_pointer(wanted)
     var created = Structure(8)
     var no_allocator: Long = 0
     var result = vulkan.vkCreateDevice(physical_device, creation.address, no_allocator, created.address)
@@ -443,6 +464,38 @@ func create_sampler() {
     var result = vulkan.vkCreateSampler(device, creation.address, no_allocator, created.address)
     crash result == 0
     sampler = created.read_long(0)
+    scene_sampler = create_scene_sampler()
+}
+
+func create_scene_sampler(): Long {
+    var no_allocator: Long = 0
+    var anisotropy = 0
+    if anisotropy_supported {
+        anisotropy = 1
+    }
+    var creation = Structure(80)
+    creation.append_integer(31)
+    creation.append_long(0)
+    creation.append_integer(0)
+    creation.append_integer(1)
+    creation.append_integer(1)
+    creation.append_integer(1)
+    creation.append_integer(0)
+    creation.append_integer(0)
+    creation.append_integer(0)
+    creation.append_float(0.0)
+    creation.append_integer(anisotropy)
+    creation.append_float(16.0)
+    creation.append_integer(0)
+    creation.append_integer(0)
+    creation.append_float(0.0)
+    creation.append_float(1000.0)
+    creation.append_integer(0)
+    creation.append_integer(0)
+    var created = Structure(8)
+    var result = vulkan.vkCreateSampler(device, creation.address, no_allocator, created.address)
+    crash result == 0
+    return created.read_long(0)
 }
 
 func ensure_slots(count: Integer) {
@@ -490,13 +543,15 @@ func stage_pixels(index: Integer, width: Integer, height: Integer, pixels: Asset
     var staging_memory = host_memory_for(staging)
     var mapped = map(staging_memory, bytes)
     raw.copy(pixels.address, mapped, bytes)
-    var image = create_texture_image(width, height)
+    var mips = mip_count_of(width, height)
+    var image = create_texture_image(width, height, mips)
     pending_images.append(image)
+    pending_mips.append(mips)
     pending_stagings.append(staging)
     pending_staging_memories.append(staging_memory)
     pending_widths.append(width)
     pending_heights.append(height)
-    var view = create_view(image, 37)
+    var view = create_view_levels(image, 37, mips)
     var set = allocate_texture_set(view)
     texture_images.set_at(index, image)
     texture_memories.set_at(index, created_memory)
@@ -536,15 +591,16 @@ func record_uploads() {
     pending_staging_memories.clear()
     pending_widths.clear()
     pending_heights.clear()
+    pending_mips.clear()
 }
 
 func record_upload(index: Integer) {
-    crash pending_images[index]
-    crash pending_stagings[index]
-    crash pending_widths[index]
-    crash pending_heights[index]
-    var image = pending_images[index]
-    barrier(image, 0, 4096, 0, 7, 1, 4096)
+    var image = pending_images.get_at(index)
+    var staging = pending_stagings.get_at(index)
+    var width = pending_widths.get_at(index)
+    var height = pending_heights.get_at(index)
+    var mips = pending_mips.get_at(index)
+    level_barrier(image, 0, 4096, 0, 7, 1, 4096, 0, mips)
     var region = Structure(56)
     region.append_long(0)
     region.append_integer(0)
@@ -553,11 +609,63 @@ func record_upload(index: Integer) {
     region.append_integer(0)
     region.append_integer(0)
     region.append_integer(0)
-    region.append_integer(pending_widths[index])
-    region.append_integer(pending_heights[index])
+    region.append_integer(width)
+    region.append_integer(height)
     region.append_integer(1)
-    vulkan.vkCmdCopyBufferToImage(frame.command_buffer, pending_stagings[index], image, 7, 1, region.address)
-    barrier(image, 4096, 32, 7, 5, 4096, 128)
+    vulkan.vkCmdCopyBufferToImage(frame.command_buffer, staging, image, 7, 1, region.address)
+    var level = 1
+    while level < mips {
+        level_barrier(image, 4096, 2048, 7, 6, 4096, 4096, level - 1, 1)
+        var next_width = half_of(width)
+        var next_height = half_of(height)
+        blit_level(image, level, width, height, next_width, next_height)
+        width = next_width
+        height = next_height
+        level = level + 1
+    }
+    if mips > 1 {
+        level_barrier(image, 2048, 32, 6, 5, 4096, 128, 0, mips - 1)
+    }
+    level_barrier(image, 4096, 32, 7, 5, 4096, 128, mips - 1, 1)
+}
+
+func half_of(size: Integer): Integer {
+    if size > 1 {
+        return size / 2
+    }
+    return 1
+}
+
+func blit_level(
+    image: Long,
+    level: Integer,
+    width: Integer,
+    height: Integer,
+    next_width: Integer,
+    next_height: Integer,
+) {
+    var region = Structure(80)
+    region.append_integer(1)
+    region.append_integer(level - 1)
+    region.append_integer(0)
+    region.append_integer(1)
+    region.append_integer(0)
+    region.append_integer(0)
+    region.append_integer(0)
+    region.append_integer(width)
+    region.append_integer(height)
+    region.append_integer(1)
+    region.append_integer(1)
+    region.append_integer(level)
+    region.append_integer(0)
+    region.append_integer(1)
+    region.append_integer(0)
+    region.append_integer(0)
+    region.append_integer(0)
+    region.append_integer(next_width)
+    region.append_integer(next_height)
+    region.append_integer(1)
+    vulkan.vkCmdBlitImage(frame.command_buffer, image, 6, image, 7, 1, region.address, 1)
 }
 
 func release_in_flight(finished: RenderVulkan.Frame) {
@@ -602,7 +710,20 @@ func append_color_layers(structure: RenderVulkan.Structure) {
     structure.append_integer(1)
 }
 
-func create_texture_image(width: Integer, height: Integer): Long {
+func mip_count_of(width: Integer, height: Integer): Integer {
+    var largest = width
+    if height > largest {
+        largest = height
+    }
+    var count = 1
+    while largest > 1 {
+        largest = largest / 2
+        count = count + 1
+    }
+    return count
+}
+
+func create_texture_image(width: Integer, height: Integer, mips: Integer): Long {
     var no_allocator: Long = 0
     var creation = Structure(96)
     creation.append_integer(14)
@@ -613,11 +734,11 @@ func create_texture_image(width: Integer, height: Integer): Long {
     creation.append_integer(width)
     creation.append_integer(height)
     creation.append_integer(1)
-    creation.append_integer(1)
+    creation.append_integer(mips)
     creation.append_integer(1)
     creation.append_integer(1)
     creation.append_integer(0)
-    creation.append_integer(6)
+    creation.append_integer(7)
     creation.append_integer(0)
     creation.append_integer(0)
     creation.append_long(0)
@@ -1008,6 +1129,72 @@ func create_view(image: Long, format: Integer): Long {
     var result = vulkan.vkCreateImageView(device, creation.address, no_allocator, created.address)
     crash result == 0
     return created.read_long(0)
+}
+
+func create_view_levels(image: Long, format: Integer, levels: Integer): Long {
+    var no_allocator: Long = 0
+    var creation = Structure(80)
+    creation.append_integer(15)
+    creation.append_long(0)
+    creation.append_integer(0)
+    creation.append_long(image)
+    creation.append_integer(1)
+    creation.append_integer(format)
+    var field = 0
+    while field < 4 {
+        creation.append_integer(0)
+        field = field + 1
+    }
+    creation.append_integer(1)
+    creation.append_integer(0)
+    creation.append_integer(levels)
+    creation.append_integer(0)
+    creation.append_integer(1)
+    var created = Structure(8)
+    var result = vulkan.vkCreateImageView(device, creation.address, no_allocator, created.address)
+    crash result == 0
+    return created.read_long(0)
+}
+
+func level_barrier(
+    image: Long,
+    source_access: Integer,
+    destination_access: Integer,
+    old_layout: Integer,
+    new_layout: Integer,
+    source_stage: Integer,
+    destination_stage: Integer,
+    first_level: Integer,
+    level_count: Integer,
+) {
+    var description = Structure(72)
+    description.append_integer(45)
+    description.append_long(0)
+    description.append_integer(source_access)
+    description.append_integer(destination_access)
+    description.append_integer(old_layout)
+    description.append_integer(new_layout)
+    description.append_integer(-1)
+    description.append_integer(-1)
+    description.append_long(image)
+    description.append_integer(1)
+    description.append_integer(first_level)
+    description.append_integer(level_count)
+    description.append_integer(0)
+    description.append_integer(1)
+    var no_barriers: Long = 0
+    vulkan.vkCmdPipelineBarrier(
+        frame.command_buffer,
+        source_stage,
+        destination_stage,
+        0,
+        0,
+        no_barriers,
+        0,
+        no_barriers,
+        1,
+        description.address,
+    )
 }
 
 func append_color_range(structure: RenderVulkan.Structure) {
@@ -1522,6 +1709,7 @@ func release_textures() {
         index = index + 1
     }
     vulkan.vkDestroySampler(device, sampler, no_allocator)
+    vulkan.vkDestroySampler(device, scene_sampler, no_allocator)
     vulkan.vkDestroyDescriptorPool(device, descriptor_pool, no_allocator)
     vulkan.vkDestroyDescriptorSetLayout(device, descriptor_layout, no_allocator)
 }

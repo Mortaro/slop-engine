@@ -118,9 +118,13 @@ func create_sampler(renderer: RenderVulkan.Component.Renderer, address_mode: Int
     creation.append_integer(address_mode)
     creation.append_integer(address_mode)
     creation.append_integer(address_mode)
+    var anisotropy = 0
+    if renderer.anisotropy_supported {
+        anisotropy = 1
+    }
     creation.append_float(0.0)
-    creation.append_integer(0)
-    creation.append_float(1.0)
+    creation.append_integer(anisotropy)
+    creation.append_float(16.0)
     creation.append_integer(0)
     creation.append_integer(0)
     creation.append_float(0.0)

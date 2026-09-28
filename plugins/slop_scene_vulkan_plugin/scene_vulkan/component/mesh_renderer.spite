@@ -22,6 +22,11 @@ var lighting_bytes = 256
 var clusters = Scene.LightClusters()
 var lights = Scene.Lights()
 var terrain = SceneVulkan.TerrainPass()
+var scene_pool: Long = 0
+var scene_sets = List<Long>()
+var scene_set_views = List<Long>()
+var retired_scene_sets = List<Long>()
+var retired_scene_at = List<Integer>()
 var light_buffers = List<Long>()
 var light_memories = List<Long>()
 var light_mapped = List<Long>()
@@ -89,6 +94,7 @@ func record(
     write_frame_data(renderer, view, slot)
     write_local_lights(renderer, view, slot)
     terrain.upload_step(renderer, terrain_materials)
+    release_retired_scene_sets(renderer)
     aim_sun(view)
     write_lighting(view, slot)
     var storage = RenderVulkan.Structure(8)
@@ -617,10 +623,7 @@ func record_mesh(
 ) {
     var command_buffer = renderer.frame.command_buffer
     assert vertex_buffers.get_at(mesh_slot) != 0
-    var texture_set = renderer.texture_sets.get_at(set_index)
-    if texture_set == 0 {
-        texture_set = renderer.texture_sets.get_at(0)
-    }
+    var texture_set = scene_set(renderer, set_index)
     var sets = RenderVulkan.Structure(8)
     sets.append_long(texture_set)
     var no_offsets: Long = 0
@@ -721,6 +724,7 @@ func ensure_created(renderer: RenderVulkan.Component.Renderer) {
     create_layout(renderer)
     create_pipeline(renderer)
     terrain.create(renderer, storage_layout)
+    create_scene_pool(renderer)
     terrain.pipeline = build_pipeline(renderer, terrain.pipeline_layout, terrain.shader_terrain)
     shadow_pipeline = create_shadow_pipeline(renderer)
     create_tone_map(renderer)
@@ -1690,6 +1694,8 @@ func release_part(renderer: RenderVulkan.Component.Renderer) {
     release_all(renderer, cluster_buffers, cluster_memories)
     release_all(renderer, light_index_buffers, light_index_memories)
     terrain.release(renderer)
+    var no_pool_allocator: Long = 0
+    vulkan.vkDestroyDescriptorPool(renderer.device, scene_pool, no_pool_allocator)
     vulkan.vkDestroyPipeline(renderer.device, shadow_pipeline, no_allocator)
     vulkan.vkDestroyShaderModule(renderer.device, shader_shadow_fragment, no_allocator)
     vulkan.vkDestroySampler(renderer.device, shadow_sampler, no_allocator)
@@ -1717,5 +1723,103 @@ func release_all(renderer: RenderVulkan.Component.Renderer, buffers: List<Long>,
             free_buffer(renderer, buffers, memories, slot)
         }
         slot = slot + 1
+    }
+}
+
+func create_scene_pool(renderer: RenderVulkan.Component.Renderer) {
+    var no_allocator: Long = 0
+    var sizes = RenderVulkan.Structure(8)
+    sizes.append_integer(1)
+    sizes.append_integer(4096)
+    var creation = RenderVulkan.Structure(40)
+    creation.append_integer(33)
+    creation.append_long(0)
+    var free_descriptor_set = 1
+    creation.append_integer(free_descriptor_set)
+    creation.append_integer(4096)
+    creation.append_integer(1)
+    creation.append_pointer(sizes)
+    var made = RenderVulkan.Structure(8)
+    var result = vulkan.vkCreateDescriptorPool(renderer.device, creation.address, no_allocator, made.address)
+    crash result == 0
+    scene_pool = made.read_long(0)
+}
+
+func scene_set(renderer: RenderVulkan.Component.Renderer, set_index: Integer): Long {
+    var fallback = renderer.texture_sets.get_at(0)
+    if set_index <= 0 or set_index >= renderer.texture_views.count() {
+        return fallback
+    }
+    var view = renderer.texture_views.get_at(set_index)
+    if view == 0 or renderer.texture_sets.get_at(set_index) == 0 {
+        return fallback
+    }
+    while scene_sets.count() <= set_index {
+        scene_sets.append(0)
+        scene_set_views.append(0)
+    }
+    if scene_set_views.get_at(set_index) != view {
+        retire_scene_set(renderer, set_index)
+        var made = allocate_scene_set(renderer, view)
+        scene_sets.set_at(set_index, made)
+        scene_set_views.set_at(set_index, view)
+    }
+    return scene_sets.get_at(set_index)
+}
+
+func allocate_scene_set(renderer: RenderVulkan.Component.Renderer, view: Long): Long {
+    var layouts = RenderVulkan.Structure(8)
+    layouts.append_long(renderer.descriptor_layout)
+    var allocation = RenderVulkan.Structure(40)
+    allocation.append_integer(34)
+    allocation.append_long(0)
+    allocation.append_long(scene_pool)
+    allocation.append_integer(1)
+    allocation.append_pointer(layouts)
+    var made = RenderVulkan.Structure(8)
+    var result = vulkan.vkAllocateDescriptorSets(renderer.device, allocation.address, made.address)
+    var scene_descriptor_pool_has_room = result == 0
+    crash scene_descriptor_pool_has_room
+    var set = made.read_long(0)
+    var image_information = RenderVulkan.Structure(24)
+    image_information.append_long(renderer.scene_sampler)
+    image_information.append_long(view)
+    image_information.append_integer(5)
+    var write = RenderVulkan.Structure(64)
+    write.append_integer(35)
+    write.append_long(0)
+    write.append_long(set)
+    write.append_integer(0)
+    write.append_integer(0)
+    write.append_integer(1)
+    write.append_integer(1)
+    write.append_pointer(image_information)
+    write.append_long(0)
+    write.append_long(0)
+    var no_copies: Long = 0
+    vulkan.vkUpdateDescriptorSets(renderer.device, 1, write.address, 0, no_copies)
+    return set
+}
+
+func retire_scene_set(renderer: RenderVulkan.Component.Renderer, set_index: Integer) {
+    var old = scene_sets.get_at(set_index)
+    assert old != 0
+    retired_scene_sets.append(old)
+    retired_scene_at.append(renderer.frame_number)
+    scene_sets.set_at(set_index, 0)
+}
+
+func release_retired_scene_sets(renderer: RenderVulkan.Component.Renderer) {
+    var index = retired_scene_sets.count() - 1
+    while index >= 0 {
+        if retired_scene_at.get_at(index) + renderer.frames_in_flight < renderer.frame_number {
+            var retired = retired_scene_sets.get_at(index)
+            var freed = RenderVulkan.Structure(8)
+            freed.append_long(retired)
+            vulkan.vkFreeDescriptorSets(renderer.device, scene_pool, 1, freed.address)
+            retired_scene_sets.remove_at(index)
+            retired_scene_at.remove_at(index)
+        }
+        index = index - 1
     }
 }
