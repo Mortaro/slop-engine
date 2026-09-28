@@ -1,0 +1,4 @@
+var width = 0
+var height = 0
+var layers = 0
+var pixels = List<Integer>()

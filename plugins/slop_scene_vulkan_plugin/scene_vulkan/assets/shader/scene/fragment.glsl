@@ -10,5 +10,5 @@ void main() {
     if (texel.a < 0.5) {
         discard;
     }
-    color = lit_color(linear_from_srgb(texel.rgb), world_normal);
+    color = lit_color(linear_from_srgb(texel.rgb), world_normal, lighting.material.xyz);
 }

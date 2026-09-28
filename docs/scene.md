@@ -129,6 +129,32 @@ The sun casts a 2048² shadow map:
 
 Cut-out texels (alpha below 0.5) are discarded in every pass.
 
+### Terrain
+
+A terrain cell is an entity with a `Transform` and a `Scene.Component.TerrainCell { mesh, material }`, with no
+`Model`: it is drawn by the terrain pipeline, which shares the scene's vertex shader, lighting, shadows and fog
+(`lit.glsl`). The shader is a one-to-one port of Theseus's Unreal `M_Terrain`:
+
+- **Control textures:** control UV = world x/z ÷ (`control_width`, `control_depth`). The tile's eight layer slots come
+  from `ctrl_a` (slots 0–3) and `ctrl_b` (4–7), read unfiltered (slice = texel × 255). Their tiling comes from
+  `scale_a`/`scale_b`, filtered (tiles per metre = texel × `layer_scale`).
+- **Blend:** slot 0 is the base; slots 1–7 paint over it in order, `lerp(colour, layer_k, weight_k)`, with weights
+  from `splat_0` (rgba) and `splat_1` (rgb).
+- **Detail:** colour × `1 + (detail − 0.5) × detail_strength × clamp(1 − depth / detail_fade_depth)`.
+- **Grass tint:** `grass_overlay` × luminance × `grass_overlay_brightness`, mixed in by `grass_mask` ×
+  `grass_mask_strength` × a smoothstep of the normal's world-up between `grass_slope_low` and `grass_slope_high`.
+- **Far colour:** optional, faded in from `far_fade_start` to `far_fade_end`. Roughness and specular are per
+  material (1 and 0 for Theseus).
+
+`Asset.TerrainMaterial` names its textures by id:
+- the layer, normal, detail, overlay and far-colour images are `Asset.TextureArray`s (RGBA8, layer-major), which
+  upload one layer per frame, each with its mipmaps made on the GPU;
+- the control, scale, splat and mask images are ordinary `Asset.Texture`s.
+
+A material is drawn once every array and texture has arrived; until then its cells are skipped, so nothing waits.
+`examples/terrain_check` cooks a two-by-two-tile fixture and checks that each tile's base layer and a painted splat
+land where the formula puts them.
+
 ### Point and spot lights
 
 Put a `Lighting.Component.PointLight` or `SpotLight` on an entity with a `Transform`. The fields are:

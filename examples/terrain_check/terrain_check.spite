@@ -1,0 +1,20 @@
+var cookbook = Recipes.Cookbook()
+var capture = Capture()
+
+func TerrainCheck() {
+    load "../../slop"
+    load "../../plugins/slop_window_plugin"
+    load "../../plugins/slop_platform_plugin"
+    load "../../plugins/slop_input_plugin"
+    load "../../plugins/slop_ui_plugin"
+    load "../../plugins/slop_render_plugin"
+    load "../../plugins/slop_render_vulkan_plugin"
+    load "../../plugins/slop_transform_plugin"
+    load "../../plugins/slop_camera_plugin"
+    load "../../plugins/slop_scene_plugin"
+    load "../../plugins/slop_scene_vulkan_plugin"
+    cookbook.cook()
+    var app = App()
+    app.run()
+    capture.save()
+}

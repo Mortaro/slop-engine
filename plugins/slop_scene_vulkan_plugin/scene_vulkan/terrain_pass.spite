@@ -1,0 +1,652 @@
+var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
+var raw = Raw()
+var floats = TypedMemory<Float>()
+var created = false
+var set_layout: Long = 0
+var pipeline_layout: Long = 0
+var pipeline: Long = 0
+var shader_terrain: Long = 0
+var pool: Long = 0
+var repeat_sampler: Long = 0
+var clamp_sampler: Long = 0
+var arrays_per_material = 5
+var images = List<Long>()
+var memories = List<Long>()
+var views = List<Long>()
+var mip_counts = List<Integer>()
+var uploaded_layers = List<Integer>()
+var uploaded_generations = List<Integer>()
+var sets = List<Long>()
+var set_views = List<Long>()
+var parameter_buffers = List<Long>()
+var parameter_memories = List<Long>()
+var parameter_mapped = List<Long>()
+var retired_sets = List<Long>()
+var retired_at = List<Integer>()
+var textures_per_material = 7
+var parameter_bytes = 80
+
+func create(renderer: RenderVulkan.Component.Renderer, storage_layout: Long) {
+    assert not created
+    created = true
+    shader_terrain = renderer.create_shader("shader.scene.terrain")
+    create_set_layout(renderer)
+    create_pool(renderer)
+    repeat_sampler = create_sampler(renderer, 0)
+    clamp_sampler = create_sampler(renderer, 2)
+    var no_allocator: Long = 0
+    var set_layouts = RenderVulkan.Structure(16)
+    set_layouts.append_long(set_layout)
+    set_layouts.append_long(storage_layout)
+    var push_range = RenderVulkan.Structure(12)
+    push_range.append_integer(1)
+    push_range.append_integer(0)
+    push_range.append_integer(68)
+    var creation = RenderVulkan.Structure(48)
+    creation.append_integer(30)
+    creation.append_long(0)
+    creation.append_integer(0)
+    creation.append_integer(2)
+    creation.append_pointer(set_layouts)
+    creation.append_integer(1)
+    creation.append_pointer(push_range)
+    var made = RenderVulkan.Structure(8)
+    var result = vulkan.vkCreatePipelineLayout(renderer.device, creation.address, no_allocator, made.address)
+    crash result == 0
+    pipeline_layout = made.read_long(0)
+}
+
+func create_set_layout(renderer: RenderVulkan.Component.Renderer) {
+    var no_allocator: Long = 0
+    var bindings = RenderVulkan.Structure(312)
+    var binding = 0
+    while binding < 12 {
+        bindings.append_integer(binding)
+        bindings.append_integer(1)
+        bindings.append_integer(1)
+        bindings.append_integer(16)
+        bindings.append_long(0)
+        binding = binding + 1
+    }
+    bindings.append_integer(12)
+    bindings.append_integer(7)
+    bindings.append_integer(1)
+    bindings.append_integer(16)
+    bindings.append_long(0)
+    var creation = RenderVulkan.Structure(32)
+    creation.append_integer(32)
+    creation.append_long(0)
+    creation.append_integer(0)
+    creation.append_integer(13)
+    creation.append_pointer(bindings)
+    var made = RenderVulkan.Structure(8)
+    var result = vulkan.vkCreateDescriptorSetLayout(renderer.device, creation.address, no_allocator, made.address)
+    crash result == 0
+    set_layout = made.read_long(0)
+}
+
+func create_pool(renderer: RenderVulkan.Component.Renderer) {
+    var no_allocator: Long = 0
+    var sizes = RenderVulkan.Structure(16)
+    sizes.append_integer(1)
+    sizes.append_integer(768)
+    sizes.append_integer(7)
+    sizes.append_integer(64)
+    var creation = RenderVulkan.Structure(40)
+    creation.append_integer(33)
+    creation.append_long(0)
+    var free_descriptor_set = 1
+    creation.append_integer(free_descriptor_set)
+    creation.append_integer(64)
+    creation.append_integer(2)
+    creation.append_pointer(sizes)
+    var made = RenderVulkan.Structure(8)
+    var result = vulkan.vkCreateDescriptorPool(renderer.device, creation.address, no_allocator, made.address)
+    crash result == 0
+    pool = made.read_long(0)
+}
+
+func create_sampler(renderer: RenderVulkan.Component.Renderer, address_mode: Integer): Long {
+    var no_allocator: Long = 0
+    var creation = RenderVulkan.Structure(80)
+    creation.append_integer(31)
+    creation.append_long(0)
+    creation.append_integer(0)
+    creation.append_integer(1)
+    creation.append_integer(1)
+    creation.append_integer(1)
+    creation.append_integer(address_mode)
+    creation.append_integer(address_mode)
+    creation.append_integer(address_mode)
+    creation.append_float(0.0)
+    creation.append_integer(0)
+    creation.append_float(1.0)
+    creation.append_integer(0)
+    creation.append_integer(0)
+    creation.append_float(0.0)
+    creation.append_float(1000.0)
+    creation.append_integer(0)
+    creation.append_integer(0)
+    var made = RenderVulkan.Structure(8)
+    var result = vulkan.vkCreateSampler(renderer.device, creation.address, no_allocator, made.address)
+    crash result == 0
+    return made.read_long(0)
+}
+
+func ensure_slot(material: Integer) {
+    while sets.count() <= material {
+        var which = 0
+        while which < arrays_per_material {
+            images.append(0)
+            memories.append(0)
+            views.append(0)
+            mip_counts.append(0)
+            uploaded_layers.append(0)
+            which = which + 1
+        }
+        uploaded_generations.append(0)
+        sets.append(0)
+        var texture = 0
+        while texture < textures_per_material {
+            set_views.append(0)
+            texture = texture + 1
+        }
+        parameter_buffers.append(0)
+        parameter_memories.append(0)
+        parameter_mapped.append(0)
+    }
+}
+
+func upload_step(renderer: RenderVulkan.Component.Renderer, materials: Scene.Component.TerrainMaterials) {
+    release_retired(renderer)
+    var material = 0
+    var uploading = true
+    while uploading and material < materials.ids.count() {
+        if materials.is_ready(material) {
+            ensure_slot(material)
+            uploading = not upload_one_layer(renderer, materials, material)
+        }
+        material = material + 1
+    }
+}
+
+func upload_one_layer(
+    renderer: RenderVulkan.Component.Renderer,
+    materials: Scene.Component.TerrainMaterials,
+    material: Integer,
+): Boolean {
+    var generation = materials.generation(material)
+    if uploaded_generations.get_at(material) != generation {
+        start_material(renderer, materials, material)
+        uploaded_generations.set_at(material, generation)
+    }
+    var which = 0
+    while which < arrays_per_material {
+        var place = material * arrays_per_material + which
+        var array = materials.array_at(material, which)
+        if uploaded_layers.get_at(place) < array.layers {
+            upload_layer(renderer, array, place)
+            return true
+        }
+        which = which + 1
+    }
+    return false
+}
+
+func start_material(
+    renderer: RenderVulkan.Component.Renderer,
+    materials: Scene.Component.TerrainMaterials,
+    material: Integer,
+) {
+    retire_set(renderer, material)
+    var which = 0
+    while which < arrays_per_material {
+        var place = material * arrays_per_material + which
+        retire_image(renderer, place)
+        var array = materials.array_at(material, which)
+        var format = 37
+        if which == 0 or which == 3 or which == 4 {
+            format = 43
+        }
+        create_array_image(renderer, array, place, format)
+        which = which + 1
+    }
+    write_parameters(renderer, materials, material)
+}
+
+func mip_count_of(width: Integer, height: Integer): Integer {
+    var largest = width
+    if height > largest {
+        largest = height
+    }
+    var count = 1
+    while largest > 1 {
+        largest = largest / 2
+        count = count + 1
+    }
+    return count
+}
+
+func create_array_image(
+    renderer: RenderVulkan.Component.Renderer,
+    array: Scene.LoadedArray,
+    place: Integer,
+    format: Integer,
+) {
+    var no_allocator: Long = 0
+    var mips = mip_count_of(array.width, array.height)
+    var creation = RenderVulkan.Structure(96)
+    creation.append_integer(14)
+    creation.append_long(0)
+    creation.append_integer(0)
+    creation.append_integer(1)
+    creation.append_integer(format)
+    creation.append_integer(array.width)
+    creation.append_integer(array.height)
+    creation.append_integer(1)
+    creation.append_integer(mips)
+    creation.append_integer(array.layers)
+    creation.append_integer(1)
+    creation.append_integer(0)
+    creation.append_integer(7)
+    creation.append_integer(0)
+    creation.append_integer(0)
+    creation.append_long(0)
+    creation.append_integer(0)
+    var made = RenderVulkan.Structure(8)
+    var result = vulkan.vkCreateImage(renderer.device, creation.address, no_allocator, made.address)
+    crash result == 0
+    var image = made.read_long(0)
+    var requirements = RenderVulkan.Structure(24)
+    vulkan.vkGetImageMemoryRequirements(renderer.device, image, requirements.address)
+    var device_local = 1
+    var memory = renderer.allocate_memory(requirements, device_local)
+    var no_offset: Long = 0
+    var bound = vulkan.vkBindImageMemory(renderer.device, image, memory, no_offset)
+    crash bound == 0
+    var view_creation = RenderVulkan.Structure(80)
+    view_creation.append_integer(15)
+    view_creation.append_long(0)
+    view_creation.append_integer(0)
+    view_creation.append_long(image)
+    view_creation.append_integer(5)
+    view_creation.append_integer(format)
+    var component = 0
+    while component < 4 {
+        view_creation.append_integer(0)
+        component = component + 1
+    }
+    view_creation.append_integer(1)
+    view_creation.append_integer(0)
+    view_creation.append_integer(mips)
+    view_creation.append_integer(0)
+    view_creation.append_integer(array.layers)
+    var view_made = RenderVulkan.Structure(8)
+    var view_result = vulkan.vkCreateImageView(renderer.device, view_creation.address, no_allocator, view_made.address)
+    crash view_result == 0
+    images.set_at(place, image)
+    memories.set_at(place, memory)
+    var view = view_made.read_long(0)
+    views.set_at(place, view)
+    mip_counts.set_at(place, mips)
+    uploaded_layers.set_at(place, 0)
+}
+
+func upload_layer(renderer: RenderVulkan.Component.Renderer, array: Scene.LoadedArray, place: Integer) {
+    var layer = uploaded_layers.get_at(place)
+    var image = images.get_at(place)
+    var mips = mip_counts.get_at(place)
+    var bytes = array.width * array.height * 4
+    var transfer_source = 1
+    var staging = renderer.create_buffer(bytes, transfer_source)
+    var staging_memory = renderer.host_memory_for(staging)
+    var mapped = renderer.map(staging_memory, bytes)
+    var layer_offset = layer * bytes
+    raw.copy(array.raw.address + layer_offset, mapped, bytes)
+    renderer.frame.in_flight_stagings.append(staging)
+    renderer.frame.in_flight_staging_memories.append(staging_memory)
+    var command_buffer = renderer.frame.command_buffer
+    layer_barrier(command_buffer, image, 0, 4096, 0, 7, 1, 4096, 0, mips, layer)
+    var region = RenderVulkan.Structure(56)
+    region.append_long(0)
+    region.append_integer(0)
+    region.append_integer(0)
+    region.append_integer(1)
+    region.append_integer(0)
+    region.append_integer(layer)
+    region.append_integer(1)
+    region.append_integer(0)
+    region.append_integer(0)
+    region.append_integer(0)
+    region.append_integer(array.width)
+    region.append_integer(array.height)
+    region.append_integer(1)
+    vulkan.vkCmdCopyBufferToImage(command_buffer, staging, image, 7, 1, region.address)
+    var width = array.width
+    var height = array.height
+    var level = 1
+    while level < mips {
+        layer_barrier(command_buffer, image, 4096, 2048, 7, 6, 4096, 4096, level - 1, 1, layer)
+        var next_width = half_of(width)
+        var next_height = half_of(height)
+        blit(command_buffer, image, level, layer, width, height, next_width, next_height)
+        width = next_width
+        height = next_height
+        level = level + 1
+    }
+    if mips > 1 {
+        layer_barrier(command_buffer, image, 2048, 32, 6, 5, 4096, 128, 0, mips - 1, layer)
+    }
+    layer_barrier(command_buffer, image, 4096, 32, 7, 5, 4096, 128, mips - 1, 1, layer)
+    uploaded_layers.set_at(place, layer + 1)
+}
+
+func half_of(size: Integer): Integer {
+    if size > 1 {
+        return size / 2
+    }
+    return 1
+}
+
+func blit(
+    command_buffer: Long,
+    image: Long,
+    level: Integer,
+    layer: Integer,
+    width: Integer,
+    height: Integer,
+    next_width: Integer,
+    next_height: Integer,
+) {
+    var region = RenderVulkan.Structure(80)
+    region.append_integer(1)
+    region.append_integer(level - 1)
+    region.append_integer(layer)
+    region.append_integer(1)
+    region.append_integer(0)
+    region.append_integer(0)
+    region.append_integer(0)
+    region.append_integer(width)
+    region.append_integer(height)
+    region.append_integer(1)
+    region.append_integer(1)
+    region.append_integer(level)
+    region.append_integer(layer)
+    region.append_integer(1)
+    region.append_integer(0)
+    region.append_integer(0)
+    region.append_integer(0)
+    region.append_integer(next_width)
+    region.append_integer(next_height)
+    region.append_integer(1)
+    vulkan.vkCmdBlitImage(command_buffer, image, 6, image, 7, 1, region.address, 1)
+}
+
+func layer_barrier(
+    command_buffer: Long,
+    image: Long,
+    source_access: Integer,
+    destination_access: Integer,
+    old_layout: Integer,
+    new_layout: Integer,
+    source_stage: Integer,
+    destination_stage: Integer,
+    first_level: Integer,
+    level_count: Integer,
+    layer: Integer,
+) {
+    var description = RenderVulkan.Structure(72)
+    description.append_integer(45)
+    description.append_long(0)
+    description.append_integer(source_access)
+    description.append_integer(destination_access)
+    description.append_integer(old_layout)
+    description.append_integer(new_layout)
+    description.append_integer(-1)
+    description.append_integer(-1)
+    description.append_long(image)
+    description.append_integer(1)
+    description.append_integer(first_level)
+    description.append_integer(level_count)
+    description.append_integer(layer)
+    description.append_integer(1)
+    var no_barriers: Long = 0
+    vulkan.vkCmdPipelineBarrier(
+        command_buffer,
+        source_stage,
+        destination_stage,
+        0,
+        0,
+        no_barriers,
+        0,
+        no_barriers,
+        1,
+        description.address,
+    )
+}
+
+func write_parameters(
+    renderer: RenderVulkan.Component.Renderer,
+    materials: Scene.Component.TerrainMaterials,
+    material: Integer,
+) {
+    if parameter_buffers.get_at(material) == 0 {
+        var storage_usage = 32
+        var buffer = renderer.create_buffer(parameter_bytes, storage_usage)
+        var memory = renderer.host_memory_for(buffer)
+        var mapped = renderer.map(memory, parameter_bytes)
+        parameter_buffers.set_at(material, buffer)
+        parameter_memories.set_at(material, memory)
+        parameter_mapped.set_at(material, mapped)
+    }
+    var at = parameter_mapped.get_at(material)
+    var asset = materials.material_at(material)
+    var layers = materials.array_at(material, 0)
+    var tiles_x: Float = asset.tiles_x
+    var tiles_z: Float = asset.tiles_z
+    var layer_count: Float = layers.layers
+    put(at, 0, tiles_x, tiles_z, asset.layer_scale, layer_count)
+    put(at, 4, asset.control_width, asset.control_depth, asset.roughness, asset.specular)
+    put(at, 8, asset.detail_scale, asset.detail_strength, asset.detail_fade_depth, 0.0)
+    var has_mask: Float = 0.0
+    if asset.grass_mask != "" and asset.grass_overlay != "" {
+        has_mask = 1.0
+    }
+    put(at, 12, asset.grass_overlay_scale, asset.grass_overlay_brightness, asset.grass_mask_strength, has_mask)
+    var far_start = asset.far_fade_start
+    var far_end = asset.far_fade_end
+    if asset.far_color == "" {
+        far_start = 1000000000.0
+        far_end = 2000000000.0
+    }
+    put(at, 16, asset.grass_slope_low, asset.grass_slope_high, far_start, far_end)
+}
+
+func put(at: Long, index: Integer, first: Float, second: Float, third: Float, fourth: Float) {
+    floats.write_value(at, index, first)
+    floats.write_value(at, index + 1, second)
+    floats.write_value(at, index + 2, third)
+    floats.write_value(at, index + 3, fourth)
+}
+
+func set_for(
+    renderer: RenderVulkan.Component.Renderer,
+    materials: Scene.Component.TerrainMaterials,
+    material: Integer,
+): Long {
+    if material >= sets.count() or not materials.is_ready(material) {
+        return 0
+    }
+    var which = 0
+    while which < arrays_per_material {
+        var place = material * arrays_per_material + which
+        var array = materials.array_at(material, which)
+        if uploaded_layers.get_at(place) < array.layers {
+            return 0
+        }
+        which = which + 1
+    }
+    var changed = false
+    var texture = 0
+    while texture < textures_per_material {
+        var slot = materials.texture_slot(material, texture)
+        if slot < 0 or slot + 1 >= renderer.texture_sets.count() {
+            return 0
+        }
+        if renderer.texture_sets.get_at(slot + 1) == 0 {
+            return 0
+        }
+        var current_view = renderer.texture_views.get_at(slot + 1)
+        if set_views.get_at(material * textures_per_material + texture) != current_view {
+            changed = true
+        }
+        texture = texture + 1
+    }
+    if changed or sets.get_at(material) == 0 {
+        retire_set(renderer, material)
+        write_set(renderer, materials, material)
+    }
+    return sets.get_at(material)
+}
+
+func write_set(
+    renderer: RenderVulkan.Component.Renderer,
+    materials: Scene.Component.TerrainMaterials,
+    material: Integer,
+) {
+    var layouts = RenderVulkan.Structure(8)
+    layouts.append_long(set_layout)
+    var allocation = RenderVulkan.Structure(40)
+    allocation.append_integer(34)
+    allocation.append_long(0)
+    allocation.append_long(pool)
+    allocation.append_integer(1)
+    allocation.append_pointer(layouts)
+    var made = RenderVulkan.Structure(8)
+    var result = vulkan.vkAllocateDescriptorSets(renderer.device, allocation.address, made.address)
+    var terrain_descriptor_pool_has_room = result == 0
+    crash terrain_descriptor_pool_has_room
+    var set = made.read_long(0)
+    var images_information = RenderVulkan.Structure(312)
+    var which = 0
+    while which < arrays_per_material {
+        var sampler = repeat_sampler
+        if which == 3 {
+            sampler = clamp_sampler
+        }
+        images_information.append_long(sampler)
+        var array_view = views.get_at(material * arrays_per_material + which)
+        images_information.append_long(array_view)
+        images_information.append_integer(5)
+        which = which + 1
+    }
+    var texture = 0
+    while texture < textures_per_material {
+        var slot = materials.texture_slot(material, texture)
+        var view = renderer.texture_views.get_at(slot + 1)
+        set_views.set_at(material * textures_per_material + texture, view)
+        images_information.append_long(clamp_sampler)
+        images_information.append_long(view)
+        images_information.append_integer(5)
+        texture = texture + 1
+    }
+    var buffer_information = RenderVulkan.Structure(24)
+    var parameter_buffer = parameter_buffers.get_at(material)
+    buffer_information.append_long(parameter_buffer)
+    buffer_information.append_long(0)
+    var whole: Long = -1
+    buffer_information.append_long(whole)
+    var writes = RenderVulkan.Structure(128)
+    writes.append_integer(35)
+    writes.append_long(0)
+    writes.append_long(set)
+    writes.append_integer(0)
+    writes.append_integer(0)
+    writes.append_integer(12)
+    writes.append_integer(1)
+    writes.append_pointer(images_information)
+    writes.append_long(0)
+    writes.append_long(0)
+    writes.append_integer(35)
+    writes.append_long(0)
+    writes.append_long(set)
+    writes.append_integer(12)
+    writes.append_integer(0)
+    writes.append_integer(1)
+    writes.append_integer(7)
+    writes.append_long(0)
+    writes.append_pointer(buffer_information)
+    writes.append_long(0)
+    var no_copies: Long = 0
+    vulkan.vkUpdateDescriptorSets(renderer.device, 2, writes.address, 0, no_copies)
+    sets.set_at(material, set)
+}
+
+func retire_set(renderer: RenderVulkan.Component.Renderer, material: Integer) {
+    assert material < sets.count() and sets.get_at(material) != 0
+    var retired = sets.get_at(material)
+    retired_sets.append(retired)
+    retired_at.append(renderer.frame_number)
+    sets.set_at(material, 0)
+}
+
+func retire_image(renderer: RenderVulkan.Component.Renderer, place: Integer) {
+    assert images.get_at(place) != 0
+    var image = images.get_at(place)
+    var memory = memories.get_at(place)
+    var view = views.get_at(place)
+    renderer.frame.retired_images.append(image)
+    renderer.frame.retired_memories.append(memory)
+    renderer.frame.retired_views.append(view)
+    renderer.frame.retired_sets.append(0)
+    images.set_at(place, 0)
+}
+
+func release_retired(renderer: RenderVulkan.Component.Renderer) {
+    var index = retired_sets.count() - 1
+    while index >= 0 {
+        if retired_at.get_at(index) + renderer.frames_in_flight < renderer.frame_number {
+            var freed = RenderVulkan.Structure(8)
+            var retired = retired_sets.get_at(index)
+            freed.append_long(retired)
+            vulkan.vkFreeDescriptorSets(renderer.device, pool, 1, freed.address)
+            retired_sets.remove_at(index)
+            retired_at.remove_at(index)
+        }
+        index = index - 1
+    }
+}
+
+func release(renderer: RenderVulkan.Component.Renderer) {
+    assert created
+    var no_allocator: Long = 0
+    var place = 0
+    while place < images.count() {
+        var image = images.get_at(place)
+        if image != 0 {
+            var view = views.get_at(place)
+            var memory = memories.get_at(place)
+            vulkan.vkDestroyImageView(renderer.device, view, no_allocator)
+            vulkan.vkDestroyImage(renderer.device, image, no_allocator)
+            vulkan.vkFreeMemory(renderer.device, memory, no_allocator)
+        }
+        place = place + 1
+    }
+    var material = 0
+    while material < parameter_buffers.count() {
+        var buffer = parameter_buffers.get_at(material)
+        if buffer != 0 {
+            var memory = parameter_memories.get_at(material)
+            vulkan.vkDestroyBuffer(renderer.device, buffer, no_allocator)
+            vulkan.vkFreeMemory(renderer.device, memory, no_allocator)
+        }
+        material = material + 1
+    }
+    vulkan.vkDestroyDescriptorPool(renderer.device, pool, no_allocator)
+    vulkan.vkDestroySampler(renderer.device, repeat_sampler, no_allocator)
+    vulkan.vkDestroySampler(renderer.device, clamp_sampler, no_allocator)
+    vulkan.vkDestroyPipeline(renderer.device, pipeline, no_allocator)
+    vulkan.vkDestroyPipelineLayout(renderer.device, pipeline_layout, no_allocator)
+    vulkan.vkDestroyDescriptorSetLayout(renderer.device, set_layout, no_allocator)
+    vulkan.vkDestroyShaderModule(renderer.device, shader_terrain, no_allocator)
+}

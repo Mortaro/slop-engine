@@ -178,10 +178,11 @@ vec3 local_radiance(Surface surface, vec3 position) {
     return radiance;
 }
 
-vec4 lit_color(vec3 base, vec3 surface_normal) {
-    float roughness = lighting.material.x;
-    float specular = lighting.material.y;
-    float metallic = lighting.material.z;
+// material_terms: roughness, specular, metallic
+vec4 lit_color(vec3 base, vec3 surface_normal, vec3 material_terms) {
+    float roughness = material_terms.x;
+    float specular = material_terms.y;
+    float metallic = material_terms.z;
     vec3 normal = normalize(surface_normal);
     vec3 toward_eye = normalize(lighting.eye.xyz - world_position);
     if (dot(normal, toward_eye) < 0.0) {

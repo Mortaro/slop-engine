@@ -1,0 +1,4 @@
+var width = 1
+var height = 1
+var layers = 1
+var raw = Asset.Bytes()

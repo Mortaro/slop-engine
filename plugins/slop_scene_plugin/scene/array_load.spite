@@ -1,0 +1,30 @@
+var path = ""
+var offset: Long = 0
+var length: Long = 0
+
+func ArrayLoad(found: Recipes.Record) {
+    path = found.path
+    offset = found.offset
+    length = found.length
+}
+
+func run(): Scene.LoadedArray {
+    var record = Recipes.Record()
+    record.path = path
+    record.offset = offset
+    record.length = length
+    var bytes = record.read()
+    var pack = Pack<Asset.TextureArray>()
+    var array = pack.decode(bytes)
+    crash array
+    var pixels_fit_the_size = array.pixels.count() == array.width * array.height * array.layers
+    crash pixels_fit_the_size and array.layers > 0
+    var loaded = Scene.LoadedArray()
+    loaded.width = array.width
+    loaded.height = array.height
+    loaded.layers = array.layers
+    var count = array.pixels.count()
+    loaded.raw.reserve(count * 4 + 1)
+    array.pixels.each(loaded.raw.write_integer)
+    return loaded
+}

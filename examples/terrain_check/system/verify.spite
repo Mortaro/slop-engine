@@ -1,0 +1,59 @@
+type Checked {
+    renderer: RenderVulkan.Component.Renderer
+    view: Scene.Component.View
+    draw_list: Render.Component.DrawList
+}
+
+type Quitting {
+    frame: Component.Frame
+    quit: Component.Quit
+}
+
+var console = Console()
+var rendered_frames = 0
+var capture = Capture()
+
+func last_each(checked: Checked, quitting: Quitting) {
+    assert not quitting.quit.requested and checked.view.terrain_draws.count() > 0
+    var renderer = checked.renderer
+    rendered_frames = rendered_frames + 1
+    if rendered_frames == 30 {
+        renderer.capture_requested = true
+    }
+    assert renderer.captured
+    var width = checked.draw_list.width
+    var height = checked.draw_list.height
+    var left = renderer.pixel_at(width / 2 - height / 4, height / 2)
+    var right = renderer.pixel_at(width / 2 + height / 4, height / 2)
+    var center = renderer.pixel_at(width / 2, height / 2)
+    var left_red = channel(left, 16) > channel(left, 8) * 2 and channel(left, 16) > channel(left, 0) * 2
+    var right_blue = channel(right, 0) > channel(right, 16) * 2 and channel(right, 0) > channel(right, 8) * 2
+    var center_green = channel(center, 8) > channel(center, 16) * 2 and channel(center, 8) > channel(center, 0) * 2
+    var passed = left_red and right_blue and center_green
+    var left_color = left.bits_and(16777215)
+    var right_color = right.bits_and(16777215)
+    var center_color = center.bits_and(16777215)
+    console.print("left", left_color, "center", center_color, "right", right_color, "passed", passed)
+    keep(renderer, width, height)
+    crash passed
+    quitting.quit.requested = true
+}
+
+func channel(pixel: Integer, shift: Integer): Integer {
+    return pixel.shifted_right(shift).bits_and(255)
+}
+
+func keep(renderer: RenderVulkan.Component.Renderer, width: Integer, height: Integer) {
+    capture.width = width
+    capture.height = height
+    var top = 0
+    while top < height {
+        var left = 0
+        while left < width {
+            var pixel = renderer.pixel_at(left, top)
+            capture.pixels.append(pixel)
+            left = left + 1
+        }
+        top = top + 1
+    }
+}

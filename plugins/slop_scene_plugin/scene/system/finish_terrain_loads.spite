@@ -1,0 +1,7 @@
+type Loading {
+    terrain_materials: Component.TerrainMaterials
+}
+
+func last_each(loading: Loading) {
+    loading.terrain_materials.finish_loads()
+}

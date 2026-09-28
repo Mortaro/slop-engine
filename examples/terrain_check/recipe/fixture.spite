@@ -1,0 +1,159 @@
+var cache = Recipes.Cache()
+var mesh = Asset.Mesh()
+
+func build() {
+    var fingerprint = cache.fingerprint("terrain fixture 2")
+    assert not cache.is_current("terrain.check.cell", fingerprint)
+    build_mesh(fingerprint)
+    build_layers(fingerprint)
+    put_texture("terrain.check.ctrl_a", fingerprint, 2, 2, control_texel)
+    put_texture("terrain.check.ctrl_b", fingerprint, 2, 2, empty_texel)
+    put_texture("terrain.check.scale_a", fingerprint, 2, 2, scale_texel)
+    put_texture("terrain.check.scale_b", fingerprint, 2, 2, scale_texel)
+    put_texture("terrain.check.splat_0", fingerprint, 128, 128, splat_texel)
+    put_texture("terrain.check.splat_1", fingerprint, 2, 2, empty_texel)
+    var material = Asset.TerrainMaterial()
+    material.layers = "terrain.check.layers"
+    material.ctrl_a = "terrain.check.ctrl_a"
+    material.ctrl_b = "terrain.check.ctrl_b"
+    material.scale_a = "terrain.check.scale_a"
+    material.scale_b = "terrain.check.scale_b"
+    material.splat_0 = "terrain.check.splat_0"
+    material.splat_1 = "terrain.check.splat_1"
+    material.tiles_x = 2
+    material.tiles_z = 2
+    material.control_width = 64.0
+    material.control_depth = 64.0
+    material.layer_scale = 1.0
+    var pack = Pack<Asset.TerrainMaterial>()
+    var bytes = Asset.Bytes()
+    pack.encode(material, bytes)
+    cache.put("terrain.check.material", fingerprint, bytes)
+}
+
+func build_mesh(fingerprint: String) {
+    var steps = 32
+    var row = 0
+    while row <= steps {
+        var column = 0
+        while column <= steps {
+            var across: Float = column
+            var down: Float = row
+            var count: Float = steps
+            mesh.vertices.append(across / count * 64.0)
+            mesh.vertices.append(0.0)
+            mesh.vertices.append(down / count * 64.0)
+            mesh.vertices.append(0.0)
+            mesh.vertices.append(1.0)
+            mesh.vertices.append(0.0)
+            mesh.vertices.append(across / count)
+            mesh.vertices.append(down / count)
+            column = column + 1
+        }
+        row = row + 1
+    }
+    row = 0
+    while row < steps {
+        var column = 0
+        while column < steps {
+            var corner = row * (steps + 1) + column
+            mesh.indices.append(corner)
+            mesh.indices.append(corner + 1)
+            mesh.indices.append(corner + steps + 1)
+            mesh.indices.append(corner + 1)
+            mesh.indices.append(corner + steps + 2)
+            mesh.indices.append(corner + steps + 1)
+            column = column + 1
+        }
+        row = row + 1
+    }
+    var index_count = mesh.indices.count()
+    mesh.add_section(0, index_count, "")
+    var pack = Pack<Asset.Mesh>()
+    var bytes = Asset.Bytes()
+    pack.encode(mesh, bytes)
+    cache.put("terrain.check.cell", fingerprint, bytes)
+}
+
+func build_layers(fingerprint: String) {
+    var array = Asset.TextureArray()
+    array.width = 16
+    array.height = 16
+    array.layers = 3
+    fill_layer(array, 200, 40, 40)
+    fill_layer(array, 40, 200, 40)
+    fill_layer(array, 40, 40, 200)
+    var pack = Pack<Asset.TextureArray>()
+    var bytes = Asset.Bytes()
+    pack.encode(array, bytes)
+    cache.put("terrain.check.layers", fingerprint, bytes)
+}
+
+func fill_layer(array: Asset.TextureArray, red: Integer, green: Integer, blue: Integer) {
+    var texel = pack_texel(red, green, blue, 255)
+    var index = 0
+    while index < array.width * array.height {
+        array.pixels.append(texel)
+        index = index + 1
+    }
+}
+
+func pack_texel(red: Integer, green: Integer, blue: Integer, alpha: Integer): Integer {
+    var alpha_part = alpha.shifted_left(24)
+    var blue_part = blue.shifted_left(16)
+    var green_part = green.shifted_left(8)
+    return red.bits_or(green_part).bits_or(blue_part).bits_or(alpha_part)
+}
+
+func control_texel(column: Integer, _row: Integer, _size: Integer): Integer {
+    var base = 0
+    if column == 1 {
+        base = 2
+    }
+    return pack_texel(base, 1, 0, 0)
+}
+
+func empty_texel(_column: Integer, _row: Integer, _size: Integer): Integer {
+    return 0
+}
+
+func scale_texel(_column: Integer, _row: Integer, _size: Integer): Integer {
+    return pack_texel(26, 26, 26, 26)
+}
+
+func splat_texel(column: Integer, row: Integer, size: Integer): Integer {
+    var half = size / 2
+    var across = column - half
+    var down = row - half
+    var reach = size * 15 / 100
+    if across * across + down * down < reach * reach {
+        return pack_texel(255, 0, 0, 0)
+    }
+    return 0
+}
+
+func put_texture(
+    id: String,
+    fingerprint: String,
+    width: Integer,
+    height: Integer,
+    texel_at: Spite.Function<Integer, Integer, Integer, Integer>,
+) {
+    var texture = Asset.Texture()
+    texture.width = width
+    texture.height = height
+    var row = 0
+    while row < height {
+        var column = 0
+        while column < width {
+            var texel = texel_at(column, row, width)
+            texture.pixels.append(texel)
+            column = column + 1
+        }
+        row = row + 1
+    }
+    var pack = Pack<Asset.Texture>()
+    var bytes = Asset.Bytes()
+    pack.encode(texture, bytes)
+    cache.put(id, fingerprint, bytes)
+}

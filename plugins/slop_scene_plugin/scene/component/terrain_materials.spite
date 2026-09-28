@@ -1,0 +1,199 @@
+var report_console = Console()
+var ids = List<String>()
+var materials = List<Asset.TerrainMaterial>()
+var arrays = List<Scene.LoadedArray>()
+var stages = List<Integer>()
+var pending_arrays = List<Integer>()
+var generations = List<Integer>()
+var material_loads = List<Parallel<Asset.TerrainMaterial>>()
+var material_load_slots = List<Integer>()
+var array_loads = List<Parallel<Scene.LoadedArray>>()
+var array_load_places = List<Integer>()
+var catalog = Recipes.Catalog()
+var arrays_per_material = 5
+var textures_per_material = 7
+var texture_slots = List<Integer>()
+
+func request(id: String): Integer {
+    var index = 0
+    while index < ids.count() {
+        if ids[index] == id {
+            return index
+        }
+        index = index + 1
+    }
+    ids.append(id)
+    var waiting = Asset.TerrainMaterial()
+    materials.append(waiting)
+    stages.append(0)
+    pending_arrays.append(0)
+    generations.append(0)
+    var texture = 0
+    while texture < textures_per_material {
+        texture_slots.append(-1)
+        texture = texture + 1
+    }
+    var which = 0
+    while which < arrays_per_material {
+        var placeholder = neutral_array(which)
+        arrays.append(placeholder)
+        which = which + 1
+    }
+    return ids.count() - 1
+}
+
+func is_ready(slot: Integer): Boolean {
+    crash slot < stages.count()
+    return stages[slot] == 3
+}
+
+func material_at(slot: Integer): Asset.TerrainMaterial {
+    return materials.get_at(slot)
+}
+
+func array_at(slot: Integer, which: Integer): Scene.LoadedArray {
+    return arrays.get_at(slot * arrays_per_material + which)
+}
+
+func generation(slot: Integer): Integer {
+    return generations.get_at(slot)
+}
+
+func neutral_array(which: Integer): Scene.LoadedArray {
+    var neutral = Scene.LoadedArray()
+    var color = -1
+    if which == 1 {
+        color = 255 * 65536 + 128 * 256 + 128 - 16777216
+    } else if which == 2 {
+        color = 128 * 65536 + 128 * 256 + 128 - 16777216
+    }
+    neutral.raw.write_integer(color)
+    return neutral
+}
+
+func finish_loads() {
+    start_waiting_materials()
+    var index = material_loads.count() - 1
+    while index >= 0 {
+        finish_material_if_done(index)
+        index = index - 1
+    }
+    index = array_loads.count() - 1
+    while index >= 0 {
+        finish_array_if_done(index)
+        index = index - 1
+    }
+}
+
+func start_waiting_materials() {
+    assert catalog.ready()
+    var reader = catalog.current()
+    var slot = 0
+    while slot < stages.count() {
+        if stages[slot] == 0 {
+            start_material(reader, slot)
+        }
+        slot = slot + 1
+    }
+}
+
+func start_material(reader: Recipes.CacheReader, slot: Integer) {
+    var never_cooked_id = ids.get_at(slot)
+    var record = reader.locate(never_cooked_id)
+    if not record {
+        report_console.print("asset never cooked:", never_cooked_id)
+    }
+    crash record
+    var job = Scene.MaterialLoad(record)
+    var loading = Parallel(job.run)
+    material_loads.append(loading)
+    material_load_slots.append(slot)
+    stages.set_at(slot, 1)
+}
+
+func finish_material_if_done(index: Integer) {
+    var slot = material_load_slots.get_at(index)
+    var loading = material_loads.get_at(index)
+    var loaded = loading.finished_value()
+    assert loaded
+    material_loads.remove_at(index)
+    material_load_slots.remove_at(index)
+    materials.set_at(slot, loaded)
+    var material_id = ids.get_at(slot)
+    var material_names_its_layers = loaded.layers != ""
+    crash material_names_its_layers or material_id == ""
+    var reader = catalog.current()
+    stages.set_at(slot, 2)
+    pending_arrays.set_at(slot, 0)
+    start_array(reader, slot, 0, loaded.layers)
+    start_array(reader, slot, 1, loaded.normals)
+    start_array(reader, slot, 2, loaded.detail)
+    start_array(reader, slot, 3, loaded.far_color)
+    start_array(reader, slot, 4, loaded.grass_overlay)
+    finish_if_complete(slot)
+}
+
+func start_array(reader: Recipes.CacheReader, slot: Integer, which: Integer, id: String) {
+    assert id != ""
+    var never_cooked_id = id
+    var record = reader.locate(never_cooked_id)
+    if not record {
+        report_console.print("asset never cooked:", never_cooked_id)
+    }
+    crash record
+    var job = Scene.ArrayLoad(record)
+    var loading = Parallel(job.run)
+    array_loads.append(loading)
+    array_load_places.append(slot * arrays_per_material + which)
+    var pending = pending_arrays.get_at(slot)
+    pending_arrays.set_at(slot, pending + 1)
+}
+
+func finish_array_if_done(index: Integer) {
+    var place = array_load_places.get_at(index)
+    var loading = array_loads.get_at(index)
+    var loaded = loading.finished_value()
+    assert loaded
+    array_loads.remove_at(index)
+    array_load_places.remove_at(index)
+    arrays.set_at(place, loaded)
+    var slot = place / arrays_per_material
+    var pending = pending_arrays.get_at(slot)
+    pending_arrays.set_at(slot, pending - 1)
+    finish_if_complete(slot)
+}
+
+func finish_if_complete(slot: Integer) {
+    assert pending_arrays.get_at(slot) == 0 and stages.get_at(slot) == 2
+    stages.set_at(slot, 3)
+    var loaded_before = generations.get_at(slot)
+    generations.set_at(slot, loaded_before + 1)
+}
+
+func request_textures(slot: Integer, textures: Render.Component.Textures) {
+    assert is_ready(slot) and texture_slots.get_at(slot * textures_per_material) < 0
+    var material = materials.get_at(slot)
+    request_texture(slot, 0, material.ctrl_a, textures)
+    request_texture(slot, 1, material.ctrl_b, textures)
+    request_texture(slot, 2, material.scale_a, textures)
+    request_texture(slot, 3, material.scale_b, textures)
+    request_texture(slot, 4, material.splat_0, textures)
+    request_texture(slot, 5, material.splat_1, textures)
+    var mask = material.grass_mask
+    if mask == "" {
+        mask = material.splat_1
+    }
+    request_texture(slot, 6, mask, textures)
+}
+
+func request_texture(slot: Integer, which: Integer, id: String, textures: Render.Component.Textures) {
+    var material_id = ids.get_at(slot)
+    var material_names_every_control_texture = id != ""
+    crash material_names_every_control_texture or material_id == ""
+    var requested = textures.request(id)
+    texture_slots.set_at(slot * textures_per_material + which, requested)
+}
+
+func texture_slot(slot: Integer, which: Integer): Integer {
+    return texture_slots.get_at(slot * textures_per_material + which)
+}
