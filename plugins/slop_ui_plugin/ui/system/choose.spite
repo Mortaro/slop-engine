@@ -24,6 +24,7 @@ type Choice {
 }
 
 type Pointer {
+    entity: Entity
     mouse: Input.Component.Mouse
 }
 
@@ -42,7 +43,9 @@ func update_all(
     released = false
     var index = 0
     while index < pointers.count() {
-        released = released or pointers[index].mouse.released
+        var pointer = pointers[index]
+        var released_here = Lookup<Input.Component.LeftReleased>().has(pointer.entity.id)
+        released = released or released_here
         index = index + 1
     }
     index = 0

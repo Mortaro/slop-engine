@@ -6,6 +6,7 @@ type Pressable {
 }
 
 type Pointer {
+    entity: Entity
     mouse: Input.Component.Mouse
 }
 
@@ -31,6 +32,14 @@ type Target {
 var drag_threshold: Float = 4.0
 var drag_ended = List<Integer>()
 var dragging_now = false
+
+var left_down = false
+var left_pressed = false
+var left_released = false
+var right_down = false
+var right_pressed = false
+var right_released = false
+var double_clicked = false
 
 func after_input_all(
     pressables: List<Pressable>,
@@ -62,6 +71,7 @@ func interact_pointer(
         on_bar = on_bar or bar.bars.covers(mouse_left, mouse_top) and bar.clip.contains(mouse_left, mouse_top)
         index = index + 1
     }
+    read_buttons(pointer.entity.id)
     drag_ended.clear()
     dragging_now = false
     forget_drop_markers(sources, targets)
@@ -92,9 +102,9 @@ func interact(pressable: Pressable, pointer: Pointer, on_bar: Boolean) {
     var hovered_before = Lookup<Ui.Component.Hovered>().has(entity)
     var pressed_before = Lookup<Ui.Component.Pressed>().has(entity)
     var clicked_before = Lookup<Ui.Component.Clicked>().has(entity)
-    var started_here = pressed_before or mouse.pressed and hovered
-    var pressed = started_here and mouse.down
-    var clicked = mouse.released and hovered and started_here and drag_ended.is_empty()
+    var started_here = pressed_before or left_pressed and hovered
+    var pressed = started_here and left_down
+    var clicked = left_released and hovered and started_here and drag_ended.is_empty()
     if clicked and not clicked_before {
         var clicked_marker = Ui.Component.Clicked()
         owner.add_component(clicked_marker)
@@ -123,10 +133,10 @@ func interact_other_buttons(pressable: Pressable, pointer: Pointer, hovered: Boo
     var right_before = Lookup<Ui.Component.RightPressed>().has(entity)
     var right_clicked_before = Lookup<Ui.Component.RightClicked>().has(entity)
     var double_before = Lookup<Ui.Component.DoubleClicked>().has(entity)
-    var right_started = right_before or mouse.right_pressed and hovered
-    var right_held = right_started and mouse.right_down
-    var right_clicked = mouse.right_released and hovered and right_started
-    var doubled = mouse.double_clicked and hovered
+    var right_started = right_before or right_pressed and hovered
+    var right_held = right_started and right_down
+    var right_clicked = right_released and hovered and right_started
+    var doubled = double_clicked and hovered
     if right_held and not right_before {
         var right_marker = Ui.Component.RightPressed()
         owner.add_component(right_marker)
@@ -187,7 +197,7 @@ func drag_source(source: Source, pointer: Pointer, targets: List<Target>, on_bar
     var inside_x = mouse_left >= layout.left and mouse_left < layout.left + layout.width
     var inside_y = mouse_top >= layout.top and mouse_top < layout.top + layout.height
     var hovered = inside_x and inside_y and source.clip.contains(mouse_left, mouse_top) and not on_bar
-    assert mouse.pressed and hovered
+    assert left_pressed and hovered
     var started = Component.DragPress()
     started.left = mouse_left
     started.top = mouse_top
@@ -199,7 +209,7 @@ func drag_source(source: Source, pointer: Pointer, targets: List<Target>, on_bar
 func continue_press(source: Source, press: Component.DragPress, pointer: Pointer) {
     var mouse = pointer.mouse
     var owner = source.entity
-    if not mouse.down {
+    if not left_down {
         owner.remove_component(Component.DragPress)
         return
     }
@@ -219,7 +229,7 @@ func continue_press(source: Source, press: Component.DragPress, pointer: Pointer
 
 func continue_drag(source: Source, pointer: Pointer, targets: List<Target>) {
     var owner = source.entity
-    if pointer.mouse.down {
+    if left_down {
         dragging_now = true
         return
     }
@@ -277,4 +287,14 @@ func mark_drag_over(targets: List<Target>, pointer: Pointer) {
         }
         index = index + 1
     }
+}
+
+func read_buttons(entity: Integer) {
+    left_down = Lookup<Input.Component.LeftDown>().has(entity)
+    left_pressed = Lookup<Input.Component.LeftPressed>().has(entity)
+    left_released = Lookup<Input.Component.LeftReleased>().has(entity)
+    right_down = Lookup<Input.Component.RightDown>().has(entity)
+    right_pressed = Lookup<Input.Component.RightPressed>().has(entity)
+    right_released = Lookup<Input.Component.RightReleased>().has(entity)
+    double_clicked = Lookup<Input.Component.DoubleClicked>().has(entity)
 }

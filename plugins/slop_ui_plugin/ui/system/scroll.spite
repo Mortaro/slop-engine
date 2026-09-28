@@ -16,15 +16,21 @@ type Dragging {
 }
 
 type Pointer {
+    entity: Entity
     mouse: Input.Component.Mouse
 }
 
 var step: Float = 40.0
 
+var left_down = false
+var left_pressed = false
+
 func after_input_all(scrollables: List<Scrollable>, draggings: List<Dragging>, pointers: List<Pointer>) {
     var index = 0
     while index < pointers.count() {
-        var mouse = pointers[index].mouse
+        var pointer = pointers[index]
+        read_buttons(pointer.entity.id)
+        var mouse = pointer.mouse
         scroll_under(scrollables, mouse)
         drag_every(draggings, mouse)
         start_drag(scrollables, mouse)
@@ -71,7 +77,7 @@ func under_pointer(scrollables: List<Scrollable>, mouse: Input.Component.Mouse):
 }
 
 func start_drag(scrollables: List<Scrollable>, mouse: Input.Component.Mouse) {
-    assert mouse.pressed
+    assert left_pressed
     var mouse_left: Float = mouse.left
     var mouse_top: Float = mouse.top
     var index = 0
@@ -106,7 +112,7 @@ func drag_every(draggings: List<Dragging>, mouse: Input.Component.Mouse) {
 }
 
 func drag(dragging: Dragging, mouse: Input.Component.Mouse) {
-    if not mouse.down {
+    if not left_down {
         dragging.entity.remove_component(Component.ScrollDrag)
         return
     }
@@ -133,4 +139,9 @@ func limited(value: Float, maximum: Float): Float {
         return maximum
     }
     return value
+}
+
+func read_buttons(entity: Integer) {
+    left_down = Lookup<Input.Component.LeftDown>().has(entity)
+    left_pressed = Lookup<Input.Component.LeftPressed>().has(entity)
 }

@@ -1,4 +1,5 @@
 type Watched {
+    entity: Entity
     mouse: Input.Component.Mouse
 }
 
@@ -6,10 +7,17 @@ type Tested {
     progress: Component.Progress
 }
 
+var right_presses = Lookup<Input.Component.RightPressed>()
+var middle_presses = Lookup<Input.Component.MiddlePressed>()
+var double_clicks = Lookup<Input.Component.DoubleClicked>()
+
 func update_each(watched: Watched, tested: Tested) {
-    var mouse = watched.mouse
     var progress = tested.progress
-    progress.saw_right = progress.saw_right or mouse.right_pressed
-    progress.saw_middle = progress.saw_middle or mouse.middle_pressed
-    progress.saw_double = progress.saw_double or mouse.double_clicked
+    var owner = watched.entity.id
+    var right = right_presses.has(owner)
+    var middle = middle_presses.has(owner)
+    var doubled = double_clicks.has(owner)
+    progress.saw_right = progress.saw_right or right
+    progress.saw_middle = progress.saw_middle or middle
+    progress.saw_double = progress.saw_double or doubled
 }

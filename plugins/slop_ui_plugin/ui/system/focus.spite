@@ -11,6 +11,7 @@ type Holder {
 }
 
 type Pointer {
+    entity: Entity
     mouse: Input.Component.Mouse
 }
 
@@ -20,6 +21,8 @@ type Keys {
 
 var keys = Input.Key()
 
+var left_pressed = false
+
 func after_input_all(
     pointers: List<Pointer>,
     candidates: List<Candidate>,
@@ -28,7 +31,9 @@ func after_input_all(
 ) {
     var index = 0
     while index < pointers.count() {
-        focus_under(candidates, holders, pointers[index].mouse)
+        var pointer = pointers[index]
+        read_buttons(pointer.entity.id)
+        focus_under(candidates, holders, pointer.mouse)
         index = index + 1
     }
     index = 0
@@ -39,7 +44,7 @@ func after_input_all(
 }
 
 func focus_under(candidates: List<Candidate>, holders: List<Holder>, mouse: Input.Component.Mouse) {
-    assert mouse.pressed
+    assert left_pressed
     var target = topmost_under(candidates, mouse)
     move_focus(holders, target)
 }
@@ -132,4 +137,8 @@ func topmost_under(candidates: List<Candidate>, mouse: Input.Component.Mouse): I
         index = index + 1
     }
     return chosen
+}
+
+func read_buttons(entity: Integer) {
+    left_pressed = Lookup<Input.Component.LeftPressed>().has(entity)
 }
