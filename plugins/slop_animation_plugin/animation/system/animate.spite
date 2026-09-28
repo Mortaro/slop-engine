@@ -49,8 +49,9 @@ func copy_pose(source: List<Math.Matrix4>, target: List<Math.Matrix4>) {
     sampler.fit(target, count)
     var index = 0
     while index < count {
-        var from = source.get_at(index)
-        var into = target.get_at(index)
+        var from = source[index]
+        crash target[index]
+        var into = target[index]
         into.copy_from(from)
         index = index + 1
     }

@@ -57,8 +57,9 @@ func holds_component(component: Symbol<Component>, entity: Entity, message: Inte
 func count_pending(connection: Integer, message: Integer) {
     var index = 0
     while index < pending_connections.count() {
-        if pending_connections.get_at(index) == connection {
-            var counted = pending_counts.get_at(index)
+        if pending_connections[index] == connection {
+            crash pending_counts[index]
+            var counted = pending_counts[index]
             pending_counts.set_at(index, counted + 1)
             return
         }
@@ -70,12 +71,15 @@ func count_pending(connection: Integer, message: Integer) {
 }
 
 func close_if_flooded(index: Integer) {
-    var count = pending_counts.get_at(index)
+    crash pending_counts[index]
+    var count = pending_counts[index]
     assert count > pending_limit
-    var connection_id = pending_connections.get_at(index)
+    crash pending_connections[index]
+    var connection_id = pending_connections[index]
     var connection = connections.of(connection_id)
     crash connection
-    var oldest = oldest_messages.get_at(index)
+    crash oldest_messages[index]
+    var oldest = oldest_messages[index]
     var anywhere = world.as_entity()
     holds_components(anywhere, oldest)
     console.error("closing connection {connection_id}: {count} messages nobody handled, the oldest a {held_name}")

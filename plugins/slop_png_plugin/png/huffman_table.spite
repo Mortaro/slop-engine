@@ -16,7 +16,8 @@ func build(lengths: List<Integer>, first: Integer, count: Integer): Boolean {
     var symbol = 0
     while symbol < count {
         var length = length_of(lengths, first + symbol)
-        var counted = counts.get_at(length)
+        crash counts[length]
+        var counted = counts[length]
         counts.set_at(length, counted + 1)
         if length > maximum_bits {
             maximum_bits = length
@@ -40,7 +41,8 @@ func build(lengths: List<Integer>, first: Integer, count: Integer): Boolean {
 }
 
 func length_of(lengths: List<Integer>, index: Integer): Integer {
-    var length = lengths.get_at(index)
+    crash lengths[index]
+    var length = lengths[index]
     if length <= 0 or length >= 16 {
         return 0
     }
@@ -52,7 +54,8 @@ func assign_first_codes(counts: List<Integer>, next_codes: List<Integer>): Boole
     var available = 1
     var length = 1
     while length < 16 {
-        var counted = counts.get_at(length)
+        crash counts[length]
+        var counted = counts[length]
         available = available * 2 - counted
         if available < 0 {
             return false
@@ -67,7 +70,8 @@ func assign_first_codes(counts: List<Integer>, next_codes: List<Integer>): Boole
 
 func place_symbol(symbol: Integer, length: Integer, next_codes: List<Integer>) {
     assert length > 0
-    var code = next_codes.get_at(length)
+    crash next_codes[length]
+    var code = next_codes[length]
     next_codes.set_at(length, code + 1)
     var slot = reversed(code, length)
     var step = 1

@@ -58,16 +58,19 @@ func pose_bone(
     local.set_pose(first)
     crash skeleton.parents[bone]
     var parent = skeleton.parents[bone]
-    var global = globals.get_at(bone)
+    crash globals[bone]
+    var global = globals[bone]
     if parent >= 0 {
         var parent_comes_first = parent < bone
         crash parent_comes_first
-        var parent_global = globals.get_at(parent)
+        crash globals[parent]
+        var parent_global = globals[parent]
         global.set_product(parent_global, local)
     } else {
         global.copy_from(local)
     }
-    var skinning = palette.get_at(bone)
+    crash palette[bone]
+    var skinning = palette[bone]
     skinning.set_product_with_values(global, skeleton.inverse_binds, bone * 16)
     var bone_matrix_is_finite = skinning.is_finite()
     crash skeleton.names[bone]

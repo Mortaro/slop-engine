@@ -11,12 +11,12 @@ var across_tangent: Float = 1.0
 var down_tangent: Float = 1.0
 var across_norm: Float = 1.0
 var down_norm: Float = 1.0
-var visible = Vector<Integer>()
-var counts = Vector<Integer>()
+var visible = List<Integer>()
+var counts = List<Integer>()
 var index_count = 0
-var spans = Vector<Integer>()
-var cursors = Vector<Integer>()
-var boundaries = Vector<Float>()
+var spans = List<Integer>()
+var cursors = List<Integer>()
+var boundaries = List<Float>()
 var scalar = Math.Scalar()
 var eye = Math.Vector3()
 var lights = Scene.Lights()
@@ -36,6 +36,7 @@ func assign(view: Scene.Component.View, aspect: Float) {
     var cluster = 0
     while cluster < cluster_count {
         cursors.set_at(cluster, index_count)
+        crash counts[cluster]
         index_count = index_count + counts[cluster]
         cluster = cluster + 1
     }
@@ -44,22 +45,30 @@ func assign(view: Scene.Component.View, aspect: Float) {
 func write(ranges_at: Memory.Address, indices_at: Memory.Address) {
     var cluster = 0
     while cluster < cluster_count {
+        crash cursors[cluster]
         ints.write_value(ranges_at, cluster * 2, cursors[cluster])
+        crash counts[cluster]
         ints.write_value(ranges_at, cluster * 2 + 1, counts[cluster])
         cluster = cluster + 1
     }
     var at = 0
     while at < spans.count() {
         var slot = spans[at]
+        crash spans[at + 1]
         var slice = spans[at + 1]
+        crash spans[at + 2]
         var first_column = spans[at + 2]
+        crash spans[at + 3]
         var last_column = spans[at + 3]
+        crash spans[at + 4]
         var row = spans[at + 4]
+        crash spans[at + 5]
         var last_row = spans[at + 5]
         while row <= last_row {
             var cluster_at = first_column + across * (row + down * slice)
             var column = first_column
             while column <= last_column {
+                crash cursors[cluster_at]
                 var cursor = cursors[cluster_at]
                 ints.write_value(indices_at, cursor, slot)
                 cursors.set_at(cluster_at, cursor + 1)
@@ -119,8 +128,12 @@ func slice_of(depth: Float): Integer {
     return position
 }
 
-func place_light(view: Scene.Component.View, floats: Vector<Float>, at: Integer) {
+func place_light(view: Scene.Component.View, floats: List<Float>, at: Integer) {
+    crash floats[at + 3]
     var range = floats[at + 3]
+    crash floats[at + 1]
+    crash floats[at + 2]
+    crash floats[at]
     view.view.transform_point(eye, floats[at], floats[at + 1], floats[at + 2])
     var depth = 0.0 - eye.z_value
     assert depth + range > 0.0 and depth - range < far
@@ -148,7 +161,9 @@ func place_light(view: Scene.Component.View, floats: Vector<Float>, at: Integer)
 func place_slice(slot: Integer, slice: Integer, depth: Float, range: Float): Boolean {
     var closest = depth - range
     var farthest = depth + range
+    crash boundaries[slice]
     var slice_near = boundaries[slice]
+    crash boundaries[slice + 1]
     var slice_far = boundaries[slice + 1]
     if closest < slice_near {
         closest = slice_near
@@ -178,6 +193,7 @@ func place_slice(slot: Integer, slice: Integer, depth: Float, range: Float): Boo
         var cluster = first_column + across * (row + down * slice)
         var column = first_column
         while column <= last_column {
+            crash counts[cluster]
             counts.set_at(cluster, counts[cluster] + 1)
             cluster = cluster + 1
             column = column + 1

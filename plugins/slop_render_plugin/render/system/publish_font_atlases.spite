@@ -13,7 +13,7 @@ func render_each(cache: Cache, target: Target) {
     var fonts = cache.fonts
     var size = 0
     while size < fonts.atlas_changed.count() {
-        if fonts.atlas_changed.get_at(size) {
+        if fonts.atlas_changed[size] {
             publish(fonts, target.textures, size)
         }
         size = size + 1
@@ -24,8 +24,10 @@ func render_each(cache: Cache, target: Target) {
 
 func publish(fonts: Ui.Component.Fonts, textures: Component.Textures, size: Integer) {
     var id = fonts.atlas_id(size)
-    var atlas = fonts.atlases.get_at(size)
-    var texels = fonts.atlas_texels.get_at(size)
+    crash fonts.atlases[size]
+    var atlas = fonts.atlases[size]
+    crash fonts.atlas_texels[size]
+    var texels = fonts.atlas_texels[size]
     textures.publish(id, atlas, texels)
     fonts.atlas_changed.set_at(size, false)
 }

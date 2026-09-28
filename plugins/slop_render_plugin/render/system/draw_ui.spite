@@ -25,7 +25,7 @@ func render_all(targets: List<Target>, elements: List<Element>, bars: List<Bars>
     var painted = paint_slots(elements, bars)
     var fonts = no_fonts
     if caches.count() > 0 {
-        fonts = caches.get_at(0).fonts
+        fonts = caches[0].fonts
     }
     var index = 0
     while index < targets.count() {
@@ -130,7 +130,7 @@ func paint_font_text(
     var baseline = layout.content_top + fonts.ascent_of(size)
     var index = 0
     while index < codes.count() {
-        var code = codes.get_at(index)
+        var code = codes[index]
         var glyph = fonts.glyph_of(size, code)
         if glyph >= 0 and atlas >= 0 {
             place_glyph(target, fonts, glyph, atlas, pen, baseline, text.color)

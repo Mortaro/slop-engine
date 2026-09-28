@@ -28,7 +28,7 @@ var argument_count = 0
 var streamed = -1
 var plain_rows = false
 var leading_relation = false
-var pair_sizes = Vector<Integer>()
+var pair_sizes = List<Integer>()
 var pair_outer = 0
 var pair_entity = -1
 var pair_candidates = List<Integer>()
@@ -252,6 +252,8 @@ func run_pair(phase: Symbol<$system_type.phase_each>) {
     pair_sizes.clear()
     size_arguments()
     pair_outer = 0
+    crash pair_sizes[1]
+    crash pair_sizes[0]
     if pair_sizes[1] < pair_sizes[0] {
         pair_outer = 1
     }
@@ -259,7 +261,7 @@ func run_pair(phase: Symbol<$system_type.phase_each>) {
     outer_candidates_arguments()
     var index = 0
     while index < pair_candidates.count() {
-        pair_entity = pair_candidates.get_at(index)
+        pair_entity = pair_candidates[index]
         fill_outer_arguments()
         begin_inner_arguments()
         advance_inner_arguments()

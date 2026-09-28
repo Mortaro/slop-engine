@@ -707,11 +707,16 @@ func record_uploads() {
 }
 
 func record_upload(index: Integer) {
-    var image = pending_images.get_at(index)
-    var staging = pending_stagings.get_at(index)
-    var width = pending_widths.get_at(index)
-    var height = pending_heights.get_at(index)
-    var mips = pending_mips.get_at(index)
+    crash pending_images[index]
+    var image = pending_images[index]
+    crash pending_stagings[index]
+    var staging = pending_stagings[index]
+    crash pending_widths[index]
+    var width = pending_widths[index]
+    crash pending_heights[index]
+    var height = pending_heights[index]
+    crash pending_mips[index]
+    var mips = pending_mips[index]
     level_barrier(image, 0, 4096, 0, 7, 1, 4096, 0, mips)
     var region = Structure(56)
     region.append_long(0)

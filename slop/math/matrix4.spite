@@ -76,22 +76,38 @@ func set_product(left: Math.Matrix4, right: Math.Matrix4) {
 func set_product_with_values(left: Math.Matrix4, right: List<Float>, start: Integer) {
     var fits = start >= 0 and start + 16 <= right.count()
     crash fits
-    var product_0 = left.m0 * right.get_at(start + 0) + left.m4 * right.get_at(start + 1) + left.m8 * right.get_at(start + 2) + left.m12 * right.get_at(start + 3)
-    var product_1 = left.m1 * right.get_at(start + 0) + left.m5 * right.get_at(start + 1) + left.m9 * right.get_at(start + 2) + left.m13 * right.get_at(start + 3)
-    var product_2 = left.m2 * right.get_at(start + 0) + left.m6 * right.get_at(start + 1) + left.m10 * right.get_at(start + 2) + left.m14 * right.get_at(start + 3)
-    var product_3 = left.m3 * right.get_at(start + 0) + left.m7 * right.get_at(start + 1) + left.m11 * right.get_at(start + 2) + left.m15 * right.get_at(start + 3)
-    var product_4 = left.m0 * right.get_at(start + 4) + left.m4 * right.get_at(start + 5) + left.m8 * right.get_at(start + 6) + left.m12 * right.get_at(start + 7)
-    var product_5 = left.m1 * right.get_at(start + 4) + left.m5 * right.get_at(start + 5) + left.m9 * right.get_at(start + 6) + left.m13 * right.get_at(start + 7)
-    var product_6 = left.m2 * right.get_at(start + 4) + left.m6 * right.get_at(start + 5) + left.m10 * right.get_at(start + 6) + left.m14 * right.get_at(start + 7)
-    var product_7 = left.m3 * right.get_at(start + 4) + left.m7 * right.get_at(start + 5) + left.m11 * right.get_at(start + 6) + left.m15 * right.get_at(start + 7)
-    var product_8 = left.m0 * right.get_at(start + 8) + left.m4 * right.get_at(start + 9) + left.m8 * right.get_at(start + 10) + left.m12 * right.get_at(start + 11)
-    var product_9 = left.m1 * right.get_at(start + 8) + left.m5 * right.get_at(start + 9) + left.m9 * right.get_at(start + 10) + left.m13 * right.get_at(start + 11)
-    var product_10 = left.m2 * right.get_at(start + 8) + left.m6 * right.get_at(start + 9) + left.m10 * right.get_at(start + 10) + left.m14 * right.get_at(start + 11)
-    var product_11 = left.m3 * right.get_at(start + 8) + left.m7 * right.get_at(start + 9) + left.m11 * right.get_at(start + 10) + left.m15 * right.get_at(start + 11)
-    var product_12 = left.m0 * right.get_at(start + 12) + left.m4 * right.get_at(start + 13) + left.m8 * right.get_at(start + 14) + left.m12 * right.get_at(start + 15)
-    var product_13 = left.m1 * right.get_at(start + 12) + left.m5 * right.get_at(start + 13) + left.m9 * right.get_at(start + 14) + left.m13 * right.get_at(start + 15)
-    var product_14 = left.m2 * right.get_at(start + 12) + left.m6 * right.get_at(start + 13) + left.m10 * right.get_at(start + 14) + left.m14 * right.get_at(start + 15)
-    var product_15 = left.m3 * right.get_at(start + 12) + left.m7 * right.get_at(start + 13) + left.m11 * right.get_at(start + 14) + left.m15 * right.get_at(start + 15)
+    crash right[start + 0]
+    crash right[start + 1]
+    crash right[start + 2]
+    crash right[start + 3]
+    var product_0 = left.m0 * right[start + 0] + left.m4 * right[start + 1] + left.m8 * right[start + 2] + left.m12 * right[start + 3]
+    var product_1 = left.m1 * right[start + 0] + left.m5 * right[start + 1] + left.m9 * right[start + 2] + left.m13 * right[start + 3]
+    var product_2 = left.m2 * right[start + 0] + left.m6 * right[start + 1] + left.m10 * right[start + 2] + left.m14 * right[start + 3]
+    var product_3 = left.m3 * right[start + 0] + left.m7 * right[start + 1] + left.m11 * right[start + 2] + left.m15 * right[start + 3]
+    crash right[start + 4]
+    crash right[start + 5]
+    crash right[start + 6]
+    crash right[start + 7]
+    var product_4 = left.m0 * right[start + 4] + left.m4 * right[start + 5] + left.m8 * right[start + 6] + left.m12 * right[start + 7]
+    var product_5 = left.m1 * right[start + 4] + left.m5 * right[start + 5] + left.m9 * right[start + 6] + left.m13 * right[start + 7]
+    var product_6 = left.m2 * right[start + 4] + left.m6 * right[start + 5] + left.m10 * right[start + 6] + left.m14 * right[start + 7]
+    var product_7 = left.m3 * right[start + 4] + left.m7 * right[start + 5] + left.m11 * right[start + 6] + left.m15 * right[start + 7]
+    crash right[start + 10]
+    crash right[start + 11]
+    crash right[start + 8]
+    crash right[start + 9]
+    var product_8 = left.m0 * right[start + 8] + left.m4 * right[start + 9] + left.m8 * right[start + 10] + left.m12 * right[start + 11]
+    var product_9 = left.m1 * right[start + 8] + left.m5 * right[start + 9] + left.m9 * right[start + 10] + left.m13 * right[start + 11]
+    var product_10 = left.m2 * right[start + 8] + left.m6 * right[start + 9] + left.m10 * right[start + 10] + left.m14 * right[start + 11]
+    var product_11 = left.m3 * right[start + 8] + left.m7 * right[start + 9] + left.m11 * right[start + 10] + left.m15 * right[start + 11]
+    crash right[start + 12]
+    crash right[start + 13]
+    crash right[start + 14]
+    crash right[start + 15]
+    var product_12 = left.m0 * right[start + 12] + left.m4 * right[start + 13] + left.m8 * right[start + 14] + left.m12 * right[start + 15]
+    var product_13 = left.m1 * right[start + 12] + left.m5 * right[start + 13] + left.m9 * right[start + 14] + left.m13 * right[start + 15]
+    var product_14 = left.m2 * right[start + 12] + left.m6 * right[start + 13] + left.m10 * right[start + 14] + left.m14 * right[start + 15]
+    var product_15 = left.m3 * right[start + 12] + left.m7 * right[start + 13] + left.m11 * right[start + 14] + left.m15 * right[start + 15]
     m0 = product_0
     m1 = product_1
     m2 = product_2

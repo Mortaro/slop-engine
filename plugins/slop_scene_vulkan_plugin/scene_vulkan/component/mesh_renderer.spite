@@ -23,12 +23,12 @@ var clusters = Scene.LightClusters()
 var lights = Scene.Lights()
 var terrain = SceneVulkan.TerrainPass()
 var sections_per_mesh = 64
-var key_counts = Vector<Integer>()
-var used_keys = Vector<Integer>()
-var run_starts = Vector<Integer>()
-var run_counts = Vector<Integer>()
-var run_draws = Vector<Integer>()
-var key_first_draws = Vector<Integer>()
+var key_counts = List<Integer>()
+var used_keys = List<Integer>()
+var run_starts = List<Integer>()
+var run_counts = List<Integer>()
+var run_draws = List<Integer>()
+var key_first_draws = List<Integer>()
 var scene_pool: Long = 0
 var scene_sets = List<Long>()
 var scene_set_views = List<Long>()
@@ -195,7 +195,7 @@ func record_shadows(
     var first_terrain = view.draws.count()
     var index = 0
     while index < view.terrain_draws.count() {
-        var cell = view.terrain_draws.get_at(index)
+        var cell = view.terrain_draws[index]
         record_mesh(
             renderer,
             cell.mesh_slot,
@@ -545,9 +545,11 @@ func write_local_lights(renderer: RenderVulkan.Component.Renderer, view: Scene.C
         var float_at = visible * 16
         var field = 0
         while field < 16 {
+            crash source[from + field]
             floats.write_value(lights_at, float_at + field, source[from + field])
             field = field + 1
         }
+        crash source[from + 11]
         floats.write_value(lights_at, float_at + 11, source[from + 11] * exposure)
         visible = visible + 1
     }
@@ -615,7 +617,11 @@ func put(at: Long, index: Integer, first: Float, second: Float, third: Float, fo
 func record_runs(renderer: RenderVulkan.Component.Renderer, view: Scene.Component.View, view_projection: Math.Matrix4) {
     var run = 0
     while run < run_starts.count() {
-        var draw = view.draws.get_at(run_draws[run])
+        crash run_draws[run]
+        crash run_counts[run]
+        var first_draw = run_draws[run]
+        crash view.draws[first_draw]
+        var draw = view.draws[first_draw]
         var set_index = draw.texture_slot + 1
         if set_index >= renderer.texture_sets.count() {
             set_index = 0
@@ -657,7 +663,7 @@ func record_instances(
     view_projection: Math.Matrix4,
 ) {
     var command_buffer = renderer.frame.command_buffer
-    assert vertex_buffers.get_at(mesh_slot) != 0
+    assert vertex_buffers[mesh_slot] != 0
     var texture_set = scene_set(renderer, set_index)
     var sets = RenderVulkan.Structure(8)
     sets.append_long(texture_set)
@@ -682,13 +688,15 @@ func push_and_draw(
     raw.write_integer(push.address, 64, index)
     vulkan.vkCmdPushConstants(command_buffer, layout, 1, 0, 68, push.address)
     var buffers = RenderVulkan.Structure(8)
-    var vertex_buffer = vertex_buffers.get_at(mesh_slot)
+    crash vertex_buffers[mesh_slot]
+    var vertex_buffer = vertex_buffers[mesh_slot]
     buffers.append_long(vertex_buffer)
     var offsets = RenderVulkan.Structure(8)
     offsets.append_long(0)
     vulkan.vkCmdBindVertexBuffers(command_buffer, 0, 1, buffers.address, offsets.address)
     var no_offset: Long = 0
-    var index_buffer = index_buffers.get_at(mesh_slot)
+    crash index_buffers[mesh_slot]
+    var index_buffer = index_buffers[mesh_slot]
     vulkan.vkCmdBindIndexBuffer(command_buffer, index_buffer, no_offset, 1)
     vulkan.vkCmdDrawIndexed(command_buffer, index_count, instances, first_index, 0, 0)
 }
@@ -708,9 +716,9 @@ func record_terrain(
     var first_terrain = view.draws.count()
     var index = 0
     while index < view.terrain_draws.count() {
-        var cell = view.terrain_draws.get_at(index)
+        var cell = view.terrain_draws[index]
         var set = terrain.set_for(renderer, terrain_materials, cell.material_slot)
-        if set != 0 and vertex_buffers.get_at(cell.mesh_slot) != 0 {
+        if set != 0 and vertex_buffers[cell.mesh_slot] != 0 {
             var sets = RenderVulkan.Structure(8)
             sets.append_long(set)
             vulkan.vkCmdBindDescriptorSets(
@@ -1493,8 +1501,9 @@ func write_frame_data(renderer: RenderVulkan.Component.Renderer, view: Scene.Com
     group_draws(view)
     var index = 0
     while index < draw_count {
-        var draw = view.draws.get_at(index)
+        var draw = view.draws[index]
         var key = key_of(draw)
+        crash key_counts[key]
         var position = key_counts[key]
         key_counts.set_at(key, position + 1)
         var record_at = draws_at + position * draw_stride
@@ -1515,7 +1524,7 @@ func write_frame_data(renderer: RenderVulkan.Component.Renderer, view: Scene.Com
     }
     index = 0
     while index < terrain_count {
-        var cell = view.terrain_draws.get_at(index)
+        var cell = view.terrain_draws[index]
         var cell_at = draws_at + (draw_count + index) * draw_stride
         cell.model.write_to(cell_at)
         raw.write_integer(cell_at, 64, 0)
@@ -1524,7 +1533,6 @@ func write_frame_data(renderer: RenderVulkan.Component.Renderer, view: Scene.Com
     }
     index = 0
     while index < palette_count {
-        crash view.palettes[index]
         var palette_at = palettes_at + index * palette_stride
         view.palettes[index].write_to(palette_at)
         index = index + 1
@@ -1544,19 +1552,23 @@ func group_draws(view: Scene.Component.View) {
     run_draws.clear()
     var index = 0
     while index < view.draws.count() {
-        var draw = view.draws.get_at(index)
+        var draw = view.draws[index]
         var key = key_of(draw)
         while key_counts.count() <= key {
             key_counts.append(0)
             key_first_draws.append(0)
         }
+        crash key_counts[key]
         var seen = key_counts[key]
         if seen == 0 {
             used_keys.append(key)
             run_draws.append(index)
             key_first_draws.set_at(key, index)
         } else {
-            var first = view.draws.get_at(key_first_draws[key])
+            crash key_first_draws[key]
+            var first_index = key_first_draws[key]
+            crash view.draws[first_index]
+            var first = view.draws[first_index]
             var same_section = first.first_index == draw.first_index and first.index_count == draw.index_count
             var same_look = first.texture_slot == draw.texture_slot and first.masked == draw.masked
             crash same_section and same_look
@@ -1568,6 +1580,7 @@ func group_draws(view: Scene.Component.View) {
     index = 0
     while index < used_keys.count() {
         var used = used_keys[index]
+        crash key_counts[used]
         var count = key_counts[used]
         run_starts.append(start)
         run_counts.append(count)
@@ -1939,25 +1952,27 @@ func create_scene_pool(renderer: RenderVulkan.Component.Renderer) {
 }
 
 func scene_set(renderer: RenderVulkan.Component.Renderer, set_index: Integer): Long {
-    var fallback = renderer.texture_sets.get_at(0)
+    crash renderer.texture_sets[0]
+    var fallback = renderer.texture_sets[0]
     if set_index <= 0 or set_index >= renderer.texture_views.count() {
         return fallback
     }
-    var view = renderer.texture_views.get_at(set_index)
-    if view == 0 or renderer.texture_sets.get_at(set_index) == 0 {
+    var view = renderer.texture_views[set_index]
+    if view == 0 or renderer.texture_sets[set_index] == 0 {
         return fallback
     }
     while scene_sets.count() <= set_index {
         scene_sets.append(0)
         scene_set_views.append(0)
     }
-    if scene_set_views.get_at(set_index) != view {
+    if scene_set_views[set_index] != view {
         retire_scene_set(renderer, set_index)
         var made = allocate_scene_set(renderer, view)
         scene_sets.set_at(set_index, made)
         scene_set_views.set_at(set_index, view)
     }
-    return scene_sets.get_at(set_index)
+    crash scene_sets[set_index]
+    return scene_sets[set_index]
 }
 
 func allocate_scene_set(renderer: RenderVulkan.Component.Renderer, view: Long): Long {
@@ -1995,7 +2010,8 @@ func allocate_scene_set(renderer: RenderVulkan.Component.Renderer, view: Long): 
 }
 
 func retire_scene_set(renderer: RenderVulkan.Component.Renderer, set_index: Integer) {
-    var old = scene_sets.get_at(set_index)
+    crash scene_sets[set_index]
+    var old = scene_sets[set_index]
     assert old != 0
     retired_scene_sets.append(old)
     retired_scene_at.append(renderer.frame_number)
@@ -2005,8 +2021,10 @@ func retire_scene_set(renderer: RenderVulkan.Component.Renderer, set_index: Inte
 func release_retired_scene_sets(renderer: RenderVulkan.Component.Renderer) {
     var index = retired_scene_sets.count() - 1
     while index >= 0 {
-        if retired_scene_at.get_at(index) + renderer.frames_in_flight < renderer.frame_number {
-            var retired = retired_scene_sets.get_at(index)
+        crash retired_scene_at[index]
+        if retired_scene_at[index] + renderer.frames_in_flight < renderer.frame_number {
+            crash retired_scene_sets[index]
+            var retired = retired_scene_sets[index]
             var freed = RenderVulkan.Structure(8)
             freed.append_long(retired)
             vulkan.vkFreeDescriptorSets(renderer.device, scene_pool, 1, freed.address)

@@ -2,9 +2,9 @@ singleton
 
 var spaces = Dictionary<Spatial.Space>()
 var space_list = List<Spatial.Space>()
-var next = Vector<Integer>()
-var xs = Vector<Float>()
-var zs = Vector<Float>()
+var next = List<Integer>()
+var xs = List<Float>()
+var zs = List<Float>()
 var indexed = 0
 
 func configure(space: Integer, left: Float, top: Float, width: Float, depth: Float, size: Float) {
@@ -35,6 +35,7 @@ func insert(space: Integer, entity: Integer, position_x: Float, position_z: Floa
     var cell = target.cell_at(position_x, position_z)
     xs.set_at(entity, position_x)
     zs.set_at(entity, position_z)
+    crash target.heads[cell]
     var head = target.heads[cell]
     if head < 0 {
         target.touched.append(cell)
@@ -44,7 +45,7 @@ func insert(space: Integer, entity: Integer, position_x: Float, position_z: Floa
     indexed = indexed + 1
 }
 
-func within(space: Integer, position_x: Float, position_z: Float, radius: Float, found: Vector<Integer>) {
+func within(space: Integer, position_x: Float, position_z: Float, radius: Float, found: List<Integer>) {
     var target = spaces.get(space)
     assert target
     target.ensure_heads()
@@ -57,6 +58,7 @@ func within(space: Integer, position_x: Float, position_z: Float, radius: Float,
     while row <= last_row {
         var column = first_column
         while column <= last_column {
+            crash target.heads[row * target.columns + column]
             collect(target.heads[row * target.columns + column], position_x, position_z, reach, found)
             column = column + 1
         }
@@ -64,14 +66,17 @@ func within(space: Integer, position_x: Float, position_z: Float, radius: Float,
     }
 }
 
-func collect(head: Integer, position_x: Float, position_z: Float, reach: Float, found: Vector<Integer>) {
+func collect(head: Integer, position_x: Float, position_z: Float, reach: Float, found: List<Integer>) {
     var entity = head
     while entity >= 0 {
+        crash xs[entity]
         var across = xs[entity] - position_x
+        crash zs[entity]
         var down = zs[entity] - position_z
         if across * across + down * down <= reach {
             found.append(entity)
         }
+        crash next[entity]
         entity = next[entity]
     }
 }

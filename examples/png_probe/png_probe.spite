@@ -52,7 +52,8 @@ func describe(path: String, decoder: Png.Decoder, texture: Asset.Texture, took: 
     var checksum: Long = 0
     var pixel = 0
     while pixel < total {
-        var texel: Long = texture.pixels.get_at(pixel)
+        crash texture.pixels[pixel]
+        var texel: Long = texture.pixels[pixel]
         var unsigned = texel.bits_and(4294967295)
         checksum = checksum * 31 + unsigned
         checksum = checksum.bits_and(281474976710655)
@@ -60,8 +61,11 @@ func describe(path: String, decoder: Png.Decoder, texture: Asset.Texture, took: 
     }
     var middle = total / 2
     var last = total - 1
-    var first_texel = texture.pixels.get_at(0)
-    var middle_texel = texture.pixels.get_at(middle)
-    var last_texel = texture.pixels.get_at(last)
+    crash texture.pixels[0]
+    var first_texel = texture.pixels[0]
+    crash texture.pixels[middle]
+    var middle_texel = texture.pixels[middle]
+    crash texture.pixels[last]
+    var last_texel = texture.pixels[last]
     console.print("  pixels", first_texel, middle_texel, last_texel, "checksum", checksum)
 }
