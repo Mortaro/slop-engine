@@ -9,5 +9,5 @@ type Target {
 func render_each(target: Target) {
     var renderer = target.renderer
     assert not target.window.closed and renderer.device != 0
-    renderer.begin_window_frame(target.draw_list, target.textures, target.swapchain)
+    renderer.begin_window_frame(target.draw_list, target.textures, target.swapchain, target.window)
 }

@@ -1472,8 +1472,15 @@ func create_swapchain(window: Window.Component.Window, handle: Long, swapchain: 
     var supported = Structure(8)
     vulkan.vkGetPhysicalDeviceSurfaceSupportKHR(physical_device, queue_family, swapchain.surface, supported.address)
     crash supported.read_integer(0) == 1
-    swapchain.width = window.width
-    swapchain.height = window.height
+    var no_old: Long = 0
+    build_swapchain(swapchain, window.width, window.height, no_old)
+}
+
+func build_swapchain(swapchain: RenderVulkan.Component.Swapchain, width: Integer, height: Integer, old: Long) {
+    var no_allocator: Long = 0
+    var created = Structure(8)
+    swapchain.width = width
+    swapchain.height = height
     var mode = present_mode(swapchain.surface)
     var capabilities = Structure(56)
     vulkan.vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_device, swapchain.surface, capabilities.address)
@@ -1498,7 +1505,7 @@ func create_swapchain(window: Window.Component.Window, handle: Long, swapchain: 
     creation.append_integer(1)
     creation.append_integer(mode)
     creation.append_integer(1)
-    creation.append_long(0)
+    creation.append_long(old)
     var result = vulkan.vkCreateSwapchainKHR(device, creation.address, no_allocator, created.address)
     crash result == 0
     swapchain.handle = created.read_long(0)
@@ -1532,23 +1539,52 @@ func read_swapchain_images(swapchain: RenderVulkan.Component.Swapchain) {
     var image_count = count.read_integer(0)
     var images = Structure(image_count * 8)
     vulkan.vkGetSwapchainImagesKHR(device, swapchain.handle, count.address, images.address)
+    swapchain.images.clear()
     var index = 0
     while index < image_count {
         var image = images.read_long(index * 8)
         swapchain.images.append(image)
-        var frame_done = create_semaphore()
-        swapchain.frames_done.append(frame_done)
-        presentation_semaphores.append(frame_done)
+        if index >= swapchain.frames_done.count() {
+            var frame_done = create_semaphore()
+            swapchain.frames_done.append(frame_done)
+            presentation_semaphores.append(frame_done)
+        }
         index = index + 1
     }
+}
+
+func refresh_swapchain(window: Window.Component.Window, swapchain: RenderVulkan.Component.Swapchain) {
+    var resized = window.width != swapchain.width or window.height != swapchain.height
+    assert swapchain.out_of_date or resized
+    vulkan.vkDeviceWaitIdle(device)
+    var old = swapchain.handle
+    build_swapchain(swapchain, window.width, window.height, old)
+    var no_allocator: Long = 0
+    vulkan.vkDestroySwapchainKHR(device, old, no_allocator)
+    var place = swapchains.count() - 1
+    while place >= 0 {
+        if swapchains[place] == old {
+            swapchains.remove_at(place)
+        }
+        place = place - 1
+    }
+    swapchain.out_of_date = false
+}
+
+func signal_skipped_frame() {
+    var no_submits: Long = 0
+    var submitted = vulkan.vkQueueSubmit(queue, 0, no_submits, frame.fence)
+    crash submitted == 0
 }
 
 func begin_window_frame(
     draw_list: Render.Component.DrawList,
     textures: Render.Component.Textures,
     swapchain: RenderVulkan.Component.Swapchain,
+    window: Window.Component.Window,
 ) {
-    assert pipeline_ready()
+    assert pipeline_ready() and window.width > 0 and window.height > 0
+    refresh_swapchain(window, swapchain)
     begin_frame()
     var chosen = Structure(8)
     var forever: Long = -1
@@ -1561,6 +1597,11 @@ func begin_window_frame(
         no_fence,
         chosen.address,
     )
+    if acquired == -1000001004 {
+        swapchain.out_of_date = true
+        signal_skipped_frame()
+        return
+    }
     crash acquired == 0 or acquired == 1000001003
     ensure_textures(textures)
     swapchain.acquired = chosen.read_integer(0)
@@ -1602,7 +1643,10 @@ func finish_window_frame(draw_list: Render.Component.DrawList, swapchain: Render
     presentation.append_pointer(indices)
     presentation.append_long(0)
     var presented = vulkan.vkQueuePresentKHR(queue, presentation.address)
-    crash presented == 0 or presented == 1000001003
+    if presented == -1000001004 or presented == 1000001003 {
+        swapchain.out_of_date = true
+    }
+    crash presented == 0 or presented == 1000001003 or presented == -1000001004
     if capture_requested {
         wait_frame()
         capture_requested = false

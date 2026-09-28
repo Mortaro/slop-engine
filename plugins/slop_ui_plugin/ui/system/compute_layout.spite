@@ -20,12 +20,22 @@ func layout_all(roots: List<Root>, children: List<Child>) {
     while index < roots.count() {
         var root = roots[index]
         ensure_layout(flex, root.entity.id)
-        flex.viewport_width = root.screen.width
-        flex.viewport_height = root.screen.height
-        flex.layout_screen(root.entity.id)
-        flex.paint(root.entity.id, 0)
+        lay_out_shown(flex, root)
         index = index + 1
     }
+}
+
+func lay_out_shown(flex: Ui.Layout.Flex, root: Root) {
+    var display = Lookup<Component.Display>().of(root.entity.id)
+    var hidden = false
+    if display {
+        hidden = display.value == 'none'
+    }
+    assert not hidden
+    flex.viewport_width = root.screen.width
+    flex.viewport_height = root.screen.height
+    flex.layout_screen(root.entity.id)
+    flex.paint(root.entity.id, 0)
 }
 
 func ensure_layout(flex: Ui.Layout.Flex, entity: Integer) {

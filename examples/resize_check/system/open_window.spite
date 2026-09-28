@@ -1,0 +1,12 @@
+type Started {
+    frame: Added<Component.Frame>
+}
+
+var world = World()
+
+func update_each(_started: Started) {
+    var window_bundle = Window.Bundle.Window()
+    window_bundle.window.title = "Resize check"
+    window_bundle.window.visible = false
+    world.create_entity_from_bundle(window_bundle)
+}
