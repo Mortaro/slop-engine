@@ -3,6 +3,7 @@ var view = Math.Matrix4()
 var field_of_view: Float = 0.785398
 var near: Float = 0.1
 var far: Float = 500.0
+var aspect: Float = 1.7777778
 var draws = List<Scene.Draw>()
 var terrain_draws = List<Scene.TerrainDraw>()
 var palettes = List<Math.Matrix4>()

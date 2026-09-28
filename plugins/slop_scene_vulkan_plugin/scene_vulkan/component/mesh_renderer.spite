@@ -90,6 +90,7 @@ func record(
     var aspect: Float = frame.target_width
     var height: Float = frame.target_height
     aspect = aspect / height
+    view.aspect = aspect
     clusters.assign(view, aspect)
     write_frame_data(renderer, view, slot)
     write_local_lights(renderer, view, slot)

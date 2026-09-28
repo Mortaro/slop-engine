@@ -23,4 +23,13 @@ func update_each(_started: Started) {
     cube.add_component(model)
     var transform = Transform.Component.Transform()
     cube.add_component(transform)
+    var behind = world.create_entity()
+    var behind_model = Scene.Component.Model()
+    behind_model.mesh = "mesh.probe.cube"
+    behind.add_component(behind_model)
+    var behind_transform = Transform.Component.Transform()
+    behind_transform.position_x = 8.0
+    behind_transform.position_y = 6.0
+    behind_transform.position_z = 10.0
+    behind.add_component(behind_transform)
 }

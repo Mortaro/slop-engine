@@ -27,8 +27,10 @@ func last_each(checked: Checked, quitting: Quitting) {
     var clear = checked.draw_list.clear_color
     var corner_color = corner.bits_and(16777215)
     var center_color = center.bits_and(16777215)
-    var passed = corner_color != clear and center_color != corner_color and center_color != 0
-    console.print("center", center_color, "corner", corner_color, "clear", clear, "passed", passed)
+    var drawn = checked.view.draws.count()
+    var culled_behind = drawn == 1
+    var passed = corner_color != clear and center_color != corner_color and center_color != 0 and culled_behind
+    console.print("center", center_color, "corner", corner_color, "clear", clear, "drawn", drawn, "passed", passed)
     crash passed
     quitting.quit.requested = true
 }

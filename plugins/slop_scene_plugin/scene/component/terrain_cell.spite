@@ -1,2 +1,4 @@
 var mesh = ""
 var material = ""
+var far_mesh = ""
+var far_distance: Float = 1500.0

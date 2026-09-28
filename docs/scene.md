@@ -133,6 +133,14 @@ Cut-out texels (alpha below 0.5) are discarded in every pass.
 one above. Scene textures sample trilinearly with 16× anisotropic filtering (when the device has it) and repeat
 addressing. The UI samples the same images through its own nearest, top-level-only sampler, so it stays pixel-exact.
 
+### Culling and draw distance
+
+Each loaded mesh keeps a bounding sphere (its bind pose, and 1.5 times that for a skinned mesh, whose animation can
+reach past it). Scene Gather tests every model and terrain cell against the camera's view cone, and drops what is
+behind it, beside it or past its far plane (`Camera.far`), so a far plane at the horizon costs only what is in
+view. Depth is reversed-Z, so a 20 km far plane keeps its precision. A terrain cell may name a coarser `far_mesh`,
+drawn once the cell is `far_distance` metres away.
+
 ### Terrain
 
 A terrain cell is an entity with a `Transform` and a `Scene.Component.TerrainCell { mesh, material }`, with no

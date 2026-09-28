@@ -1,0 +1,63 @@
+var scalar = Math.Scalar()
+var view = Math.Matrix4()
+var near: Float = 0.1
+var far: Float = 500.0
+var across_tangent: Float = 1.0
+var down_tangent: Float = 1.0
+var across_norm: Float = 1.0
+var down_norm: Float = 1.0
+var eye_x: Float = 0.0
+var eye_y: Float = 0.0
+var eye_z: Float = 0.0
+var seen = Math.Vector3()
+var placed = Math.Vector3()
+
+func prepare(source: Scene.Component.View) {
+    view.copy_from(source.view)
+    near = source.near
+    far = source.far
+    eye_x = source.eye_x
+    eye_y = source.eye_y
+    eye_z = source.eye_z
+    down_tangent = scalar.tangent(source.field_of_view * 0.5)
+    across_tangent = down_tangent * source.aspect
+    down_norm = scalar.square_root(1.0 + down_tangent * down_tangent)
+    across_norm = scalar.square_root(1.0 + across_tangent * across_tangent)
+}
+
+func place(model: Math.Matrix4, mesh: Scene.LoadedMesh) {
+    model.transform_point(placed, mesh.bound_x, mesh.bound_y, mesh.bound_z)
+}
+
+func radius_of(mesh: Scene.LoadedMesh, transform: Transform.Component.Transform): Float {
+    var scale = scalar.absolute(transform.scale_x)
+    var scale_y = scalar.absolute(transform.scale_y)
+    var scale_z = scalar.absolute(transform.scale_z)
+    if scale_y > scale {
+        scale = scale_y
+    }
+    if scale_z > scale {
+        scale = scale_z
+    }
+    return mesh.bound_radius * scale
+}
+
+func contains(radius: Float): Boolean {
+    view.transform_point(seen, placed.x_value, placed.y_value, placed.z_value)
+    var depth = 0.0 - seen.z_value
+    if depth + radius < near or depth - radius > far {
+        return false
+    }
+    var side = depth * across_tangent
+    var rise = depth * down_tangent
+    var beside = seen.x_value - side < radius * across_norm and 0.0 - seen.x_value - side < radius * across_norm
+    var within = seen.y_value - rise < radius * down_norm and 0.0 - seen.y_value - rise < radius * down_norm
+    return beside and within
+}
+
+func distance_to_eye(): Float {
+    var along_x = placed.x_value - eye_x
+    var along_y = placed.y_value - eye_y
+    var along_z = placed.z_value - eye_z
+    return scalar.square_root(along_x * along_x + along_y * along_y + along_z * along_z)
+}

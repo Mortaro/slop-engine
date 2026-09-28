@@ -3,6 +3,7 @@ var offset: Long = 0
 var length: Long = 0
 var vertex_floats = 8
 var joint_limit = 0
+var scalar = Math.Scalar()
 
 func MeshLoad(found: Recipes.Record) {
     path = found.path
@@ -29,6 +30,7 @@ func run(): Scene.LoadedMesh {
         write_vertex(loaded.vertices, mesh, vertex, skinned)
         vertex = vertex + 1
     }
+    measure_bounds(loaded, mesh, count, skinned)
     loaded.joint_limit = joint_limit
     loaded.index_count = mesh.indices.count()
     mesh.indices.each(loaded.indices.write_integer)
@@ -76,4 +78,53 @@ func note_joints(packed: Integer) {
         }
         shift = shift + 8
     }
+}
+
+func measure_bounds(loaded: Scene.LoadedMesh, mesh: Asset.Mesh, count: Integer, skinned: Boolean) {
+    assert count > 0
+    var low_x = mesh.vertices.get_at(0)
+    var low_y = mesh.vertices.get_at(1)
+    var low_z = mesh.vertices.get_at(2)
+    var high_x = low_x
+    var high_y = low_y
+    var high_z = low_z
+    var vertex = 1
+    while vertex < count {
+        var first = vertex * vertex_floats
+        var along_x = mesh.vertices.get_at(first)
+        var along_y = mesh.vertices.get_at(first + 1)
+        var along_z = mesh.vertices.get_at(first + 2)
+        low_x = smaller(low_x, along_x)
+        low_y = smaller(low_y, along_y)
+        low_z = smaller(low_z, along_z)
+        high_x = larger(high_x, along_x)
+        high_y = larger(high_y, along_y)
+        high_z = larger(high_z, along_z)
+        vertex = vertex + 1
+    }
+    loaded.bound_x = (low_x + high_x) * 0.5
+    loaded.bound_y = (low_y + high_y) * 0.5
+    loaded.bound_z = (low_z + high_z) * 0.5
+    var half_x = (high_x - low_x) * 0.5
+    var half_y = (high_y - low_y) * 0.5
+    var half_z = (high_z - low_z) * 0.5
+    var radius = scalar.square_root(half_x * half_x + half_y * half_y + half_z * half_z)
+    if skinned {
+        radius = radius * 1.5
+    }
+    loaded.bound_radius = radius
+}
+
+func smaller(first: Float, second: Float): Float {
+    if second < first {
+        return second
+    }
+    return first
+}
+
+func larger(first: Float, second: Float): Float {
+    if second > first {
+        return second
+    }
+    return first
 }

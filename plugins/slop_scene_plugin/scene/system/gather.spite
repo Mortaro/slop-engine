@@ -19,6 +19,8 @@ type Target {
     terrain_materials: Component.TerrainMaterials
 }
 
+var cone = Scene.ViewCone()
+
 func render_all(targets: List<Target>, models: List<Modeled>, cameras: List<Viewing>, cells: List<Cell>) {
     var index = 0
     while index < targets.count() {
@@ -46,13 +48,23 @@ func add_cell(target: Target, placed: Cell) {
     target.terrain_materials.request_textures(material_slot, target.textures)
     var loaded = target.meshes.mesh_at(slot)
     var model = placed.transform.matrix()
+    cone.place(model, loaded)
+    var radius = cone.radius_of(loaded, placed.transform)
+    assert cone.contains(radius)
+    if cell.far_mesh != "" and cone.distance_to_eye() - radius > cell.far_distance {
+        var far_slot = target.meshes.request(cell.far_mesh)
+        if target.meshes.is_ready(far_slot) {
+            slot = far_slot
+        }
+    }
+    var drawn = target.meshes.mesh_at(slot)
     var section = 0
-    while section * 3 + 2 < loaded.sections.count() {
+    while section * 3 + 2 < drawn.sections.count() {
         var draw = Scene.TerrainDraw()
         draw.mesh_slot = slot
         draw.model = model
-        draw.first_index = loaded.sections.get_at(section * 3)
-        draw.index_count = loaded.sections.get_at(section * 3 + 1)
+        draw.first_index = drawn.sections.get_at(section * 3)
+        draw.index_count = drawn.sections.get_at(section * 3 + 1)
         draw.material_slot = material_slot
         target.view.terrain_draws.append(draw)
         section = section + 1
@@ -76,6 +88,7 @@ func gather(target: Target, models: List<Modeled>, cameras: List<Viewing>) {
     view.shadow_center_y = lens.target_y
     view.shadow_center_z = lens.target_z
     view.view.set_look_at(lens.eye_x, lens.eye_y, lens.eye_z, lens.target_x, lens.target_y, lens.target_z)
+    cone.prepare(view)
     var index = 0
     while index < models.count() {
         add_draw(target, models[index])
@@ -88,6 +101,9 @@ func add_draw(target: Target, modeled: Modeled) {
     assert target.meshes.is_ready(slot)
     var loaded = target.meshes.mesh_at(slot)
     var model = modeled.transform.matrix()
+    cone.place(model, loaded)
+    var radius = cone.radius_of(loaded, modeled.transform)
+    assert cone.contains(radius)
     var palette_first = 0
     var palette = modeled.model.palette
     if palette.count() > 0 {
