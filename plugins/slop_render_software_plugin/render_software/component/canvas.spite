@@ -8,6 +8,12 @@ var clip_top = -1000000000
 var clip_right = 1000000000
 var clip_bottom = 1000000000
 
+var tint = 16777215
+var source_left = 0
+var source_top = 0
+var source_columns = 1
+var source_rows = 1
+
 func resize(new_width: Integer, new_height: Integer) {
     assert new_width != width or new_height != height
     if pixels != 0 {
@@ -78,6 +84,13 @@ func clamp(value: Integer, limit: Integer): Integer {
     return value
 }
 
+func source_to(left: Integer, top: Integer, source_width: Integer, source_height: Integer) {
+    source_left = left
+    source_top = top
+    source_columns = source_width
+    source_rows = source_height
+}
+
 func blend_image(left: Integer, top: Integer, image_width: Integer, image_height: Integer, image: Asset.Texture) {
     var row = 0
     while row < image_height {
@@ -95,20 +108,32 @@ func blend_row(
     image: Asset.Texture,
 ) {
     assert canvas_top >= 0 and canvas_top < height and canvas_top >= clip_top and canvas_top < clip_bottom
-    var texel_row = row * image.height / image_height
+    var texel_row = source_top + row * source_rows / image_height
     var column = 0
     while column < image_width {
         var canvas_left = left + column
         var on_canvas = canvas_left >= 0 and canvas_left < width
         var in_clip = canvas_left >= clip_left and canvas_left < clip_right
         if on_canvas and in_clip {
-            var texel_column = column * image.width / image_width
+            var texel_column = source_left + column * source_columns / image_width
             var at = texel_row * image.width + texel_column
             crash image.pixels[at]
-            blend_pixel(canvas_left, canvas_top, image.pixels[at])
+            var tinted = tinted_texel(image.pixels[at])
+            blend_pixel(canvas_left, canvas_top, tinted)
         }
         column = column + 1
     }
+}
+
+func tinted_texel(texel: Integer): Integer {
+    var red = (channel(texel, 0) * channel(tint, 16) + 127) / 255
+    var green = (channel(texel, 8) * channel(tint, 8) + 127) / 255
+    var blue = (channel(texel, 16) * channel(tint, 0) + 127) / 255
+    var alpha = channel(texel, 24)
+    var alpha_part = alpha.shifted_left(24)
+    var blue_part = blue.shifted_left(16)
+    var green_part = green.shifted_left(8)
+    return red.bits_or(green_part).bits_or(blue_part).bits_or(alpha_part)
 }
 
 func blend_pixel(canvas_left: Integer, canvas_top: Integer, texel: Integer) {

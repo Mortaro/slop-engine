@@ -290,6 +290,35 @@ The click counter's four:
 | `BackgroundImage` | a texture asset id stretched over the border box |
 | `Text` | text, its scale and colour, drawn at the content box |
 
+## Fonts
+
+Text draws in the built-in 5×7 bitmap font unless its entity also has a `Ui.Component.Font { name, face, size }`:
+`name` is the id of a font file cooked into the cache (a `.ttf`, or a `.ttc` with `face` choosing the face), `size` is
+in pixels.
+
+```gdscript
+var font = Ui.Component.Font()
+font.name = "font.gulim"
+font.size = 12
+label.add_component(font)
+```
+
+- **The font cache is a component.** `Ui.Component.Fonts` lives on the world entity. It loads a face the first time
+  a size of it is asked for, measures text from the font's advances (so layout is right on the first frame), and
+  rasterises glyphs anti-aliased with the standalone `spite_truetype` package
+  (`D:/Projects/spite_truetype`, loaded by `ui/ui.spite`).
+- **Glyphs are made on demand**, 32 per frame at most, into a 1024² atlas per face and size, like Unreal's Slate font
+  cache: a character seen for the first time is drawn from the next frame. `PendingGlyphs` and `AtlasChanged` markers
+  on the world entity make the rasterising and publishing systems run only when there is work.
+- **Drawing.** `DrawUi` lays glyph quads along a pen from the baseline; each is a draw-list image with a texel source
+  rectangle into the atlas and the text's colour as tint, drawn the same by Vulkan and the software rasteriser
+  (`render_parity`).
+- **Waiting for text in a test:** `fonts.settled()` is true once no face is loading, no glyph is queued and no atlas
+  waits for upload.
+
+Not built yet: kerning, outline and shadow, fake bold, hinting (Unreal renders Gulim with FreeType's default
+hinting), and embedded bitmap strikes.
+
 ## Images are asset ids
 
 A `BackgroundImage` names an asset id that a recipe produced, never a file path or a rectangle, so repainting the

@@ -1,0 +1,11 @@
+type Started {
+    frame: Added<Component.Frame>
+}
+
+var world = World()
+
+func after_input_each(_started: Started) {
+    var fonts = Ui.Component.Fonts()
+    var shelf = world.as_entity()
+    shelf.add_component(fonts)
+}

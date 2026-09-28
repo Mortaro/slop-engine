@@ -156,6 +156,7 @@ func update_each(potion: Potion, target: Target) {
 | any other `Entity` field, e.g. `owner: Entity` | a relation: stored as the component `Entity.owner`, and the next row is the entity it points at |
 | `Added<T>` | `T` was added since this system last ran; `.value` is the component |
 | `Removed<T>` | `T` was removed (or its entity despawned) since this system last ran; the component itself is gone, so there is no `.value` to read |
+| `Without<T>` | the entity does not have `T`: a system skips entities in a state by the absence of a component, never by a flag in a field (name the field without a leading `_`, since private fields are not walked) |
 
 Replacing a component in the row (`target.health = target.health + ...`) is written back after the call.
 

@@ -11,6 +11,8 @@ layout(set = 0, binding = 0) uniform sampler2D image;
 layout(location = 0) flat in uint vertex_colour;
 layout(location = 1) flat in vec4 vertex_rectangle;
 layout(location = 2) flat in ivec4 vertex_clip;
+// The texels the rectangle shows (left, top, width, height); a zero width means the whole texture.
+layout(location = 3) flat in ivec4 vertex_source;
 layout(location = 0) out vec4 result;
 
 void main() {
@@ -20,9 +22,13 @@ void main() {
         result = vec4(0.0);
         return;
     }
+    ivec4 source = vertex_source;
+    if (source.z == 0) {
+        source = ivec4(0, 0, size);
+    }
     ivec2 inside = pixel - ivec2(vertex_rectangle.xy);
-    ivec2 texel = inside * size / ivec2(vertex_rectangle.zw);
-    texel = clamp(texel, ivec2(0), size - 1);
+    ivec2 texel = source.xy + inside * source.zw / ivec2(vertex_rectangle.zw);
+    texel = clamp(texel, source.xy, source.xy + source.zw - 1);
     vec4 sampled = texelFetch(image, texel, 0);
     float red = float((vertex_colour >> 16) & 255u) / 255.0;
     float green = float((vertex_colour >> 8) & 255u) / 255.0;

@@ -19,6 +19,8 @@ func RenderParity() {
     var screen = world.create_entity_from_bundle(screen_bundle)
     var title = Bundle.Title(screen.id)
     world.create_entity_from_bundle(title)
+    var font_label = Bundle.FontLabel(screen.id)
+    world.create_entity_from_bundle(font_label)
     var counter_button_bundle = Bundle.CounterButton(screen.id)
     var button = world.create_entity_from_bundle(counter_button_bundle)
     var count_label = Bundle.CountLabel(button.id)
@@ -36,7 +38,7 @@ func RenderParity() {
     var settled = false
     while not settled {
         var drawn_before = rectangles_of(target)
-        var ready_before = textures.all_ready()
+        var ready_before = textures.all_ready() and fonts_settled()
         app.tick()
         var drawn_after = rectangles_of(target)
         settled = ready_before and drawn_before == drawn_after
@@ -51,6 +53,14 @@ func RenderParity() {
     compare(draw_list, canvas, renderer)
     check_clipping(panel.id, canvas, draw_list.clear_color)
     renderer.release_device()
+}
+
+func fonts_settled(): Boolean {
+    var fonts = Lookup<Ui.Component.Fonts>().of(world.entity)
+    if not fonts {
+        return false
+    }
+    return fonts.settled()
 }
 
 func rectangles_of(target: Integer): Integer {

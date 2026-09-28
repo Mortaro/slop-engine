@@ -1,0 +1,11 @@
+var parent = Ui.Component.Parent()
+var text = Ui.Component.Text()
+var font = Ui.Component.Font()
+
+func FontLabel(screen: Integer) {
+    parent.entity = screen
+    text.text = "Curse of Critical Hit"
+    text.color = 16764006
+    font.name = "font.cinzel"
+    font.size = 24
+}

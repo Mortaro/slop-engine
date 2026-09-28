@@ -1,0 +1,3 @@
+func Ui() {
+    load "../../../../spite_truetype/truetype"
+}

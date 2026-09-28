@@ -1,0 +1,3 @@
+var name = "font.default"
+var face = 0
+var size = 12

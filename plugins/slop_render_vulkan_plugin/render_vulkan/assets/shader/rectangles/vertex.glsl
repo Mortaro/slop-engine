@@ -5,6 +5,7 @@
 layout(location = 0) in vec4 rectangle;
 layout(location = 1) in uint colour;
 layout(location = 2) in ivec4 clip;
+layout(location = 3) in ivec4 source;
 
 layout(push_constant) uniform Frame {
     vec2 size;
@@ -13,6 +14,7 @@ layout(push_constant) uniform Frame {
 layout(location = 0) flat out uint vertex_colour;
 layout(location = 1) flat out vec4 vertex_rectangle;
 layout(location = 2) flat out ivec4 vertex_clip;
+layout(location = 3) flat out ivec4 vertex_source;
 
 const vec2 corners[6] = vec2[](vec2(0.0, 0.0), vec2(1.0, 0.0), vec2(0.0, 1.0), vec2(1.0, 0.0), vec2(1.0, 1.0), vec2(0.0, 1.0));
 
@@ -24,4 +26,5 @@ void main() {
     vertex_colour = colour;
     vertex_rectangle = rectangle;
     vertex_clip = clip;
+    vertex_source = source;
 }

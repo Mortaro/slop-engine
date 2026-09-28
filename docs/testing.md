@@ -13,7 +13,7 @@ Every behaviour the docs claim is checked by a program in `examples/`. Run them 
 | `click_counter_online/test.sh` | a server and three headless bots in separate processes: the first bot joins at 0 and clicks 3 times, the second joins later and sees 3 without clicking, the third sees 3 and makes it 5. Run `bash examples/click_counter_online/test.sh` |
 | `hot_reload_test` | a source file rewritten while the app runs is re-cooked on a worker, noticed by the engine's own watch on the cache, reloaded and re-uploaded: the software canvas and Vulkan follow red then blue, and it prints the worst tick meanwhile (2 ms) |
 | `flex_layout` | 92 checks: a screen root with `display: none` paints nothing; flexbox boxes (justify, grow and shrink, alignment, reversal, order, relative and absolute positioning, box model, wrapping), grid tracks, a scrolled and clipped panel, and z-index paint order, each box to 0.01 pixel |
-| `render_parity` | Vulkan and the software rasteriser draw the same frame, textured button, alpha edges and a wall of text of about 9,000 rectangles included: 0 of 256,000 pixels differ |
+| `render_parity` | Vulkan and the software rasteriser draw the same frame, textured button, alpha edges, a wall of bitmap text and a Cinzel TrueType label (glyph quads from a runtime atlas) included: 0 of 256,000 pixels differ |
 | `lights_check` | a red point light and a blue spot light on a dark floor through the clustered shader: the pixel under the point light is lit red and a far corner stays dark; `extra_lights` adds a grid of lights for timing |
 | `attachment_check` | a bone attachment follows a named bone with an offset, and another follows a bone index, on a synthetic skeleton turned a quarter: both land where the maths says and carry the turn |
 | `inline_string_probe` | inline components holding long text and an enum: `_each`, `_all` and two-row systems, bundle spawns and writes through `Lookup.of` stay balanced under `--debug-memory` |
@@ -22,6 +22,7 @@ Every behaviour the docs claim is checked by a program in `examples/`. Run them 
 | `terrain_check` | a cooked two-by-two-tile terrain: each tile's base layer and a painted splat circle land where the ported M_Terrain formula puts them |
 | `props_bench` | 17,000 cube props in a grid: prints the frame time and every system above 0.2 ms; run `--optimized` |
 | `resize_check` | a hidden window resized, minimised and restored: the swapchain is rebuilt to the new client size, minimised frames are skipped, and presenting resumes at full size |
+| `without_check` | a system over `Health` and `Without<Frozen>` heals only entities without `Frozen`, and heals one once its `Frozen` is removed |
 | `tracking` | `Added<T>` and `Removed<T>` are each seen exactly once by a system before the change and one after it |
 | `use_potion` | two related rows: each potion heals only the hero its `owner` points at, only if that hero is `Alive`, and a replaced component is written back |
 | `healing` | headless systems, entity ids in rows, and two independent systems sharing a parallel stage |
