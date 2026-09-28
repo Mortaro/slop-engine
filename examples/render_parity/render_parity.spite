@@ -1,7 +1,6 @@
 var cookbook = Recipes.Cookbook()
 var console = Console()
 var world = World()
-var program = Program()
 
 func RenderParity() {
     load "../../slop"
@@ -31,14 +30,16 @@ func RenderParity() {
     var panel_text = Bundle.PanelText(panel.id)
     world.create_entity_from_bundle(panel_text)
     add_wall_of_text(screen.id)
-    app.tick()
-    app.tick()
-    app.tick()
+    world.flush()
     var textures = Lookup<Render.Component.Textures>().of(target)
     crash textures
-    while not textures.all_ready() {
-        program.sleep(1)
+    var settled = false
+    while not settled {
+        var drawn_before = rectangles_of(target)
+        var ready_before = textures.all_ready()
         app.tick()
+        var drawn_after = rectangles_of(target)
+        settled = ready_before and drawn_before == drawn_after
     }
     var draw_list = Lookup<Render.Component.DrawList>().of(target)
     var canvas = Lookup<RenderSoftware.Component.Canvas>().of(target)
@@ -50,6 +51,12 @@ func RenderParity() {
     compare(draw_list, canvas, renderer)
     check_clipping(panel.id, canvas, draw_list.clear_color)
     renderer.release_device()
+}
+
+func rectangles_of(target: Integer): Integer {
+    var draw_list = Lookup<Render.Component.DrawList>().of(target)
+    crash draw_list
+    return draw_list.count
 }
 
 func add_wall_of_text(screen: Integer) {

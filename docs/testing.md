@@ -36,6 +36,16 @@ Every behaviour the docs claim is checked by a program in `examples/`. Run them 
 | `zstd_probe` | decompresses a `.blend` (`-- --source=file.blend --output=plain.blend`); compared byte for byte with Zig's decoder when it was written |
 | `blend_probe` | a `.blend`'s datablocks, any SDNA struct, and a mesh's attributes (`-- --source=file.blend`) |
 
+## A test ends on a trigger, never a count
+
+A test decides it is done from a condition that proves it, never from a frame count, a sleep or a timeout: those pass
+on a quiet machine and fail on a busy one. `render_parity` shows why. Textures become ready in the `last` phase,
+after that tick's `DrawUi`, so "textures are all ready" after a tick can still describe a draw list recorded without
+them. It captured two rectangles short whenever a load finished one tick late. It now ticks until a tick *started*
+with every texture resident and drew the same rectangles as the one before; with no fixed warm-up ticks, every run
+takes that path. The tests that still capture at a frame number (`scene_probe`, `lights_check`, `terrain_check`,
+`kal_character`'s `--frames`) are to move to the same kind of trigger.
+
 ## The click test is its own program
 
 The game holds no test code. `examples/click_counter_test/` is a program that loads `../click_counter` (the whole
