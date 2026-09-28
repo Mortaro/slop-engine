@@ -1,0 +1,4 @@
+var left: Float = 0.0
+var top: Float = 0.0
+var grab_left: Float = 0.0
+var grab_top: Float = 0.0

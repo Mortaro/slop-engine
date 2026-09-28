@@ -1,0 +1,34 @@
+type Tested {
+    progress: Component.Progress
+}
+
+type Quitting {
+    quit: Component.Quit
+}
+
+var console = Console()
+var drags = Lookup<Ui.Component.Dragging>()
+var overs = Lookup<Ui.Component.DragOver>()
+
+func last_each(tested: Tested, quitting: Quitting) {
+    var progress = tested.progress
+    assert progress.step == 10 and not quitting.quit.requested
+    var dropped_right = progress.dropped_source == progress.source
+    var one_click = progress.clicks_seen == 1
+    var settled = not drags.has(progress.source) and not overs.has(progress.target)
+    var passed = dropped_right and progress.missed and one_click and settled
+    console.print(
+        "dropped from source",
+        dropped_right,
+        "missed",
+        progress.missed,
+        "clicks",
+        progress.clicks_seen,
+        "settled",
+        settled,
+        "passed",
+        passed,
+    )
+    crash passed
+    quitting.quit.requested = true
+}

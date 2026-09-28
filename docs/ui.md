@@ -232,6 +232,42 @@ A press only counts when it starts inside the button, and a click only when it a
 pressed button cancels it, as on the web. `Clicked` is removed on Interact's next run, so every system sees a click
 once.
 
+## Drag and drop
+
+**Proposal** (Claude's; Mortaro decides the API). Add `Ui.Component.Draggable` to an element that can be picked
+up and `Ui.Component.DropTarget` to one that accepts drops. `Ui.System.Interact` owns the rest:
+
+| Component | On | Meaning |
+|---|---|---|
+| `Ui.Component.DragPress` | a draggable | pressed, not moved yet (`left`, `top`, and `grab_left`, `grab_top` inside the element) |
+| `Ui.Component.Dragging` | a draggable | moved more than 4 px while held: a drag is on (`grab_left`, `grab_top`) |
+| `Ui.Component.DragOver` | a drop target | the topmost target under the pointer while something is dragged |
+| `Ui.Component.Dropped` | a drop target | released over it, this tick; `source` is the dragged entity's id |
+| `Ui.Component.DropMissed` | a draggable | released over no target, this tick |
+
+- The topmost target is the one painted last (highest `ComputedLayout.order`); a draggable is never its own target.
+- A drag is never a click: releasing a drag gives no `Clicked`, even over the element it started on, so an element
+  can be both a `Button` and `Draggable`, as an inventory slot is.
+- `Dropped` and `DropMissed` are removed on Interact's next run, as `Clicked` is.
+- The dragged element stays where it is. A game shows what it carries by spawning its own element, positioned from
+  `Input.Component.Mouse` and `Dragging`'s grab offset, with a high `ZIndex`, and despawning it when `Dragging` goes.
+
+```gdscript
+type Slot {
+    dropped: Ui.Component.Dropped
+    bench_slot: Component.BenchSlot
+}
+
+func update_each(slot: Slot) {
+    var item = Lookup<Component.InventoryItem>().of(slot.dropped.source)
+    assert item
+    slot.bench_slot.item = item.kind
+}
+```
+
+Tested by `examples/drag_drop_test`: a drag onto a target, a drag onto nothing and a plain click on the same
+element, driving the real window with posted mouse messages, each step waiting for the marker it causes.
+
 ## Reacting to a click
 
 Ask for the marker. The count label is a child entity, so the system takes two rows and the game's own

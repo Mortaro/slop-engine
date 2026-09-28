@@ -14,15 +14,45 @@ type Bars {
     clip: Component.ComputedClip
 }
 
-func after_input_all(pressables: List<Pressable>, pointers: List<Pointer>, bars: List<Bars>) {
+type Source {
+    entity: Entity
+    draggable: Component.Draggable
+    layout: Component.ComputedLayout
+    clip: Component.ComputedClip
+}
+
+type Target {
+    entity: Entity
+    drop_target: Component.DropTarget
+    layout: Component.ComputedLayout
+    clip: Component.ComputedClip
+}
+
+var drag_threshold: Float = 4.0
+var drag_ended = List<Integer>()
+var dragging_now = false
+
+func after_input_all(
+    pressables: List<Pressable>,
+    pointers: List<Pointer>,
+    bars: List<Bars>,
+    sources: List<Source>,
+    targets: List<Target>,
+) {
     var index = 0
     while index < pointers.count() {
-        interact_pointer(pressables, pointers[index], bars)
+        interact_pointer(pressables, pointers[index], bars, sources, targets)
         index = index + 1
     }
 }
 
-func interact_pointer(pressables: List<Pressable>, pointer: Pointer, bars: List<Bars>) {
+func interact_pointer(
+    pressables: List<Pressable>,
+    pointer: Pointer,
+    bars: List<Bars>,
+    sources: List<Source>,
+    targets: List<Target>,
+) {
     var mouse_left: Float = pointer.mouse.left
     var mouse_top: Float = pointer.mouse.top
     var on_bar = false
@@ -32,6 +62,15 @@ func interact_pointer(pressables: List<Pressable>, pointer: Pointer, bars: List<
         on_bar = on_bar or bar.bars.covers(mouse_left, mouse_top) and bar.clip.contains(mouse_left, mouse_top)
         index = index + 1
     }
+    drag_ended.clear()
+    dragging_now = false
+    forget_drop_markers(sources, targets)
+    index = 0
+    while index < sources.count() {
+        drag_source(sources[index], pointer, targets, on_bar)
+        index = index + 1
+    }
+    mark_drag_over(targets, pointer)
     index = 0
     while index < pressables.count() {
         interact(pressables[index], pointer, on_bar)
@@ -55,7 +94,7 @@ func interact(pressable: Pressable, pointer: Pointer, on_bar: Boolean) {
     var clicked_before = Lookup<Ui.Component.Clicked>().has(entity)
     var started_here = pressed_before or mouse.pressed and hovered
     var pressed = started_here and mouse.down
-    var clicked = mouse.released and hovered and started_here
+    var clicked = mouse.released and hovered and started_here and not drag_ended.contains(entity)
     if clicked and not clicked_before {
         var clicked_marker = Ui.Component.Clicked()
         owner.add_component(clicked_marker)
@@ -73,5 +112,137 @@ func interact(pressable: Pressable, pointer: Pointer, on_bar: Boolean) {
         owner.add_component(pressed_marker)
     } else if pressed_before and not pressed {
         owner.remove_component(Ui.Component.Pressed)
+    }
+}
+
+func forget_drop_markers(sources: List<Source>, targets: List<Target>) {
+    var dropped = Lookup<Component.Dropped>()
+    var missed = Lookup<Component.DropMissed>()
+    var index = 0
+    while index < targets.count() {
+        var target = targets[index].entity
+        if dropped.has(target.id) {
+            target.remove_component(Component.Dropped)
+        }
+        index = index + 1
+    }
+    index = 0
+    while index < sources.count() {
+        var source = sources[index].entity
+        if missed.has(source.id) {
+            source.remove_component(Component.DropMissed)
+        }
+        index = index + 1
+    }
+}
+
+func drag_source(source: Source, pointer: Pointer, targets: List<Target>, on_bar: Boolean) {
+    var mouse = pointer.mouse
+    var owner = source.entity
+    var mouse_left: Float = mouse.left
+    var mouse_top: Float = mouse.top
+    var dragging = Lookup<Component.Dragging>().of(owner.id)
+    if dragging {
+        continue_drag(source, pointer, targets)
+        return
+    }
+    var press = Lookup<Component.DragPress>().of(owner.id)
+    if press {
+        continue_press(source, press, pointer)
+        return
+    }
+    var layout = source.layout
+    var inside_x = mouse_left >= layout.left and mouse_left < layout.left + layout.width
+    var inside_y = mouse_top >= layout.top and mouse_top < layout.top + layout.height
+    var hovered = inside_x and inside_y and source.clip.contains(mouse_left, mouse_top) and not on_bar
+    assert mouse.pressed and hovered
+    var started = Component.DragPress()
+    started.left = mouse_left
+    started.top = mouse_top
+    started.grab_left = mouse_left - layout.left
+    started.grab_top = mouse_top - layout.top
+    owner.add_component(started)
+}
+
+func continue_press(source: Source, press: Component.DragPress, pointer: Pointer) {
+    var mouse = pointer.mouse
+    var owner = source.entity
+    if not mouse.down {
+        owner.remove_component(Component.DragPress)
+        return
+    }
+    var mouse_left: Float = mouse.left
+    var mouse_top: Float = mouse.top
+    var across = mouse_left - press.left
+    var down = mouse_top - press.top
+    var moved = across > drag_threshold or 0.0 - across > drag_threshold or down > drag_threshold or 0.0 - down > drag_threshold
+    assert moved
+    owner.remove_component(Component.DragPress)
+    var started = Component.Dragging()
+    started.grab_left = press.grab_left
+    started.grab_top = press.grab_top
+    owner.add_component(started)
+    dragging_now = true
+}
+
+func continue_drag(source: Source, pointer: Pointer, targets: List<Target>) {
+    var owner = source.entity
+    if pointer.mouse.down {
+        dragging_now = true
+        return
+    }
+    owner.remove_component(Component.Dragging)
+    drag_ended.append(owner.id)
+    var target = topmost_target(targets, pointer, owner.id)
+    if target < 0 {
+        var missed = Component.DropMissed()
+        owner.add_component(missed)
+        return
+    }
+    var dropped = Component.Dropped()
+    dropped.source = owner.id
+    var receiver = Entity(target)
+    receiver.add_component(dropped)
+}
+
+func topmost_target(targets: List<Target>, pointer: Pointer, source: Integer): Integer {
+    var mouse_left: Float = pointer.mouse.left
+    var mouse_top: Float = pointer.mouse.top
+    var found = -1
+    var found_order = -1
+    var index = 0
+    while index < targets.count() {
+        var target = targets[index]
+        var layout = target.layout
+        var inside_x = mouse_left >= layout.left and mouse_left < layout.left + layout.width
+        var inside_y = mouse_top >= layout.top and mouse_top < layout.top + layout.height
+        var visible = target.clip.contains(mouse_left, mouse_top) and layout.order >= 0
+        var eligible = target.entity.id != source and layout.order > found_order
+        if inside_x and inside_y and visible and eligible {
+            found = target.entity.id
+            found_order = layout.order
+        }
+        index = index + 1
+    }
+    return found
+}
+
+func mark_drag_over(targets: List<Target>, pointer: Pointer) {
+    var over = -1
+    if dragging_now {
+        over = topmost_target(targets, pointer, -1)
+    }
+    var marked = Lookup<Component.DragOver>()
+    var index = 0
+    while index < targets.count() {
+        var target = targets[index].entity
+        var was_over = marked.has(target.id)
+        if target.id == over and not was_over {
+            var marker = Component.DragOver()
+            target.add_component(marker)
+        } else if target.id != over and was_over {
+            target.remove_component(Component.DragOver)
+        }
+        index = index + 1
     }
 }
