@@ -176,8 +176,8 @@ lights for timing.
 
 With 3,000 lights (79 on screen, 12,853 cluster entries), on an RTX 3090 with validation on:
 - the clusters and their upload cost about 0.22 ms of the scene system;
-- gathering costs 0.9 to 1.1 ms. That is the ECS's per-row cost of streaming a two-component row (about 300 ns), not
-  the lights, so it drops wherever that cost does (docs/performance.md).
+- gathering cost 0.9 to 1.1 ms at first, the ECS's per-row streaming cost rather than the lights. With cheaper
+  singleton locks in Spite and inline storage it is 0.33 ms (optimized; docs/performance.md).
 
 Not built yet:
 - shadows for point and spot lights (a budgeted atlas, a proposal);
