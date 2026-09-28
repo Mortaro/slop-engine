@@ -142,7 +142,8 @@ func publish(id: String, image: Asset.Texture, raw_texels: Asset.Bytes): Integer
     textures.set_at(slot, image)
     raws.set_at(slot, raw_texels)
     ready.set_at(slot, true)
-    var before = generations.get_at(slot)
+    crash generations[slot]
+    var before = generations[slot]
     generations.set_at(slot, before + 1)
     return slot
 }

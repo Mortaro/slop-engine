@@ -53,7 +53,7 @@ func check_queries() {
         reindex(transforms, indexed)
         indexed = indexed + 1
     }
-    var found = Vector<Integer>()
+    var found = List<Integer>()
     grid.within(0, probe_x, probe_z, 60.0, found)
     var brute = 0
     var entity = 0

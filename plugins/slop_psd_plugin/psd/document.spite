@@ -428,7 +428,6 @@ func high_bytes(stored: List<Integer>): List<Integer> {
     var plane = List<Integer>()
     var index = 0
     while index + 1 < stored.count() {
-        crash stored[index]
         plane.append(stored[index])
         index = index + 2
     }

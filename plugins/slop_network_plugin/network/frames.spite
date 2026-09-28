@@ -1,10 +1,10 @@
 var current = List<Asset.Bytes>()
 var previous = List<Asset.Bytes>()
 var delta = List<Asset.Bytes>()
-var stamped = Vector<Integer>()
-var touched = Vector<Integer>()
-var last_touched = Vector<Integer>()
-var gone = Vector<Integer>()
+var stamped = List<Integer>()
+var touched = List<Integer>()
+var last_touched = List<Integer>()
+var gone = List<Integer>()
 var tick = 0
 var raw = Raw()
 

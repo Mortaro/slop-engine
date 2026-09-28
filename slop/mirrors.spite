@@ -4,8 +4,8 @@ var known = Dictionary<Integer>()
 var remotes = Dictionary<Integer>()
 var world_field = -10
 var receivers_own_first = -100
-var created = Vector<Integer>()
-var created_remotes = Vector<Integer>()
+var created = List<Integer>()
+var created_remotes = List<Integer>()
 var world = World()
 
 func local_of(remote: Integer): Integer {

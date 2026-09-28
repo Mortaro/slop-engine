@@ -72,9 +72,10 @@ func take_refresh() {
     var next = revision + 1
     var ids = fresh.fingerprints.keys()
     var changed = 0
+    var count = ids.count()
     var index = 0
-    while index < ids.count() {
-        var id = ids.get_at(index)
+    while index < count {
+        var id = ids[index]
         var fresh_print = fresh.fingerprint_of(id)
         var old_print = old.fingerprint_of(id)
         if fresh_print != old_print {

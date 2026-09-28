@@ -7,8 +7,8 @@ var world = World()
 var frames = Network.Frames()
 var messages = Asset.Bytes()
 var removals = Asset.Bytes()
-var everyone = Vector<Integer>()
-var still = Vector<Integer>()
+var everyone = List<Integer>()
+var still = List<Integer>()
 
 func last_all(peers: List<Peer>) {
     messages.clear()
@@ -56,7 +56,7 @@ func deliver(peer: Peer) {
     }
 }
 
-func send_all(connection: Network.Component.Connection, entities: Vector<Integer>) {
+func send_all(connection: Network.Component.Connection, entities: List<Integer>) {
     var index = 0
     while index < entities.count() {
         send_entity(connection, entities[index])

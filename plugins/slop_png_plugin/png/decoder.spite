@@ -159,7 +159,7 @@ func read_palette_alpha(bytes: Asset.Bytes, body: Integer, length: Integer) {
     var index = 0
     while index < length and index < palette.count() {
         var alpha = bytes.byte_at(body + index)
-        var entry = palette.get_at(index)
+        var entry = palette[index]
         var color = entry.bits_and(16777215)
         var alpha_part = alpha.shifted_left(24)
         var texel = color.bits_or(alpha_part)
@@ -484,7 +484,7 @@ func grey_texel(pixels: Long, column: Integer): Integer {
 func palette_texel(pixels: Long, column: Integer): Integer {
     var index = sample(pixels, column)
     if index < palette.count() {
-        return palette.get_at(index)
+        return palette[index]
     }
     return -16777216
 }

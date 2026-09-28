@@ -176,6 +176,7 @@ func resized(address: Long, bytes: Long): Long {
 
 func value_at(name: String, row: Integer): $component_type {
     if inline() {
+        crash values[row]
         return values[row].copy()
     }
     var stored = references_of(name)
@@ -184,7 +185,8 @@ func value_at(name: String, row: Integer): $component_type {
 }
 
 func at(row: Integer): $component_type {
-    return references.get_at(row)
+    crash references[row]
+    return references[row]
 }
 
 func write_at(name: String, row: Integer, value: $component_type) {

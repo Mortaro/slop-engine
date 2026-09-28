@@ -14,7 +14,7 @@ var columns = Columns()
 
 var spawned_typed = false
 var parents_linked = false
-var dead = Vector<Long>()
+var dead = List<Long>()
 
 func prepare() {
     assert buffers.count() == 0
@@ -134,6 +134,7 @@ func bury(despawned: Integer) {
     }
     var bit: Long = 1
     var shifted = bit.shifted_left(despawned % 64)
+    crash dead[word]
     var buried = dead[word].bits_or(shifted)
     dead.set_at(word, buried)
 }

@@ -41,7 +41,7 @@ func spawn_archer(archer: Integer) {
     var along_z = scalar.sine(angle) * distance
     var index = 0
     while index < parts.count() {
-        var part = parts.get_at(index)
+        var part = parts[index]
         spawn_part(part, along_x, along_z, archer)
         index = index + 1
     }

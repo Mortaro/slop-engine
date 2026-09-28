@@ -6,7 +6,6 @@ func write(value: $list_type, bytes: Asset.Bytes) {
     var element = Field<$list_type.element_type>()
     var index = 0
     while index < count {
-        crash value[index]
         element.write(value[index], bytes)
         index = index + 1
     }

@@ -63,7 +63,8 @@ func choose(box: Box, labels: List<Label>, popups: List<Popup>, choices: List<Ch
     var picked = picked_choice(popups, choices, popup)
     var open = opened.has(owner.id)
     if picked >= 0 {
-        var choice = choices.get_at(picked)
+        crash choices[picked]
+        var choice = choices[picked]
         box.combo.selected = choice.option.index
         show_label(labels, box.entity.id, choice.text.text)
         var changed = Component.SelectionChanged()
@@ -90,7 +91,8 @@ func close(owner: Entity, popups: List<Popup>, popup: Integer) {
 }
 
 func show(popups: List<Popup>, popup: Integer, shown: Component.Display.Kind) {
-    var found = popups.get_at(popup)
+    crash popups[popup]
+    var found = popups[popup]
     found.display.value = shown
 }
 
@@ -106,7 +108,8 @@ func popup_of(popups: List<Popup>, box: Integer): Integer {
 }
 
 func picked_choice(popups: List<Popup>, choices: List<Choice>, popup_index: Integer): Integer {
-    var popup = popups.get_at(popup_index)
+    crash popups[popup_index]
+    var popup = popups[popup_index]
     var popup_entity = popup.entity.id
     var index = 0
     while index < choices.count() {

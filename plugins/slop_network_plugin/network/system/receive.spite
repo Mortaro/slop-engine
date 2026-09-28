@@ -85,6 +85,7 @@ func mark_mirrors() {
     var index = 0
     while index < mirrors.created.count() {
         var mirrored = Network.Component.Mirrored()
+        crash mirrors.created_remotes[index]
         mirrored.remote = mirrors.created_remotes[index]
         var made = Entity(mirrors.created[index])
         made.add_component(mirrored)

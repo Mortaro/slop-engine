@@ -6,10 +6,10 @@ type Viewing {
 
 var grid = Spatial.Grid()
 var world = World()
-var found = Vector<Integer>()
-var stamps = Vector<Integer>()
-var kept_subjects = Vector<Integer>()
-var kept_links = Vector<Integer>()
+var found = List<Integer>()
+var stamps = List<Integer>()
+var kept_subjects = List<Integer>()
+var kept_links = List<Integer>()
 var pass = 0
 var center_x: Float = 0.0
 var center_z: Float = 0.0
@@ -62,6 +62,7 @@ func keep_or_drop(watching: Interest.Component.Watching) {
     var index = 0
     while index < watching.subjects.count() {
         var subject = watching.subjects[index]
+        crash watching.links[index]
         var link = watching.links[index]
         var found_now = subject < stamps.count() and stamps[subject] == pass
         if found_now or still_near(subject) {
@@ -93,7 +94,7 @@ func link_new(connection: Integer) {
     }
 }
 
-func copy(from: Vector<Integer>, into: Vector<Integer>) {
+func copy(from: List<Integer>, into: List<Integer>) {
     into.clear()
     var index = 0
     while index < from.count() {

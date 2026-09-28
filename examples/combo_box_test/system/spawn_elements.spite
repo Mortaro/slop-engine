@@ -21,7 +21,7 @@ func update_each(created: NewWindow) {
     progress.label = label.id
     var index = 0
     while index < labels.count() {
-        var label = labels.get_at(index)
+        var label = labels[index]
         var option_bundle = Ui.Bundle.ComboOption(popup.id, index, label)
         var option = world.create_entity_from_bundle(option_bundle)
         progress.third = option.id

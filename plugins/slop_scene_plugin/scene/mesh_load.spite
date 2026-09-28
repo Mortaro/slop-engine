@@ -87,18 +87,24 @@ func note_joints(packed: Integer) {
 
 func measure_bounds(loaded: Scene.LoadedMesh, mesh: Asset.Mesh, count: Integer) {
     assert count > 0
-    var low_x = mesh.vertices.get_at(0)
-    var low_y = mesh.vertices.get_at(1)
-    var low_z = mesh.vertices.get_at(2)
+    crash mesh.vertices[0]
+    var low_x = mesh.vertices[0]
+    crash mesh.vertices[1]
+    var low_y = mesh.vertices[1]
+    crash mesh.vertices[2]
+    var low_z = mesh.vertices[2]
     var high_x = low_x
     var high_y = low_y
     var high_z = low_z
     var vertex = 1
     while vertex < count {
         var first = vertex * vertex_floats
-        var along_x = mesh.vertices.get_at(first)
-        var along_y = mesh.vertices.get_at(first + 1)
-        var along_z = mesh.vertices.get_at(first + 2)
+        crash mesh.vertices[first]
+        var along_x = mesh.vertices[first]
+        crash mesh.vertices[first + 1]
+        var along_y = mesh.vertices[first + 1]
+        crash mesh.vertices[first + 2]
+        var along_z = mesh.vertices[first + 2]
         low_x = smaller(low_x, along_x)
         low_y = smaller(low_y, along_y)
         low_z = smaller(low_z, along_z)
@@ -135,7 +141,7 @@ func note_used_joints(loaded: Scene.LoadedMesh, mesh: Asset.Mesh, skinned: Boole
     assert skinned
     var vertex = 0
     while vertex < mesh.joints.count() {
-        var packed = mesh.joints.get_at(vertex)
+        var packed = mesh.joints[vertex]
         var slot = 0
         while slot < 4 {
             add_used_joint(loaded, mesh, packed, vertex, slot)
@@ -146,7 +152,8 @@ func note_used_joints(loaded: Scene.LoadedMesh, mesh: Asset.Mesh, skinned: Boole
 }
 
 func add_used_joint(loaded: Scene.LoadedMesh, mesh: Asset.Mesh, packed: Integer, vertex: Integer, slot: Integer) {
-    var weight = mesh.weights.get_at(vertex * 4 + slot)
+    crash mesh.weights[vertex * 4 + slot]
+    var weight = mesh.weights[vertex * 4 + slot]
     var joint = packed.shifted_right(slot * 8).bits_and(255)
     assert weight > 0.0 and not loaded.used_joints.contains(joint)
     loaded.used_joints.append(joint)

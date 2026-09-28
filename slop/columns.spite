@@ -127,13 +127,15 @@ func release_buried(budget: Integer): Integer {
 }
 
 func release_buried_in(names: List<String>, index: Integer, remaining: Integer): Integer {
-    if not names[index] {
+    var name = names[index]
+    if not name {
         return 0
     }
-    if not releasers[names[index]] {
+    var releaser = releasers[name]
+    if not releaser {
         return 0
     }
-    return releasers[names[index]].release_buried(remaining)
+    return releaser.release_buried(remaining)
 }
 
 func record_releaser(name: String, releaser: AnyColumn) {

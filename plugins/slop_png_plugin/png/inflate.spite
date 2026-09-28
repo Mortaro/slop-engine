@@ -321,7 +321,7 @@ func read_dynamic_tables() {
     var read_count = lengths.count()
     fail_when(read_count != total)
     assert not failed
-    var end_length = lengths.get_at(256)
+    var end_length = lengths[256]
     var literals_built = literal_table.build(lengths, 0, literal_count)
     var distances_built = distance_table.build(lengths, literal_count, distance_count)
     fail_when(end_length == 0 or not literals_built or not distances_built)

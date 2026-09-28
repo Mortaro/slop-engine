@@ -1,8 +1,8 @@
 var parents = Column<Entity>()
 var columns = Columns()
-var marks = Vector<Integer>()
+var marks = List<Integer>()
 
-func add_children(despawned: List<Integer>, dead: Vector<Long>) {
+func add_children(despawned: List<Integer>, dead: List<Long>) {
     despawned.each(mark)
     var grown = true
     while grown {
@@ -34,7 +34,7 @@ func marked(entity: Integer): Boolean {
     return entity < marks.count() and marks[entity] == 1
 }
 
-func buried(dead: Vector<Long>, entity: Integer): Boolean {
+func buried(dead: List<Long>, entity: Integer): Boolean {
     var word = entity / 64
     if word >= dead.count() {
         return false

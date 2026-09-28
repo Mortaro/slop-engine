@@ -36,7 +36,7 @@ func size_slot(font: String, face_index: Integer, pixels: Integer): Integer {
     var name = "{font}#{face_index}@{pixels}"
     var index = 0
     while index < size_names.count() {
-        if size_names.get_at(index) == name {
+        if size_names[index] == name {
             return index
         }
         index = index + 1
@@ -47,7 +47,8 @@ func size_slot(font: String, face_index: Integer, pixels: Integer): Integer {
     }
     var pixels_fit = pixels > 0 and pixels < 512
     crash pixels_fit
-    var face = faces.get_at(face_slot)
+    crash faces[face_slot]
+    var face = faces[face_slot]
     var units: Float = face.units_per_em
     var scale_of_size: Float = pixels
     var per_unit = scale_of_size / units
@@ -80,7 +81,7 @@ func face_slot_of(font: String, face_index: Integer): Integer {
     var name = "{font}#{face_index}"
     var index = 0
     while index < face_names.count() {
-        if face_names.get_at(index) == name {
+        if face_names[index] == name {
             return index
         }
         index = index + 1
@@ -94,7 +95,7 @@ func face_slot_of(font: String, face_index: Integer): Integer {
     }
     var waiting = waiting_faces.count() - 1
     while waiting >= 0 {
-        if waiting_faces.get_at(waiting) == name {
+        if waiting_faces[waiting] == name {
             waiting_faces.remove_at(waiting)
         }
         waiting = waiting - 1
@@ -108,20 +109,25 @@ func face_slot_of(font: String, face_index: Integer): Integer {
 }
 
 func ascent_of(size: Integer): Integer {
-    return ascents.get_at(size)
+    crash ascents[size]
+    return ascents[size]
 }
 
 func line_height_of(size: Integer): Integer {
-    return line_heights.get_at(size)
+    crash line_heights[size]
+    return line_heights[size]
 }
 
 func advance_of(size: Integer, codepoint: Integer): Float {
-    var face_slot = size_faces.get_at(size)
-    var face = faces.get_at(face_slot)
+    crash size_faces[size]
+    var face_slot = size_faces[size]
+    crash faces[face_slot]
+    var face = faces[face_slot]
     var glyph = face.glyph_index(codepoint)
     var units: Float = face.units_per_em
     var advance_units: Float = face.advance(glyph)
-    var pixels: Float = pixel_sizes.get_at(size)
+    crash pixel_sizes[size]
+    var pixels: Float = pixel_sizes[size]
     return advance_units * pixels / units
 }
 
@@ -131,7 +137,7 @@ func text_width(size: Integer, text: String): Float {
     var width: Float = 0.0
     var index = 0
     while index < codes.count() {
-        var code = codes.get_at(index)
+        var code = codes[index]
         width = width + advance_of(size, code)
         index = index + 1
     }
@@ -139,7 +145,8 @@ func text_width(size: Integer, text: String): Float {
 }
 
 func glyph_of(size: Integer, codepoint: Integer): Integer {
-    var table = glyph_tables.get_at(size)
+    crash glyph_tables[size]
+    var table = glyph_tables[size]
     var found = table.get(codepoint)
     if found {
         return found
@@ -152,7 +159,7 @@ func queue(size: Integer, codepoint: Integer) {
     var index = 0
     var queued = false
     while not queued and index < pending_codes.count() {
-        queued = pending_codes.get_at(index) == codepoint and pending_sizes.get_at(index) == size
+        queued = pending_codes[index] == codepoint and pending_sizes[index] == size
         index = index + 1
     }
     assert not queued
@@ -168,8 +175,9 @@ func queue(size: Integer, codepoint: Integer) {
 func rasterize_pending() {
     var done = 0
     while done < glyphs_per_frame and pending_codes.count() > 0 {
-        var size = pending_sizes.get_at(0)
-        var codepoint = pending_codes.get_at(0)
+        crash pending_sizes[0]
+        var size = pending_sizes[0]
+        var codepoint = pending_codes[0]
         pending_sizes.remove_at(0)
         pending_codes.remove_at(0)
         add_glyph(size, codepoint)
@@ -182,12 +190,15 @@ func rasterize_pending() {
 }
 
 func add_glyph(size: Integer, codepoint: Integer) {
-    var face_slot = size_faces.get_at(size)
-    var face = faces.get_at(face_slot)
+    crash size_faces[size]
+    var face_slot = size_faces[size]
+    crash faces[face_slot]
+    var face = faces[face_slot]
     var glyph = face.glyph_index(codepoint)
     face.outline_of(glyph, outline)
     var units: Float = face.units_per_em
-    var pixels: Float = pixel_sizes.get_at(size)
+    crash pixel_sizes[size]
+    var pixels: Float = pixel_sizes[size]
     var per_unit = pixels / units
     var advance_units: Float = face.advance(glyph)
     bitmap.clear()
@@ -200,7 +211,8 @@ func add_glyph(size: Integer, codepoint: Integer) {
         grow(size)
         packed = pack(size, bitmap.width, bitmap.height)
     }
-    var side = atlas_sides.get_at(size)
+    crash atlas_sides[size]
+    var side = atlas_sides[size]
     var left = packed % side
     var top = packed / side
     copy_into_atlas(size, left, top)
@@ -210,7 +222,8 @@ func add_glyph(size: Integer, codepoint: Integer) {
     glyph_heights.append(bitmap.height)
     glyph_bearings.append(bitmap.left)
     glyph_risers.append(bitmap.top)
-    var table = glyph_tables.get_at(size)
+    crash glyph_tables[size]
+    var table = glyph_tables[size]
     table.set(codepoint, place)
     if not atlas_changed.contains(true) {
         var marker = Ui.Component.AtlasChanged()
@@ -221,10 +234,14 @@ func add_glyph(size: Integer, codepoint: Integer) {
 }
 
 func pack(size: Integer, width: Integer, height: Integer): Integer {
-    var left = shelf_lefts.get_at(size)
-    var top = shelf_tops.get_at(size)
-    var shelf = shelf_heights.get_at(size)
-    var atlas_side = atlas_sides.get_at(size)
+    crash shelf_lefts[size]
+    var left = shelf_lefts[size]
+    crash shelf_tops[size]
+    var top = shelf_tops[size]
+    crash shelf_heights[size]
+    var shelf = shelf_heights[size]
+    crash atlas_sides[size]
+    var atlas_side = atlas_sides[size]
     if left + width + 1 > atlas_side {
         top = top + shelf + 1
         left = 1
@@ -243,9 +260,12 @@ func pack(size: Integer, width: Integer, height: Integer): Integer {
 }
 
 func copy_into_atlas(size: Integer, left: Integer, top: Integer) {
-    var atlas = atlases.get_at(size)
-    var texels = atlas_texels.get_at(size)
-    var atlas_side = atlas_sides.get_at(size)
+    crash atlases[size]
+    var atlas = atlases[size]
+    crash atlas_texels[size]
+    var texels = atlas_texels[size]
+    crash atlas_sides[size]
+    var atlas_side = atlas_sides[size]
     var row = 0
     while row < bitmap.height {
         var column = 0
@@ -277,12 +297,15 @@ func fill_blank(atlas: Asset.Texture, texels: Asset.Bytes, side: Integer) {
 }
 
 func grow(size: Integer) {
-    var old_side = atlas_sides.get_at(size)
+    crash atlas_sides[size]
+    var old_side = atlas_sides[size]
     var side = old_side * 2
     var atlas_fits_the_largest_side = side <= largest_atlas_side
     crash atlas_fits_the_largest_side
-    var old_atlas = atlases.get_at(size)
-    var old_texels = atlas_texels.get_at(size)
+    crash atlases[size]
+    var old_atlas = atlases[size]
+    crash atlas_texels[size]
+    var old_texels = atlas_texels[size]
     var atlas = Asset.Texture()
     var texels = Asset.Bytes()
     fill_blank(atlas, texels, side)
@@ -316,38 +339,46 @@ func copy_row(
     raw.copy(source, target, old_side * 4)
     var column = 0
     while column < old_side {
-        var texel = old_atlas.pixels.get_at(row * old_side + column)
+        crash old_atlas.pixels[row * old_side + column]
+        var texel = old_atlas.pixels[row * old_side + column]
         atlas.pixels.set_at(row * side + column, texel)
         column = column + 1
     }
 }
 
 func glyph_left(glyph: Integer): Integer {
-    return glyph_lefts.get_at(glyph)
+    crash glyph_lefts[glyph]
+    return glyph_lefts[glyph]
 }
 
 func glyph_top(glyph: Integer): Integer {
-    return glyph_tops.get_at(glyph)
+    crash glyph_tops[glyph]
+    return glyph_tops[glyph]
 }
 
 func glyph_width(glyph: Integer): Integer {
-    return glyph_widths.get_at(glyph)
+    crash glyph_widths[glyph]
+    return glyph_widths[glyph]
 }
 
 func glyph_height(glyph: Integer): Integer {
-    return glyph_heights.get_at(glyph)
+    crash glyph_heights[glyph]
+    return glyph_heights[glyph]
 }
 
 func glyph_bearing(glyph: Integer): Integer {
-    return glyph_bearings.get_at(glyph)
+    crash glyph_bearings[glyph]
+    return glyph_bearings[glyph]
 }
 
 func glyph_riser(glyph: Integer): Integer {
-    return glyph_risers.get_at(glyph)
+    crash glyph_risers[glyph]
+    return glyph_risers[glyph]
 }
 
 func atlas_id(size: Integer): String {
-    var name = size_names.get_at(size)
+    crash size_names[size]
+    var name = size_names[size]
     return "font-atlas:{name}"
 }
 

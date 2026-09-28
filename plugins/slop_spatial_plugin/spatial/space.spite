@@ -3,8 +3,8 @@ var origin_z: Float = -8192.0
 var cell_size: Float = 32.0
 var columns = 512
 var rows = 512
-var heads = Vector<Integer>()
-var touched = Vector<Integer>()
+var heads = List<Integer>()
+var touched = List<Integer>()
 
 func configure(left: Float, top: Float, width: Float, depth: Float, size: Float) {
     origin_x = left
