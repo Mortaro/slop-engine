@@ -219,6 +219,25 @@ Connections are entities. Settings and state are components on the world entity:
 Nothing blocks a frame: sockets are non-blocking and are polled once per tick, and the one call that can take
 seconds (a TCP connect to a port nobody listens on) runs on the pool (D191).
 
+### Proposal (by Claude): a message lives until a handler consumes it
+
+Today an arrived message is despawned at the end of its tick whether or not any system handled it. A handler that
+cannot act yet loses the message silently: Theseus (A75) lost a scripted client's first `/give`, whose router
+guards on the connection's `Controls`, which the join had not made yet. Proposed instead:
+
+- a handler consumes a message by removing its request component;
+- `ForgetArrived` despawns only messages with no request component left, so an unhandled message is seen again
+  next tick, and a handler whose condition is not met yet simply waits;
+- a connection holding more than 256 unhandled messages is closed with an error naming the oldest one's
+  component, so a missing handler or a flooding client shows at once, and a closed connection's messages are
+  despawned. There is no timer.
+
+Every handler must then remove what it handles, so the change lands together with Theseus's 27 handlers.
+
+For several events of one type in one tick (two `Grant`s to one player), make each event an entity of its own,
+parented to its target (`event.add_parent_entity(player)`), and let the handler despawn it once applied; a
+component on the target holds only one value per type.
+
 ### The wire
 
 Binary, little-endian, one frame per component value:
