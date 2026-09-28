@@ -1,0 +1,146 @@
+var cache = Recipes.Cache()
+var cookbook = Recipes.Cookbook()
+var settings = Build()
+var console = Console()
+var clock = Clock()
+var parts = ["Chest", "Boots", "Gloves", "Shorts part 1", "Shorts part 2", "Face 1", "Hair 1"]
+var clips = ["Idle", "Walk", "Run"]
+var version = "archer 4"
+var decoder = Png.Decoder()
+var cooked_textures = List<String>()
+
+func build() {
+    var path = "{settings.kal_assets}/characters/archer/archer.blend"
+    cookbook.note_source(path)
+    var source = File(path)
+    var size = source.size()
+    var modified = source.modified()
+    crash size
+    crash modified
+    var fingerprint = cache.fingerprint("{version} {path} {size} {modified}")
+    assert not all_current(fingerprint)
+    var started = clock.elapsed_milliseconds()
+    var file = Blend.File()
+    file.open(path)
+    var rig = object_named(file, "rig")
+    var skeleton_reader = Blend.SkeletonReader()
+    var skeleton = skeleton_reader.read(file, rig)
+    put(skeleton, "archer.skeleton", fingerprint)
+    var index = 0
+    while index < parts.count() {
+        cook_part(file, parts[index], skeleton, fingerprint)
+        index = index + 1
+    }
+    index = 0
+    while index < clips.count() {
+        cook_clip(file, clips[index], skeleton, skeleton_reader, fingerprint)
+        index = index + 1
+    }
+    var took = clock.elapsed_milliseconds() - started
+    var names_count = skeleton.names.count()
+    console.print("recipe: cooked archer, bones", names_count, "milliseconds", took)
+}
+
+func all_current(fingerprint: String): Boolean {
+    var current = cache.is_current("archer.skeleton", fingerprint)
+    var index = 0
+    while index < parts.count() {
+        var part_slug = slug_of(parts[index])
+        current = current and cache.is_current("archer.body.{part_slug}", fingerprint)
+        index = index + 1
+    }
+    index = 0
+    while index < clips.count() {
+        var clip_slug = slug_of(clips[index])
+        current = current and cache.is_current("archer.animation.{clip_slug}", fingerprint)
+        index = index + 1
+    }
+    return current
+}
+
+func cook_part(file: Blend.File, part: String, skeleton: Asset.Skeleton, fingerprint: String) {
+    var object = object_named(file, "Body - {part}")
+    var reader = Blend.MeshReader()
+    var mesh = reader.read(file, object, skeleton.names)
+    cook_textures(reader, mesh, fingerprint)
+    var slug = slug_of(part)
+    var bytes = Asset.Bytes()
+    var pack = Pack<Asset.Mesh>()
+    pack.encode(mesh, bytes)
+    cache.put("archer.body.{slug}", fingerprint, bytes)
+}
+
+func cook_textures(reader: Blend.MeshReader, mesh: Asset.Mesh, fingerprint: String) {
+    var material = 0
+    while material < reader.images.count() {
+        cook_texture(reader, mesh, material, fingerprint)
+        material = material + 1
+    }
+}
+
+func cook_texture(reader: Blend.MeshReader, mesh: Asset.Mesh, material: Integer, fingerprint: String) {
+    crash reader.images[material]
+    crash reader.image_bytes[material]
+    var name = reader.images[material]
+    assert not name.is_empty()
+    var id = "archer.texture.{name}"
+    mesh.textures.set_at(material, id)
+    assert not cooked_textures.contains(id)
+    cooked_textures.append(id)
+    var texture = decoder.decode(reader.image_bytes[material])
+    crash texture
+    var bytes = Asset.Bytes()
+    var pack = Pack<Asset.Texture>()
+    pack.encode(texture, bytes)
+    cache.put(id, fingerprint, bytes)
+}
+
+func cook_clip(
+    file: Blend.File,
+    name: String,
+    skeleton: Asset.Skeleton,
+    skeleton_reader: Blend.SkeletonReader,
+    fingerprint: String,
+) {
+    var action = block_named(file, "AC", name)
+    var reader = Blend.ActionReader()
+    var animation = reader.read(file, action, skeleton, skeleton_reader.rests, skeleton_reader.armature_world)
+    var slug = slug_of(name)
+    var bytes = Asset.Bytes()
+    var pack = Pack<Asset.Animation>()
+    pack.encode(animation, bytes)
+    cache.put("archer.animation.{slug}", fingerprint, bytes)
+}
+
+func put(skeleton: Asset.Skeleton, id: String, fingerprint: String) {
+    var bytes = Asset.Bytes()
+    var pack = Pack<Asset.Skeleton>()
+    pack.encode(skeleton, bytes)
+    cache.put(id, fingerprint, bytes)
+}
+
+func object_named(file: Blend.File, name: String): Blend.View {
+    return block_named(file, "OB", name)
+}
+
+func block_named(file: Blend.File, code: String, name: String): Blend.View {
+    var blocks = file.blocks_coded(code)
+    var found = -1
+    var index = 0
+    while index < blocks.count() {
+        var view = file.view_of(blocks[index])
+        if file.id_name(view) == name {
+            found = index
+        }
+        index = index + 1
+    }
+    var block = blocks[found]
+    crash block
+    return file.view_of(block)
+}
+
+func slug_of(name: String): String {
+    var lower = name.lower_case()
+    var spaced = lower.replace(" ", "_")
+    return spaced.replace("__", "_")
+}

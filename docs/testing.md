@@ -21,6 +21,7 @@ Every behaviour the docs claim is checked by a program in `examples/`. Run them 
 | `snapshot_write_refused/test.sh` | an IO system that writes an inline component of its row fails to compile, and the error names the writing line |
 | `terrain_check` | a cooked two-by-two-tile terrain: each tile's base layer and a painted splat circle land where the ported M_Terrain formula puts them |
 | `props_bench` | 17,000 cube props in a grid: prints the frame time and every system above 0.2 ms; run `--optimized` |
+| `animate_bench` | 400 seven-part Kal archers (2,800 animators) in rings around the camera, each archer at its own time: prints the frame time and every system above 0.1 ms; run `--optimized` |
 | `resize_check` | a hidden window resized, minimised and restored: the swapchain is rebuilt to the new client size, minimised frames are skipped, and presenting resumes at full size |
 | `without_check` | a system over `Health` and `Without<Frozen>` heals only entities without `Frozen`, and heals one once its `Frozen` is removed |
 | `tracking` | `Added<T>` and `Removed<T>` are each seen exactly once by a system before the change and one after it |

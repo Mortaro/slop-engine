@@ -19,6 +19,20 @@ func absolute(value: Float): Float {
     return value
 }
 
+func minimum(first: Float, second: Float): Float {
+    if second < first {
+        return second
+    }
+    return first
+}
+
+func maximum(first: Float, second: Float): Float {
+    if second > first {
+        return second
+    }
+    return first
+}
+
 func clamp(value: Float, low: Float, high: Float): Float {
     if value < low {
         return low

@@ -77,6 +77,19 @@ rows crossed a millisecond; the fixed step keeps every part of a character in lo
 - Rotation uses a shortest-arc slerp, falling back to a normalised lerp for near-identical keys.
 - It writes `global · inverse_bind` for each bone into `Scene.Component.Model.palette`, and each bone's model-space
   pose (`global`) into `Model.bones`.
+- It skips a model marked `Scene.Component.OffView`. Gather adds that marker when a skinned model leaves the view cone
+  and its shadow cannot reach the view (its sphere swept away from the sun), and removes it when either comes back,
+  so an off-screen character costs no sampling and the marker changes only on those crossings. A character coming
+  into view shows its last pose for one frame.
+- An animator on the same skeleton, clip, time and looping as the one sampled just before it copies that pose instead
+  of sampling. The parts of one character are spawned together and sit next to each other in the row, so a
+  seven-part archer samples once.
+- The palette and bones matrices are rewritten in place, and the inverse binds are multiplied straight from the
+  skeleton's floats, so a frame allocates nothing per bone.
+
+`examples/animate_bench` animates 400 seven-part archers (2,800 animators, 65 bones) in rings around the camera,
+each archer at its own time. Optimised, on an RTX 3090 machine: Animate went from 81 ms to 9 ms, GatherModels from
+11.4 to 6.6 ms and DrawScene from 22 to 5.7 ms (727 of 2,800 models drawn), so the frame went from 122 to 26 ms.
 
 ### Bone attachments
 
@@ -143,9 +156,10 @@ addressing. The UI samples the same images through its own nearest, top-level-on
 
 ### Culling and draw distance
 
-Each loaded mesh keeps a bounding sphere of its bind pose. Scene Gather tests every unskinned model and terrain cell
-against the camera's view cone (a skinned model is always drawn until its bounds follow its pose, since a clip can move
-its parts far from the bind pose), and drops what is
+Each loaded mesh keeps a bounding sphere of its bind pose, and a skinned mesh the joints its vertices weigh. A skinned
+model's sphere follows its pose: each used joint's skinning matrix carries the bind-pose centre, and the sphere around
+the box of those centres, grown by the bind-pose radius, holds every vertex, since a skinned vertex is a weighted mix
+of rigid moves. Scene Gather tests every model and terrain cell against the camera's view cone, and drops what is
 behind it, beside it or past its far plane (`Camera.far`), so a far plane at the horizon costs only what is in
 view. Depth is reversed-Z, so a 20 km far plane keeps its precision. A terrain cell may name a coarser `far_mesh`,
 drawn once the cell is `far_distance` metres away.
