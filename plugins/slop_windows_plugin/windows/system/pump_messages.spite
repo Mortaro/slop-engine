@@ -112,9 +112,7 @@ func typed(word: Long): Input.Event? {
 
 func notice_closed(opened: OpenedWindow) {
     var handle = opened.handle.value
-    assert handle != 0 and not opened.window.closed
-    opened.window.closed = user.IsWindow(handle) == 0
-    assert opened.window.closed
+    assert handle != 0 and user.IsWindow(handle) == 0
     opened.entity.remove()
     var quit = Component.Quit()
     var shelf = world.as_entity()

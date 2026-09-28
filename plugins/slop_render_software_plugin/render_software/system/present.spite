@@ -13,7 +13,7 @@ func present_each(target: Target) {
     var window = target.window
     var canvas = target.canvas
     var handle = target.handle.value
-    assert handle != 0 and not window.closed
+    assert handle != 0
     var header = heap.allocate(44)
     var bits_per_pixel_and_planes = 32 * 65536 + 1
     raw.write_integer(header, 0, 40)

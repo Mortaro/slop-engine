@@ -11,7 +11,7 @@ type Target {
 
 func after_render_each(target: Target) {
     var renderer = target.renderer
-    assert not target.window.closed and renderer.device != 0
+    assert renderer.device != 0
     assert target.swapchain.acquired >= 0 and target.view.has_camera
     target.mesh_renderer.record(renderer, target.view, target.meshes, target.terrain_materials, target.lights)
 }

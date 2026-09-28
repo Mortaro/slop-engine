@@ -7,6 +7,6 @@ type Target {
 
 func present_each(target: Target) {
     var renderer = target.renderer
-    assert not target.window.closed and renderer.device != 0
+    assert renderer.device != 0
     renderer.finish_window_frame(target.draw_list, target.swapchain)
 }
