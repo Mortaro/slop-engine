@@ -52,8 +52,6 @@ var swapchains = List<Long>()
 var device_name = ""
 var validation = false
 var parts = List<Part>()
-var capture_requested = false
-var captured = false
 var raw = Raw()
 var shaders = Recipes.Blobs()
 var offscreen_program = Program()
@@ -1779,7 +1777,11 @@ func begin_window_frame(
     frame.scene_drawn = false
 }
 
-func finish_window_frame(draw_list: Render.Component.DrawList, swapchain: RenderVulkan.Component.Swapchain) {
+func finish_window_frame(
+    draw_list: Render.Component.DrawList,
+    swapchain: RenderVulkan.Component.Swapchain,
+    capture: Boolean,
+) {
     assert swapchain.acquired >= 0
     var image_index = swapchain.acquired
     swapchain.acquired = -1
@@ -1788,7 +1790,7 @@ func finish_window_frame(draw_list: Render.Component.DrawList, swapchain: Render
     crash swapchain.frames_done[image_index]
     var frame_done = swapchain.frames_done[image_index]
     record_rectangles(draw_list)
-    if capture_requested {
+    if capture {
         record_capture()
     }
     barrier(image, 0, 4096, 0, 7, 4096, 4096)
@@ -1815,10 +1817,8 @@ func finish_window_frame(draw_list: Render.Component.DrawList, swapchain: Render
         swapchain.out_of_date = true
     }
     crash presented == 0 or presented == 1000001003 or presented == -1000001004
-    if capture_requested {
+    if capture {
         wait_frame()
-        capture_requested = false
-        captured = true
     }
 }
 

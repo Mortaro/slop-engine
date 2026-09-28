@@ -1,12 +1,24 @@
 type Target {
+    entity: Entity
     window: Window.Component.Window
     swapchain: Component.Swapchain
     renderer: Component.Renderer
     draw_list: Render.Component.DrawList
 }
 
+var requests = Lookup<Component.CaptureRequested>()
+var captures = Lookup<Component.Captured>()
+
 func present_each(target: Target) {
     var renderer = target.renderer
     assert renderer.device != 0
-    renderer.finish_window_frame(target.draw_list, target.swapchain)
+    var owner = target.entity
+    var capture = requests.has(owner.id)
+    renderer.finish_window_frame(target.draw_list, target.swapchain, capture)
+    assert capture
+    owner.remove_component(Component.CaptureRequested)
+    if not captures.has(owner.id) {
+        var captured = Component.Captured()
+        owner.add_component(captured)
+    }
 }

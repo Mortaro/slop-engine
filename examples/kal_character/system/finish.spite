@@ -1,4 +1,5 @@
 type Checked {
+    entity: Entity
     renderer: RenderVulkan.Component.Renderer
     view: Scene.Component.View
     draw_list: Render.Component.DrawList
@@ -15,14 +16,16 @@ var environment = Environment()
 var rendered_frames = 0
 var checked_once = false
 
+var captured_frames = Lookup<RenderVulkan.Component.Captured>()
 func last_each(checked: Checked, quitting: Quitting) {
     assert environment.frames > 0 and checked.view.draws.count() > 0
     var renderer = checked.renderer
     rendered_frames = rendered_frames + 1
     if rendered_frames == environment.frames {
-        renderer.capture_requested = true
+        var request = RenderVulkan.Component.CaptureRequested()
+        checked.entity.add_component(request)
     }
-    assert renderer.captured and not checked_once
+    assert captured_frames.has(checked.entity.id) and not checked_once
     checked_once = true
     var width = checked.draw_list.width
     var height = checked.draw_list.height
