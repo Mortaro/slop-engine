@@ -2,7 +2,3 @@ var repeating = 0
 var once = 0
 var ticks = 0
 var gated = 0
-
-func stored_inline(): Boolean {
-    return true
-}

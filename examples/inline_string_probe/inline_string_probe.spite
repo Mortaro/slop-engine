@@ -1,0 +1,52 @@
+var world = World()
+var console = Console()
+
+func InlineStringProbe() {
+    load "../../slop"
+    var app = App()
+    var index = 0
+    while index < 2000 {
+        var entity = world.create_entity()
+        var label = Component.Label()
+        label.value = "starting text that is longer than fifteen bytes {index}"
+        entity.add_component(label)
+        if index % 2 == 0 {
+            var wrap = Component.Wrap()
+            wrap.value = 'wrap'
+            entity.add_component(wrap)
+        }
+        index = index + 1
+    }
+    var spawned = 0
+    while spawned < 300 {
+        var bundle = LabelBundle()
+        bundle.label.value = "made by a bundle, longer than fifteen {spawned}"
+        world.create_entity_from_bundle(bundle)
+        spawned = spawned + 1
+    }
+    var tick = 0
+    while tick < 20 {
+        app.tick()
+        tick = tick + 1
+    }
+    var labels = Lookup<Component.Label>()
+    var found = labels.of(5)
+    crash found
+    found.value = "written through the lookup, also long"
+    var again = labels.of(5)
+    crash again
+    console.print(again.value, again.size)
+    var wraps = Lookup<Component.Wrap>()
+    var wrapped = 0
+    var probe = 0
+    while probe < 2000 {
+        var wrap = wraps.of(probe)
+        if wrap {
+            if wrap.value == 'wrap' {
+                wrapped = wrapped + 1
+            }
+        }
+        probe = probe + 1
+    }
+    console.print("wrapped", wrapped)
+}

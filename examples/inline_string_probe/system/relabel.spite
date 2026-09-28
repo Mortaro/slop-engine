@@ -1,0 +1,9 @@
+type Labelled {
+    label: Component.Label
+}
+
+func update_each(labelled: Labelled) {
+    var label = labelled.label
+    label.size = label.size + 1
+    label.value = "label number {label.size} with a long enough tail"
+}
