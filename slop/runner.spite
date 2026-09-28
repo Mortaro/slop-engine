@@ -28,6 +28,10 @@ var argument_count = 0
 var streamed = -1
 var plain_rows = false
 var leading_relation = false
+var pair_sizes = Vector<Integer>()
+var pair_outer = 0
+var pair_entity = -1
+var pair_candidates = List<Integer>()
 var gate_open = true
 var streaming_phase = ""
 var pending = 0
@@ -152,6 +156,10 @@ func run_phase_each(phase: Symbol<$system_type.phase_each>) {
         run_related(phase)
         return
     }
+    if argument_count == 2 {
+        run_pair(phase)
+        return
+    }
     candidates.clear()
     gather_arguments()
     var total = combinations()
@@ -238,6 +246,69 @@ func gather_argument(argument: Symbol<$system_type.phase_each>) {
     row.since = last_run
     var found = row.candidates()
     candidates.append(found)
+}
+
+func run_pair(phase: Symbol<$system_type.phase_each>) {
+    pair_sizes.clear()
+    size_arguments()
+    pair_outer = 0
+    if pair_sizes[1] < pair_sizes[0] {
+        pair_outer = 1
+    }
+    pair_candidates.clear()
+    outer_candidates_arguments()
+    var index = 0
+    while index < pair_candidates.count() {
+        pair_entity = pair_candidates.get_at(index)
+        fill_outer_arguments()
+        begin_inner_arguments()
+        advance_inner_arguments()
+        while streamed >= 0 {
+            system.phase_each(row_arguments())
+            advance_inner_arguments()
+        }
+        store_outer_arguments()
+        index = index + 1
+    }
+}
+
+func size_argument(argument: Symbol<$system_type.phase_each>) {
+    var row = Row<argument.class>()
+    row.since = last_run
+    var size = row.estimate()
+    pair_sizes.append(size)
+}
+
+func outer_candidates_argument(argument: Symbol<$system_type.phase_each>) {
+    assert argument.index == pair_outer
+    var row = Row<argument.class>()
+    row.since = last_run
+    pair_candidates = row.candidates()
+}
+
+func fill_outer_argument(argument: Symbol<$system_type.phase_each>) {
+    assert argument.index == pair_outer
+    var row = Row<argument.class>()
+    row.fill(pair_entity)
+}
+
+func store_outer_argument(argument: Symbol<$system_type.phase_each>) {
+    assert argument.index == pair_outer
+    var row = Row<argument.class>()
+    row.store(pair_entity)
+}
+
+func begin_inner_argument(argument: Symbol<$system_type.phase_each>) {
+    assert argument.index != pair_outer
+    var row = Row<argument.class>()
+    row.since = last_run
+    row.begin_stream()
+}
+
+func advance_inner_argument(argument: Symbol<$system_type.phase_each>) {
+    assert argument.index != pair_outer
+    var row = Row<argument.class>()
+    streamed = row.advance()
 }
 
 func run_related(phase: Symbol<$system_type.phase_each>) {

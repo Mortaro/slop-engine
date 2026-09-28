@@ -142,6 +142,12 @@ behind it, beside it or past its far plane (`Camera.far`), so a far plane at the
 view. Depth is reversed-Z, so a 20 km far plane keeps its precision. A terrain cell may name a coarser `far_mesh`,
 drawn once the cell is `far_distance` metres away.
 
+**Instancing.** Draws of the same mesh section share a texture, so the renderer counting-sorts them by (mesh, section)
+into contiguous runs of the draw buffer and issues one instanced draw per run; the vertex shader reads
+`draws[push.draw + gl_InstanceIndex]`, and skinned instances keep their own palettes. `examples/props_bench` draws
+17,000 cubes (11,192 in view): a frame went from 60.6 ms to 13.9 ms with instancing and the ECS gather, with
+`DrawScene` from 26.8 ms to 2.2 ms (optimized, RTX 3090).
+
 ### Terrain
 
 A terrain cell is an entity with a `Transform` and a `Scene.Component.TerrainCell { mesh, material }`, with no

@@ -1,5 +1,6 @@
 var report_console = Console()
 var ids = List<String>()
+var known_slots = Dictionary<Integer>()
 var meshes = List<Scene.LoadedMesh>()
 var ready = List<Boolean>()
 var generations = List<Integer>()
@@ -9,14 +10,13 @@ var catalog = Recipes.Catalog()
 var unstarted = List<Integer>()
 
 func request(id: String): Integer {
-    var index = 0
-    while index < ids.count() {
-        if ids[index] == id {
-            return index
-        }
-        index = index + 1
+    var found = known_slots.get(id)
+    if found {
+        return found
     }
-    return start_loading(id)
+    var slot = start_loading(id)
+    known_slots.set(id, slot)
+    return slot
 }
 
 func start_loading(id: String): Integer {

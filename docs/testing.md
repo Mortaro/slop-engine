@@ -20,6 +20,7 @@ Every behaviour the docs claim is checked by a program in `examples/`. Run them 
 | `stream_bench` | nanoseconds per row of single-row systems by shape (one inline component, two, `Entity` plus one, inline plus reference) over 100,000 entities; run `--optimized`, and `-- --parallel=false` for sequential stages |
 | `snapshot_write_refused/test.sh` | an IO system that writes an inline component of its row fails to compile, and the error names the writing line |
 | `terrain_check` | a cooked two-by-two-tile terrain: each tile's base layer and a painted splat circle land where the ported M_Terrain formula puts them |
+| `props_bench` | 17,000 cube props in a grid: prints the frame time and every system above 0.2 ms; run `--optimized` |
 | `tracking` | `Added<T>` and `Removed<T>` are each seen exactly once by a system before the change and one after it |
 | `use_potion` | two related rows: each potion heals only the hero its `owner` points at, only if that hero is `Alive`, and a replaced component is written back |
 | `healing` | headless systems, entity ids in rows, and two independent systems sharing a parallel stage |

@@ -32,7 +32,7 @@ layout(location = 1) out vec2 surface_coordinate;
 layout(location = 2) out vec3 world_position;
 
 void main() {
-    Draw draw = draws[push.draw];
+    Draw draw = draws[push.draw + gl_InstanceIndex];
     mat4 skin = palettes[draw.palette_first + joints.x] * weights.x
         + palettes[draw.palette_first + joints.y] * weights.y
         + palettes[draw.palette_first + joints.z] * weights.z

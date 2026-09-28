@@ -292,6 +292,11 @@ in place, with no copy and no reference counting, and references are handed over
 it with `phase.argument_count() == 1` (D219), so systems with several rows still compile and use the combination
 path. Other rows get a copy of inline items, which is written back after the system runs.
 
+A system with two rows (and no leading relation) takes the smaller row as the outer loop and streams the larger one
+inside it: `render_each(target: Target, modeled: Modeled)` fills the one window's row once and walks every model,
+instead of pairing them through the general combination path. Scene Gather is written this way (`BeginView`,
+`GatherModels`, `GatherCells`): 17,000 models went from 30 ms as a list system to 8 ms.
+
 A `_all` system's rows are written back after it runs, like a single row's, so writing a field of an inline
 component in a list sticks.
 

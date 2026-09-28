@@ -22,6 +22,12 @@ var lighting_bytes = 256
 var clusters = Scene.LightClusters()
 var lights = Scene.Lights()
 var terrain = SceneVulkan.TerrainPass()
+var sections_per_mesh = 64
+var key_counts = Vector<Integer>()
+var used_keys = Vector<Integer>()
+var run_starts = Vector<Integer>()
+var run_counts = Vector<Integer>()
+var run_draws = Vector<Integer>()
 var scene_pool: Long = 0
 var scene_sets = List<Long>()
 var scene_set_views = List<Long>()
@@ -111,11 +117,7 @@ func record(
     vulkan.vkCmdBindDescriptorSets(frame.command_buffer, 0, pipeline_layout, 1, 1, storage.address, 0, no_offsets)
     var projection = view.projection(aspect)
     var view_projection = projection.multiplied(view.view)
-    var index = 0
-    while index < view.draws.count() {
-        record_draw(renderer, view.draws[index], index, view_projection)
-        index = index + 1
-    }
+    record_runs(renderer, view, view_projection)
     record_terrain(renderer, view, terrain_materials, storage, view_projection)
     vulkan.vkCmdEndRendering(frame.command_buffer)
     renderer.barrier(hdr_image, 256, 32, 2, 5, 1024, 128)
@@ -175,13 +177,9 @@ func record_shadows(
     set_viewport(renderer, shadow_size, shadow_size)
     var no_offsets: Long = 0
     vulkan.vkCmdBindDescriptorSets(frame.command_buffer, 0, pipeline_layout, 1, 1, storage.address, 0, no_offsets)
-    var index = 0
-    while index < view.draws.count() {
-        record_draw(renderer, view.draws[index], index, light_view_projection)
-        index = index + 1
-    }
+    record_runs(renderer, view, light_view_projection)
     var first_terrain = view.draws.count()
-    index = 0
+    var index = 0
     while index < view.terrain_draws.count() {
         var cell = view.terrain_draws.get_at(index)
         record_mesh(
@@ -600,17 +598,26 @@ func put(at: Long, index: Integer, first: Float, second: Float, third: Float, fo
     floats.write_value(at, index + 3, fourth)
 }
 
-func record_draw(
-    renderer: RenderVulkan.Component.Renderer,
-    draw: Scene.Draw,
-    index: Integer,
-    view_projection: Math.Matrix4,
-) {
-    var set_index = draw.texture_slot + 1
-    if set_index >= renderer.texture_sets.count() {
-        set_index = 0
+func record_runs(renderer: RenderVulkan.Component.Renderer, view: Scene.Component.View, view_projection: Math.Matrix4) {
+    var run = 0
+    while run < run_starts.count() {
+        var draw = view.draws.get_at(run_draws[run])
+        var set_index = draw.texture_slot + 1
+        if set_index >= renderer.texture_sets.count() {
+            set_index = 0
+        }
+        record_instances(
+            renderer,
+            draw.mesh_slot,
+            draw.first_index,
+            draw.index_count,
+            set_index,
+            run_starts[run],
+            run_counts[run],
+            view_projection,
+        )
+        run = run + 1
     }
-    record_mesh(renderer, draw.mesh_slot, draw.first_index, draw.index_count, set_index, index, view_projection)
 }
 
 func record_mesh(
@@ -622,6 +629,19 @@ func record_mesh(
     index: Integer,
     view_projection: Math.Matrix4,
 ) {
+    record_instances(renderer, mesh_slot, first_index, index_count, set_index, index, 1, view_projection)
+}
+
+func record_instances(
+    renderer: RenderVulkan.Component.Renderer,
+    mesh_slot: Integer,
+    first_index: Integer,
+    index_count: Integer,
+    set_index: Integer,
+    index: Integer,
+    instances: Integer,
+    view_projection: Math.Matrix4,
+) {
     var command_buffer = renderer.frame.command_buffer
     assert vertex_buffers.get_at(mesh_slot) != 0
     var texture_set = scene_set(renderer, set_index)
@@ -629,7 +649,7 @@ func record_mesh(
     sets.append_long(texture_set)
     var no_offsets: Long = 0
     vulkan.vkCmdBindDescriptorSets(command_buffer, 0, pipeline_layout, 0, 1, sets.address, 0, no_offsets)
-    push_and_draw(renderer, mesh_slot, first_index, index_count, index, view_projection, pipeline_layout)
+    push_and_draw(renderer, mesh_slot, first_index, index_count, index, instances, view_projection, pipeline_layout)
 }
 
 func push_and_draw(
@@ -638,6 +658,7 @@ func push_and_draw(
     first_index: Integer,
     index_count: Integer,
     index: Integer,
+    instances: Integer,
     view_projection: Math.Matrix4,
     layout: Long,
 ) {
@@ -655,7 +676,7 @@ func push_and_draw(
     var no_offset: Long = 0
     var index_buffer = index_buffers.get_at(mesh_slot)
     vulkan.vkCmdBindIndexBuffer(command_buffer, index_buffer, no_offset, 1)
-    vulkan.vkCmdDrawIndexed(command_buffer, index_count, 1, first_index, 0, 0)
+    vulkan.vkCmdDrawIndexed(command_buffer, index_count, instances, first_index, 0, 0)
 }
 
 func record_terrain(
@@ -694,6 +715,7 @@ func record_terrain(
                 cell.first_index,
                 cell.index_count,
                 first_terrain + index,
+                1,
                 view_projection,
                 terrain.pipeline_layout,
             )
@@ -1454,13 +1476,22 @@ func write_frame_data(renderer: RenderVulkan.Component.Renderer, view: Scene.Com
     crash palette_mapped[slot]
     var draws_at = draw_mapped[slot]
     var palettes_at = palette_mapped[slot]
+    group_draws(view)
     var index = 0
     while index < draw_count {
-        crash view.draws[index]
-        var draw = view.draws[index]
-        var record_at = draws_at + index * draw_stride
+        var draw = view.draws.get_at(index)
+        var key = key_of(draw)
+        var position = key_counts[key]
+        key_counts.set_at(key, position + 1)
+        var record_at = draws_at + position * draw_stride
         draw.model.write_to(record_at)
         raw.write_integer(record_at, 64, draw.palette_first)
+        index = index + 1
+    }
+    index = 0
+    while index < used_keys.count() {
+        var used = used_keys[index]
+        key_counts.set_at(used, 0)
         index = index + 1
     }
     index = 0
@@ -1476,6 +1507,45 @@ func write_frame_data(renderer: RenderVulkan.Component.Renderer, view: Scene.Com
         crash view.palettes[index]
         var palette_at = palettes_at + index * palette_stride
         view.palettes[index].write_to(palette_at)
+        index = index + 1
+    }
+}
+
+func key_of(draw: Scene.Draw): Integer {
+    var section_fits = draw.section < sections_per_mesh
+    crash section_fits
+    return draw.mesh_slot * sections_per_mesh + draw.section
+}
+
+func group_draws(view: Scene.Component.View) {
+    used_keys.clear()
+    run_starts.clear()
+    run_counts.clear()
+    run_draws.clear()
+    var index = 0
+    while index < view.draws.count() {
+        var draw = view.draws.get_at(index)
+        var key = key_of(draw)
+        while key_counts.count() <= key {
+            key_counts.append(0)
+        }
+        var seen = key_counts[key]
+        if seen == 0 {
+            used_keys.append(key)
+            run_draws.append(index)
+        }
+        key_counts.set_at(key, seen + 1)
+        index = index + 1
+    }
+    var start = 0
+    index = 0
+    while index < used_keys.count() {
+        var used = used_keys[index]
+        var count = key_counts[used]
+        run_starts.append(start)
+        run_counts.append(count)
+        key_counts.set_at(used, start)
+        start = start + count
         index = index + 1
     }
 }

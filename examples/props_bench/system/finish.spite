@@ -1,0 +1,20 @@
+type Checked {
+    view: Scene.Component.View
+}
+
+type Quitting {
+    frame: Component.Frame
+    quit: Component.Quit
+}
+
+var console = Console()
+var rendered = 0
+
+func last_each(checked: Checked, quitting: Quitting) {
+    assert not quitting.quit.requested and checked.view.draws.count() > 0
+    rendered = rendered + 1
+    assert rendered == 300
+    var drawn = checked.view.draws.count()
+    console.print("drawn", drawn)
+    quitting.quit.requested = true
+}

@@ -1,5 +1,6 @@
 var report_console = Console()
 var ids = List<String>()
+var known_slots = Dictionary<Integer>()
 var textures = List<Asset.Texture>()
 var raws = List<Asset.Bytes>()
 var ready = List<Boolean>()
@@ -17,18 +18,13 @@ var check_thread: Parallel<Render.ChangedTextures>? = null
 var build = Build()
 
 func request(id: String): Integer {
-    var index = 0
-    var found = -1
-    while found < 0 and index < ids.count() {
-        if ids[index] == id {
-            found = index
-        }
-        index = index + 1
-    }
-    if found >= 0 {
+    var found = known_slots.get(id)
+    if found {
         return found
     }
-    return start_loading(id)
+    var slot = start_loading(id)
+    known_slots.set(id, slot)
+    return slot
 }
 
 func start_loading(id: String): Integer {

@@ -107,6 +107,14 @@ func removal_candidates(): List<Integer> {
     return matching
 }
 
+func estimate(): Integer {
+    var driver = smallest_header()
+    if driver == 0 {
+        return removal_candidates().count()
+    }
+    return raw.read_long(driver, 0)
+}
+
 func smallest_header(): Long {
     var smallest: Long = 0
     var index = 0
