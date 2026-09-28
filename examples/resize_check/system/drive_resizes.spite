@@ -6,7 +6,8 @@ type Watched {
 }
 
 type Quitting {
-    quit: Component.Quit
+    frame: Component.Frame
+    running: Without<Component.Quit>
 }
 
 var user = DynamicLibrary("user32.dll", 'identity', "")
@@ -14,8 +15,8 @@ var console = Console()
 var step = 0
 var presented_at = 0
 
+var world = World()
 func last_each(watched: Watched, quitting: Quitting) {
-    assert not quitting.quit.requested
     var window = watched.window
     var swapchain = watched.swapchain
     var handle = watched.handle.value
@@ -36,6 +37,8 @@ func last_each(watched: Watched, quitting: Quitting) {
     } else if step == 3 and presented_new_frame and window.width > 0 and swapchain.width == window.width {
         user.ShowWindow(handle, 0)
         console.print("restored", swapchain.width, swapchain.height, "passed true")
-        quitting.quit.requested = true
+        var quit = Component.Quit()
+        var shelf = world.as_entity()
+        shelf.add_component(quit)
     }
 }

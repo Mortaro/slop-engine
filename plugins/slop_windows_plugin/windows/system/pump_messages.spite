@@ -5,16 +5,13 @@ type OpenedWindow {
     handle: Window.Component.Handle
 }
 
-type Quitting {
-    quit: Component.Quit
-}
-
 var user = DynamicLibrary("user32.dll", 'identity', "")
 var heap = Memory.Heap()
 var raw = Raw()
 var owner = Windows.Owner()
 
-func input_all(windows: List<OpenedWindow>, quitting: List<Quitting>) {
+var world = World()
+func input_all(windows: List<OpenedWindow>) {
     assert owner.shared != 0
     var messages = owner.take_events()
     var message = 0
@@ -24,7 +21,7 @@ func input_all(windows: List<OpenedWindow>, quitting: List<Quitting>) {
     }
     var index = 0
     while index < windows.count() {
-        notice_closed(windows[index], quitting)
+        notice_closed(windows[index])
         index = index + 1
     }
 }
@@ -113,15 +110,13 @@ func typed(word: Long): Input.Event? {
     return event
 }
 
-func notice_closed(opened: OpenedWindow, quitting: List<Quitting>) {
+func notice_closed(opened: OpenedWindow) {
     var handle = opened.handle.value
     assert handle != 0 and not opened.window.closed
     opened.window.closed = user.IsWindow(handle) == 0
     assert opened.window.closed
     opened.entity.remove()
-    var index = 0
-    while index < quitting.count() {
-        quitting[index].quit.requested = true
-        index = index + 1
-    }
+    var quit = Component.Quit()
+    var shelf = world.as_entity()
+    shelf.add_component(quit)
 }

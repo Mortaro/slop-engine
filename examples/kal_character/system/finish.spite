@@ -5,7 +5,8 @@ type Checked {
 }
 
 type Quitting {
-    quit: Component.Quit
+    frame: Component.Frame
+    running: Without<Component.Quit>
 }
 
 var console = Console()
@@ -15,7 +16,7 @@ var rendered_frames = 0
 var checked_once = false
 
 func last_each(checked: Checked, quitting: Quitting) {
-    assert environment.frames > 0 and not quitting.quit.requested and checked.view.draws.count() > 0
+    assert environment.frames > 0 and checked.view.draws.count() > 0
     var renderer = checked.renderer
     rendered_frames = rendered_frames + 1
     if rendered_frames == environment.frames {
@@ -36,7 +37,9 @@ func last_each(checked: Checked, quitting: Quitting) {
     console.print("draws", draws_count, "palettes", palettes, "center", center_color, "passed", passed)
     crash passed
     if environment.capture.is_empty() {
-        quitting.quit.requested = true
+        var quit = Component.Quit()
+        var shelf = world.as_entity()
+        shelf.add_component(quit)
     } else {
         keep_capture(renderer, width, height)
     }

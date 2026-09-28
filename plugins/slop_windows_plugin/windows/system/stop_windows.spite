@@ -5,6 +5,5 @@ type Quitting {
 var owner = Windows.Owner()
 
 func last_each(quitting: Quitting) {
-    assert quitting.quit.requested
     owner.stop()
 }

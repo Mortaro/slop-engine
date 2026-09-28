@@ -14,15 +14,16 @@ type Tested {
 }
 
 type Quitting {
-    quit: Component.Quit
+    frame: Component.Frame
+    running: Without<Component.Quit>
 }
 
 var console = Console()
 
+var world = World()
 func last_each(counted: Counted, shown: Shown, tested: Tested, quitting: Quitting) {
     var progress = tested.progress
-    var quit = quitting.quit
-    assert progress.done and not quit.requested
+    assert progress.done
     var clicks = counted.click_count.clicks
     var text = shown.text.text
     var texture = counted.image.texture
@@ -50,5 +51,7 @@ func last_each(counted: Counted, shown: Shown, tested: Tested, quitting: Quittin
         passed,
     )
     crash passed
-    quit.requested = true
+    var quit = Component.Quit()
+    var shelf = world.as_entity()
+    shelf.add_component(quit)
 }

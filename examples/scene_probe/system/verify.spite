@@ -6,14 +6,15 @@ type Checked {
 
 type Quitting {
     frame: Component.Frame
-    quit: Component.Quit
+    running: Without<Component.Quit>
 }
 
 var console = Console()
 var rendered_frames = 0
 
+var world = World()
 func last_each(checked: Checked, quitting: Quitting) {
-    assert not quitting.quit.requested and checked.view.draws.count() > 0
+    assert checked.view.draws.count() > 0
     var renderer = checked.renderer
     rendered_frames = rendered_frames + 1
     if rendered_frames == 20 {
@@ -32,5 +33,7 @@ func last_each(checked: Checked, quitting: Quitting) {
     var passed = corner_color != clear and center_color != corner_color and center_color != 0 and culled_behind
     console.print("center", center_color, "corner", corner_color, "clear", clear, "drawn", drawn, "passed", passed)
     crash passed
-    quitting.quit.requested = true
+    var quit = Component.Quit()
+    var shelf = world.as_entity()
+    shelf.add_component(quit)
 }

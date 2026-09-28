@@ -11,14 +11,16 @@ type Tested {
 }
 
 type Quitting {
-    quit: Component.Quit
+    frame: Component.Frame
+    running: Without<Component.Quit>
 }
 
 var console = Console()
 
+var world = World()
 func last_all(fields: List<FieldView>, tested: List<Tested>, quitting: List<Quitting>) {
     assert fields.count() == 2 and tested.count() == 1 and quitting.count() == 1
-    assert tested[0].progress.done and not quitting[0].quit.requested
+    assert tested[0].progress.done
     var first = field_at(fields, 0)
     var second = field_at(fields, 1)
     assert first
@@ -41,7 +43,9 @@ func last_all(fields: List<FieldView>, tested: List<Tested>, quitting: List<Quit
         passed,
     )
     crash passed
-    quitting[0].quit.requested = true
+    var quit = Component.Quit()
+    var shelf = world.as_entity()
+    shelf.add_component(quit)
 }
 
 func field_at(fields: List<FieldView>, index: Integer): FieldView? {

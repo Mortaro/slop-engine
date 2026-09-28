@@ -42,7 +42,6 @@ func last_each(captured: Captured) {
     }
     image.save(environment.capture)
     var quit = Component.Quit()
-    quit.requested = true
     var owner = world.as_entity()
     owner.add_component(quit)
 }

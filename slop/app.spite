@@ -22,12 +22,9 @@ var frame_milliseconds = 16
 var parallel = true
 var release_budget = 4096
 var columns = Columns()
-var quit_column = Column<Component.Quit>()
 var frame_column = Column<Component.Frame>()
 
 func App() {
-    var quit = Component.Quit()
-    quit_column.insert(world.entity, quit)
     var frame = Component.Frame()
     frame_column.insert(world.entity, frame)
     scheduler.resume_only_when_asked()
@@ -97,9 +94,7 @@ func shares_access(member: Runnable, candidate: Runnable): Boolean {
 
 func quit_requested(): Boolean {
     var quits = Lookup<Component.Quit>()
-    var quit = quits.of(world.entity)
-    crash quit
-    return quit.requested
+    return quits.has(world.entity)
 }
 
 func run() {

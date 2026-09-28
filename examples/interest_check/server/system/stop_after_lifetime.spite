@@ -1,12 +1,13 @@
 type Running {
     frame: Component.Frame
-    quit: Component.Quit
+    running: Without<Component.Quit>
 }
 
 var environment = Environment()
 var clock = Clock()
 var started = -1
 
+var world = World()
 func last_each(running: Running) {
     assert environment.lifetime_seconds > 0
     var now = clock.elapsed_milliseconds()
@@ -14,6 +15,8 @@ func last_each(running: Running) {
         started = now
     }
     if now - started >= environment.lifetime_seconds * 1000 {
-        running.quit.requested = true
+        var quit = Component.Quit()
+        var shelf = world.as_entity()
+        shelf.add_component(quit)
     }
 }

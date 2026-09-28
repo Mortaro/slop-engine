@@ -1,10 +1,14 @@
 type Quitting {
-    quit: Component.Quit
+    frame: Component.Frame
+    running: Without<Component.Quit>
 }
 
 var program = Program()
 
+var world = World()
 func last_each(quitting: Quitting) {
     program.sleep(1)
-    quitting.quit.requested = true
+    var quit = Component.Quit()
+    var shelf = world.as_entity()
+    shelf.add_component(quit)
 }

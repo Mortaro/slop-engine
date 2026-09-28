@@ -3,16 +3,18 @@ type Tested {
 }
 
 type Quitting {
-    quit: Component.Quit
+    frame: Component.Frame
+    running: Without<Component.Quit>
 }
 
 var console = Console()
 var drags = Lookup<Ui.Component.Dragging>()
 var overs = Lookup<Ui.Component.DragOver>()
 
+var world = World()
 func last_each(tested: Tested, quitting: Quitting) {
     var progress = tested.progress
-    assert progress.step == 17 and not quitting.quit.requested
+    assert progress.step == 17
     var dropped_right = progress.dropped_source == progress.source
     var one_click = progress.clicks_seen >= 1
     var settled = not drags.has(progress.source) and not overs.has(progress.target)
@@ -38,5 +40,7 @@ func last_each(tested: Tested, quitting: Quitting) {
         passed,
     )
     crash passed
-    quitting.quit.requested = true
+    var quit = Component.Quit()
+    var shelf = world.as_entity()
+    shelf.add_component(quit)
 }

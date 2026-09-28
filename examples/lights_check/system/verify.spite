@@ -7,7 +7,7 @@ type Checked {
 
 type Quitting {
     frame: Component.Frame
-    quit: Component.Quit
+    running: Without<Component.Quit>
 }
 
 var console = Console()
@@ -17,8 +17,9 @@ var rendered_frames = 0
 var started: Long = 0
 var capture = Capture()
 
+var world = World()
 func last_each(checked: Checked, quitting: Quitting) {
-    assert not quitting.quit.requested and checked.view.draws.count() > 0
+    assert checked.view.draws.count() > 0
     var renderer = checked.renderer
     rendered_frames = rendered_frames + 1
     if rendered_frames == 20 {
@@ -61,7 +62,9 @@ func last_each(checked: Checked, quitting: Quitting) {
         keep(renderer, width, height)
     }
     crash passed
-    quitting.quit.requested = true
+    var quit = Component.Quit()
+    var shelf = world.as_entity()
+    shelf.add_component(quit)
 }
 
 func keep(renderer: RenderVulkan.Component.Renderer, width: Integer, height: Integer) {

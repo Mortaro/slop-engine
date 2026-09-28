@@ -16,7 +16,7 @@ type Seal {
 
 type Running {
     frame: Component.Frame
-    quit: Component.Quit
+    running: Without<Component.Quit>
 }
 
 var console = Console()
@@ -29,7 +29,6 @@ var verdicts = Lookup<Component.Verdict>()
 func update_all(runs: List<Running>, beacons: List<Seen>, stashes: List<Stashed>, seals: List<Seal>) {
     var running = runs.first()
     crash running
-    assert not running.quit.requested
     var seen = beacons.count()
     var last = counts.last()
     var changed = seen > 0 and last != seen
@@ -50,11 +49,15 @@ func update_all(runs: List<Running>, beacons: List<Seen>, stashes: List<Stashed>
     if expected {
         console.print("bot sees", stashed, "stashes of its own, and the seal is gone")
         console.print("passed true")
-        running.quit.requested = true
+        var quit = Component.Quit()
+        var shelf = world.as_entity()
+        shelf.add_component(quit)
     }
     if running.frame.count > 1200 {
         console.print("passed false")
-        running.quit.requested = true
+        var quit = Component.Quit()
+        var shelf = world.as_entity()
+        shelf.add_component(quit)
     }
 }
 

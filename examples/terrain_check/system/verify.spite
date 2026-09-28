@@ -6,15 +6,16 @@ type Checked {
 
 type Quitting {
     frame: Component.Frame
-    quit: Component.Quit
+    running: Without<Component.Quit>
 }
 
 var console = Console()
 var rendered_frames = 0
 var capture = Capture()
 
+var world = World()
 func last_each(checked: Checked, quitting: Quitting) {
-    assert not quitting.quit.requested and checked.view.terrain_draws.count() > 0
+    assert checked.view.terrain_draws.count() > 0
     var renderer = checked.renderer
     rendered_frames = rendered_frames + 1
     if rendered_frames == 30 {
@@ -36,7 +37,9 @@ func last_each(checked: Checked, quitting: Quitting) {
     console.print("left", left_color, "center", center_color, "right", right_color, "passed", passed)
     keep(renderer, width, height)
     crash passed
-    quitting.quit.requested = true
+    var quit = Component.Quit()
+    var shelf = world.as_entity()
+    shelf.add_component(quit)
 }
 
 func channel(pixel: Integer, shift: Integer): Integer {

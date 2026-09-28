@@ -7,6 +7,5 @@ type Released {
 }
 
 func last_each(quitting: Quitting, released: Released) {
-    assert quitting.quit.requested
     released.renderer.release_device()
 }
