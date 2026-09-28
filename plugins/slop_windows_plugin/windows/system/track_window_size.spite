@@ -1,0 +1,20 @@
+type Tracked {
+    window: Window.Component.Window
+    handle: Window.Component.Handle
+}
+
+var user = DynamicLibrary("user32.dll", 'identity', "")
+var heap = Memory.Heap()
+var raw = Raw()
+
+func input_each(tracked: Tracked) {
+    assert tracked.handle.value != 0 and not tracked.window.closed
+    var rectangle = heap.allocate(16)
+    user.GetClientRect(tracked.handle.value, rectangle)
+    var width = raw.read_integer(rectangle, 8) - raw.read_integer(rectangle, 0)
+    var height = raw.read_integer(rectangle, 12) - raw.read_integer(rectangle, 4)
+    heap.free(rectangle)
+    var window = tracked.window
+    window.width = width
+    window.height = height
+}

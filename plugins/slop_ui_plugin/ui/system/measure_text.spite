@@ -1,6 +1,7 @@
 type MeasuredText {
     entity: Entity
     text: Component.Text
+    bitmap_font: Without<Ui.Component.Font>
 }
 
 func prepare_each(measured: MeasuredText) {

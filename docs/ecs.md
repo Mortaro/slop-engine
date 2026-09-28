@@ -27,6 +27,10 @@ Every class in a `Component` namespace gets its column when `App()` starts, foun
 are. A component built in place goes into a named `var` first, since Spite allows a constructor as an argument only
 one level deep.
 
+A negative id is no entity, so `of` and `has` crash on one (`looked_up_a_real_entity_not_a_negative_id`) instead of
+reading outside the column, which once segfaulted Theseus. An optional relation is a component that is present or
+absent, not an id of −1.
+
 Changes are applied between stages, like Bevy's `Commands`, so a column never changes while a system is iterating
 it. **Each runner has its own command buffer**: before a system runs, its thread is marked with the runner's buffer (a
 `ThreadLocal<Integer>`), so `add_component` from systems running in parallel
@@ -156,6 +160,7 @@ func update_each(potion: Potion, target: Target) {
 | any other `Entity` field, e.g. `owner: Entity` | a relation: stored as the component `Entity.owner`, and the next row is the entity it points at |
 | `Added<T>` | `T` was added since this system last ran; `.value` is the component |
 | `Removed<T>` | `T` was removed (or its entity despawned) since this system last ran; the component itself is gone, so there is no `.value` to read |
+| `Without<T>` | the entity does not have `T`: a system skips entities in a state by the absence of a component, never by a flag in a field (name the field without a leading `_`, since private fields are not walked) |
 
 Replacing a component in the row (`target.health = target.health + ...`) is written back after the call.
 

@@ -1,6 +1,7 @@
 type Animated {
     animator: Animation.Component.Animator
     model: Scene.Component.Model
+    on_view: Without<Scene.Component.OffView>
 }
 
 type Shelf {
@@ -9,6 +10,12 @@ type Shelf {
 }
 
 var sampler = Animation.Sampler()
+var last_skeleton = -1
+var last_clip = -1
+var last_time: Float = 0.0
+var last_looping = false
+var last_palette = List<Math.Matrix4>()
+var last_bones = List<Math.Matrix4>()
 
 func update_each(animated: Animated, shelf: Shelf) {
     var step: Float = shelf.frame.step_milliseconds
@@ -18,7 +25,33 @@ func update_each(animated: Animated, shelf: Shelf) {
     var clip_slot = library.clips.request(animator.clip)
     assert library.skeletons.is_ready(skeleton_slot) and library.clips.is_ready(clip_slot)
     animator.time = animator.time + step / 1000.0 * animator.speed
+    var model = animated.model
+    var same_skeleton = skeleton_slot == last_skeleton and clip_slot == last_clip
+    var same_moment = animator.time == last_time and animator.looping == last_looping
+    if same_skeleton and same_moment {
+        copy_pose(last_palette, model.palette)
+        copy_pose(last_bones, model.bones)
+        return
+    }
     var skeleton = library.skeletons.value_at(skeleton_slot)
     var clip = library.clips.value_at(clip_slot)
-    sampler.sample(skeleton, clip, animator, animated.model.palette, animated.model.bones)
+    sampler.sample(skeleton, clip, animator, model.palette, model.bones)
+    last_skeleton = skeleton_slot
+    last_clip = clip_slot
+    last_time = animator.time
+    last_looping = animator.looping
+    last_palette = model.palette
+    last_bones = model.bones
+}
+
+func copy_pose(source: List<Math.Matrix4>, target: List<Math.Matrix4>) {
+    var count = source.count()
+    sampler.fit(target, count)
+    var index = 0
+    while index < count {
+        var from = source.get_at(index)
+        var into = target.get_at(index)
+        into.copy_from(from)
+        index = index + 1
+    }
 }

@@ -227,10 +227,77 @@ more markers:
 | `Ui.Component.Hovered` | the mouse is over it |
 | `Ui.Component.Pressed` | a press started on it and is held |
 | `Ui.Component.Clicked` | a press was released over it, this tick |
+| `Ui.Component.RightPressed` | a right press started on it and is held |
+| `Ui.Component.RightClicked` | a right press was released over it, this tick |
+| `Ui.Component.DoubleClicked` | a double click landed on it, this tick (its two clicks are `Clicked` too, as on the web) |
 
 A press only counts when it starts inside the button, and a click only when it also ends inside, so dragging off a
 pressed button cancels it, as on the web. `Clicked` is removed on Interact's next run, so every system sees a click
 once.
+
+## Drag and drop
+
+**Proposal** (Claude's; Mortaro decides the API). Add `Ui.Component.Draggable` to an element that can be picked
+up and `Ui.Component.DropTarget` to one that accepts drops. `Ui.System.Interact` owns the rest:
+
+| Component | On | Meaning |
+|---|---|---|
+| `Ui.Component.DragPress` | a draggable | pressed, not moved yet (`left`, `top`, and `grab_left`, `grab_top` inside the element) |
+| `Ui.Component.Dragging` | a draggable | moved more than 4 px while held: a drag is on (`grab_left`, `grab_top`) |
+| `Ui.Component.DragOver` | a drop target | the topmost target under the pointer while something is dragged |
+| `Ui.Component.Dropped` | a drop target | released over it, this tick; `source` is the dragged entity's id |
+| `Ui.Component.DropMissed` | a draggable | released over no target, this tick |
+
+- The topmost target is the one painted last (highest `ComputedLayout.order`); a draggable is never its own target.
+- A drag is never a click: the tick a drag ends gives no element a `Clicked`, neither the element it started on
+  nor a `Button` around it (Theseus A79: a skill book row learned its skill when a drag ended inside it), so an
+  element can be both a `Button` and `Draggable`, as an inventory slot is.
+- `Dropped` and `DropMissed` are removed on Interact's next run, as `Clicked` is.
+- The dragged element stays where it is. A game shows what it carries by spawning its own element, positioned from
+  `Input.Component.Mouse` and `Dragging`'s grab offset, with a high `ZIndex`, and despawning it when `Dragging` goes.
+
+```gdscript
+type Slot {
+    dropped: Ui.Component.Dropped
+    bench_slot: Component.BenchSlot
+}
+
+func update_each(slot: Slot) {
+    var item = Lookup<Component.InventoryItem>().of(slot.dropped.source)
+    assert item
+    slot.bench_slot.item = item.kind
+}
+```
+
+Tested by `examples/drag_drop_test`: a drag onto a target, a drag onto nothing and a plain click on the same
+element, driving the real window with posted mouse messages, each step waiting for the marker it causes.
+
+## Combo box
+
+**Proposal** (Claude's). A combo box is four bundles and one system, `Ui.System.Choose` (`update`):
+
+```gdscript
+var box = world.create_entity_from_bundle(Ui.Bundle.ComboBox(panel.id))
+world.create_entity_from_bundle(Ui.Bundle.ComboLabel(box.id, "Choose"))
+var popup = world.create_entity_from_bundle(Ui.Bundle.ComboPopup(box.id))
+world.create_entity_from_bundle(Ui.Bundle.ComboOption(popup.id, 0, "First"))
+world.create_entity_from_bundle(Ui.Bundle.ComboOption(popup.id, 1, "Second"))
+```
+
+(each bundle built into a variable first, as Spite wants). The box is a `Button` with
+`Ui.Component.ComboBox { selected }`; the popup is positioned absolutely under it (`top: 100%`, `z-index: 100`)
+and hidden (`display: none`) until the box is clicked. Choose then:
+
+- gives the box `Ui.Component.ComboOpen` and shows the popup (`display: flex`, a column);
+- on a click on an option, sets `ComboBox.selected` to its `ComboOption.index`, puts its text in the box's
+  `ComboLabel`, closes the popup and gives the box `Ui.Component.SelectionChanged` until Choose's next run;
+- closes it on any other click, on the box or anywhere else.
+
+Style the parts with the usual components on the same entities. Tested by `examples/combo_box_test`.
+
+**An element with text is a leaf.** `Text` (and any `ContentSize`) makes an element's size come from its content,
+and its children would get no layout, so an element with text that has children crashes the layout. Put the text
+on a child, as `ComboLabel` and the click counter's `CountLabel` do.
 
 ## Reacting to a click
 
@@ -289,6 +356,35 @@ The click counter's four:
 | `BackgroundColor` | a colour filling the border box |
 | `BackgroundImage` | a texture asset id stretched over the border box |
 | `Text` | text, its scale and colour, drawn at the content box |
+
+## Fonts
+
+Text draws in the built-in 5×7 bitmap font unless its entity also has a `Ui.Component.Font { name, face, size }`:
+`name` is the id of a font file cooked into the cache (a `.ttf`, or a `.ttc` with `face` choosing the face), `size` is
+in pixels.
+
+```gdscript
+var font = Ui.Component.Font()
+font.name = "font.gulim"
+font.size = 12
+label.add_component(font)
+```
+
+- **The font cache is a component.** `Ui.Component.Fonts` lives on the world entity. It loads a face the first time
+  a size of it is asked for, measures text from the font's advances (so layout is right on the first frame), and
+  rasterises glyphs anti-aliased with the standalone `spite_truetype` package
+  (`D:/Projects/spite_truetype`, loaded by `ui/ui.spite`).
+- **Glyphs are made on demand**, 32 per frame at most, into a 1024² atlas per face and size, like Unreal's Slate font
+  cache: a character seen for the first time is drawn from the next frame. `PendingGlyphs` and `AtlasChanged` markers
+  on the world entity make the rasterising and publishing systems run only when there is work.
+- **Drawing.** `DrawUi` lays glyph quads along a pen from the baseline; each is a draw-list image with a texel source
+  rectangle into the atlas and the text's colour as tint, drawn the same by Vulkan and the software rasteriser
+  (`render_parity`).
+- **Waiting for text in a test:** `fonts.settled()` is true once no face is loading, no glyph is queued and no atlas
+  waits for upload.
+
+Not built yet: kerning, outline and shadow, fake bold, hinting (Unreal renders Gulim with FreeType's default
+hinting), and embedded bitmap strikes.
 
 ## Images are asset ids
 

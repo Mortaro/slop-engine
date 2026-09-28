@@ -16,6 +16,7 @@ var loaded_fingerprints = List<String>()
 var watcher: Recipes.Watcher? = null
 var check_thread: Parallel<Render.ChangedTextures>? = null
 var build = Build()
+var published_fingerprint = "published"
 
 func request(id: String): Integer {
     var found = known_slots.get(id)
@@ -89,8 +90,10 @@ func start_check() {
     var index = 0
     while index < ids.count() {
         crash loaded_fingerprints[index]
-        loaded.append(ids[index])
-        fingerprints.append(loaded_fingerprints[index])
+        if loaded_fingerprints[index] != published_fingerprint {
+            loaded.append(ids[index])
+            fingerprints.append(loaded_fingerprints[index])
+        }
         index = index + 1
     }
     var cache_folder = sources.cache_folder()
@@ -120,6 +123,28 @@ func reload_slot(slot: Integer, record: Recipes.Record) {
     var fingerprint = opened_reader().fingerprint_of(ids[slot])
     loaded_fingerprints.set_at(slot, fingerprint)
     load_record(record, slot)
+}
+
+func publish(id: String, image: Asset.Texture, raw_texels: Asset.Bytes): Integer {
+    var slot = slot_of(id)
+    if slot < 0 {
+        slot = textures.count()
+        ids.append(id)
+        known_slots.set(id, slot)
+        var placeholder = Asset.Texture()
+        textures.append(placeholder)
+        var empty_raw = Asset.Bytes()
+        raws.append(empty_raw)
+        ready.append(false)
+        generations.append(0)
+        loaded_fingerprints.append(published_fingerprint)
+    }
+    textures.set_at(slot, image)
+    raws.set_at(slot, raw_texels)
+    ready.set_at(slot, true)
+    var before = generations.get_at(slot)
+    generations.set_at(slot, before + 1)
+    return slot
 }
 
 func slot_of(id: String): Integer {

@@ -1,0 +1,13 @@
+type Started {
+    frame: Added<Component.Frame>
+}
+
+var world = World()
+var environment = Environment()
+
+func update_each(_started: Started) {
+    var main_window = Window.Bundle.Window()
+    main_window.window.title = "Drag and drop test"
+    main_window.window.visible = environment.show_window
+    world.create_entity_from_bundle(main_window)
+}

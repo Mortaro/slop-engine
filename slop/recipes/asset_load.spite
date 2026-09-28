@@ -3,11 +3,13 @@ generic $asset_type
 var path = ""
 var offset: Long = 0
 var length: Long = 0
+var key = ""
 
 func AssetLoad(found: Recipes.Record) {
     path = found.path
     offset = found.offset
     length = found.length
+    key = found.key
 }
 
 func run(): $asset_type {
@@ -15,6 +17,7 @@ func run(): $asset_type {
     record.path = path
     record.offset = offset
     record.length = length
+    record.key = key
     var bytes = record.read()
     var pack = Pack<$asset_type>()
     var value = pack.decode(bytes)

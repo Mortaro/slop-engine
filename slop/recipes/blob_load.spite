@@ -1,11 +1,13 @@
 var path = ""
 var offset: Long = 0
 var length: Long = 0
+var key = ""
 
 func BlobLoad(found: Recipes.Record) {
     path = found.path
     offset = found.offset
     length = found.length
+    key = found.key
 }
 
 func run(): Asset.Bytes {
@@ -13,5 +15,6 @@ func run(): Asset.Bytes {
     record.path = path
     record.offset = offset
     record.length = length
+    record.key = key
     return record.read()
 }

@@ -78,8 +78,20 @@ content-addressed: each record is keyed `id#fingerprint`, where the fingerprint 
 Beside it, `store.bin.index` lists every record's key, offset and length, so opening the store is one read, not a
 scan; if it is missing or disagrees with the store's size, the store is rescanned and the index rewritten.
 
-Each program keeps a small `.slop-index.json`: which fingerprint each id currently means for it. A second run
-builds nothing, and a program whose inputs another program already cooked builds nothing either.
+Each executable keeps a small `.slop-index-<executable>.json` beside its program: which fingerprint each id
+currently means for it. A second run builds nothing, and a program whose inputs another program already cooked builds
+nothing either. The index is per executable, not per program folder, because several builds of one program
+(Theseus's agents' test clients beside the player's) run from the same folder with different code: with one shared
+index, the player's running client followed the others' re-cooks and its models switched materials mid-session.
+
+**Several processes share one store safely.** Every write, and every rescan with its index rewrite, holds an
+exclusive lock on `store.bin.lock` (`Recipes.StoreLock`, `LockFileEx`), so appends never interleave. Before, a
+writer took the end of the file as its record's offset and then wrote, and a second process appending in between
+made that offset point into the other's record: a reader then decoded another asset of the same kind, silently.
+Each read also checks that the header at its offset names the key it asked for and the same length, and crashes
+naming both if not (`store_entry_at_its_offset_is_the_key_asked_for`), so a store damaged by an older build is
+loud. `examples/store_race_test` has four processes write 2,000 records each at once and reads all 8,000 back:
+without the lock 5,965 came back wrong or missing, with it none.
 
 **A format change re-cooks by itself** (a proposal by Claude, asked for by Theseus). `Pack<T>` writes the asset's
 kind and its schema, the hash `BinaryWriter<T>.schema()` works out from the class's attributes (D215), after the
@@ -133,10 +145,27 @@ using them have finished.
 app runs, and checks both the software canvas and Vulkan follow; the worst tick while re-cooking and reloading is
 2 ms.
 
-Known gaps: the watcher is Windows-only and interim (a standard-library file watcher that Spite's own hot reload
-would share is Mortaro's decision); and
-changing a recipe's *code* doesn't invalidate its cooked outputs, since fingerprints cover sources and asset
-formats only.
+**Every store follows the catalog.** `Recipes.Catalog`, which meshes, skeletons, clips, blobs and terrain read
+through, watches the cache folder and the program's folder (where its index lives). `System.RefreshCatalog`
+(`input`) re-reads the index on a worker when they change, compares each id's fingerprint with the index it had,
+and bumps its `revision`, remembering the revision each changed id moved at (`revision_of(id)`). `Scene.Component.Meshes`
+and `Recipes.AssetSlots` (skeletons and clips) note the revision each slot was loaded at; a slot whose id moved since
+is loaded again in the background and swapped in, its `generation` moves, and the renderer re-uploads a mesh
+whose generation moved. A slot still loading waits for the next pass, so an older load never lands over a newer one.
+
+**Sources a recipe reads are recorded.** `Blend.File.open`, `Psd.Layers.open` and `Recipes.Glsl.compile` note their
+files; a recipe that opens a file itself calls `cookbook.note_source(path)`. A source's stamp is its modification
+time in nanoseconds and its size: a stamp to the second missed a same-size edit saved within the same second.
+
+`examples/live_asset_test` cooks a mesh and a skeleton from one-line text files, rewrites both while the app runs,
+and checks both are swapped in; the worst tick is 1 to 2 ms.
+
+Known gaps:
+- a recipe whose *code* changes through `--hot-reload` is not re-run yet: it waits on the language's
+  `Reload().rebuilt_since(generation)` (D280), which `System.Recook` will poll;
+- fonts (`Recipes.Blobs`) and terrain materials don't follow the catalog yet;
+- the watcher is Windows-only and interim (a standard-library file watcher that Spite's own hot reload would share
+  is Mortaro's decision).
 
 ## Background loading
 

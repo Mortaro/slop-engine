@@ -45,7 +45,7 @@ func describe_attribute(attribute: Symbol<$row_type>, row: $row_type) {
         kind = 3
     }
     kinds.append(kind)
-    if kind == 1 or kind == 2 {
+    if kind == 1 or kind == 2 or kind == 4 {
         key = slot.tracked_key(row.attributes[attribute])
     } else if key == "Entity" and name == "entity" {
         key = ""
@@ -115,11 +115,25 @@ func estimate(): Integer {
     return raw.read_long(driver, 0)
 }
 
+func present_in(header: Long, entity: Integer): Boolean {
+    if header == 0 {
+        return false
+    }
+    var capacity = raw.read_long(header, 40)
+    if capacity <= entity {
+        return false
+    }
+    var sparse = raw.read_long(header, 32)
+    return raw.read_long(sparse, entity * 8) > 0
+}
+
 func smallest_header(): Long {
     var smallest: Long = 0
     var index = 0
     while index < headers.count() {
-        smallest = smaller(smallest, headers[index])
+        if kinds[index] != 4 {
+            smallest = smaller(smallest, headers[index])
+        }
         index = index + 1
     }
     return smallest
@@ -146,7 +160,7 @@ func is_plain(): Boolean {
     }
     var index = 0
     while index < kinds.count() {
-        if kinds[index] == 1 or kinds[index] == 2 {
+        if kinds[index] == 1 or kinds[index] == 2 or kinds[index] == 4 {
             return false
         }
         index = index + 1
@@ -176,6 +190,10 @@ func find_row(index: Integer, entity: Integer, found: Vector<Integer>): Boolean 
     if kinds[index] == 2 {
         found.set_at(index, -1)
         return columns.removed_since(keys[index], entity, since)
+    }
+    if kinds[index] == 4 {
+        found.set_at(index, -1)
+        return not present_in(header, entity)
     }
     if header == 0 {
         found.set_at(index, -1)

@@ -103,7 +103,7 @@ func sent_from(environment: String): Boolean {
   id).
 - **`sent_from`**: a message. An entity carrying it is sent once and despawned. The receiver spawns an entity with
   the component, `Network.Component.Sender` (the connection's entity) and `Network.Component.Arrived`, which
-  lives for one tick.
+  lives until a handler consumes it (below).
 - Both are predicates on the environment's name, so one declaration can cover one environment or many.
 
 ### Entity fields travel as the receiver's entities
@@ -205,7 +205,7 @@ Connections are entities. Settings and state are components on the world entity:
 | `Network.Component.Connect` | world | keep a connection to `host` and `port`, redialling a second after a failure |
 | `Network.Component.Connection` | one entity per peer | its stream, and `fresh` until the first snapshot is sent |
 | `Network.Component.Sender` | an arrived message | the connection entity it came from |
-| `Network.Component.Arrived` | an arrived message | despawned at the end of the tick |
+| `Network.Component.Arrived` | an arrived message | despawned once its request component is removed, or its connection closes |
 | `Network.Component.Mirrored` | a mirrored entity | the sender's entity id |
 
 | Phase | System | Does |
@@ -214,10 +214,27 @@ Connections are entities. Settings and state are components on the world entity:
 | `input` | `Dial` | starts a connect on the thread pool and polls it; a failed dial waits 60 ticks |
 | `after_input` | `Receive` | reads every socket, decodes each frame, mirrors state and spawns arrived messages |
 | `last` | `Send` | encodes mirrored state once, picks each peer's frames by its area of interest, writes to every peer |
-| `last` | `ForgetArrived` | despawns arrived messages |
+| `last` | `ForgetArrived` | despawns consumed messages and those of closed connections; closes a connection with more than 256 unhandled |
 
 Nothing blocks a frame: sockets are non-blocking and are polled once per tick, and the one call that can take
 seconds (a TCP connect to a port nobody listens on) runs on the pool (D191).
+
+### A message lives until a handler consumes it
+
+A handler consumes an arrived message by removing its request component
+(`routed.entity.remove_component(Component.ChatRequest)`). `ForgetArrived` despawns only messages whose request
+component is gone, so a handler whose condition is not met yet (a request that arrives before the join that makes
+its player) simply sees it again next tick. Before, every message was despawned after one tick, and Theseus (A75)
+lost a scripted client's first `/give` that way, silently.
+
+- A connection holding more than 256 unhandled messages is closed, with an error naming the oldest one's
+  component, so a missing handler or a flooding client shows at once. There is no timer.
+- The messages of a closed or vanished connection are despawned.
+- `Network.Component.Arrived.message` holds the codec id of the component the message carries.
+
+For several events of one type in one tick (two `Grant`s to one player), make each event an entity of its own,
+parented to its target (`event.add_parent_entity(player)`), and let the handler despawn it once applied; a
+component on the target holds only one value per type.
 
 ### The wire
 

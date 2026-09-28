@@ -1,0 +1,8 @@
+type Cache {
+    fonts: Ui.Component.Fonts
+    pending: Ui.Component.PendingGlyphs
+}
+
+func prepare_each(cache: Cache) {
+    cache.fonts.rasterize_pending()
+}

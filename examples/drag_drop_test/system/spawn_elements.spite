@@ -1,0 +1,22 @@
+type NewWindow {
+    entity: Entity
+    window: Added<Window.Component.Window>
+}
+
+var world = World()
+
+func update_each(created: NewWindow) {
+    var screen_bundle = Bundle.Screen()
+    var screen = world.create_entity_from_bundle(screen_bundle)
+    var holder_bundle = Bundle.Holder(screen.id)
+    var holder = world.create_entity_from_bundle(holder_bundle)
+    var source_bundle = Bundle.Source(holder.id)
+    var source = world.create_entity_from_bundle(source_bundle)
+    var target_bundle = Bundle.Target(screen.id)
+    var target = world.create_entity_from_bundle(target_bundle)
+    var progress = Component.Progress()
+    progress.source = source.id
+    progress.target = target.id
+    progress.holder = holder.id
+    created.entity.add_component(progress)
+}

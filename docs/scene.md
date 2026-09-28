@@ -51,11 +51,13 @@ What the readers do:
   - Faces are grouped by their `material_index`, one section per material slot. `Asset.Mesh.sections` holds
     three numbers per section (first index, index count, material slot), and `Asset.Mesh.textures` one texture
     id per material slot, which the recipe fills.
-  - Each material's image is its first image-texture node. `MeshReader.images` has the image's name per slot,
+  - Each material's image is the image-texture node linked to the Principled BSDF's Base Color. A Base Color
+    fed by anything but an image node crashes the cook, so a material the reader does not understand is never drawn
+    wrong in silence. `MeshReader.images` has the image's name per slot,
     `image_bytes` its packed file, and `image_paths` the file path when the image is not packed (an external
     `.psd`, for example), so the recipe can cook it. The path is Blender's own form, the SDNA field `name`:
-    relative to the `.blend` with a leading `//`, and backslashes on Windows. The first image node is taken, not
-    the one linked to Base Color, and normal, roughness and metallic maps are not read yet. A hand-built mesh adds a section with
+    relative to the `.blend` with a leading `//`, and backslashes on Windows. Normal, roughness and metallic maps
+    are not read yet. A hand-built mesh adds a section with
     `mesh.add_section(first, count, texture)` (a proposal by Claude).
   - The renderer draws each section on its own, with its own texture.
 - **Skeletons.** Bones are ordered so parents come first. The inverse bind is
@@ -75,6 +77,19 @@ rows crossed a millisecond; the fixed step keeps every part of a character in lo
 - Rotation uses a shortest-arc slerp, falling back to a normalised lerp for near-identical keys.
 - It writes `global · inverse_bind` for each bone into `Scene.Component.Model.palette`, and each bone's model-space
   pose (`global`) into `Model.bones`.
+- It skips a model marked `Scene.Component.OffView`. Gather adds that marker when a skinned model leaves the view cone
+  and its shadow cannot reach the view (its sphere swept away from the sun), and removes it when either comes back,
+  so an off-screen character costs no sampling and the marker changes only on those crossings. A character coming
+  into view shows its last pose for one frame.
+- An animator on the same skeleton, clip, time and looping as the one sampled just before it copies that pose instead
+  of sampling. The parts of one character are spawned together and sit next to each other in the row, so a
+  seven-part archer samples once.
+- The palette and bones matrices are rewritten in place, and the inverse binds are multiplied straight from the
+  skeleton's floats, so a frame allocates nothing per bone.
+
+`examples/animate_bench` animates 400 seven-part archers (2,800 animators, 65 bones) in rings around the camera,
+each archer at its own time. Optimised, on an RTX 3090 machine: Animate went from 81 ms to 9 ms, GatherModels from
+11.4 to 6.6 ms and DrawScene from 22 to 5.7 ms (727 of 2,800 models drawn), so the frame went from 122 to 26 ms.
 
 ### Bone attachments
 
@@ -127,7 +142,13 @@ The sun casts a 2048² shadow map:
 - a slope-scaled depth bias against acne;
 - 3×3 PCF when sampling.
 
-Cut-out texels (alpha below 0.5) are discarded in every pass.
+### Masked materials
+
+A material is masked when its Principled BSDF's Alpha is linked; the reader lists its slot in
+`Asset.Mesh.masked_materials`. A masked section's texels with alpha below 0.3333 are discarded in every pass, as
+Unreal's masked materials clip; every other section is opaque and never discards, whatever its texture's alpha.
+Mipmapping averages a cut-out's alpha, so at a distance chain mail and straps read as solid, as they do in Unreal.
+Nothing dithers: dithered fades (Unreal's OccluderDither at a non-zero fade) are not built yet.
 
 **Texture filtering.** Every texture is uploaded with a full mip chain, made on the GPU by blitting each level from the
 one above. Scene textures sample trilinearly with 16× anisotropic filtering (when the device has it) and repeat
@@ -135,9 +156,10 @@ addressing. The UI samples the same images through its own nearest, top-level-on
 
 ### Culling and draw distance
 
-Each loaded mesh keeps a bounding sphere of its bind pose. Scene Gather tests every unskinned model and terrain cell
-against the camera's view cone (a skinned model is always drawn until its bounds follow its pose, since a clip can move
-its parts far from the bind pose), and drops what is
+Each loaded mesh keeps a bounding sphere of its bind pose, and a skinned mesh the joints its vertices weigh. A skinned
+model's sphere follows its pose: each used joint's skinning matrix carries the bind-pose centre, and the sphere around
+the box of those centres, grown by the bind-pose radius, holds every vertex, since a skinned vertex is a weighted mix
+of rigid moves. Scene Gather tests every model and terrain cell against the camera's view cone, and drops what is
 behind it, beside it or past its far plane (`Camera.far`), so a far plane at the horizon costs only what is in
 view. Depth is reversed-Z, so a 20 km far plane keeps its precision. A terrain cell may name a coarser `far_mesh`,
 drawn once the cell is `far_distance` metres away.

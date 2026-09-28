@@ -1,0 +1,12 @@
+var parent = Ui.Component.Parent()
+var drop_target = Ui.Component.DropTarget()
+var width = Ui.Component.Width()
+var height = Ui.Component.Height()
+var background = Ui.Component.BackgroundColor()
+
+func Target(screen: Integer) {
+    parent.entity = screen
+    width.length.pixels(100.0)
+    height.length.pixels(100.0)
+    background.color = 3381555
+}

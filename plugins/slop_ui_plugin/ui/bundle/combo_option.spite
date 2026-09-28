@@ -1,0 +1,10 @@
+var parent = Component.Parent()
+var button = Component.Button()
+var option = Component.ComboOption()
+var text = Component.Text()
+
+func ComboOption(popup: Integer, index: Integer, label: String) {
+    parent.entity = popup
+    option.index = index
+    text.text = label
+}

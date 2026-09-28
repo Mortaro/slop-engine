@@ -1,0 +1,31 @@
+var tree = Cases.Tree()
+var console = Console()
+var hidden_child = 0
+var shown_child = 0
+
+func build() {
+    var hidden_root = tree.screen(200.0, 100.0)
+    var hiding = Ui.Component.Display()
+    hiding.value = 'none'
+    Entity(hidden_root).add_component(hiding)
+    hidden_child = tree.sized(hidden_root, 50.0, 50.0)
+    var shown_root = tree.screen(200.0, 100.0)
+    shown_child = tree.sized(shown_root, 50.0, 50.0)
+}
+
+func check() {
+    var hidden_order = order_of(hidden_child)
+    var shown_order = order_of(shown_child)
+    tree.checks = tree.checks + 1
+    var passed = hidden_order == -1 and shown_order >= 0
+    if not passed {
+        tree.failures = tree.failures + 1
+        console.print("FAILED a screen with display none still paints", hidden_order, shown_order)
+    }
+}
+
+func order_of(entity: Integer): Integer {
+    var layout = Lookup<Ui.Component.ComputedLayout>().of(entity)
+    crash layout
+    return layout.order
+}

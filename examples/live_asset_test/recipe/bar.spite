@@ -1,0 +1,40 @@
+var cache = Recipes.Cache()
+var sources = Recipes.Sources()
+var cookbook = Recipes.Cookbook()
+
+func build() {
+    var path = sources.path_of("test.bar", "txt")
+    cookbook.note_source(path)
+    var file = File(path)
+    var text = file.read()
+    crash text
+    var fingerprint = cache.fingerprint(text)
+    assert not cache.is_current("test.bar", fingerprint)
+    var trimmed = text.trim()
+    var height = trimmed.to_integer()
+    crash height
+    var top: Float = height
+    var mesh = Asset.Mesh()
+    add_vertex(mesh, 0.0, 0.0)
+    add_vertex(mesh, 1.0, 0.0)
+    add_vertex(mesh, 0.0, top)
+    mesh.indices.append(0)
+    mesh.indices.append(1)
+    mesh.indices.append(2)
+    mesh.add_section(0, 3, "")
+    var pack = Pack<Asset.Mesh>()
+    var bytes = Asset.Bytes()
+    pack.encode(mesh, bytes)
+    cache.put("test.bar", fingerprint, bytes)
+}
+
+func add_vertex(mesh: Asset.Mesh, across: Float, up: Float) {
+    mesh.vertices.append(across)
+    mesh.vertices.append(up)
+    mesh.vertices.append(0.0)
+    mesh.vertices.append(0.0)
+    mesh.vertices.append(0.0)
+    mesh.vertices.append(1.0)
+    mesh.vertices.append(0.0)
+    mesh.vertices.append(0.0)
+}

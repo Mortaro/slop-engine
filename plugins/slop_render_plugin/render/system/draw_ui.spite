@@ -15,11 +15,21 @@ type Target {
     textures: Component.Textures
 }
 
-func render_all(targets: List<Target>, elements: List<Element>, bars: List<Bars>) {
+type Cache {
+    fonts: Ui.Component.Fonts
+}
+
+var no_fonts = Ui.Component.Fonts()
+
+func render_all(targets: List<Target>, elements: List<Element>, bars: List<Bars>, caches: List<Cache>) {
     var painted = paint_slots(elements, bars)
+    var fonts = no_fonts
+    if caches.count() > 0 {
+        fonts = caches.get_at(0).fonts
+    }
     var index = 0
     while index < targets.count() {
-        paint_target(targets[index], elements, bars, painted)
+        paint_target(targets[index], elements, bars, painted, fonts)
         index = index + 1
     }
 }
@@ -50,7 +60,13 @@ func paint_slots(elements: List<Element>, bars: List<Bars>): List<Integer> {
     return slots
 }
 
-func paint_target(target: Target, elements: List<Element>, bars: List<Bars>, painted: List<Integer>) {
+func paint_target(
+    target: Target,
+    elements: List<Element>,
+    bars: List<Bars>,
+    painted: List<Integer>,
+    fonts: Ui.Component.Fonts,
+) {
     var index = 0
     while index < painted.count() {
         var slot = painted[index]
@@ -60,13 +76,13 @@ func paint_target(target: Target, elements: List<Element>, bars: List<Bars>, pai
             paint_bars(target, bars[bar_index])
         } else if slot >= 0 {
             crash elements[slot]
-            paint_element(target, elements[slot])
+            paint_element(target, elements[slot], fonts)
         }
         index = index + 1
     }
 }
 
-func paint_element(target: Target, element: Element) {
+func paint_element(target: Target, element: Element, fonts: Ui.Component.Fonts) {
     var draw_list = target.draw_list
     var layout = element.layout
     var clip = element.clip
@@ -82,6 +98,11 @@ func paint_element(target: Target, element: Element) {
     }
     var text = Lookup<Ui.Component.Text>().of(entity)
     assert text
+    var font = Lookup<Ui.Component.Font>().of(entity)
+    if font {
+        paint_font_text(target, fonts, font, text, layout, entity)
+        return
+    }
     draw_list.append_text(text.text, layout.content_left, layout.content_top, text.scale, text.color)
     var focused = Lookup<Ui.Component.Focused>().has(entity)
     var caret = Lookup<Ui.Component.Caret>().of(entity)
@@ -89,6 +110,75 @@ func paint_element(target: Target, element: Element) {
     assert caret
     var caret_left = layout.content_left + caret.index * 6 * text.scale
     draw_list.append_rectangle(caret_left, layout.content_top, text.scale, 7 * text.scale, text.color)
+}
+
+func paint_font_text(
+    target: Target,
+    fonts: Ui.Component.Fonts,
+    font: Ui.Component.Font,
+    text: Ui.Component.Text,
+    layout: Ui.Component.ComputedLayout,
+    entity: Integer,
+) {
+    var size = fonts.size_slot(font.name, font.face, font.size)
+    assert size >= 0
+    var atlas_name = fonts.atlas_id(size)
+    var atlas = target.textures.slot_of(atlas_name)
+    var codes = List<Integer>()
+    fonts.codepoints(text.text, codes)
+    var pen: Float = layout.content_left
+    var baseline = layout.content_top + fonts.ascent_of(size)
+    var index = 0
+    while index < codes.count() {
+        var code = codes.get_at(index)
+        var glyph = fonts.glyph_of(size, code)
+        if glyph >= 0 and atlas >= 0 {
+            place_glyph(target, fonts, glyph, atlas, pen, baseline, text.color)
+        }
+        pen = pen + fonts.advance_of(size, code)
+        index = index + 1
+    }
+    paint_font_caret(target, fonts, size, text, layout, entity)
+}
+
+func paint_font_caret(
+    target: Target,
+    fonts: Ui.Component.Fonts,
+    size: Integer,
+    text: Ui.Component.Text,
+    layout: Ui.Component.ComputedLayout,
+    entity: Integer,
+) {
+    var focused = Lookup<Ui.Component.Focused>().has(entity)
+    var caret = Lookup<Ui.Component.Caret>().of(entity)
+    assert focused
+    assert caret
+    var before = text.text.slice(0, caret.index)
+    var offset = fonts.text_width(size, before)
+    var caret_left: Integer = layout.content_left + offset
+    var line: Integer = fonts.line_height_of(size)
+    target.draw_list.append_rectangle(caret_left, layout.content_top, 1, line, text.color)
+}
+
+func place_glyph(
+    target: Target,
+    fonts: Ui.Component.Fonts,
+    glyph: Integer,
+    atlas: Integer,
+    pen: Float,
+    baseline: Float,
+    color: Integer,
+) {
+    var width = fonts.glyph_width(glyph)
+    var height = fonts.glyph_height(glyph)
+    assert width > 0 and height > 0
+    var pen_pixel: Integer = pen + 0.5
+    var baseline_pixel: Integer = baseline
+    var left = pen_pixel + fonts.glyph_bearing(glyph)
+    var top = baseline_pixel - fonts.glyph_riser(glyph)
+    var source_left = fonts.glyph_left(glyph)
+    var source_top = fonts.glyph_top(glyph)
+    target.draw_list.append_image_part(left, top, width, height, atlas, source_left, source_top, width, height, color)
 }
 
 func paint_image(target: Target, layout: Ui.Component.ComputedLayout, texture_name: String) {

@@ -1,0 +1,41 @@
+type Watched {
+    window: Window.Component.Window
+    handle: Window.Component.Handle
+    swapchain: RenderVulkan.Component.Swapchain
+    renderer: RenderVulkan.Component.Renderer
+}
+
+type Quitting {
+    quit: Component.Quit
+}
+
+var user = DynamicLibrary("user32.dll", 'identity', "")
+var console = Console()
+var step = 0
+var presented_at = 0
+
+func last_each(watched: Watched, quitting: Quitting) {
+    assert not quitting.quit.requested
+    var window = watched.window
+    var swapchain = watched.swapchain
+    var handle = watched.handle.value
+    var presented_new_frame = watched.renderer.frame_number > presented_at
+    presented_at = watched.renderer.frame_number
+    if step == 0 and presented_new_frame {
+        var no_after: Long = 0
+        user.SetWindowPos(handle, no_after, 0, 0, 800, 500, 22)
+        step = 1
+    } else if step == 1 and presented_new_frame and swapchain.width == window.width and window.width != 640 {
+        console.print("resized", swapchain.width, swapchain.height)
+        user.ShowWindow(handle, 7)
+        step = 2
+    } else if step == 2 and window.width == 0 {
+        console.print("minimised, frames skipped")
+        user.ShowWindow(handle, 9)
+        step = 3
+    } else if step == 3 and presented_new_frame and window.width > 0 and swapchain.width == window.width {
+        user.ShowWindow(handle, 0)
+        console.print("restored", swapchain.width, swapchain.height, "passed true")
+        quitting.quit.requested = true
+    }
+}

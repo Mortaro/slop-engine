@@ -6,9 +6,12 @@ type Target {
 }
 
 type Modeled {
+    entity: Entity
     model: Component.Model
     transform: Transform.Component.Transform
 }
+
+var off_views = Lookup<Component.OffView>()
 
 func render_each(target: Target, modeled: Modeled) {
     assert target.view.has_camera
@@ -21,16 +24,23 @@ func add_draw(target: Target, modeled: Modeled) {
     var loaded = target.meshes.mesh_at(slot)
     var model = modeled.transform.matrix()
     var skinned = modeled.model.palette.count() > 0
-    target.view.cone.place(model, loaded)
-    var radius = target.view.cone.radius_of(loaded, modeled.transform)
-    var in_view = target.view.cone.contains(radius)
-    assert skinned or in_view
-    var palette_first = 0
     var palette = modeled.model.palette
-    if palette.count() > 0 {
+    if skinned {
         var mesh_name = modeled.model.mesh
         var palette_covers_the_mesh_joints = loaded.joint_limit <= palette.count()
         crash palette_covers_the_mesh_joints or mesh_name == ""
+        target.view.cone.place_posed(model, loaded, palette)
+    } else {
+        target.view.cone.place(model, loaded)
+    }
+    var radius = target.view.cone.radius_of(loaded, modeled.transform)
+    var in_view = target.view.cone.contains(radius)
+    if skinned {
+        mark_view(target.view, modeled.entity, radius, in_view)
+    }
+    assert in_view
+    var palette_first = 0
+    if skinned {
         palette_first = target.view.palettes.count()
         var index = 0
         while index < palette.count() {
@@ -54,9 +64,11 @@ func add_section(target: Target, loaded: Scene.LoadedMesh, draw: Scene.Draw, sec
     crash loaded.sections[at]
     crash loaded.sections[at + 1]
     crash loaded.sections[at + 2]
+    draw.section = section
     draw.first_index = loaded.sections[at]
     draw.index_count = loaded.sections[at + 1]
     var material = loaded.sections[at + 2]
+    draw.masked = loaded.masked_materials.contains(material)
     if material < loaded.textures.count() {
         var texture = loaded.textures[material]
         if not texture.is_empty() {
@@ -64,4 +76,16 @@ func add_section(target: Target, loaded: Scene.LoadedMesh, draw: Scene.Draw, sec
         }
     }
     target.view.draws.append(draw)
+}
+
+func mark_view(view: Component.View, entity: Entity, radius: Float, in_view: Boolean) {
+    var seen = in_view or view.cone.shades_view(radius, view.sun_toward_x, view.sun_toward_y, view.sun_toward_z)
+    var marked = off_views.has(entity.id)
+    if seen and marked {
+        entity.remove_component(Component.OffView)
+    }
+    if not seen and not marked {
+        var marker = Component.OffView()
+        entity.add_component(marker)
+    }
 }

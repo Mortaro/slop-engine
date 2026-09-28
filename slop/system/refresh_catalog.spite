@@ -1,0 +1,5 @@
+var catalog = Recipes.Catalog()
+
+func input_each() {
+    catalog.refresh()
+}

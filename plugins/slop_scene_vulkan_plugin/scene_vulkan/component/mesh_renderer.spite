@@ -27,6 +27,7 @@ var used_keys = Vector<Integer>()
 var run_starts = Vector<Integer>()
 var run_counts = Vector<Integer>()
 var run_draws = Vector<Integer>()
+var key_first_draws = Vector<Integer>()
 var scene_pool: Long = 0
 var scene_sets = List<Long>()
 var scene_set_views = List<Long>()
@@ -78,6 +79,19 @@ var draw_stride = 80
 var palette_stride = 64
 var vertex_stride = 52
 var raw = Raw()
+var mesh_job = -1
+var mesh_cursor = 0
+var job_generation = 0
+var job_vertex_buffer: Long = 0
+var job_vertex_memory: Long = 0
+var job_index_buffer: Long = 0
+var job_index_memory: Long = 0
+var job_vertices = Asset.Bytes()
+var job_indices = Asset.Bytes()
+var job_vertex_done = 0
+var job_index_done = 0
+var job_index_count = 0
+var copies_recorded = false
 var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
 
 func record(
@@ -1496,6 +1510,11 @@ func write_frame_data(renderer: RenderVulkan.Component.Renderer, view: Scene.Com
         var record_at = draws_at + position * draw_stride
         draw.model.write_to(record_at)
         raw.write_integer(record_at, 64, draw.palette_first)
+        var masked = 0
+        if draw.masked {
+            masked = 1
+        }
+        raw.write_integer(record_at, 68, masked)
         index = index + 1
     }
     index = 0
@@ -1510,6 +1529,7 @@ func write_frame_data(renderer: RenderVulkan.Component.Renderer, view: Scene.Com
         var cell_at = draws_at + (draw_count + index) * draw_stride
         cell.model.write_to(cell_at)
         raw.write_integer(cell_at, 64, 0)
+        raw.write_integer(cell_at, 68, 0)
         index = index + 1
     }
     index = 0
@@ -1538,11 +1558,18 @@ func group_draws(view: Scene.Component.View) {
         var key = key_of(draw)
         while key_counts.count() <= key {
             key_counts.append(0)
+            key_first_draws.append(0)
         }
         var seen = key_counts[key]
         if seen == 0 {
             used_keys.append(key)
             run_draws.append(index)
+            key_first_draws.set_at(key, index)
+        } else {
+            var first = view.draws.get_at(key_first_draws[key])
+            var same_section = first.first_index == draw.first_index and first.index_count == draw.index_count
+            var same_look = first.texture_slot == draw.texture_slot and first.masked == draw.masked
+            crash same_section and same_look
         }
         key_counts.set_at(key, seen + 1)
         index = index + 1
@@ -1698,15 +1725,8 @@ func append_write(
 }
 
 func upload_meshes(renderer: RenderVulkan.Component.Renderer, meshes: Scene.Component.Meshes) {
-    var slot = 0
-    while slot < meshes.ids.count() {
-        upload_mesh(renderer, meshes, slot)
-        slot = slot + 1
-    }
-}
-
-func upload_mesh(renderer: RenderVulkan.Component.Renderer, meshes: Scene.Component.Meshes, slot: Integer) {
-    while vertex_buffers.count() <= slot {
+    var count = meshes.ids.count()
+    while vertex_buffers.count() < count {
         vertex_buffers.append(0)
         vertex_memories.append(0)
         index_buffers.append(0)
@@ -1714,45 +1734,146 @@ func upload_mesh(renderer: RenderVulkan.Component.Renderer, meshes: Scene.Compon
         index_counts.append(0)
         uploaded.append(0)
     }
+    copies_recorded = false
+    var looked = 0
+    while renderer.staging_room() > 0 and (mesh_job >= 0 or looked < count) {
+        if mesh_job < 0 {
+            looked = looked + 1
+            try_start_mesh(renderer, meshes, count)
+        } else {
+            stream_mesh(renderer)
+        }
+    }
+    make_copies_visible(renderer)
+}
+
+func try_start_mesh(renderer: RenderVulkan.Component.Renderer, meshes: Scene.Component.Meshes, count: Integer) {
+    assert count > 0
+    var slot = mesh_cursor % count
+    mesh_cursor = slot + 1
     assert meshes.is_ready(slot)
     crash uploaded[slot]
     var generation = meshes.generation(slot)
     assert uploaded[slot] != generation
-    crash vertex_buffers[slot]
-    if vertex_buffers[slot] != 0 {
-        free_buffer(renderer, vertex_buffers, vertex_memories, slot)
-        free_buffer(renderer, index_buffers, index_memories, slot)
-    }
     var loaded = meshes.mesh_at(slot)
-    var vertex_usage = 128
-    var index_usage = 64
-    var vertex_buffer = upload_bytes(renderer, loaded.vertices, vertex_usage, vertex_memories, slot)
-    vertex_buffers.set_at(slot, vertex_buffer)
-    var index_buffer = upload_bytes(renderer, loaded.indices, index_usage, index_memories, slot)
-    index_buffers.set_at(slot, index_buffer)
-    index_counts.set_at(slot, loaded.index_count)
-    uploaded.set_at(slot, generation)
+    var transfer_target = 2
+    var vertex_usage = 128 + transfer_target
+    var index_usage = 64 + transfer_target
+    var vertex_size = larger_of(loaded.vertices.length, 4)
+    var index_size = larger_of(loaded.indices.length, 4)
+    job_vertex_buffer = renderer.create_buffer(vertex_size, vertex_usage)
+    job_vertex_memory = renderer.device_memory_for(job_vertex_buffer)
+    job_index_buffer = renderer.create_buffer(index_size, index_usage)
+    job_index_memory = renderer.device_memory_for(job_index_buffer)
+    job_vertices = loaded.vertices
+    job_indices = loaded.indices
+    job_vertex_done = 0
+    job_index_done = 0
+    job_index_count = loaded.index_count
+    job_generation = generation
+    mesh_job = slot
 }
 
-func upload_bytes(
-    renderer: RenderVulkan.Component.Renderer,
-    bytes: Asset.Bytes,
-    usage: Integer,
-    memories: List<Long>,
-    slot: Integer,
-): Long {
-    var size = bytes.length
-    if size < 4 {
-        size = 4
+func larger_of(first: Integer, second: Integer): Integer {
+    if first > second {
+        return first
     }
-    var buffer = renderer.create_buffer(size, usage)
-    var memory = renderer.host_memory_for(buffer)
-    var mapped = renderer.map(memory, size)
-    if bytes.length > 0 {
-        raw.copy(bytes.address, mapped, bytes.length)
+    return second
+}
+
+func stream_mesh(renderer: RenderVulkan.Component.Renderer) {
+    if job_vertex_done < job_vertices.length {
+        job_vertex_done = job_vertex_done + copy_part(renderer, job_vertices, job_vertex_done, job_vertex_buffer)
+        return
     }
-    memories.set_at(slot, memory)
-    return buffer
+    if job_index_done < job_indices.length {
+        job_index_done = job_index_done + copy_part(renderer, job_indices, job_index_done, job_index_buffer)
+        return
+    }
+    finish_mesh(renderer)
+}
+
+func copy_part(renderer: RenderVulkan.Component.Renderer, bytes: Asset.Bytes, done: Integer, target: Long): Integer {
+    var part = bytes.length - done
+    var room = renderer.staging_room()
+    if part > room {
+        part = room
+    }
+    var source = bytes.address + done
+    var offset = renderer.stage(source, part)
+    var region = RenderVulkan.Structure(24)
+    var source_offset: Long = offset
+    var target_offset: Long = done
+    var size: Long = part
+    region.append_long(source_offset)
+    region.append_long(target_offset)
+    region.append_long(size)
+    var staging = renderer.frame.staging_buffer
+    vulkan.vkCmdCopyBuffer(renderer.frame.command_buffer, staging, target, 1, region.address)
+    copies_recorded = true
+    return part
+}
+
+func finish_mesh(renderer: RenderVulkan.Component.Renderer) {
+    var slot = mesh_job
+    crash vertex_buffers[slot]
+    crash vertex_memories[slot]
+    crash index_buffers[slot]
+    crash index_memories[slot]
+    if vertex_buffers[slot] != 0 {
+        renderer.release_later(vertex_buffers[slot], vertex_memories[slot])
+        renderer.release_later(index_buffers[slot], index_memories[slot])
+    }
+    vertex_buffers.set_at(slot, job_vertex_buffer)
+    vertex_memories.set_at(slot, job_vertex_memory)
+    index_buffers.set_at(slot, job_index_buffer)
+    index_memories.set_at(slot, job_index_memory)
+    index_counts.set_at(slot, job_index_count)
+    uploaded.set_at(slot, job_generation)
+    mesh_job = -1
+    job_vertex_buffer = 0
+    job_index_buffer = 0
+    var released_vertices = Asset.Bytes()
+    job_vertices = released_vertices
+    var released_indices = Asset.Bytes()
+    job_indices = released_indices
+}
+
+func make_copies_visible(renderer: RenderVulkan.Component.Renderer) {
+    assert copies_recorded
+    var memory_barrier = RenderVulkan.Structure(24)
+    memory_barrier.append_integer(46)
+    memory_barrier.append_long(0)
+    var transfer_write = 4096
+    var index_and_vertex_read = 6
+    memory_barrier.append_integer(transfer_write)
+    memory_barrier.append_integer(index_and_vertex_read)
+    var transfer_stage = 4096
+    var vertex_input_stage = 4
+    var no_barriers: Long = 0
+    var command_buffer = renderer.frame.command_buffer
+    vulkan.vkCmdPipelineBarrier(
+        command_buffer,
+        transfer_stage,
+        vertex_input_stage,
+        0,
+        1,
+        memory_barrier.address,
+        0,
+        no_barriers,
+        0,
+        no_barriers,
+    )
+}
+
+func release_job(renderer: RenderVulkan.Component.Renderer) {
+    assert job_vertex_buffer != 0
+    var no_allocator: Long = 0
+    vulkan.vkDestroyBuffer(renderer.device, job_vertex_buffer, no_allocator)
+    vulkan.vkFreeMemory(renderer.device, job_vertex_memory, no_allocator)
+    vulkan.vkDestroyBuffer(renderer.device, job_index_buffer, no_allocator)
+    vulkan.vkFreeMemory(renderer.device, job_index_memory, no_allocator)
+    job_vertex_buffer = 0
 }
 
 func release_depth(renderer: RenderVulkan.Component.Renderer) {
@@ -1775,6 +1896,7 @@ func release_part(renderer: RenderVulkan.Component.Renderer) {
     release_all(renderer, palette_buffers, palette_memories)
     release_all(renderer, vertex_buffers, vertex_memories)
     release_all(renderer, index_buffers, index_memories)
+    release_job(renderer)
     release_all(renderer, lighting_buffers, lighting_memories)
     release_all(renderer, light_buffers, light_memories)
     release_all(renderer, cluster_buffers, cluster_memories)

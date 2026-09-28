@@ -1,0 +1,12 @@
+var cache = Recipes.Cache()
+
+func build() {
+    var folder = class.source_folder()
+    var path = "{folder}/../assets/fonts/Cinzel-Medium.ttf"
+    var fingerprint = cache.fingerprint("cinzel medium 1")
+    assert not cache.is_current("font.cinzel", fingerprint)
+    var bytes = Asset.Bytes()
+    var read = bytes.read_file(path)
+    crash read
+    cache.put("font.cinzel", fingerprint, bytes)
+}

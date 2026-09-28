@@ -1,0 +1,9 @@
+type Thawed {
+    health: Component.Health
+    thawing: Without<Component.Frozen>
+}
+
+func update_each(thawed: Thawed) {
+    var health = thawed.health
+    health.value = health.value + 1
+}

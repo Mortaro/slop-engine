@@ -1,6 +1,7 @@
 var scalar = Math.Scalar()
 var first = Math.Pose()
 var second = Math.Pose()
+var local = Math.Matrix4()
 
 func sample(
     skeleton: Asset.Skeleton,
@@ -31,10 +32,10 @@ func sample(
             to = from
         }
     }
-    globals.clear()
-    palette.clear()
-    var bone = 0
     var bone_count = skeleton.names.count()
+    fit(palette, bone_count)
+    fit(globals, bone_count)
+    var bone = 0
     while bone < bone_count {
         pose_bone(skeleton, clip, bone, from, to, blend, palette, globals)
         bone = bone + 1
@@ -54,30 +55,34 @@ func pose_bone(
     read_key(clip, from, bone, first)
     read_key(clip, to, bone, second)
     interpolate(blend)
-    var local = Math.Matrix4()
     local.set_pose(first)
     crash skeleton.parents[bone]
     var parent = skeleton.parents[bone]
-    var global = local
+    var global = globals.get_at(bone)
     if parent >= 0 {
-        crash globals[parent]
-        var parent_global = globals[parent]
-        global = parent_global.multiplied(local)
+        var parent_comes_first = parent < bone
+        crash parent_comes_first
+        var parent_global = globals.get_at(parent)
+        global.set_product(parent_global, local)
+    } else {
+        global.copy_from(local)
     }
-    globals.append(global)
-    var inverse_bind = Math.Matrix4()
-    var index = 0
-    while index < 16 {
-        crash skeleton.inverse_binds[bone * 16 + index]
-        inverse_bind.set_value(index, skeleton.inverse_binds[bone * 16 + index])
-        index = index + 1
-    }
-    var skinning = global.multiplied(inverse_bind)
+    var skinning = palette.get_at(bone)
+    skinning.set_product_with_values(global, skeleton.inverse_binds, bone * 16)
     var bone_matrix_is_finite = skinning.is_finite()
     crash skeleton.names[bone]
     var bone_name = skeleton.names[bone]
     crash bone_matrix_is_finite or bone_name == ""
-    palette.append(skinning)
+}
+
+func fit(matrices: List<Math.Matrix4>, count: Integer) {
+    while matrices.count() > count {
+        matrices.remove_last()
+    }
+    while matrices.count() < count {
+        var added = Math.Matrix4()
+        matrices.append(added)
+    }
 }
 
 func read_key(clip: Asset.Animation, frame: Integer, bone: Integer, pose: Math.Pose) {

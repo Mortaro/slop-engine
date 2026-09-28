@@ -1,0 +1,86 @@
+type Driven {
+    handle: Window.Component.Handle
+    progress: Component.Progress
+}
+
+var user = DynamicLibrary("user32.dll", 'identity', "")
+var layouts = Lookup<Ui.Component.ComputedLayout>()
+var presses = Lookup<Ui.Component.Pressed>()
+var opened = Lookup<Ui.Component.ComboOpen>()
+var changes = Lookup<Ui.Component.SelectionChanged>()
+var boxes = Lookup<Ui.Component.ComboBox>()
+var texts = Lookup<Ui.Component.Text>()
+
+func update_each(driven: Driven) {
+    var progress = driven.progress
+    var handle = driven.handle.value
+    assert handle != 0
+    var box = layouts.of(progress.box)
+    assert box and box.width > 0.0
+    var box_x: Integer = box.left + box.width / 2.0
+    var box_y: Integer = box.top + box.height / 2.0
+    var step = progress.step
+    if step == 0 {
+        press(handle, box_x, box_y)
+        progress.step = 1
+    } else if step == 1 and presses.has(progress.box) {
+        release(handle, box_x, box_y)
+        progress.step = 2
+    } else if step == 2 and opened.has(progress.box) {
+        press_third(progress, handle)
+    } else if step == 3 and presses.has(progress.third) {
+        release_third(progress, handle)
+    } else if step == 4 and changes.has(progress.box) {
+        note_choice(progress)
+        press(handle, box_x, box_y)
+        progress.step = 5
+    } else if step == 5 and presses.has(progress.box) {
+        release(handle, box_x, box_y)
+        progress.step = 6
+    } else if step == 6 and opened.has(progress.box) {
+        press(handle, 10, 10)
+        release(handle, 10, 10)
+        progress.step = 7
+    } else if step == 7 and not opened.has(progress.box) {
+        progress.step = 8
+    }
+}
+
+func press_third(progress: Component.Progress, handle: Long) {
+    var third = layouts.of(progress.third)
+    assert third and third.order >= 0 and third.width > 0.0
+    var third_x: Integer = third.left + third.width / 2.0
+    var third_y: Integer = third.top + third.height / 2.0
+    press(handle, third_x, third_y)
+    progress.step = 3
+}
+
+func release_third(progress: Component.Progress, handle: Long) {
+    var third = layouts.of(progress.third)
+    crash third
+    var third_x: Integer = third.left + third.width / 2.0
+    var third_y: Integer = third.top + third.height / 2.0
+    release(handle, third_x, third_y)
+    progress.step = 4
+}
+
+func note_choice(progress: Component.Progress) {
+    var combo = boxes.of(progress.box)
+    var text = texts.of(progress.label)
+    crash combo
+    crash text
+    progress.selected = combo.selected
+    progress.shown = text.text
+    progress.closed_by_pick = not opened.has(progress.box)
+}
+
+func press(handle: Long, left: Integer, top: Integer) {
+    var place: Long = top * 65536 + left
+    user.PostMessageA(handle, 512, 0, place)
+    user.PostMessageA(handle, 513, 1, place)
+}
+
+func release(handle: Long, left: Integer, top: Integer) {
+    var place: Long = top * 65536 + left
+    user.PostMessageA(handle, 514, 0, place)
+}

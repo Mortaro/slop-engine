@@ -1,0 +1,18 @@
+var parent = Ui.Component.Parent()
+var button = Ui.Component.Button()
+var display = Ui.Component.Display()
+var justify = Ui.Component.JustifyContent()
+var alignment = Ui.Component.AlignItems()
+var width = Ui.Component.Width()
+var height = Ui.Component.Height()
+var background = Ui.Component.BackgroundColor()
+
+func Holder(screen: Integer) {
+    parent.entity = screen
+    display.value = 'flex'
+    justify.value = 'center'
+    alignment.value = 'center'
+    width.length.pixels(200.0)
+    height.length.pixels(200.0)
+    background.color = 3355443
+}

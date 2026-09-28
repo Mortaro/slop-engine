@@ -1,0 +1,5 @@
+func NegativeLookupRefused() {
+    load "../../slop"
+    var app = App()
+    app.run()
+}

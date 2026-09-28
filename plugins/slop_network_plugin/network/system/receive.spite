@@ -35,13 +35,13 @@ func decode_component(component: Symbol<Component>, message: Integer, remote: In
         var value = codec.read(frame)
         if value {
             understood = true
-            var target = target_entity(remote, connection)
+            var target = target_entity(remote, connection, message)
             target.add_component(value)
         }
     }
 }
 
-func target_entity(remote: Integer, connection: Integer): Entity {
+func target_entity(remote: Integer, connection: Integer, message: Integer): Entity {
     if remote != -2 {
         return local_entity(remote)
     }
@@ -50,6 +50,7 @@ func target_entity(remote: Integer, connection: Integer): Entity {
     sender.connection = connection
     arrived.add_component(sender)
     var marker = Network.Component.Arrived()
+    marker.message = message
     arrived.add_component(marker)
     return arrived
 }

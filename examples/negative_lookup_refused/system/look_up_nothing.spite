@@ -1,0 +1,12 @@
+type Started {
+    frame: Added<Component.Frame>
+}
+
+var marks = Lookup<Component.Marked>()
+var console = Console()
+
+func update_each(_started: Started) {
+    var nothing = -1
+    var found = marks.has(nothing)
+    console.print("looked up -1 and got", found)
+}

@@ -1,0 +1,108 @@
+var cookbook = Recipes.Cookbook()
+var console = Console()
+var world = World()
+var program = Program()
+var build = Build()
+var clock = Clock()
+var worst_tick: Long = 0
+var holder = 0
+
+func LiveAssetTest() {
+    load "../../slop"
+    load "../../plugins/slop_input_plugin"
+    load "../../plugins/slop_window_plugin"
+    load "../../plugins/slop_ui_plugin"
+    load "../../plugins/slop_render_plugin"
+    load "../../plugins/slop_transform_plugin"
+    load "../../plugins/slop_camera_plugin"
+    load "../../plugins/slop_scene_plugin"
+    load "../../plugins/slop_animation_plugin"
+    write_source("bar", "1")
+    write_source("bones", "2")
+    cookbook.cook()
+    var app = App()
+    spawn_holder()
+    var first_top = wait_for_top(app, 1.0)
+    var first_bones = wait_for_bones(app, 2)
+    crash first_top == 1.0 and first_bones == 2
+    write_source("bar", "3")
+    write_source("bones", "5")
+    worst_tick = 0
+    var second_top = wait_for_top(app, 3.0)
+    var second_bones = wait_for_bones(app, 5)
+    console.print("worst tick while re-cooking and reloading, milliseconds", worst_tick)
+    console.print("bar top", first_top, "then", second_top, "bones", first_bones, "then", second_bones)
+    var passed = second_top == 3.0 and second_bones == 5
+    console.print("passed", passed)
+    crash passed
+}
+
+func write_source(name: String, value: String) {
+    var file = File("{build.program}/assets/test/{name}.txt")
+    var written = file.write("{value}\n")
+    crash written
+}
+
+func spawn_holder() {
+    var made = world.create_entity()
+    var meshes = Scene.Component.Meshes()
+    made.add_component(meshes)
+    holder = made.id
+}
+
+func step(app: App) {
+    var started = clock.elapsed_milliseconds()
+    app.tick()
+    var took = clock.elapsed_milliseconds() - started
+    if took > worst_tick {
+        worst_tick = took
+    }
+    program.sleep(10)
+}
+
+func wait_for_top(app: App, wanted: Float): Float {
+    var seen: Float = -1.0
+    var tries = 0
+    while seen != wanted and tries < 1000 {
+        step(app)
+        seen = bar_top()
+        tries = tries + 1
+    }
+    return seen
+}
+
+func bar_top(): Float {
+    var meshes = Lookup<Scene.Component.Meshes>().of(holder)
+    crash meshes
+    var slot = meshes.request("test.bar")
+    if not meshes.is_ready(slot) {
+        return -1.0
+    }
+    var loaded = meshes.mesh_at(slot)
+    return loaded.bound_y * 2.0
+}
+
+func wait_for_bones(app: App, wanted: Integer): Integer {
+    var seen = -1
+    var tries = 0
+    while seen != wanted and tries < 1000 {
+        step(app)
+        seen = bone_count()
+        tries = tries + 1
+    }
+    return seen
+}
+
+func bone_count(): Integer {
+    var libraries = Lookup<Animation.Component.Library>()
+    var library = libraries.of(world.entity)
+    if not library {
+        return -1
+    }
+    var slot = library.skeletons.request("test.bones")
+    if not library.skeletons.is_ready(slot) {
+        return -1
+    }
+    var skeleton = library.skeletons.value_at(slot)
+    return skeleton.names.count()
+}

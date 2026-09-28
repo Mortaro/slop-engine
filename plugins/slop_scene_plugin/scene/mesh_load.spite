@@ -1,6 +1,7 @@
 var path = ""
 var offset: Long = 0
 var length: Long = 0
+var key = ""
 var vertex_floats = 8
 var joint_limit = 0
 var scalar = Math.Scalar()
@@ -9,6 +10,7 @@ func MeshLoad(found: Recipes.Record) {
     path = found.path
     offset = found.offset
     length = found.length
+    key = found.key
 }
 
 func run(): Scene.LoadedMesh {
@@ -16,6 +18,7 @@ func run(): Scene.LoadedMesh {
     record.path = path
     record.offset = offset
     record.length = length
+    record.key = key
     var bytes = record.read()
     var pack = Pack<Asset.Mesh>()
     var mesh = pack.decode(bytes)
@@ -23,6 +26,7 @@ func run(): Scene.LoadedMesh {
     var loaded = Scene.LoadedMesh()
     loaded.sections = mesh.sections
     loaded.textures = mesh.textures
+    loaded.masked_materials = mesh.masked_materials
     var count = mesh.vertices.count() / vertex_floats
     var skinned = mesh.joints.count() == count
     var vertex = 0
@@ -30,8 +34,9 @@ func run(): Scene.LoadedMesh {
         write_vertex(loaded.vertices, mesh, vertex, skinned)
         vertex = vertex + 1
     }
-    measure_bounds(loaded, mesh, count, skinned)
+    measure_bounds(loaded, mesh, count)
     loaded.joint_limit = joint_limit
+    note_used_joints(loaded, mesh, skinned)
     loaded.index_count = mesh.indices.count()
     mesh.indices.each(loaded.indices.write_integer)
     return loaded
@@ -80,7 +85,7 @@ func note_joints(packed: Integer) {
     }
 }
 
-func measure_bounds(loaded: Scene.LoadedMesh, mesh: Asset.Mesh, count: Integer, skinned: Boolean) {
+func measure_bounds(loaded: Scene.LoadedMesh, mesh: Asset.Mesh, count: Integer) {
     assert count > 0
     var low_x = mesh.vertices.get_at(0)
     var low_y = mesh.vertices.get_at(1)
@@ -109,9 +114,6 @@ func measure_bounds(loaded: Scene.LoadedMesh, mesh: Asset.Mesh, count: Integer, 
     var half_y = (high_y - low_y) * 0.5
     var half_z = (high_z - low_z) * 0.5
     var radius = scalar.square_root(half_x * half_x + half_y * half_y + half_z * half_z)
-    if skinned {
-        radius = radius * 1.5
-    }
     loaded.bound_radius = radius
 }
 
@@ -127,4 +129,25 @@ func larger(first: Float, second: Float): Float {
         return second
     }
     return first
+}
+
+func note_used_joints(loaded: Scene.LoadedMesh, mesh: Asset.Mesh, skinned: Boolean) {
+    assert skinned
+    var vertex = 0
+    while vertex < mesh.joints.count() {
+        var packed = mesh.joints.get_at(vertex)
+        var slot = 0
+        while slot < 4 {
+            add_used_joint(loaded, mesh, packed, vertex, slot)
+            slot = slot + 1
+        }
+        vertex = vertex + 1
+    }
+}
+
+func add_used_joint(loaded: Scene.LoadedMesh, mesh: Asset.Mesh, packed: Integer, vertex: Integer, slot: Integer) {
+    var weight = mesh.weights.get_at(vertex * 4 + slot)
+    var joint = packed.shifted_right(slot * 8).bits_and(255)
+    assert weight > 0.0 and not loaded.used_joints.contains(joint)
+    loaded.used_joints.append(joint)
 }

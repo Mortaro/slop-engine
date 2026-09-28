@@ -1,6 +1,7 @@
 var path = ""
 var offset: Long = 0
 var length: Long = 0
+var key = ""
 var id = ""
 
 func ArrayLoad(found: Recipes.Record, cooked_id: String) {
@@ -8,6 +9,7 @@ func ArrayLoad(found: Recipes.Record, cooked_id: String) {
     path = found.path
     offset = found.offset
     length = found.length
+    key = found.key
 }
 
 func run(): Scene.LoadedArray {
@@ -15,6 +17,7 @@ func run(): Scene.LoadedArray {
     record.path = path
     record.offset = offset
     record.length = length
+    record.key = key
     var bytes = record.read()
     var magic = bytes.read_text()
     var stored_kind = bytes.read_text()

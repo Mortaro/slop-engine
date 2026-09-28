@@ -1,4 +1,5 @@
 type Request {
+    entity: Entity
     request: Component.ClickRequest
     arrived: Network.Component.Arrived
 }
@@ -8,5 +9,6 @@ type Counter {
 }
 
 func update_each(request: Request, counter: Counter) {
+    request.entity.remove_component(Component.ClickRequest)
     counter.count.clicks = counter.count.clicks + request.request.clicks
 }
