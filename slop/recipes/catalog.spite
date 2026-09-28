@@ -1,8 +1,13 @@
 singleton
 
 var sources = Recipes.Sources()
+var build = Build()
 var reader: Recipes.CacheReader? = null
 var loading: Parallel<Recipes.CacheReader>? = null
+var watcher: Recipes.Watcher? = null
+var refreshing: Parallel<Recipes.CacheReader>? = null
+var revision = 0
+var changed_at = Dictionary<Integer>()
 
 func ready(): Boolean {
     if reader {
@@ -32,4 +37,62 @@ func current(): Recipes.CacheReader {
 
 func replace(fresh: Recipes.CacheReader) {
     reader = fresh
+}
+
+func refresh() {
+    assert reader
+    if not watcher {
+        var cache_folder = sources.cache_folder()
+        var folders = [cache_folder, build.program]
+        var started = Recipes.Watcher()
+        started.start(folders)
+        watcher = started
+    }
+    if refreshing {
+        take_refresh()
+        return
+    }
+    var watching = watcher
+    crash watching
+    assert watching.take_change()
+    var cache_folder = sources.cache_folder()
+    var index_path = sources.index_path()
+    var task = Recipes.IndexLoad(cache_folder, index_path)
+    refreshing = Parallel(task.run)
+}
+
+func take_refresh() {
+    var handle = refreshing
+    crash handle
+    var fresh = handle.finished_value()
+    assert fresh
+    refreshing = null
+    var old = reader
+    crash old
+    var next = revision + 1
+    var ids = fresh.fingerprints.keys()
+    var changed = 0
+    var index = 0
+    while index < ids.count() {
+        var id = ids.get_at(index)
+        var fresh_print = fresh.fingerprint_of(id)
+        var old_print = old.fingerprint_of(id)
+        if fresh_print != old_print {
+            changed_at.set(id, next)
+            changed = changed + 1
+        }
+        index = index + 1
+    }
+    reader = fresh
+    if changed > 0 {
+        revision = next
+    }
+}
+
+func revision_of(id: String): Integer {
+    var at = changed_at.get(id)
+    if at {
+        return at
+    }
+    return 0
 }

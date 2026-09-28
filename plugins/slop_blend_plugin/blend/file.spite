@@ -13,7 +13,10 @@ var names = List<String>()
 var types = List<String>()
 var type_sizes = List<Integer>()
 
+var cookbook = Recipes.Cookbook()
+
 func open(path: String) {
+    cookbook.note_source(path)
     var compressed = Asset.Bytes()
     var loaded = compressed.read_file(path)
     crash loaded

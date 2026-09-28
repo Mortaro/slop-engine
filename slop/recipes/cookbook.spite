@@ -32,7 +32,7 @@ func add(recipe: Buildable) {
 }
 
 func note_source(path: String) {
-    assert current >= 0
+    assert current >= 0 and not path.is_empty()
     crash sources[current]
     crash stamps[current]
     assert not sources[current].contains(path)
@@ -124,7 +124,7 @@ func stale(paths: List<String>, known: List<String>): Boolean {
 
 func stamp_of(path: String): String {
     var file = File(path)
-    var modified = file.modified()
+    var modified = file.modified_nanoseconds()
     var size = file.size()
     if modified {
         if size {

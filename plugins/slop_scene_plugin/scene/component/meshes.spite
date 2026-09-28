@@ -8,6 +8,8 @@ var loads = List<Parallel<Scene.LoadedMesh>>()
 var load_slots = List<Integer>()
 var catalog = Recipes.Catalog()
 var unstarted = List<Integer>()
+var loaded_revisions = List<Integer>()
+var seen_revision = 0
 
 func request(id: String): Integer {
     var found = known_slots.get(id)
@@ -26,6 +28,7 @@ func start_loading(id: String): Integer {
     meshes.append(empty_mesh)
     ready.append(false)
     generations.append(0)
+    loaded_revisions.append(0)
     unstarted.append(slot)
     start_waiting_loads()
     return slot
@@ -50,6 +53,7 @@ func start_slot(reader: Recipes.CacheReader, slot: Integer) {
         report_console.print("asset never cooked:", never_cooked_id)
     }
     crash record
+    loaded_revisions.set_at(slot, catalog.revision)
     var job = Scene.MeshLoad(record)
     var loading = Parallel(job.run)
     loads.append(loading)
@@ -73,6 +77,7 @@ func generation(slot: Integer): Integer {
 
 func finish_loads() {
     start_waiting_loads()
+    reload_changed()
     var index = loads.count() - 1
     while index >= 0 {
         finish_if_done(index)
@@ -93,4 +98,32 @@ func finish_if_done(index: Integer) {
     generations.set_at(slot, generations[slot] + 1)
     loads.remove_at(index)
     load_slots.remove_at(index)
+}
+
+func reload_changed() {
+    assert catalog.revision != seen_revision
+    var reader = catalog.current()
+    var deferred = false
+    var slot = 0
+    while slot < ids.count() {
+        deferred = reload_if_changed(reader, slot) or deferred
+        slot = slot + 1
+    }
+    if not deferred {
+        seen_revision = catalog.revision
+    }
+}
+
+func reload_if_changed(reader: Recipes.CacheReader, slot: Integer): Boolean {
+    crash ids[slot]
+    crash loaded_revisions[slot]
+    var changed = catalog.revision_of(ids[slot]) > loaded_revisions[slot]
+    if not changed {
+        return false
+    }
+    if load_slots.contains(slot) or unstarted.contains(slot) {
+        return true
+    }
+    start_slot(reader, slot)
+    return false
 }

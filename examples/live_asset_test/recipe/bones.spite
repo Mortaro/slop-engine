@@ -1,0 +1,40 @@
+var cache = Recipes.Cache()
+var sources = Recipes.Sources()
+var cookbook = Recipes.Cookbook()
+
+func build() {
+    var path = sources.path_of("test.bones", "txt")
+    cookbook.note_source(path)
+    var file = File(path)
+    var text = file.read()
+    crash text
+    var fingerprint = cache.fingerprint(text)
+    assert not cache.is_current("test.bones", fingerprint)
+    var trimmed = text.trim()
+    var count = trimmed.to_integer()
+    crash count
+    var skeleton = Asset.Skeleton()
+    var bone = 0
+    while bone < count {
+        skeleton.names.append("bone{bone}")
+        skeleton.parents.append(bone - 1)
+        add_identity(skeleton)
+        bone = bone + 1
+    }
+    var pack = Pack<Asset.Skeleton>()
+    var bytes = Asset.Bytes()
+    pack.encode(skeleton, bytes)
+    cache.put("test.bones", fingerprint, bytes)
+}
+
+func add_identity(skeleton: Asset.Skeleton) {
+    var index = 0
+    while index < 16 {
+        var value: Float = 0.0
+        if index % 5 == 0 {
+            value = 1.0
+        }
+        skeleton.inverse_binds.append(value)
+        index = index + 1
+    }
+}

@@ -133,10 +133,27 @@ using them have finished.
 app runs, and checks both the software canvas and Vulkan follow; the worst tick while re-cooking and reloading is
 2 ms.
 
-Known gaps: the watcher is Windows-only and interim (a standard-library file watcher that Spite's own hot reload
-would share is Mortaro's decision); and
-changing a recipe's *code* doesn't invalidate its cooked outputs, since fingerprints cover sources and asset
-formats only.
+**Every store follows the catalog.** `Recipes.Catalog`, which meshes, skeletons, clips, blobs and terrain read
+through, watches the cache folder and the program's folder (where its index lives). `System.RefreshCatalog`
+(`input`) re-reads the index on a worker when they change, compares each id's fingerprint with the index it had,
+and bumps its `revision`, remembering the revision each changed id moved at (`revision_of(id)`). `Scene.Component.Meshes`
+and `Recipes.AssetSlots` (skeletons and clips) note the revision each slot was loaded at; a slot whose id moved since
+is loaded again in the background and swapped in, its `generation` moves, and the renderer re-uploads a mesh
+whose generation moved. A slot still loading waits for the next pass, so an older load never lands over a newer one.
+
+**Sources a recipe reads are recorded.** `Blend.File.open`, `Psd.Layers.open` and `Recipes.Glsl.compile` note their
+files; a recipe that opens a file itself calls `cookbook.note_source(path)`. A source's stamp is its modification
+time in nanoseconds and its size: a stamp to the second missed a same-size edit saved within the same second.
+
+`examples/live_asset_test` cooks a mesh and a skeleton from one-line text files, rewrites both while the app runs,
+and checks both are swapped in; the worst tick is 1 to 2 ms.
+
+Known gaps:
+- a recipe whose *code* changes through `--hot-reload` is not re-run yet: it waits on the language's
+  `Reload().rebuilt_since(generation)` (D280), which `System.Recook` will poll;
+- fonts (`Recipes.Blobs`) and terrain materials don't follow the catalog yet;
+- the watcher is Windows-only and interim (a standard-library file watcher that Spite's own hot reload would share
+  is Mortaro's decision).
 
 ## Background loading
 
