@@ -5,3 +5,4 @@ var palette_first = 0
 var first_index = 0
 var index_count = 0
 var section = 0
+var masked = false

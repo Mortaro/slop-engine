@@ -56,6 +56,8 @@ layout(std430, set = 1, binding = 6) readonly buffer LightIndices {
 layout(location = 0) in vec3 world_normal;
 layout(location = 1) in vec2 surface_coordinate;
 layout(location = 2) in vec3 world_position;
+// Unreal's masked materials clip below a third; opaque ones never clip.
+layout(location = 3) flat in uint surface_masked;
 
 layout(location = 0) out vec4 color;
 

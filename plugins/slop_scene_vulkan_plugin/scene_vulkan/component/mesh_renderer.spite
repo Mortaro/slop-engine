@@ -28,6 +28,7 @@ var used_keys = Vector<Integer>()
 var run_starts = Vector<Integer>()
 var run_counts = Vector<Integer>()
 var run_draws = Vector<Integer>()
+var key_first_draws = Vector<Integer>()
 var scene_pool: Long = 0
 var scene_sets = List<Long>()
 var scene_set_views = List<Long>()
@@ -1486,6 +1487,11 @@ func write_frame_data(renderer: RenderVulkan.Component.Renderer, view: Scene.Com
         var record_at = draws_at + position * draw_stride
         draw.model.write_to(record_at)
         raw.write_integer(record_at, 64, draw.palette_first)
+        var masked = 0
+        if draw.masked {
+            masked = 1
+        }
+        raw.write_integer(record_at, 68, masked)
         index = index + 1
     }
     index = 0
@@ -1500,6 +1506,7 @@ func write_frame_data(renderer: RenderVulkan.Component.Renderer, view: Scene.Com
         var cell_at = draws_at + (draw_count + index) * draw_stride
         cell.model.write_to(cell_at)
         raw.write_integer(cell_at, 64, 0)
+        raw.write_integer(cell_at, 68, 0)
         index = index + 1
     }
     index = 0
@@ -1528,11 +1535,18 @@ func group_draws(view: Scene.Component.View) {
         var key = key_of(draw)
         while key_counts.count() <= key {
             key_counts.append(0)
+            key_first_draws.append(0)
         }
         var seen = key_counts[key]
         if seen == 0 {
             used_keys.append(key)
             run_draws.append(index)
+            key_first_draws.set_at(key, index)
+        } else {
+            var first = view.draws.get_at(key_first_draws[key])
+            var same_section = first.first_index == draw.first_index and first.index_count == draw.index_count
+            var same_look = first.texture_slot == draw.texture_slot and first.masked == draw.masked
+            crash same_section and same_look
         }
         key_counts.set_at(key, seen + 1)
         index = index + 1

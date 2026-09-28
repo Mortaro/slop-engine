@@ -14,7 +14,7 @@ layout(push_constant) uniform Push {
 struct Draw {
     mat4 model;
     uint palette_first;
-    uint padding_one;
+    uint masked;
     uint padding_two;
     uint padding_three;
 };
@@ -30,6 +30,7 @@ layout(std430, set = 1, binding = 1) readonly buffer Palettes {
 layout(location = 0) out vec3 world_normal;
 layout(location = 1) out vec2 surface_coordinate;
 layout(location = 2) out vec3 world_position;
+layout(location = 3) flat out uint surface_masked;
 
 void main() {
     Draw draw = draws[push.draw + gl_InstanceIndex];
@@ -42,5 +43,6 @@ void main() {
     world_normal = normalize(mat3(world) * normal);
     surface_coordinate = texture_coordinate;
     world_position = placed.xyz;
+    surface_masked = draw.masked;
     gl_Position = push.view_projection * placed;
 }

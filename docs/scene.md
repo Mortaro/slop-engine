@@ -51,11 +51,13 @@ What the readers do:
   - Faces are grouped by their `material_index`, one section per material slot. `Asset.Mesh.sections` holds
     three numbers per section (first index, index count, material slot), and `Asset.Mesh.textures` one texture
     id per material slot, which the recipe fills.
-  - Each material's image is its first image-texture node. `MeshReader.images` has the image's name per slot,
+  - Each material's image is the image-texture node linked to the Principled BSDF's Base Color. A Base Color
+    fed by anything but an image node crashes the cook, so a material the reader does not understand is never drawn
+    wrong in silence. `MeshReader.images` has the image's name per slot,
     `image_bytes` its packed file, and `image_paths` the file path when the image is not packed (an external
     `.psd`, for example), so the recipe can cook it. The path is Blender's own form, the SDNA field `name`:
-    relative to the `.blend` with a leading `//`, and backslashes on Windows. The first image node is taken, not
-    the one linked to Base Color, and normal, roughness and metallic maps are not read yet. A hand-built mesh adds a section with
+    relative to the `.blend` with a leading `//`, and backslashes on Windows. Normal, roughness and metallic maps
+    are not read yet. A hand-built mesh adds a section with
     `mesh.add_section(first, count, texture)` (a proposal by Claude).
   - The renderer draws each section on its own, with its own texture.
 - **Skeletons.** Bones are ordered so parents come first. The inverse bind is
@@ -127,7 +129,13 @@ The sun casts a 2048² shadow map:
 - a slope-scaled depth bias against acne;
 - 3×3 PCF when sampling.
 
-Cut-out texels (alpha below 0.5) are discarded in every pass.
+### Masked materials
+
+A material is masked when its Principled BSDF's Alpha is linked; the reader lists its slot in
+`Asset.Mesh.masked_materials`. A masked section's texels with alpha below 0.3333 are discarded in every pass, as
+Unreal's masked materials clip; every other section is opaque and never discards, whatever its texture's alpha.
+Mipmapping averages a cut-out's alpha, so at a distance chain mail and straps read as solid, as they do in Unreal.
+Nothing dithers: dithered fades (Unreal's OccluderDither at a non-zero fade) are not built yet.
 
 **Texture filtering.** Every texture is uploaded with a full mip chain, made on the GPU by blitting each level from the
 one above. Scene textures sample trilinearly with 16× anisotropic filtering (when the device has it) and repeat

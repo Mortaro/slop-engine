@@ -23,6 +23,7 @@ func run(): Scene.LoadedMesh {
     var loaded = Scene.LoadedMesh()
     loaded.sections = mesh.sections
     loaded.textures = mesh.textures
+    loaded.masked_materials = mesh.masked_materials
     var count = mesh.vertices.count() / vertex_floats
     var skinned = mesh.joints.count() == count
     var vertex = 0

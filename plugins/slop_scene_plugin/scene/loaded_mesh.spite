@@ -4,6 +4,7 @@ var index_count = 0
 var joint_limit = 0
 var sections = List<Integer>()
 var textures = List<String>()
+var masked_materials = List<Integer>()
 var bound_x: Float = 0.0
 var bound_y: Float = 0.0
 var bound_z: Float = 0.0

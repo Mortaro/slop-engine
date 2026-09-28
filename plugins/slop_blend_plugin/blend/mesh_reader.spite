@@ -475,18 +475,42 @@ func read_material(materials_offset: Integer, material: Integer) {
     assert tree_address != 0
     var tree = file.view_at(tree_address)
     crash tree
-    var nodes_list = tree.inner("nodes")
-    var nodes = file.list_views(nodes_list)
+    var links_list = tree.inner("links")
+    var links = file.list_views(links_list)
     var index = 0
-    while index < nodes.count() {
-        read_image_node(nodes[index], material)
+    while index < links.count() {
+        read_link(links[index], material)
         index = index + 1
     }
 }
 
+func read_link(link: Blend.View, material: Integer) {
+    var to_address = link.pointer("tonode")
+    var to_socket_address = link.pointer("tosock")
+    var to = file.view_at(to_address)
+    var to_socket = file.view_at(to_socket_address)
+    crash to
+    crash to_socket
+    assert to.text("idname") == "ShaderNodeBsdfPrincipled"
+    var socket = to_socket.text("identifier")
+    if socket == "Alpha" {
+        mesh.masked_materials.append(material)
+        return
+    }
+    assert socket == "Base Color"
+    var from_address = link.pointer("fromnode")
+    var from = file.view_at(from_address)
+    crash from
+    var from_kind = from.text("idname")
+    var base_color_is_an_image = from_kind == "ShaderNodeTexImage"
+    crash base_color_is_an_image
+    read_image_node(from, material)
+}
+
 func read_image_node(node: Blend.View, material: Integer) {
     crash images[material]
-    assert images[material].is_empty() and node.text("idname") == "ShaderNodeTexImage"
+    var one_base_color = images[material].is_empty()
+    crash one_base_color
     var image_address = node.pointer("id")
     assert image_address != 0
     var image = file.view_at(image_address)

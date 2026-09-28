@@ -4,6 +4,7 @@ var weights = List<Float>()
 var indices = List<Integer>()
 var sections = List<Integer>()
 var textures = List<String>()
+var masked_materials = List<Integer>()
 
 func add_section(first: Integer, count: Integer, texture: String) {
     sections.append(first)

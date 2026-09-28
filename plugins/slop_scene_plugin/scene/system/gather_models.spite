@@ -54,9 +54,11 @@ func add_section(target: Target, loaded: Scene.LoadedMesh, draw: Scene.Draw, sec
     crash loaded.sections[at]
     crash loaded.sections[at + 1]
     crash loaded.sections[at + 2]
+    draw.section = section
     draw.first_index = loaded.sections[at]
     draw.index_count = loaded.sections[at + 1]
     var material = loaded.sections[at + 2]
+    draw.masked = loaded.masked_materials.contains(material)
     if material < loaded.textures.count() {
         var texture = loaded.textures[material]
         if not texture.is_empty() {
