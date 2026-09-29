@@ -19,6 +19,10 @@ var world = World()
 var program = Program()
 var scheduler = Scheduler()
 var frame_milliseconds = 16
+var longest_step: Long = 100
+var measuring = false
+var last_tick_at: Long = 0
+var unspent_nanoseconds: Long = 0
 var parallel = true
 var release_budget = 4096
 var columns = Columns()
@@ -101,6 +105,8 @@ func quit_requested(): Boolean {
 }
 
 func run() {
+    measuring = true
+    last_tick_at = clock.elapsed_nanoseconds()
     begin_pacing()
     while not quit_requested() {
         tick()
@@ -125,12 +131,29 @@ func wait_for_next_tick() {
     }
 }
 
+func step_now(): Integer {
+    if not measuring {
+        return frame_milliseconds
+    }
+    var now = clock.elapsed_nanoseconds()
+    unspent_nanoseconds = unspent_nanoseconds + now - last_tick_at
+    last_tick_at = now
+    var step: Long = unspent_nanoseconds / 1000000
+    unspent_nanoseconds = unspent_nanoseconds - step * 1000000
+    if step > longest_step {
+        step = longest_step
+        unspent_nanoseconds = 0
+    }
+    var whole: Integer = step
+    return whole
+}
+
 func tick() {
     var frame_started = clock.elapsed_nanoseconds()
     var frames = Lookup<Component.Frame>()
     var frame = frames.of(world.entity)
     crash frame
-    frame.step_milliseconds = frame_milliseconds
+    frame.step_milliseconds = step_now()
     var index = 0
     while index < stages.count() {
         var stage_started = clock.elapsed_nanoseconds()
