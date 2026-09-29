@@ -1,3 +1,3 @@
 func Mongo() {
-    load "../../../../spite_mongodb_driver/mongodb"
+    load "../../../../spite_mongodb_driver@f0c4aea/mongodb"
 }
