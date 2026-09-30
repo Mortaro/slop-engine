@@ -143,7 +143,7 @@ observations as it has observers, and systems keep them up to date:
   player's connection, while the public entity is observed by everyone in sight.
 
 ```gdscript
-var observation = item.spawn_entity()
+var observation = item.create_entity()
 var observer = Network.Component.Observer()
 observer.entity = owner_connection
 observation.add_component(observer)
@@ -253,7 +253,7 @@ lost a scripted client's first `/give` that way, silently.
 - `Network.Component.Arrived.message` holds the codec id of the component the message carries.
 
 For several events of one type in one tick (two `Grant`s to one player), make each event an entity of its own,
-a child of its target (`player.spawn_entity()`), and let the handler despawn it once applied; a component on the
+a child of its target (`player.create_entity()`), and let the handler despawn it once applied; a component on the
 target holds only one value per type.
 
 ### The wire

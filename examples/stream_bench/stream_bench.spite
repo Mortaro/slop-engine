@@ -9,7 +9,7 @@ func StreamBench() {
     app.parallel = environment.parallel
     var index = 0
     while index < count {
-        var entity = world.spawn_entity()
+        var entity = world.create_entity()
         var heat = Component.Heat()
         entity.add_component(heat)
         var tag = Component.Tag()

@@ -27,10 +27,10 @@ func remove() {
     world.despawn(id)
 }
 
-func spawn_entity(): Entity {
+func create_entity(): Entity {
     var an_entity_is_set_before_it_is_used = id >= 0
     crash an_entity_is_set_before_it_is_used
-    var child = world.spawn_entity()
+    var child = world.create_entity()
     var parent = Component.Parent()
     parent.entity = world.entity_of(id)
     child.add_component(parent)

@@ -12,7 +12,7 @@ func RelationsCheck() {
     world.as_entity().add_component(losses)
     var index = 0
     while index < 1000 {
-        var player = world.spawn_entity()
+        var player = world.create_entity()
         var sheet = Component.Player()
         player.add_component(sheet)
         players.append(player.id)
@@ -45,7 +45,7 @@ func RelationsCheck() {
 func cascade(app: App) {
     crash items[1]
     var holder = world.entity_of(items[1])
-    var gem = holder.spawn_entity()
+    var gem = holder.create_entity()
     var value = Component.Item()
     gem.add_component(value)
     world.flush()
@@ -65,7 +65,7 @@ func cascade(app: App) {
 func lose_target(app: App) {
     crash players[5]
     var prey = world.entity_of(players[5])
-    var hunter = world.spawn_entity()
+    var hunter = world.create_entity()
     var target = Component.Target()
     target.entity = prey
     hunter.add_component(target)
@@ -88,7 +88,7 @@ func lose_target(app: App) {
 func spawn_item(index: Integer) {
     crash players[index % 1000]
     var owner = world.entity_of(players[index % 1000])
-    var item = owner.spawn_entity()
+    var item = owner.create_entity()
     var value = Component.Item()
     value.value = index
     item.add_component(value)

@@ -9,7 +9,7 @@ var expected_entities = List<Integer>()
 var expected_boxes = List<Float>()
 
 func screen(width: Float, height: Float): Integer {
-    var entity = world.spawn_entity().id
+    var entity = world.create_entity().id
     var root = Ui.Component.Screen()
     world.entity_of(entity).add_component(root)
     var display = Ui.Component.Display()
@@ -20,7 +20,7 @@ func screen(width: Float, height: Float): Integer {
 }
 
 func element(parent: Integer): Integer {
-    var child = world.entity_of(parent).spawn_entity()
+    var child = world.entity_of(parent).create_entity()
     return child.id
 }
 

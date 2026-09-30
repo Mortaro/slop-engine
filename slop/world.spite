@@ -58,13 +58,13 @@ func entity_of(id: Integer): Entity {
     return made
 }
 
-func spawn_entity(): Entity {
+func create_entity(): Entity {
     var spawned = spawn()
     return entity_of(spawned)
 }
 
-func spawn_entity_from_bundle(bundle: Anything): Entity {
-    var made = spawn_entity()
+func create_entity_from_bundle(bundle: Anything): Entity {
+    var made = create_entity()
     spawned_typed = false
     queue_bundles(bundle, made.id)
     if spawned_typed {

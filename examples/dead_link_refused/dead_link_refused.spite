@@ -4,8 +4,8 @@ var environment = Environment()
 func DeadLinkRefused() {
     load "../../slop"
     var app = App()
-    var prey = world.spawn_entity()
-    var hunter = world.spawn_entity()
+    var prey = world.create_entity()
+    var hunter = world.create_entity()
     var target = Component.Target()
     if environment.link == "dead" {
         prey.remove()

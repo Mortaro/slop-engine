@@ -4,10 +4,10 @@ var console = Console()
 func WithoutCheck() {
     load "../../slop"
     var app = App()
-    var free = world.spawn_entity()
+    var free = world.create_entity()
     var free_health = Component.Health()
     free.add_component(free_health)
-    var held = world.spawn_entity()
+    var held = world.create_entity()
     var held_health = Component.Health()
     held.add_component(held_health)
     var frost = Component.Frozen()

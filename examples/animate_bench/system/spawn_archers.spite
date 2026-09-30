@@ -12,12 +12,12 @@ func update_each(_started: Started) {
     window_bundle.window.title = "Animate bench"
     window_bundle.window.width = 960
     window_bundle.window.height = 720
-    var window_entity = world.spawn_entity_from_bundle(window_bundle)
+    var window_entity = world.create_entity_from_bundle(window_bundle)
     if not environment.show_window {
         var hidden = Window.Component.Hidden()
         window_entity.add_component(hidden)
     }
-    var camera_entity = world.spawn_entity()
+    var camera_entity = world.create_entity()
     var camera = Camera.Component.Camera()
     camera_entity.add_component(camera)
     var orbit = Camera.Component.Orbit()
@@ -27,7 +27,7 @@ func update_each(_started: Started) {
     orbit.eye_lift = 0.0
     camera_entity.add_component(orbit)
     var daylight = Lighting.Bundle.Daylight()
-    world.spawn_entity_from_bundle(daylight)
+    world.create_entity_from_bundle(daylight)
     var archer = 0
     while archer < environment.archers {
         spawn_archer(archer)
@@ -51,7 +51,7 @@ func spawn_archer(archer: Integer) {
 }
 
 func spawn_part(part: String, along_x: Float, along_z: Float, archer: Integer) {
-    var entity = world.spawn_entity()
+    var entity = world.create_entity()
     var model = Scene.Component.Model()
     model.mesh = "archer.body.{part}"
     entity.add_component(model)

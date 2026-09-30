@@ -18,5 +18,5 @@ func Healing() {
 func spawn_patient(index: Integer) {
     var patient = Bundle.Patient()
     patient.regeneration.per_tick = index + 1
-    world.spawn_entity_from_bundle(patient)
+    world.create_entity_from_bundle(patient)
 }

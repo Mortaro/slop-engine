@@ -281,11 +281,11 @@ element, driving the real window with posted mouse messages, each step waiting f
 **Proposal** (Claude's). A combo box is four bundles and one system, `Ui.System.Choose` (`update`):
 
 ```gdscript
-var box = world.spawn_entity_from_bundle(Ui.Bundle.ComboBox(panel))
-world.spawn_entity_from_bundle(Ui.Bundle.ComboLabel(box, "Choose"))
-var popup = world.spawn_entity_from_bundle(Ui.Bundle.ComboPopup(box))
-world.spawn_entity_from_bundle(Ui.Bundle.ComboOption(popup, 0, "First"))
-world.spawn_entity_from_bundle(Ui.Bundle.ComboOption(popup, 1, "Second"))
+var box = world.create_entity_from_bundle(Ui.Bundle.ComboBox(panel))
+world.create_entity_from_bundle(Ui.Bundle.ComboLabel(box, "Choose"))
+var popup = world.create_entity_from_bundle(Ui.Bundle.ComboPopup(box))
+world.create_entity_from_bundle(Ui.Bundle.ComboOption(popup, 0, "First"))
+world.create_entity_from_bundle(Ui.Bundle.ComboOption(popup, 1, "Second"))
 ```
 
 (each bundle built into a variable first, as Spite wants). The box is a `Button` with

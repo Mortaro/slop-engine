@@ -94,7 +94,7 @@ A weapon, a shield or an effect rides a bone of another entity's animated skelet
 to decide). Give it a `Transform`, an `Animation.Component.BoneAttachment`, and make it a child of the carrier:
 
 ```gdscript
-var sword = carrier.spawn_entity()
+var sword = carrier.create_entity()
 var attachment = Animation.Component.BoneAttachment()
 attachment.bone = "Bip01 R Hand"
 attachment.rotation_z = 0.7071068
@@ -202,7 +202,7 @@ Put a `Lighting.Component.PointLight` or `SpotLight` on an entity with a `Transf
 A spot also has `inner_angle` and `outer_angle`, in radians from its axis. It shines along its transform's −Z.
 
 ```gdscript
-var torch = world.spawn_entity()
+var torch = world.create_entity()
 var light = Lighting.Component.PointLight()
 light.intensity = 3.0
 light.range = 6.0

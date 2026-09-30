@@ -58,7 +58,7 @@ func keep_capture(renderer: RenderVulkan.Renderer, width: Integer, height: Integ
         write_row(renderer, capture.pixels, row, width)
         row = row - 1
     }
-    var holder = world.spawn_entity()
+    var holder = world.create_entity()
     holder.add_component(capture)
 }
 

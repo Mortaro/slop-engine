@@ -16,7 +16,7 @@ func local_of(remote: Integer): Integer {
     if found {
         return found
     }
-    var made = world.spawn_entity()
+    var made = world.create_entity()
     known.set(remote, made.id)
     remotes.set(made.id, remote)
     created.append(made.id)

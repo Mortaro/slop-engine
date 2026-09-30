@@ -71,7 +71,7 @@ Every package, plugin or game has the same folders:
 |---|---|---|
 | `component/` | `Component` | components: plain data classes. A tag is an empty file |
 | `system/` | `System` | systems |
-| `bundle/` | `Bundle` | classes whose attributes are components, for `world.spawn_entity_from_bundle` |
+| `bundle/` | `Bundle` | classes whose attributes are components, for `world.create_entity_from_bundle` |
 | `recipe/` | `Recipe` | recipes: turn source files into assets |
 | `asset/` | `Asset` | asset formats: declared classes, with derived binary codecs |
 
@@ -146,15 +146,15 @@ type NewWindow {
 var world = World()
 
 func update_each(_window: NewWindow) {
-    var screen = world.spawn_entity_from_bundle(Bundle.Screen())
+    var screen = world.create_entity_from_bundle(Bundle.Screen())
     var title = Bundle.Title(screen.id)
-    world.spawn_entity_from_bundle(title)
+    world.create_entity_from_bundle(title)
 }
 ```
 
 | Call | Does |
 |---|---|
-| `world.spawn_entity()`, `world.spawn_entity_from_bundle(bundle)` | a new `Entity`; its `id` is known at once, so children can point at it |
+| `world.create_entity()`, `world.create_entity_from_bundle(bundle)` | a new `Entity`; its `id` is known at once, so children can point at it |
 | `entity.add_component(component)` | adds or replaces one component, after the stage |
 | `entity.remove_component(Ui.Component.Hovered)` | removes one component, after the stage |
 | `entity.remove()` | removes the entity, after the stage |

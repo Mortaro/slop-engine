@@ -31,7 +31,7 @@ func request(id: String): Integer {
     created.detail = neutral_array(2)
     created.far_color = neutral_array(3)
     created.grass_overlay = neutral_array(4)
-    var owner = world.spawn_entity()
+    var owner = world.create_entity()
     owner.add_component(created)
     entities.append(owner.id)
     unstarted.append(slot)

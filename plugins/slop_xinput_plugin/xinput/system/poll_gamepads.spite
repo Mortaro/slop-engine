@@ -53,7 +53,7 @@ func poll_slot(pads: List<Pad>, buttons: List<PadButton>, slot: Integer, state: 
         var gamepad = Input.Component.Gamepad()
         gamepad.slot = slot
         read_pad(gamepad, connected, state)
-        var entity = world.spawn_entity()
+        var entity = world.create_entity()
         entity.add_component(gamepad)
         var marker = Input.Component.GamepadConnected()
         entity.add_component(marker)
@@ -131,7 +131,7 @@ func settle_button(pad: Integer, held: PadButton) {
 
 func press_new(pad: Entity, code: Integer) {
     assert not held_codes.contains(code)
-    var button = pad.spawn_entity()
+    var button = pad.create_entity()
     var held = Input.Component.GamepadButton()
     held.code = code
     button.add_component(held)

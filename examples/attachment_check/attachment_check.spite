@@ -17,7 +17,7 @@ func AttachmentCheck() {
     load "../../plugins/slop_animation_plugin"
     cookbook.cook()
     var app = App()
-    var carrier = world.spawn_entity()
+    var carrier = world.create_entity()
     var animator = Animation.Component.Animator()
     animator.skeleton = "attach.skeleton"
     animator.clip = "attach.clip"
@@ -46,7 +46,7 @@ func AttachmentCheck() {
 }
 
 func attach(carrier: Entity, bone: String, bone_index: Integer, reach: Float): Integer {
-    var held = carrier.spawn_entity()
+    var held = carrier.create_entity()
     var attachment = Animation.Component.BoneAttachment()
     attachment.bone = bone
     attachment.bone_index = bone_index

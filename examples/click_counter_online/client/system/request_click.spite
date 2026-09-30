@@ -6,7 +6,7 @@ type ClickedButton {
 var world = World()
 
 func update_each(_button: ClickedButton) {
-    var request = world.spawn_entity()
+    var request = world.create_entity()
     var click = Component.ClickRequest()
     request.add_component(click)
 }

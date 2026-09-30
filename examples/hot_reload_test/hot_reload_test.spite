@@ -79,7 +79,7 @@ func vulkan_pixel(target: Integer): Integer {
 }
 
 func spawn_target(): Integer {
-    var target = world.spawn_entity()
+    var target = world.create_entity()
     var offscreen = Component.Offscreen()
     target.add_component(offscreen)
     var draw_list = Render.Component.DrawList()
@@ -90,10 +90,10 @@ func spawn_target(): Integer {
 }
 
 func spawn_swatch() {
-    var screen = world.spawn_entity()
+    var screen = world.create_entity()
     var root = Ui.Component.Screen()
     screen.add_component(root)
-    var swatch = screen.spawn_entity()
+    var swatch = screen.create_entity()
     var width = Ui.Component.Width()
     width.length.pixels(20.0)
     swatch.add_component(width)

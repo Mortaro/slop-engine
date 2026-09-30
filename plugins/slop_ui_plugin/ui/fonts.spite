@@ -40,7 +40,7 @@ func atlas_of(font: String, face_index: Integer, pixels: Integer): Ui.Component.
     atlas.line_height = (ascent_units - descent_units + gap_units) * per_unit + 0.5
     atlas.side = first_atlas_side
     fill_blank(atlas.texture, atlas.texels, first_atlas_side)
-    var owner = world.spawn_entity()
+    var owner = world.create_entity()
     owner.add_component(atlas)
     atlases.set(name, atlas)
     atlas_entities.set(name, owner.id)

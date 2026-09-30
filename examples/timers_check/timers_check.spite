@@ -8,12 +8,12 @@ func TimersCheck() {
     app.frame_milliseconds = 10
     var repeating = spawn_timer(50, true)
     var once = spawn_timer(120, false)
-    var paused = world.spawn_entity()
+    var paused = world.create_entity()
     var held = Component.Timer()
     held.start(30)
     paused.add_component(held)
-    var skill = world.spawn_entity()
-    var cooldown = skill.spawn_entity()
+    var skill = world.create_entity()
+    var cooldown = skill.create_entity()
     var cooling = Component.Timer()
     cooling.start(40)
     cooldown.add_component(cooling)
@@ -60,7 +60,7 @@ func TimersCheck() {
 }
 
 func spawn_timer(milliseconds: Integer, repeat: Boolean): Integer {
-    var entity = world.spawn_entity()
+    var entity = world.create_entity()
     var timer = Component.Timer()
     timer.start(milliseconds)
     entity.add_component(timer)

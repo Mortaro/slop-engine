@@ -46,7 +46,7 @@ func deliver(windows: List<OpenedWindow>, messages: List<Long>, at: Integer) {
 }
 
 func spawn_event(window: Entity, event: Input.Component.Event) {
-    var arrived = window.spawn_entity()
+    var arrived = window.create_entity()
     arrived.add_component(event)
     assert double_click
     var marker = Input.Component.DoubleClick()

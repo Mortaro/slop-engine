@@ -30,7 +30,7 @@ func link_round_trip(local: Integer): Boolean {
     pack.write(near, bytes)
     var arrived = Component.Near()
     pack.read_into(arrived, bytes)
-    var own = world.spawn_entity()
+    var own = world.create_entity()
     var mine = Component.Near()
     mine.entity = own
     var own_bytes = Asset.Bytes()

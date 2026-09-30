@@ -21,7 +21,7 @@ func request(id: String): Integer {
     var created = Render.Component.Texture()
     created.id = id
     created.slot = slot
-    var owner = world.spawn_entity()
+    var owner = world.create_entity()
     owner.add_component(created)
     entities.append(owner.id)
     unstarted.append(id)
@@ -94,7 +94,7 @@ func publish(id: String, image: Asset.Texture, raw_texels: Asset.Bytes): Integer
     created.image = image
     created.raw = raw_texels
     created.generation = 1
-    var entity = world.spawn_entity()
+    var entity = world.create_entity()
     entity.add_component(created)
     var ready = Render.Component.TextureReady()
     entity.add_component(ready)

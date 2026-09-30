@@ -13,9 +13,9 @@ never added, looked up or used.
 
 | Call | Does | When |
 |---|---|---|
-| `world.spawn_entity()` | a new `Entity` with no components; its `id` is known at once | now |
-| `entity.spawn_entity()` | a new `Entity` that is a child of `entity`: it gets `Component.Parent` naming `entity`, so it is despawned with it | now; the `Parent` after the current stage |
-| `world.spawn_entity_from_bundle(bundle)` | a new `Entity` with a copy of every component the bundle holds, so one bundle can be spawned any number of times as a prefab | components after the current stage |
+| `world.create_entity()` | a new `Entity` with no components; its `id` is known at once | now |
+| `entity.create_entity()` | a new `Entity` that is a child of `entity`: it gets `Component.Parent` naming `entity`, so it is despawned with it | now; the `Parent` after the current stage |
+| `world.create_entity_from_bundle(bundle)` | a new `Entity` with a copy of every component the bundle holds, so one bundle can be spawned any number of times as a prefab | components after the current stage |
 | `world.entity_of(id)` | the `Entity` of an id a program kept as an `Integer`; a negative id crashes (`an_entity_id_is_zero_or_more`) | now |
 | `entity.add_component(component)` | adds a component, or replaces the one of that class | after the current stage |
 | `entity.remove_component(Ui.Component.Hovered)` | removes one component; the class itself is the argument | after the current stage |
@@ -163,7 +163,7 @@ D237), so a bundle the typed path does not recognise takes the reflective path, 
 
 
 A bundle is a class in a `bundle/` folder whose attributes are components, with a constructor that sets them up.
-`world.spawn_entity_from_bundle(bundle)` adds each attribute, walked at run time through `attribute.value`, so a
+`world.create_entity_from_bundle(bundle)` adds each attribute, walked at run time through `attribute.value`, so a
 bundle has no code for spawning itself.
 
 ```gdscript
@@ -378,7 +378,7 @@ always ECS"). Names follow Bevy's `Timer` where they fit (a proposal by Claude, 
 | `Component.Stopwatch` | `started_at`, on the game clock | counts up (Bevy `Stopwatch`) |
 
 An entity has at most one timer, so things that time independently are entities of their own, usually children of
-their owner (`owner.spawn_entity()`), which die with it.
+their owner (`owner.create_entity()`), which die with it.
 
 **The game clock** is the world entity's `Component.Frame.elapsed_milliseconds`: the sum of every tick's step, so it
 stands still while nothing ticks and repeats exactly under `app.tick()`. `world.now()` reads it. A running timer keeps
@@ -465,7 +465,7 @@ it. The skill is ready when it has no link, so a cast row asks for `Without<Comp
 
 ```gdscript
 func start_cooldown(skill: Entity, milliseconds: Integer) {
-    var cooldown = skill.spawn_entity()
+    var cooldown = skill.create_entity()
     var timer = Component.Timer()
     timer.start(milliseconds)
     cooldown.add_component(timer)

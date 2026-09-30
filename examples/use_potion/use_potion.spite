@@ -4,9 +4,9 @@ func UsePotion() {
     load "../../slop"
     var app = App()
     var hero_bundle = Bundle.Hero()
-    var living = world.spawn_entity_from_bundle(hero_bundle)
+    var living = world.create_entity_from_bundle(hero_bundle)
     var fallen_bundle = Bundle.Fallen()
-    var fallen = world.spawn_entity_from_bundle(fallen_bundle)
+    var fallen = world.create_entity_from_bundle(fallen_bundle)
     give_potion(living.id)
     give_potion(fallen.id)
     app.tick()
@@ -16,5 +16,5 @@ func UsePotion() {
 func give_potion(entity: Integer) {
     var potion = Bundle.Potion()
     potion.owner.entity = world.entity_of(entity)
-    world.spawn_entity_from_bundle(potion)
+    world.create_entity_from_bundle(potion)
 }

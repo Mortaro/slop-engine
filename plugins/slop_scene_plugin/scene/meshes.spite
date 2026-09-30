@@ -22,7 +22,7 @@ func request(id: String): Integer {
     var created = Scene.Component.Mesh()
     created.id = id
     created.slot = slot
-    var owner = world.spawn_entity()
+    var owner = world.create_entity()
     owner.add_component(created)
     entities.append(owner.id)
     unstarted.append(id)

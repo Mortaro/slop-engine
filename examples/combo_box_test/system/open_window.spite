@@ -8,7 +8,7 @@ var environment = Environment()
 func update_each(_started: Started) {
     var main_window = Window.Bundle.Window()
     main_window.window.title = "Combo box test"
-    var window_entity = world.spawn_entity_from_bundle(main_window)
+    var window_entity = world.create_entity_from_bundle(main_window)
     if not environment.show_window {
         var hidden = Window.Component.Hidden()
         window_entity.add_component(hidden)

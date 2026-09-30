@@ -178,7 +178,7 @@ func observe_new(connection: Integer) {
         var subject = found[index]
         if stamps[subject] == pass and positions.has(subject) {
             stamps.set_at(subject, 0 - pass)
-            var observation = world.entity_of(subject).spawn_entity()
+            var observation = world.entity_of(subject).create_entity()
             var observer = Network.Component.Observer()
             observer.entity = world.entity_of(connection)
             observation.add_component(observer)

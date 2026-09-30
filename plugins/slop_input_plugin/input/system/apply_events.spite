@@ -189,7 +189,7 @@ func press_key(device: Entity, code: Integer) {
         world.entity_of(existing).add_component(again)
         return
     }
-    var key = device.spawn_entity()
+    var key = device.create_entity()
     var held = Component.Key()
     held.code = code
     key.add_component(held)

@@ -19,21 +19,21 @@ func RenderParity() {
     var app = App()
     var target = spawn_target()
     var screen_bundle = Bundle.Screen()
-    var screen = world.spawn_entity_from_bundle(screen_bundle)
+    var screen = world.create_entity_from_bundle(screen_bundle)
     var title = Bundle.Title(screen)
-    world.spawn_entity_from_bundle(title)
+    world.create_entity_from_bundle(title)
     var font_label = Bundle.FontLabel(screen)
-    world.spawn_entity_from_bundle(font_label)
+    world.create_entity_from_bundle(font_label)
     var counter_button_bundle = Bundle.CounterButton(screen)
-    var button = world.spawn_entity_from_bundle(counter_button_bundle)
+    var button = world.create_entity_from_bundle(counter_button_bundle)
     var count_label = Bundle.CountLabel(button)
-    world.spawn_entity_from_bundle(count_label)
+    world.create_entity_from_bundle(count_label)
     var clipped_panel_bundle = Bundle.ClippedPanel(screen)
-    var panel = world.spawn_entity_from_bundle(clipped_panel_bundle)
+    var panel = world.create_entity_from_bundle(clipped_panel_bundle)
     var panel_image = Bundle.PanelImage(panel)
-    world.spawn_entity_from_bundle(panel_image)
+    world.create_entity_from_bundle(panel_image)
     var panel_text = Bundle.PanelText(panel)
-    world.spawn_entity_from_bundle(panel_text)
+    world.create_entity_from_bundle(panel_text)
     add_wall_of_text(screen.id)
     world.flush()
     var settled = false
@@ -67,7 +67,7 @@ func rectangles_of(target: Integer): Integer {
 }
 
 func add_wall_of_text(screen: Integer) {
-    var wall = world.entity_of(screen).spawn_entity()
+    var wall = world.entity_of(screen).create_entity()
     var text = Ui.Component.Text()
     var line = "the quick brown fox (100%) jumps, over the lazy dog: a/b+c=d 'e' \"f\" g_h *[#] "
     var repeated = ""
@@ -94,7 +94,7 @@ func check_clipping(panel: Integer, canvas: RenderSoftware.Component.Canvas, cle
 }
 
 func spawn_target(): Integer {
-    var target = world.spawn_entity().id
+    var target = world.create_entity().id
     var offscreen = Component.Offscreen()
     world.entity_of(target).add_component(offscreen)
     var draw_list = Render.Component.DrawList()

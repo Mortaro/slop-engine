@@ -113,7 +113,7 @@ func point_at_beacon(beacons: List<Seen>) {
 
 func send_point(target: Integer) {
     pointed = true
-    var message = world.spawn_entity()
+    var message = world.create_entity()
     var pointing = Component.Target()
     pointing.entity = world.entity_of(target)
     message.add_component(pointing)

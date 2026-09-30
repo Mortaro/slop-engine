@@ -26,7 +26,7 @@ func take_socket(dialer: Entity, connect: Network.Component.Connect) {
     if socket {
         var connection = Network.Component.Connection()
         connection.stream.adopt(socket)
-        var peer = world.spawn_entity()
+        var peer = world.create_entity()
         peer.add_component(connection)
         var connected = Network.Component.Connected()
         connected.entity = peer

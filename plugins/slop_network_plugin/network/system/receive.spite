@@ -45,7 +45,7 @@ func target_entity(remote: Integer, connection: Integer, message: Integer): Enti
     if remote != -2 {
         return local_entity(remote)
     }
-    var arrived = world.spawn_entity()
+    var arrived = world.create_entity()
     var sender = Network.Component.Sender()
     sender.entity = world.entity_of(connection)
     arrived.add_component(sender)

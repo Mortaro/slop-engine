@@ -43,7 +43,7 @@ func update_each(joined: Joined, eyed: Eyed, lit: Lit) {
 }
 
 func place_stash(connection: Entity, index: Integer, pointed: Entity) {
-    var stash = world.spawn_entity()
+    var stash = world.create_entity()
     var value = Component.Stash()
     value.amount = index
     stash.add_component(value)
@@ -57,7 +57,7 @@ func place_stash(connection: Entity, index: Integer, pointed: Entity) {
         stash.add_component(sealed)
     }
     assert index < 3
-    var observation = stash.spawn_entity()
+    var observation = stash.create_entity()
     var observer = Network.Component.Observer()
     observer.entity = connection
     observation.add_component(observer)

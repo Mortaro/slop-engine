@@ -274,7 +274,7 @@ remains strict, and useful: the scheduling markers (`var main_thread = Resource.
 
 ## Update, 2026-09-25: the entity API runs
 
-`world.spawn_entity()`, `world.spawn_entity_from_bundle(bundle)`, `entity.add_component(component)`,
+`world.create_entity()`, `world.create_entity_from_bundle(bundle)`, `entity.add_component(component)`,
 `entity.remove_component(ComponentClass)` and `entity.remove()` replaced `Spawn`/`Insert`/`Remove<T>` across the
 engine and every example, with memory balanced and every test passing. What made it possible was D123's two
 features: the class test against a `$` type narrows `Anything` back to a column's own type, and `attribute.object`

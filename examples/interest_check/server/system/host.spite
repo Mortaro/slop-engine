@@ -21,7 +21,7 @@ func update_each(_started: Started) {
         place_beacon(index, 7)
         index = index + 1
     }
-    var eye = world.spawn_entity()
+    var eye = world.create_entity()
     var marker = Component.Eye()
     eye.add_component(marker)
     var transform = Transform.Component.Transform()
@@ -30,7 +30,7 @@ func update_each(_started: Started) {
 }
 
 func place_beacon(number: Integer, space: Integer) {
-    var beacon = world.spawn_entity()
+    var beacon = world.create_entity()
     var value = Component.Beacon()
     value.number = number
     beacon.add_component(value)
