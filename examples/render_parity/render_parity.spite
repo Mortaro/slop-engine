@@ -1,3 +1,4 @@
+var fonts = Ui.Fonts()
 var textures = Render.Textures()
 var cookbook = Recipes.Cookbook()
 var console = Console()
@@ -56,10 +57,6 @@ func RenderParity() {
 }
 
 func fonts_settled(): Boolean {
-    var fonts = Lookup<Ui.Component.Fonts>().of(world.entity)
-    if not fonts {
-        return false
-    }
     return fonts.settled()
 }
 

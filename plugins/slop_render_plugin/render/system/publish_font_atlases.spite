@@ -1,28 +1,16 @@
-type Cache {
-    fonts: Ui.Component.Fonts
+type Changed {
+    entity: Entity
+    atlas: Ui.Component.GlyphAtlas
     changed: Ui.Component.AtlasChanged
 }
 
-var world = World()
 var textures = Render.Textures()
+var fonts = Ui.Fonts()
 
-func render_each(cache: Cache) {
-    var fonts = cache.fonts
-    var index = 0
-    while index < fonts.changed_sizes.count() {
-        publish(fonts, fonts.changed_sizes[index])
-        index = index + 1
-    }
-    fonts.changed_sizes.clear()
-    var shelf = world.as_entity()
-    shelf.remove_component(Ui.Component.AtlasChanged)
-}
-
-func publish(fonts: Ui.Component.Fonts, size: Integer) {
-    var id = fonts.atlas_id(size)
-    crash fonts.atlases[size]
-    var atlas = fonts.atlases[size]
-    crash fonts.atlas_texels[size]
-    var texels = fonts.atlas_texels[size]
-    textures.publish(id, atlas, texels)
+func render_each(changed: Changed) {
+    var atlas = changed.atlas
+    var id = fonts.atlas_id(atlas)
+    textures.publish(id, atlas.texture, atlas.texels)
+    atlas.published = atlas.generation
+    changed.entity.remove_component(Ui.Component.AtlasChanged)
 }
