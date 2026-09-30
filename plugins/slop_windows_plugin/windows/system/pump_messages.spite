@@ -11,6 +11,7 @@ var raw = Raw()
 var owner = Windows.Owner()
 
 var world = World()
+
 func input_all(windows: List<OpenedWindow>) {
     assert owner.shared != 0
     var messages = owner.take_events()
@@ -19,11 +20,7 @@ func input_all(windows: List<OpenedWindow>) {
         deliver(windows, messages, message * 4)
         message = message + 1
     }
-    var index = 0
-    while index < windows.count() {
-        notice_closed(windows[index])
-        index = index + 1
-    }
+    windows.each(notice_closed)
 }
 
 func deliver(windows: List<OpenedWindow>, messages: List<Long>, at: Integer) {

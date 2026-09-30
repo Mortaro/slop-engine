@@ -18,6 +18,7 @@ type Quitting {
 var console = Console()
 
 var world = World()
+
 func last_all(fields: List<FieldView>, tested: List<Tested>, quitting: List<Quitting>) {
     assert fields.count() == 2 and tested.count() == 1 and quitting.count() == 1
     assert tested[0].progress.done

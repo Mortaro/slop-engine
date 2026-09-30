@@ -21,7 +21,8 @@ type Quitting {
 var console = Console()
 
 var world = World()
-func last_each(counted: Counted, shown: Shown, tested: Tested, quitting: Quitting) {
+
+func last_each(counted: Counted, shown: Shown, tested: Tested, _quitting: Quitting) {
     var progress = tested.progress
     assert progress.done
     var clicks = counted.click_count.clicks

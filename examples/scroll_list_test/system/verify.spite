@@ -22,6 +22,7 @@ type Quitting {
 var console = Console()
 
 var world = World()
+
 func last_all(panels: List<Panel>, rows: List<RowView>, tested: List<Tested>, quitting: List<Quitting>) {
     assert panels.count() == 1 and tested.count() == 1 and quitting.count() == 1
     var panel = panels[0]

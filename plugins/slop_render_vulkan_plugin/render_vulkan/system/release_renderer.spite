@@ -6,6 +6,6 @@ type Released {
     renderer: Component.Renderer
 }
 
-func last_each(quitting: Quitting, released: Released) {
+func last_each(_quitting: Quitting, released: Released) {
     released.renderer.release_device()
 }

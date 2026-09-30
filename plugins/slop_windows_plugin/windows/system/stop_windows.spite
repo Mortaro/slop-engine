@@ -4,6 +4,6 @@ type Quitting {
 
 var owner = Windows.Owner()
 
-func last_each(quitting: Quitting) {
+func last_each(_quitting: Quitting) {
     owner.stop()
 }

@@ -12,7 +12,8 @@ var drags = Lookup<Ui.Component.Dragging>()
 var overs = Lookup<Ui.Component.DragOver>()
 
 var world = World()
-func last_each(tested: Tested, quitting: Quitting) {
+
+func last_each(tested: Tested, _quitting: Quitting) {
     var progress = tested.progress
     assert progress.step == 17
     var dropped_right = progress.dropped_source == progress.source

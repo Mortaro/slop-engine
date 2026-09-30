@@ -10,7 +10,6 @@ var heap = Memory.Heap()
 var raw = Raw()
 
 func present_each(target: Target) {
-    var window = target.window
     var canvas = target.canvas
     var handle = target.handle.value
     assert handle != 0

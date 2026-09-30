@@ -123,11 +123,10 @@ func interact(pressable: Pressable, pointer: Pointer, on_bar: Boolean) {
     } else if pressed_before and not pressed {
         owner.remove_component(Ui.Component.Pressed)
     }
-    interact_other_buttons(pressable, pointer, hovered)
+    interact_other_buttons(pressable, hovered)
 }
 
-func interact_other_buttons(pressable: Pressable, pointer: Pointer, hovered: Boolean) {
-    var mouse = pointer.mouse
+func interact_other_buttons(pressable: Pressable, hovered: Boolean) {
     var owner = pressable.entity
     var entity = owner.id
     var right_before = Lookup<Ui.Component.RightPressed>().has(entity)
