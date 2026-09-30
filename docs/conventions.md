@@ -21,6 +21,9 @@ An engine plugin lives in `plugins/slop_<feature>_plugin/<feature>/`, so loading
 
 - Spite's rules apply: `snake_case` names, `PascalCase` classes, no abbreviations, no single letters.
 - A row type is named after what it describes: `HoveredButton`, `ClickedCounter`, `PendingWindow`.
+- A component that exists in more than one dimension carries the dimension in its name, matching the library's
+  `Vector2`/`Vector3`: `Position2D` and `Position3D`, not two `Position` classes told apart by namespace. A
+  component with only one dimension keeps its plain name until a second one arrives.
 - A system is named after what it does: `CountClicks`, `OpenWindow`, `DrawUi`.
 - A system's function is named after its phase: `update_each`, `render_all`, `after_input_each`.
 - **No other function may end in `_each` or `_all`**: the runner finds phase functions by that suffix, so a helper
