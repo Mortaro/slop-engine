@@ -2,7 +2,6 @@ var report_console = Console()
 var ids = List<String>()
 var known_slots = Dictionary<Integer>()
 var meshes = List<Scene.LoadedMesh>()
-var ready = List<Boolean>()
 var generations = List<Integer>()
 var loads = List<Parallel<Scene.LoadedMesh>>()
 var load_slots = List<Integer>()
@@ -26,7 +25,6 @@ func start_loading(id: String): Integer {
     ids.append(id)
     var empty_mesh = Scene.LoadedMesh()
     meshes.append(empty_mesh)
-    ready.append(false)
     generations.append(0)
     loaded_revisions.append(0)
     unstarted.append(slot)
@@ -61,8 +59,8 @@ func start_slot(reader: Recipes.CacheReader, slot: Integer) {
 }
 
 func is_ready(slot: Integer): Boolean {
-    crash slot < ready.count()
-    return ready[slot]
+    crash generations[slot]
+    return generations[slot] > 0
 }
 
 func mesh_at(slot: Integer): Scene.LoadedMesh {
@@ -93,7 +91,6 @@ func finish_if_done(index: Integer) {
     var loaded = loading.finished_value()
     assert loaded
     meshes.set_at(slot, loaded)
-    ready.set_at(slot, true)
     crash generations[slot]
     generations.set_at(slot, generations[slot] + 1)
     loads.remove_at(index)

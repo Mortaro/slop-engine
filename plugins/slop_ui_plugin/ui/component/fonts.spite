@@ -10,7 +10,7 @@ var line_heights = List<Integer>()
 var atlases = List<Asset.Texture>()
 var atlas_texels = List<Asset.Bytes>()
 var raw = Raw()
-var atlas_changed = List<Boolean>()
+var changed_sizes = List<Integer>()
 var shelf_lefts = List<Integer>()
 var shelf_tops = List<Integer>()
 var shelf_heights = List<Integer>()
@@ -68,7 +68,6 @@ func size_slot(font: String, face_index: Integer, pixels: Integer): Integer {
     atlases.append(atlas)
     atlas_texels.append(texels)
     atlas_sides.append(first_atlas_side)
-    atlas_changed.append(false)
     shelf_lefts.append(1)
     shelf_tops.append(1)
     shelf_heights.append(0)
@@ -225,12 +224,7 @@ func add_glyph(size: Integer, codepoint: Integer) {
     crash glyph_tables[size]
     var table = glyph_tables[size]
     table.set(codepoint, place)
-    if not atlas_changed.contains(true) {
-        var marker = Ui.Component.AtlasChanged()
-        var shelf = world.as_entity()
-        shelf.add_component(marker)
-    }
-    atlas_changed.set_at(size, true)
+    note_changed(size)
 }
 
 func pack(size: Integer, width: Integer, height: Integer): Integer {
@@ -317,12 +311,7 @@ func grow(size: Integer) {
     atlases.set_at(size, atlas)
     atlas_texels.set_at(size, texels)
     atlas_sides.set_at(size, side)
-    if not atlas_changed.contains(true) {
-        var marker = Ui.Component.AtlasChanged()
-        var shelf = world.as_entity()
-        shelf.add_component(marker)
-    }
-    atlas_changed.set_at(size, true)
+    note_changed(size)
 }
 
 func copy_row(
@@ -411,5 +400,15 @@ func codepoints(text: String, codes: List<Integer>) {
 }
 
 func settled(): Boolean {
-    return waiting_faces.count() == 0 and pending_codes.count() == 0 and not atlas_changed.contains(true)
+    return waiting_faces.count() == 0 and pending_codes.count() == 0 and changed_sizes.count() == 0
+}
+
+func note_changed(size: Integer) {
+    assert not changed_sizes.contains(size)
+    if changed_sizes.count() == 0 {
+        var marker = Ui.Component.AtlasChanged()
+        var shelf = world.as_entity()
+        shelf.add_component(marker)
+    }
+    changed_sizes.append(size)
 }

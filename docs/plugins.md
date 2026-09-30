@@ -128,14 +128,15 @@ See [ui.md](ui.md).
 | | |
 |---|---|
 | `Render.Component.DrawList` | on a draw target: this frame's rectangles, solid or textured, in raw memory |
-| `Render.Component.Textures` | on a draw target: asset id to slot, and background loading |
+| `Render.Component.Textures` | on a draw target: asset id to slot, each slot's texture entity, and the background loads in flight |
+| `Render.Component.Texture` | on a texture's own entity: its `id`, `slot`, decoded `image`, `raw` texels for the GPU, `generation` (bumped on every load) and the catalog revision it was loaded at |
+| `Render.Component.TextureReady` | marker on a texture's entity: its texels are loaded |
 | `Render.Component.ClearColor` | on a draw target: the clear colour |
 | `Render.Font` | the built-in 5x7 font (a plain class) |
 | `Render.System.AdoptWindows` (`after_input`) | makes each new window a draw target |
 | `Render.System.BeginFrame` (`prepare`) | starts each window's draw list at the window's size |
 | `Render.System.DrawUi` (`render`) | paints every laid-out element in tree order: background colour, image, text, then its scrollbars |
-| `Render.System.FinishTextureLoads` (`last`) | takes finished loading jobs' textures |
-| `Render.System.WatchTextures` (`after_input`) | checks, off the frame thread, whether a loaded texture's cooked bytes changed, and reloads it (see [hot reload](assets-and-recipes.md#hot-reload-change-a-source-see-it-in-the-game)) |
+| `Render.System.FinishTextureLoads` (`last`) | takes finished loading jobs' textures, and reloads every texture whose cooked record changed in `Recipes.Catalog` (see [hot reload](assets-and-recipes.md#hot-reload-change-a-source-see-it-in-the-game)) |
 
 A draw target is any entity with the three components; `render_parity` makes an offscreen one with no window.
 

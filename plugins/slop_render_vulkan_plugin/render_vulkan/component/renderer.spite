@@ -519,7 +519,7 @@ func ensure_slots(count: Integer) {
 }
 
 func stream_textures(textures: Render.Component.Textures) {
-    var count = textures.textures.count()
+    var count = textures.count()
     ensure_slots(count + 1)
     ensure_staging()
     frame_staged = 0
@@ -538,7 +538,7 @@ func uploads_pending(textures: Render.Component.Textures): Boolean {
     if stream_index >= 0 {
         return true
     }
-    var count = textures.textures.count()
+    var count = textures.count()
     ensure_slots(count + 1)
     var slot = 0
     while slot < count {
@@ -569,13 +569,16 @@ func try_start(textures: Render.Component.Textures, count: Integer) {
     var slot = stream_cursor % count
     stream_cursor = slot + 1
     assert outdated(textures, slot)
-    var texture = textures.texture(slot)
-    var pixels = textures.raw(slot)
+    var owner = textures.entity_of(slot)
+    var record = Lookup<Render.Component.Texture>().of(owner)
+    crash record
+    var texture = record.image
+    var pixels = record.raw
     var pixels_match_the_size = pixels.length == texture.width * texture.height * 4
     crash pixels_match_the_size
     stream_index = slot + 1
     stream_slot = slot
-    stream_generation = textures.generation(slot)
+    stream_generation = record.generation
     stream_width = texture.width
     stream_height = texture.height
     stream_mips = mip_count_of(texture.width, texture.height)

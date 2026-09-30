@@ -1,190 +1,105 @@
 var report_console = Console()
-var ids = List<String>()
+var world = World()
 var known_slots = Dictionary<Integer>()
-var textures = List<Asset.Texture>()
-var raws = List<Asset.Bytes>()
-var ready = List<Boolean>()
-var generations = List<Integer>()
-var seen_changes = 0
+var entities = List<Integer>()
 var loads = List<Parallel<Render.LoadedTexture>>()
 var load_slots = List<Integer>()
-var sources = Recipes.Sources()
-var reader: Recipes.CacheReader? = null
+var load_revisions = List<Integer>()
 var catalog = Recipes.Catalog()
-var unstarted = List<Integer>()
-var loaded_fingerprints = List<String>()
-var watcher: Recipes.Watcher? = null
-var check_thread: Parallel<Render.ChangedTextures>? = null
-var build = Build()
-var published_fingerprint = "published"
+var unstarted = List<String>()
+var seen_revision = 0
 
 func request(id: String): Integer {
     var found = known_slots.get(id)
     if found {
         return found
     }
-    var slot = start_loading(id)
+    var slot = entities.count()
     known_slots.set(id, slot)
+    var created = Render.Component.Texture()
+    created.id = id
+    created.slot = slot
+    var owner = world.create_entity()
+    owner.add_component(created)
+    entities.append(owner.id)
+    unstarted.append(id)
+    start_waiting_loads()
     return slot
 }
 
-func start_loading(id: String): Integer {
-    var slot = textures.count()
-    ids.append(id)
-    var empty_texture = Asset.Texture()
-    textures.append(empty_texture)
-    var empty_raw = Asset.Bytes()
-    raws.append(empty_raw)
-    ready.append(false)
-    generations.append(0)
-    loaded_fingerprints.append("")
-    unstarted.append(slot)
-    start_waiting_loads()
-    subscribe()
-    return slot
+func count(): Integer {
+    return entities.count()
+}
+
+func slot_of(id: String): Integer {
+    var found = known_slots.get(id)
+    if found {
+        return found
+    }
+    return -1
+}
+
+func entity_of(slot: Integer): Integer {
+    crash entities[slot]
+    return entities[slot]
 }
 
 func start_waiting_loads() {
     assert unstarted.count() > 0 and catalog.ready()
+    var reader = catalog.current()
     var index = 0
     while index < unstarted.count() {
-        var slot = unstarted[index]
-        crash ids[slot]
-        load_slot(ids[slot], slot)
+        start_load(reader, unstarted[index])
         index = index + 1
     }
     unstarted.clear()
 }
 
-func opened_reader(): Recipes.CacheReader {
-    if reader {
-        return reader
-    }
-    return catalog.current()
-}
-
-func subscribe() {
-    assert not watcher and ids.count() > 0
-    var folders = List<String>()
-    var cache_folder = sources.cache_folder()
-    folders.append(cache_folder)
-    folders.append(build.program)
-    var started = Recipes.Watcher()
-    started.start(folders)
-    watcher = started
-}
-
-func check_for_changes() {
-    if check_thread {
-        finish_check()
-        return
-    }
-    assert watcher
-    assert watcher.take_change()
-    start_check()
-}
-
-func start_check() {
-    var loaded = List<String>()
-    var fingerprints = List<String>()
-    var index = 0
-    while index < ids.count() {
-        crash loaded_fingerprints[index]
-        if loaded_fingerprints[index] != published_fingerprint {
-            loaded.append(ids[index])
-            fingerprints.append(loaded_fingerprints[index])
-        }
-        index = index + 1
-    }
-    var cache_folder = sources.cache_folder()
-    var index_path = sources.index_path()
-    var task = Render.ChangeCheck(cache_folder, index_path, loaded, fingerprints)
-    var started = Parallel(task.run)
-    check_thread = started
-}
-
-func finish_check() {
-    var thread = check_thread
-    crash thread
-    var found = thread.finished_value()
-    assert found
-    check_thread = null
-    reader = found.reader
-    var index = 0
-    while index < found.slots.count() {
-        crash found.records[index]
-        reload_slot(found.slots[index], found.records[index])
-        index = index + 1
-    }
-}
-
-func reload_slot(slot: Integer, record: Recipes.Record) {
-    crash ids[slot]
-    var fingerprint = opened_reader().fingerprint_of(ids[slot])
-    loaded_fingerprints.set_at(slot, fingerprint)
-    load_record(record, slot)
-}
-
-func publish(id: String, image: Asset.Texture, raw_texels: Asset.Bytes): Integer {
-    var slot = slot_of(id)
-    if slot < 0 {
-        slot = textures.count()
-        ids.append(id)
-        known_slots.set(id, slot)
-        var placeholder = Asset.Texture()
-        textures.append(placeholder)
-        var empty_raw = Asset.Bytes()
-        raws.append(empty_raw)
-        ready.append(false)
-        generations.append(0)
-        loaded_fingerprints.append(published_fingerprint)
-    }
-    textures.set_at(slot, image)
-    raws.set_at(slot, raw_texels)
-    ready.set_at(slot, true)
-    crash generations[slot]
-    var before = generations[slot]
-    generations.set_at(slot, before + 1)
-    return slot
-}
-
-func slot_of(id: String): Integer {
-    var index = 0
-    while index < ids.count() {
-        if ids[index] == id {
-            return index
-        }
-        index = index + 1
-    }
-    return -1
-}
-
-func generation(slot: Integer): Integer {
-    crash generations[slot]
-    return generations[slot]
-}
-
-func load_slot(id: String, slot: Integer) {
-    var opened = opened_reader()
-    var record = opened.locate(id)
+func start_load(reader: Recipes.CacheReader, id: String) {
+    var slot = known_slots.get(id)
+    crash slot
+    var record = reader.locate(id)
     if not record {
         report_console.print("asset never cooked:", id)
     }
     crash record
-    var fingerprint = opened.fingerprint_of(id)
-    loaded_fingerprints.set_at(slot, fingerprint)
-    load_record(record, slot)
-}
-
-func load_record(record: Recipes.Record, slot: Integer) {
     var job = Render.TextureLoad(record)
     var loading = Parallel(job.run)
     loads.append(loading)
     load_slots.append(slot)
+    load_revisions.append(catalog.revision)
+}
+
+func publish(id: String, image: Asset.Texture, raw_texels: Asset.Bytes): Integer {
+    var found = known_slots.get(id)
+    if found {
+        var owner = entity_of(found)
+        var record = Lookup<Render.Component.Texture>().of(owner)
+        crash record
+        record.image = image
+        record.raw = raw_texels
+        record.generation = record.generation + 1
+        return found
+    }
+    var slot = entities.count()
+    known_slots.set(id, slot)
+    var created = Render.Component.Texture()
+    created.id = id
+    created.slot = slot
+    created.image = image
+    created.raw = raw_texels
+    created.generation = 1
+    var entity = world.create_entity()
+    entity.add_component(created)
+    var ready = Render.Component.TextureReady()
+    entity.add_component(ready)
+    entities.append(entity.id)
+    return slot
 }
 
 func finish_loads() {
     start_waiting_loads()
+    reload_changed()
     var index = loads.count() - 1
     while index >= 0 {
         finish_if_done(index)
@@ -195,33 +110,79 @@ func finish_loads() {
 func finish_if_done(index: Integer) {
     crash loads[index]
     crash load_slots[index]
-    var slot = load_slots[index]
-    var loading = loads[index]
-    var loaded = loading.finished_value()
+    crash load_revisions[index]
+    var loaded = loads[index].finished_value()
     assert loaded
-    textures.set_at(slot, loaded.texture)
-    raws.set_at(slot, loaded.raw)
-    ready.set_at(slot, true)
-    crash generations[slot]
-    generations.set_at(slot, generations[slot] + 1)
+    var owner = entity_of(load_slots[index])
+    var record = Lookup<Render.Component.Texture>().of(owner)
+    assert record
+    record.image = loaded.texture
+    record.raw = loaded.raw
+    record.generation = record.generation + 1
+    record.loaded_revision = load_revisions[index]
+    if not Lookup<Render.Component.TextureReady>().has(owner) {
+        var ready = Render.Component.TextureReady()
+        Entity(owner).add_component(ready)
+    }
     loads.remove_at(index)
     load_slots.remove_at(index)
+    load_revisions.remove_at(index)
+}
+
+func reload_changed() {
+    assert catalog.revision != seen_revision
+    var reader = catalog.current()
+    var deferred = false
+    var slot = 0
+    while slot < entities.count() {
+        deferred = reload_if_changed(reader, slot) or deferred
+        slot = slot + 1
+    }
+    if not deferred {
+        seen_revision = catalog.revision
+    }
+}
+
+func reload_if_changed(reader: Recipes.CacheReader, slot: Integer): Boolean {
+    var owner = entity_of(slot)
+    var record = Lookup<Render.Component.Texture>().of(owner)
+    if not record {
+        return true
+    }
+    var changed = catalog.revision_of(record.id) > record.loaded_revision
+    if not changed {
+        return false
+    }
+    if load_slots.contains(slot) {
+        return true
+    }
+    start_load(reader, record.id)
+    return false
 }
 
 func is_ready(slot: Integer): Boolean {
-    return ready[slot] == true
+    var owner = entity_of(slot)
+    return Lookup<Render.Component.TextureReady>().has(owner)
 }
 
 func all_ready(): Boolean {
-    return not ready.contains(false)
+    var ready = Lookup<Render.Component.TextureReady>()
+    var slot = 0
+    while slot < entities.count() {
+        var owner = entity_of(slot)
+        if not ready.has(owner) {
+            return false
+        }
+        slot = slot + 1
+    }
+    return true
 }
 
-func texture(slot: Integer): Asset.Texture {
-    crash textures[slot]
-    return textures[slot]
-}
-
-func raw(slot: Integer): Asset.Bytes {
-    crash raws[slot]
-    return raws[slot]
+func generation(slot: Integer): Integer {
+    var owner = entity_of(slot)
+    var record = Lookup<Render.Component.Texture>().of(owner)
+    if record {
+        return record.generation
+    }
+    return 0
 }

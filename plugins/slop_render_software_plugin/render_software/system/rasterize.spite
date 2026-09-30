@@ -32,7 +32,10 @@ func fill(target: Target, index: Integer) {
     if texture < 0 {
         target.canvas.fill_rectangle(left, top, width, height, color)
     } else {
-        var image = target.textures.texture(texture)
+        var owner = target.textures.entity_of(texture)
+        var record = Lookup<Render.Component.Texture>().of(owner)
+        crash record
+        var image = record.image
         var source_left = draw_list.source_left_at(index)
         var source_top = draw_list.source_top_at(index)
         var source_width = draw_list.source_width_at(index)

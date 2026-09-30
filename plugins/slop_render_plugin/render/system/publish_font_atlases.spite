@@ -11,13 +11,12 @@ var world = World()
 
 func render_each(cache: Cache, target: Target) {
     var fonts = cache.fonts
-    var size = 0
-    while size < fonts.atlas_changed.count() {
-        if fonts.atlas_changed[size] {
-            publish(fonts, target.textures, size)
-        }
-        size = size + 1
+    var index = 0
+    while index < fonts.changed_sizes.count() {
+        publish(fonts, target.textures, fonts.changed_sizes[index])
+        index = index + 1
     }
+    fonts.changed_sizes.clear()
     var shelf = world.as_entity()
     shelf.remove_component(Ui.Component.AtlasChanged)
 }
@@ -29,5 +28,4 @@ func publish(fonts: Ui.Component.Fonts, textures: Component.Textures, size: Inte
     crash fonts.atlas_texels[size]
     var texels = fonts.atlas_texels[size]
     textures.publish(id, atlas, texels)
-    fonts.atlas_changed.set_at(size, false)
 }

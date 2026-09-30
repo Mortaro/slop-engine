@@ -132,20 +132,16 @@ reports a change once they have been quiet for 100 ms, so a burst of writes is o
 (`input`) then compares stamps and submits the stale recipes to the thread pool as a `Recipes.CookTask`; the frame
 thread only submits it and, once `finished`, drops the handle. The recipes append their new outputs to the cache binary and rewrite the program's index.
 
-**The engine watches the cooked binary it uses.** A `Render.Component.Textures` never touches the cook's in-memory
-cache: it keeps its own `Recipes.CacheReader` (a copy of the index), records the fingerprint each slot was loaded
-with, and subscribes a watcher to the cache's folders only once it has a texture loaded (with nothing loaded there
-is nothing to watch). When that watcher fires, `Render.System.WatchTextures` starts a `Render.ChangeCheck` on a
-worker: it reads the index fresh, compares the loaded slots' fingerprints, and returns the changed slots with their
-records; the frame thread swaps in the fresh reader and starts ordinary background loads. The Vulkan backend
-re-uploads a slot whose generation moved and retires the old image, view, memory and descriptor set once the frames
-using them have finished.
+**Textures follow the catalog.** A `Render.Component.Textures` records the catalog revision each texture was loaded
+at, on the texture's own entity. When `Recipes.Catalog` sees the cache change (below), `FinishTextureLoads` starts
+ordinary background loads for the textures whose record changed since. The Vulkan backend re-uploads a slot whose
+generation moved and retires the old image, view, memory and descriptor set once the frames using them have finished.
 
 `examples/hot_reload_test` cooks a texture from a one-line text file, rewrites it to red and then to blue while the
 app runs, and checks both the software canvas and Vulkan follow; the worst tick while re-cooking and reloading is
 2 ms.
 
-**Every store follows the catalog.** `Recipes.Catalog`, which meshes, skeletons, clips, blobs and terrain read
+**Every store follows the catalog.** `Recipes.Catalog`, which textures, meshes, skeletons, clips, blobs and terrain read
 through, watches the cache folder and the program's folder (where its index lives). `System.RefreshCatalog`
 (`input`) re-reads the index on a worker when they change, compares each id's fingerprint with the index it had,
 and bumps its `revision`, remembering the revision each changed id moved at (`revision_of(id)`). `Scene.Component.Meshes`
@@ -170,11 +166,12 @@ Known gaps:
 ## Background loading
 
 A game names an asset; the engine loads it without stalling a frame. `Render.Component.Textures.request(id)` answers a
-slot at once. The first request for an id looks up where its record sits in the cache binary
+slot at once, and gives the texture an entity of its own holding a `Render.Component.Texture`. The first request
+for an id looks up where its record sits in the cache binary
 (an in-memory index, no disk access) and starts a `Parallel` job on its own thread: the job reads the record,
 decodes it with `Pack`, and lays the pixels out as raw bytes for the GPU. The frame thread never waits for it:
 `FinishTextureLoads` asks each job's thread whether it has finished with a zero-timeout wait and only then takes the
 result. The Vulkan backend stages each new texture with one `memcpy` and records its copy into the frame's own
 command buffer, so no upload waits on its own fence. Until
-the slot is ready, `DrawUi` skips it; the Vulkan backend uploads each slot once it is ready;
+the texture's entity has `Render.Component.TextureReady`, `DrawUi` skips it; the Vulkan backend uploads each slot once it is ready;
 `FinishTextureLoads` forgets finished jobs.
