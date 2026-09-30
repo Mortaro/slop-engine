@@ -7,16 +7,12 @@ func build() {
     intrinsic_width()
 }
 
-func grid(entity: Integer, first: Ui.Length, second: Ui.Length, third: Ui.Length?) {
+func grid(entity: Integer, template: String) {
     var display = Ui.Component.Display()
     display.value = 'grid'
     world.entity_of(entity).add_component(display)
     var columns = Ui.Component.GridTemplateColumns()
-    columns.tracks.append(first)
-    columns.tracks.append(second)
-    if third {
-        columns.tracks.append(third)
-    }
+    columns.value = template
     world.entity_of(entity).add_component(columns)
 }
 
@@ -24,13 +20,7 @@ func fixed_and_fractions() {
     var root = tree.screen(400.0, 300.0)
     tree.align_items(root, "flex_start")
     var container = tree.sized(root, 300.0, -1.0)
-    var first = Ui.Length()
-    first.pixels(100.0)
-    var second = Ui.Length()
-    second.fraction(1.0)
-    var third = Ui.Length()
-    third.fraction(2.0)
-    grid(container, first, second, third)
+    grid(container, "100px 1fr 2fr")
     tree.gaps(container, 5.0, 10.0)
     var items = List<Integer>()
     var index = 0
@@ -54,8 +44,7 @@ func fixed_and_fractions() {
 
 func automatic_grid(parent: Integer, width: Float): List<Integer> {
     var container = tree.sized(parent, width, -1.0)
-    var automatic = Ui.Length()
-    grid(container, automatic, automatic, null)
+    grid(container, "auto auto")
     var items = List<Integer>()
     items.append(container)
     var widths = [50.0, 30.0, 70.0, 10.0]

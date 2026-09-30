@@ -55,3 +55,43 @@ func automatic() {
 func is_auto(): Boolean {
     return unit == 'automatic'
 }
+
+func read(text: String) {
+    automatic()
+    assert text != "auto"
+    var units = ["px", "%", "rem", "em", "vw", "vh", "fr"]
+    var index = 0
+    while index < units.count() {
+        var suffix = units[index]
+        if text.ends_with(suffix) {
+            read_amount(text, suffix)
+            return
+        }
+        index = index + 1
+    }
+    read_amount(text, "")
+}
+
+func read_amount(text: String, suffix: String) {
+    var text_length = text.length()
+    var suffix_length = suffix.length()
+    var digits = text.slice(0, text_length - suffix_length)
+    var number = digits.to_float()
+    crash number
+    amount = number
+    if suffix == "px" or suffix == "" {
+        unit = 'pixels'
+    } else if suffix == "%" {
+        unit = 'percent'
+    } else if suffix == "rem" {
+        unit = 'root_em'
+    } else if suffix == "em" {
+        unit = 'em'
+    } else if suffix == "vw" {
+        unit = 'viewport_width'
+    } else if suffix == "vh" {
+        unit = 'viewport_height'
+    } else {
+        unit = 'fraction'
+    }
+}

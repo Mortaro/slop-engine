@@ -51,7 +51,7 @@ without touching the others.
 | Component | Values | Initial (absent) |
 |---|---|---|
 | `Display` | `'block'`, `'flex'`, `'grid'`, `'none'` | `'block'` |
-| `GridTemplateColumns`, `GridTemplateRows` | `tracks`: a list of lengths (pixels, percent, `automatic`, `fraction`) | one automatic column, implicit rows |
+| `GridTemplateColumns`, `GridTemplateRows` | `value`: the tracks as CSS writes them, `"100px 1fr 2fr"` (`px`, `%`, `em`, `rem`, `vw`, `vh`, `fr` or `auto`, separated by spaces; a proposal by Claude, since a component holds no list) | one automatic column, implicit rows |
 | `FlexDirection` | `'row'`, `'row_reverse'`, `'column'`, `'column_reverse'` | `'row'` |
 | `FlexWrap` | `'no_wrap'`, `'wrap'`, `'wrap_reverse'` | `'no_wrap'` |
 | `JustifyContent` | `'flex_start'`, `'flex_end'`, `'center'`, `'space_between'`, `'space_around'`, `'space_evenly'` | `'flex_start'` |
@@ -124,7 +124,7 @@ spite flex_layout --debug-memory
 
 ## Grid
 
-Godot's GridContainer, done as CSS Grid: `Display 'grid'` and a `GridTemplateColumns` list of tracks. Children are
+Godot's GridContainer, done as CSS Grid: `Display 'grid'` and a `GridTemplateColumns` holding its tracks as CSS text. Children are
 placed row by row, one per cell, in `Order` then tree order; there are as many columns as tracks and as many rows as
 needed (`GridTemplateRows` sizes the first ones, the rest are automatic). `ColumnGap` and `RowGap` separate them.
 

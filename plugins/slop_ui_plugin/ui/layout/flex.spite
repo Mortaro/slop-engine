@@ -2065,8 +2065,9 @@ func read_item(entity: Integer, box: Ui.Layout.Box) {
 func column_tracks(entity: Integer): List<Ui.Length> {
     var template = Lookup<Ui.Component.GridTemplateColumns>().of(entity)
     if template {
-        if template.tracks.count() > 0 {
-            return template.tracks
+        var tracks = tracks_of(template.value)
+        if tracks.count() > 0 {
+            return tracks
         }
     }
     var single = List<Ui.Length>()
@@ -2078,9 +2079,25 @@ func column_tracks(entity: Integer): List<Ui.Length> {
 func row_tracks(entity: Integer): List<Ui.Length> {
     var template = Lookup<Ui.Component.GridTemplateRows>().of(entity)
     if template {
-        return template.tracks
+        return tracks_of(template.value)
     }
     return List<Ui.Length>()
+}
+
+func tracks_of(template: String): List<Ui.Length> {
+    var tracks = List<Ui.Length>()
+    var words = template.split(" ")
+    var index = 0
+    while index < words.count() {
+        var word = words[index].trim()
+        if word != "" {
+            var track = Ui.Length()
+            track.read(word)
+            tracks.append(track)
+        }
+        index = index + 1
+    }
+    return tracks
 }
 
 func track_at(tracks: List<Ui.Length>, index: Integer): Ui.Length {
