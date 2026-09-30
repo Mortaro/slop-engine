@@ -1046,12 +1046,7 @@ func vertex_input_state(): RenderVulkan.Structure {
     return state
 }
 
-func append_attribute(
-    attributes: RenderVulkan.Structure,
-    location: Integer,
-    format: Integer,
-    offset: Integer,
-) {
+func append_attribute(attributes: RenderVulkan.Structure, location: Integer, format: Integer, offset: Integer) {
     attributes.append_integer(location)
     attributes.append_integer(0)
     attributes.append_integer(format)
@@ -1719,12 +1714,7 @@ func whole_buffer(buffer: Long): RenderVulkan.Structure {
     return information
 }
 
-func append_write(
-    writes: RenderVulkan.Structure,
-    set: Long,
-    binding: Integer,
-    information: RenderVulkan.Structure,
-) {
+func append_write(writes: RenderVulkan.Structure, set: Long, binding: Integer, information: RenderVulkan.Structure) {
     writes.append_integer(35)
     writes.append_long(0)
     writes.append_long(set)
