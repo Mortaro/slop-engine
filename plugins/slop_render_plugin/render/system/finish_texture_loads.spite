@@ -1,7 +1,5 @@
-type Loading {
-    textures: Component.Textures
-}
+var textures = Render.Textures()
 
-func last_each(loading: Loading) {
-    loading.textures.finish_loads()
+func last_each() {
+    textures.finish_loads()
 }

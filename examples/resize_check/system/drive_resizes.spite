@@ -17,7 +17,7 @@ var presented_at = 0
 
 var world = World()
 
-func last_each(watched: Watched, _quitting: Quitting) {
+func last_each(watched: Watched, quitting: Quitting) {
     var window = watched.window
     var swapchain = watched.swapchain
     var handle = watched.handle.value

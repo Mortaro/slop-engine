@@ -17,7 +17,7 @@ var capture = Capture()
 var world = World()
 var captured_frames = Lookup<RenderVulkan.Component.Captured>()
 
-func last_each(checked: Checked, _quitting: Quitting) {
+func last_each(checked: Checked, quitting: Quitting) {
     assert checked.view.terrain_draws.count() > 0
     var renderer = checked.renderer
     rendered_frames = rendered_frames + 1

@@ -17,7 +17,7 @@ var double_clicks = Lookup<Component.SawDoubleClick>()
 
 var world = World()
 
-func last_each(tested: Tested, _quitting: Quitting) {
+func last_each(tested: Tested, quitting: Quitting) {
     var progress = tested.progress
     assert progress.step == 17
     var dropped_right = progress.dropped_source == progress.source

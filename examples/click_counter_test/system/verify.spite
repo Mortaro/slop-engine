@@ -27,7 +27,7 @@ var saw_doubles = Lookup<Component.SawDouble>()
 
 var world = World()
 
-func last_each(counted: Counted, shown: Shown, tested: Tested, _quitting: Quitting) {
+func last_each(counted: Counted, shown: Shown, tested: Tested, quitting: Quitting) {
     var progress = tested.progress
     var tester = tested.entity.id
     var saw_right = saw_rights.has(tester)
