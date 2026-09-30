@@ -48,7 +48,8 @@ func RenderParity() {
     crash draw_list
     crash canvas
     var renderer = RenderVulkan.Component.Renderer()
-    renderer.ensure()
+    var device = RenderVulkan.Component.Device()
+    renderer.ensure(device)
     renderer.draw_offscreen(draw_list, textures)
     compare(draw_list, canvas, renderer)
     check_clipping(panel.id, canvas, draw_list.clear_color)

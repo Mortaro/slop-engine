@@ -21,14 +21,14 @@ var scalar = Math.Scalar()
 var eye = Math.Vector3()
 var ints = TypedMemory<Integer>()
 
-func assign(view: Scene.Component.View, lights: Scene.Component.Lights, aspect: Float) {
-    prepare(view, aspect)
+func assign(camera: Scene.Component.ViewCamera, lights: Scene.Component.Lights, aspect: Float) {
+    prepare(camera, aspect)
     var light_count = lights.count()
     var floats = lights.floats
     var stride = lights.light_floats
     var index = 0
     while index < light_count {
-        place_light(view, floats, index * stride)
+        place_light(camera, floats, index * stride)
         index = index + 1
     }
     index_count = 0
@@ -80,14 +80,14 @@ func write(ranges_at: Memory.Address, indices_at: Memory.Address) {
     }
 }
 
-func prepare(view: Scene.Component.View, aspect: Float) {
-    far = view.far
+func prepare(camera: Scene.Component.ViewCamera, aspect: Float) {
+    far = camera.far
     if far < near * 2.0 {
         far = near * 2.0
     }
     var slice_count: Float = slices
     slice_scale = slice_count / scalar.logarithm_two(far / near)
-    var tangent = scalar.tangent(view.field_of_view * 0.5)
+    var tangent = scalar.tangent(camera.field_of_view * 0.5)
     down_scale = 1.0 / tangent
     across_scale = 1.0 / (tangent * aspect)
     down_tangent = tangent
@@ -127,13 +127,13 @@ func slice_of(depth: Float): Integer {
     return position
 }
 
-func place_light(view: Scene.Component.View, floats: List<Float>, at: Integer) {
+func place_light(camera: Scene.Component.ViewCamera, floats: List<Float>, at: Integer) {
     crash floats[at + 3]
     var range = floats[at + 3]
     crash floats[at + 1]
     crash floats[at + 2]
     crash floats[at]
-    view.view.transform_point(eye, floats[at], floats[at + 1], floats[at + 2])
+    camera.view.transform_point(eye, floats[at], floats[at + 1], floats[at + 2])
     var depth = 0.0 - eye.z_value
     assert depth + range > 0.0 and depth - range < far
     var side = depth * across_tangent

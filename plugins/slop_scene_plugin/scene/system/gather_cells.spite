@@ -1,5 +1,6 @@
 type Target {
     view: Component.View
+    camera: Component.ViewCamera
     meshes: Component.Meshes
     textures: Render.Component.Textures
     terrain_materials: Component.TerrainMaterials
@@ -11,7 +12,6 @@ type Cell {
 }
 
 func render_each(target: Target, placed: Cell) {
-    assert target.view.has_camera
     add_cell(target, placed)
 }
 

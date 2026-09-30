@@ -8,13 +8,18 @@ type Target {
 
 var requests = Lookup<Component.CaptureRequested>()
 var captures = Lookup<Component.Captured>()
+var stale_swapchains = Lookup<Component.SwapchainOutOfDate>()
 
 func present_each(target: Target) {
     var renderer = target.renderer
-    assert renderer.device != 0
+    assert renderer.device != 0 and target.swapchain.acquired >= 0
     var owner = target.entity
     var capture = requests.has(owner.id)
-    renderer.finish_window_frame(target.draw_list, target.swapchain, capture)
+    var stale = renderer.finish_window_frame(target.draw_list, target.swapchain, capture)
+    if stale and not stale_swapchains.has(owner.id) {
+        var marker = Component.SwapchainOutOfDate()
+        owner.add_component(marker)
+    }
     assert capture
     owner.remove_component(Component.CaptureRequested)
     if not captures.has(owner.id) {

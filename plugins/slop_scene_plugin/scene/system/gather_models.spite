@@ -1,5 +1,6 @@
 type Target {
     view: Component.View
+    camera: Component.ViewCamera
     meshes: Component.Meshes
     textures: Render.Component.Textures
     terrain_materials: Component.TerrainMaterials
@@ -14,7 +15,6 @@ type Modeled {
 var off_views = Lookup<Component.OffView>()
 
 func render_each(target: Target, modeled: Modeled) {
-    assert target.view.has_camera
     add_draw(target, modeled)
 }
 

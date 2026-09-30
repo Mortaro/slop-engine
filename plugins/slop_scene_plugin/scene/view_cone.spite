@@ -14,7 +14,7 @@ var placed = Math.Vector3()
 var posed = Math.Vector3()
 var spread: Float = 0.0
 
-func prepare(source: Scene.Component.View) {
+func prepare(source: Scene.Component.ViewCamera) {
     view.copy_from(source.view)
     near = source.near
     far = source.far

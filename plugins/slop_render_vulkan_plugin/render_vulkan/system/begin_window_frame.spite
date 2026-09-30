@@ -1,4 +1,5 @@
 type Target {
+    entity: Entity
     window: Window.Component.Window
     swapchain: Component.Swapchain
     renderer: Component.Renderer
@@ -6,8 +7,28 @@ type Target {
     textures: Render.Component.Textures
 }
 
+var stale_swapchains = Lookup<Component.SwapchainOutOfDate>()
+
 func render_each(target: Target) {
     var renderer = target.renderer
-    assert renderer.device != 0
-    renderer.begin_window_frame(target.draw_list, target.textures, target.swapchain, target.window)
+    var window = target.window
+    var swapchain = target.swapchain
+    assert renderer.device != 0 and renderer.pipeline_ready() and window.width > 0 and window.height > 0
+    var owner = target.entity
+    var stale = stale_swapchains.has(owner.id)
+    var resized = window.width != swapchain.width or window.height != swapchain.height
+    if stale or resized {
+        renderer.refresh_swapchain(window, swapchain)
+    }
+    var acquired = renderer.begin_window_frame(target.draw_list, target.textures, swapchain)
+    mark_stale(owner, stale, not acquired)
+}
+
+func mark_stale(owner: Entity, was: Boolean, now: Boolean) {
+    if now and not was {
+        var marker = Component.SwapchainOutOfDate()
+        owner.add_component(marker)
+    } else if was and not now {
+        owner.remove_component(Component.SwapchainOutOfDate)
+    }
 }

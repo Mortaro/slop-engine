@@ -26,14 +26,14 @@ var retired_at = List<Integer>()
 var textures_per_material = 7
 var parameter_bytes = 80
 
-func create(renderer: RenderVulkan.Component.Renderer, storage_layout: Long) {
+func create(renderer: RenderVulkan.Component.Renderer, chosen: RenderVulkan.Component.Device, storage_layout: Long) {
     assert not created
     created = true
     shader_terrain = renderer.create_shader("shader.scene.terrain")
     create_set_layout(renderer)
     create_pool(renderer)
-    repeat_sampler = create_sampler(renderer, 0)
-    clamp_sampler = create_sampler(renderer, 2)
+    repeat_sampler = create_sampler(renderer, chosen, 0)
+    clamp_sampler = create_sampler(renderer, chosen, 2)
     var no_allocator: Long = 0
     var set_layouts = RenderVulkan.Structure(16)
     set_layouts.append_long(set_layout)
@@ -106,7 +106,11 @@ func create_pool(renderer: RenderVulkan.Component.Renderer) {
     pool = made.read_long(0)
 }
 
-func create_sampler(renderer: RenderVulkan.Component.Renderer, address_mode: Integer): Long {
+func create_sampler(
+    renderer: RenderVulkan.Component.Renderer,
+    chosen: RenderVulkan.Component.Device,
+    address_mode: Integer,
+): Long {
     var no_allocator: Long = 0
     var creation = RenderVulkan.Structure(80)
     creation.append_integer(31)
@@ -119,12 +123,12 @@ func create_sampler(renderer: RenderVulkan.Component.Renderer, address_mode: Int
     creation.append_integer(address_mode)
     creation.append_integer(address_mode)
     var anisotropy = 0
-    if renderer.anisotropy_supported {
+    if chosen.maximum_anisotropy > 1.0 {
         anisotropy = 1
     }
     creation.append_float(0.0)
     creation.append_integer(anisotropy)
-    creation.append_float(16.0)
+    creation.append_float(chosen.maximum_anisotropy)
     creation.append_integer(0)
     creation.append_integer(0)
     creation.append_float(0.0)

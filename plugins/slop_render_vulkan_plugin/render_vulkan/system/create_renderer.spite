@@ -6,10 +6,12 @@ type OpenedWindow {
 }
 
 func present_each(created: OpenedWindow) {
+    var device = Component.Device()
     var renderer = Component.Renderer()
-    renderer.ensure()
+    renderer.ensure(device)
     var swapchain = Component.Swapchain()
     renderer.create_swapchain(created.window, created.handle.value, swapchain)
+    created.entity.add_component(device)
     created.entity.add_component(swapchain)
     created.entity.add_component(renderer)
 }

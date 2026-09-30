@@ -45,12 +45,9 @@ var pending_staging_memories = List<Long>()
 var pending_widths = List<Integer>()
 var pending_heights = List<Integer>()
 var pending_mips = List<Integer>()
-var anisotropy_supported = false
 var scene_sampler: Long = 0
 var surfaces = List<Long>()
 var swapchains = List<Long>()
-var device_name = ""
-var validation = false
 var parts = List<Part>()
 var raw = Raw()
 var shaders = Recipes.Blobs()
@@ -60,21 +57,21 @@ var console = Console()
 var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
 var kernel = DynamicLibrary("kernel32.dll", 'identity', "")
 
-func ensure() {
+func ensure(chosen: RenderVulkan.Component.Device) {
     assert instance == 0
-    create_instance()
-    choose_physical_device()
-    create_device()
+    var validated = create_instance()
+    choose_physical_device(chosen)
+    create_device(chosen)
     create_commands()
-    create_descriptors()
-    console.print("vulkan: {device_name}, validation {validation}")
+    create_descriptors(chosen)
+    console.print("vulkan: {chosen.name}, validation {validated}")
 }
 
 func vulkan_version(): Integer {
     return 4194304 + 3 * 4096
 }
 
-func create_instance() {
+func create_instance(): Boolean {
     var application = Structure(64)
     application.append_integer(0)
     application.append_long(0)
@@ -105,16 +102,17 @@ func create_instance() {
     var created = Structure(8)
     var no_allocator: Long = 0
     var result = vulkan.vkCreateInstance(creation.address, no_allocator, created.address)
-    validation = result == 0 and layer_count == 1
+    var validated = result == 0 and layer_count == 1
     if result == -6 {
         raw.write_integer(creation.address, 32, 0)
         result = vulkan.vkCreateInstance(creation.address, no_allocator, created.address)
     }
     crash result == 0
     instance = created.read_long(0)
+    return validated
 }
 
-func choose_physical_device() {
+func choose_physical_device(chosen: RenderVulkan.Component.Device) {
     var count = Structure(8)
     var no_devices: Long = 0
     vulkan.vkEnumeratePhysicalDevices(instance, count.address, no_devices)
@@ -137,7 +135,7 @@ func choose_physical_device() {
     var properties = Structure(1024)
     vulkan.vkGetPhysicalDeviceProperties(physical_device, properties.address)
     var name_address = properties.address + 20
-    device_name = raw.terminated_text(name_address)
+    chosen.name = raw.terminated_text(name_address)
 }
 
 func device_score(candidate: Long): Integer {
@@ -180,7 +178,7 @@ func graphics_family(candidate: Long): Integer {
     return found
 }
 
-func create_device() {
+func create_device(chosen: RenderVulkan.Component.Device) {
     queue_family = graphics_family(physical_device)
     var priorities = Structure(8)
     priorities.append_float(1.0)
@@ -212,7 +210,10 @@ func create_device() {
         feature_index = feature_index + 1
     }
     vulkan.vkGetPhysicalDeviceFeatures(physical_device, available.address)
-    anisotropy_supported = available.read_integer(76) == 1
+    var anisotropy_supported = available.read_integer(76) == 1
+    if anisotropy_supported {
+        chosen.maximum_anisotropy = 16.0
+    }
     var wanted = Structure(224)
     feature_index = 0
     while feature_index < 55 {
@@ -408,7 +409,7 @@ func create_pipeline() {
     stage_pixels(0, 1, 1, white, 0)
 }
 
-func create_descriptors() {
+func create_descriptors(chosen: RenderVulkan.Component.Device) {
     var no_allocator: Long = 0
     var binding = Structure(24)
     binding.append_integer(0)
@@ -445,10 +446,10 @@ func create_descriptors() {
     var pool_result = vulkan.vkCreateDescriptorPool(device, pool_creation.address, no_allocator, created.address)
     crash pool_result == 0
     descriptor_pool = created.read_long(0)
-    create_sampler()
+    create_sampler(chosen)
 }
 
-func create_sampler() {
+func create_sampler(chosen: RenderVulkan.Component.Device) {
     var no_allocator: Long = 0
     var creation = Structure(80)
     creation.append_integer(31)
@@ -473,13 +474,13 @@ func create_sampler() {
     var result = vulkan.vkCreateSampler(device, creation.address, no_allocator, created.address)
     crash result == 0
     sampler = created.read_long(0)
-    scene_sampler = create_scene_sampler()
+    scene_sampler = create_scene_sampler(chosen)
 }
 
-func create_scene_sampler(): Long {
+func create_scene_sampler(chosen: RenderVulkan.Component.Device): Long {
     var no_allocator: Long = 0
     var anisotropy = 0
-    if anisotropy_supported {
+    if chosen.maximum_anisotropy > 1.0 {
         anisotropy = 1
     }
     var creation = Structure(80)
@@ -494,7 +495,7 @@ func create_scene_sampler(): Long {
     creation.append_integer(0)
     creation.append_float(0.0)
     creation.append_integer(anisotropy)
-    creation.append_float(16.0)
+    creation.append_float(chosen.maximum_anisotropy)
     creation.append_integer(0)
     creation.append_integer(0)
     creation.append_float(0.0)
@@ -1720,8 +1721,6 @@ func read_swapchain_images(swapchain: RenderVulkan.Component.Swapchain) {
 }
 
 func refresh_swapchain(window: Window.Component.Window, swapchain: RenderVulkan.Component.Swapchain) {
-    var resized = window.width != swapchain.width or window.height != swapchain.height
-    assert swapchain.out_of_date or resized
     vulkan.vkDeviceWaitIdle(device)
     var old = swapchain.handle
     build_swapchain(swapchain, window.width, window.height, old)
@@ -1734,7 +1733,6 @@ func refresh_swapchain(window: Window.Component.Window, swapchain: RenderVulkan.
         }
         place = place - 1
     }
-    swapchain.out_of_date = false
 }
 
 func signal_skipped_frame() {
@@ -1747,10 +1745,7 @@ func begin_window_frame(
     draw_list: Render.Component.DrawList,
     textures: Render.Component.Textures,
     swapchain: RenderVulkan.Component.Swapchain,
-    window: Window.Component.Window,
-) {
-    assert pipeline_ready() and window.width > 0 and window.height > 0
-    refresh_swapchain(window, swapchain)
+): Boolean {
     begin_frame()
     var chosen = Structure(8)
     var forever: Long = -1
@@ -1764,9 +1759,8 @@ func begin_window_frame(
         chosen.address,
     )
     if acquired == -1000001004 {
-        swapchain.out_of_date = true
         signal_skipped_frame()
-        return
+        return false
     }
     crash acquired == 0 or acquired == 1000001003
     swapchain.acquired = chosen.read_integer(0)
@@ -1775,14 +1769,14 @@ func begin_window_frame(
     stream_textures(textures)
     ensure_target(draw_list.width, draw_list.height)
     frame.scene_drawn = false
+    return true
 }
 
 func finish_window_frame(
     draw_list: Render.Component.DrawList,
     swapchain: RenderVulkan.Component.Swapchain,
     capture: Boolean,
-) {
-    assert swapchain.acquired >= 0
+): Boolean {
     var image_index = swapchain.acquired
     swapchain.acquired = -1
     crash swapchain.images[image_index]
@@ -1813,13 +1807,12 @@ func finish_window_frame(
     presentation.append_pointer(indices)
     presentation.append_long(0)
     var presented = vulkan.vkQueuePresentKHR(queue, presentation.address)
-    if presented == -1000001004 or presented == 1000001003 {
-        swapchain.out_of_date = true
-    }
-    crash presented == 0 or presented == 1000001003 or presented == -1000001004
+    var stale = presented == -1000001004 or presented == 1000001003
+    crash presented == 0 or stale
     if capture {
         wait_frame()
     }
+    return stale
 }
 
 func record_blit(image: Long, swapchain: RenderVulkan.Component.Swapchain) {

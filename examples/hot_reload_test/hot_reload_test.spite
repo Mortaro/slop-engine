@@ -71,7 +71,8 @@ func vulkan_pixel(target: Integer): Integer {
     crash draw_list
     crash textures
     var renderer = RenderVulkan.Component.Renderer()
-    renderer.ensure()
+    var device = RenderVulkan.Component.Device()
+    renderer.ensure(device)
     renderer.draw_offscreen(draw_list, textures)
     var pixel = renderer.pixel_at(5, 5)
     renderer.release_device()
