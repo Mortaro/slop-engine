@@ -103,7 +103,8 @@ func sent_from(environment: String): Boolean {
   id).
 - **`sent_from`**: a message. An entity carrying it is sent once and despawned. The receiver spawns an entity with
   the component, `Network.Component.Sender` (the connection's entity) and `Network.Component.Arrived`, which
-  lives until a handler consumes it (below).
+  lives until a handler consumes it (below). A message is the whole entity: every `sent_from` component it holds
+  travels together and arrives on one entity (see [A message is an entity](#a-message-is-an-entity)).
 - Both are predicates on the environment's name, so one declaration can cover one environment or many.
 
 ### Entity fields travel as the receiver's entities
@@ -259,6 +260,30 @@ lost a scripted client's first `/give` that way, silently.
 - The messages of a closed or vanished connection are despawned.
 - `Network.Component.Arrived.message` holds the codec id of the component the message carries.
 
+### A message is an entity
+
+Since a link holds only its entity (ecs.md), a request naming two entities (a cast naming its skill and its target,
+a sale naming the merchant and the item) is one entity holding the request and a link for each (Theseus A109,
+Claude's proposal):
+
+```gdscript
+var request = world.create_entity()
+var cast = Component.CastRequest()
+request.add_component(cast)
+var target = Component.Target()
+target.entity = monster
+request.add_component(target)
+var skill = Component.OfSkill()
+skill.entity = known_skill
+request.add_component(skill)
+```
+
+`Send` groups a message's frames per entity (`Network.Letters`): its own components first, then its links, and each
+frame's entity field is `-2 - id` of the sender's message entity, so the receiver adds every frame with the same id
+to one arrived entity. `Arrived.message` is the first frame's component, so the request component (not a link) is the
+one a handler removes to consume it. A link naming an entity dead or unknown on the receiver drops the whole message.
+`interest_check` sends a `Point` with its `Target` and the server judges only the pair.
+
 For several events of one type in one tick (two `Grant`s to one player), make each event an entity of its own,
 a child of its target (`player.create_entity()`), and let the handler despawn it once applied; a component on the
 target holds only one value per type.
@@ -270,7 +295,7 @@ Binary, little-endian, one frame per component value:
 ```
 u32  size        bytes after this field (8 + payload), at most 64 KiB
 i32  message     a stable hash of the component's name (the same in every environment of the program)
-i32  entity      the sender's entity id, -1 for its world entity, -2 for a message
+i32  entity      the sender's entity id, -1 for its world entity, -2 - id for a frame of the sender's message entity id
 ...  payload     the fields in declaration order, written by the engine's derived codec (Pack<T>)
 ```
 

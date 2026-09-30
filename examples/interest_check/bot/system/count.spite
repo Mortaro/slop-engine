@@ -126,6 +126,9 @@ func send_point(target: Integer) {
     var pointing = Component.Target()
     pointing.entity = world.entity_of(target)
     message.add_component(pointing)
+    var point = Component.Point()
+    point.offset = 1000
+    message.add_component(point)
 }
 
 func remember_beacon(beacons: List<Seen>) {

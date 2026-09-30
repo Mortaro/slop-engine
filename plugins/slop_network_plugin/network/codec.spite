@@ -47,23 +47,25 @@ func mirror_column(frames: Network.Frames) {
     }
 }
 
-func send(messages: Asset.Bytes) {
+func send(letters: Network.Letters) {
     if $component_type.has_function("sent_from") {
-        send_column(messages)
+        send_column(letters)
     }
 }
 
-func send_column(messages: Asset.Bytes) {
+func send_column(letters: Network.Letters) {
     var name = key()
     var message = id()
+    var link = Link<$component_type>()
+    var tail = link.holds_entity()
     var count = columns.count_of(name)
     var row = 0
     while row < count {
         var entity = columns.entity_at(name, row)
         var value = column.get(entity)
         if value.sent_from(build.environment) {
-            write_frame(messages, message, -2, value)
-            world.despawn(entity)
+            var buffer = letters.buffer_for(entity, tail)
+            write_frame(buffer, message, -2 - entity, value)
         }
         row = row + 1
     }

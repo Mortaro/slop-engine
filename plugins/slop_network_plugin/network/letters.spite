@@ -1,0 +1,54 @@
+var entities = List<Integer>()
+var heads = List<Asset.Bytes>()
+var tails = List<Asset.Bytes>()
+var places = Dictionary<Integer>()
+
+func begin() {
+    entities.clear()
+    places = Dictionary<Integer>()
+}
+
+func buffer_for(entity: Integer, link: Boolean): Asset.Bytes {
+    var place = place_of(entity)
+    if link {
+        crash tails[place]
+        return tails[place]
+    }
+    crash heads[place]
+    return heads[place]
+}
+
+func place_of(entity: Integer): Integer {
+    var key: String = entity
+    var found = places.get(key)
+    if found {
+        return found
+    }
+    var place = entities.count()
+    entities.append(entity)
+    places.set(key, place)
+    if heads.count() <= place {
+        var head = Asset.Bytes()
+        heads.append(head)
+        var tail = Asset.Bytes()
+        tails.append(tail)
+    }
+    crash heads[place]
+    crash tails[place]
+    heads[place].clear()
+    tails[place].clear()
+    return place
+}
+
+func gather(into: Asset.Bytes) {
+    var index = 0
+    while index < entities.count() {
+        crash heads[index]
+        crash tails[index]
+        var head = heads[index]
+        var tail = tails[index]
+        into.write_bytes(head.address, head.length)
+        into.write_bytes(tail.address, tail.length)
+        index = index + 1
+    }
+}

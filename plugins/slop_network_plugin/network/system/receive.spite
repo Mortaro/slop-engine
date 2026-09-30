@@ -7,6 +7,9 @@ var world = World()
 var mirrors = Mirrors()
 var frame = Asset.Bytes()
 var understood = false
+var letter_keys = List<Integer>()
+var letter_entities = List<Integer>()
+var letter_dropped = List<Boolean>()
 
 func after_input_each(peer: Peer) {
     var stream = peer.connection.stream
@@ -36,16 +39,34 @@ func decode_component(component: Symbol<Component>, message: Integer, remote: In
         if value {
             understood = true
             var link = Link<component.class>()
-            assert link.names_living(value, world.next_entity)
-            var target = target_entity(remote, connection, message)
-            target.add_component(value)
+            var living = link.names_living(value, world.next_entity)
+            if remote > -2 {
+                assert living
+                var mirror = local_entity(remote)
+                mirror.add_component(value)
+                return
+            }
+            var letter = letter_entity(-2 - remote, connection, message)
+            assert letter_open(connection)
+            if not living {
+                drop_letter(connection)
+                return
+            }
+            letter.add_component(value)
         }
     }
 }
 
-func target_entity(remote: Integer, connection: Integer, message: Integer): Entity {
-    if remote != -2 {
-        return local_entity(remote)
+func letter_entity(key: Integer, connection: Integer, message: Integer): Entity {
+    while letter_keys.count() <= connection {
+        letter_keys.append(-1)
+        letter_entities.append(-1)
+        letter_dropped.append(false)
+    }
+    crash letter_keys[connection]
+    crash letter_entities[connection]
+    if key > 0 and letter_keys[connection] == key {
+        return world.entity_of(letter_entities[connection])
     }
     var arrived = world.create_entity()
     var sender = Network.Component.Sender()
@@ -54,7 +75,21 @@ func target_entity(remote: Integer, connection: Integer, message: Integer): Enti
     var marker = Network.Component.Arrived()
     marker.message = message
     arrived.add_component(marker)
+    letter_keys.set_at(connection, key)
+    letter_entities.set_at(connection, arrived.id)
+    letter_dropped.set_at(connection, false)
     return arrived
+}
+
+func letter_open(connection: Integer): Boolean {
+    crash connection < letter_dropped.count()
+    return not letter_dropped[connection]
+}
+
+func drop_letter(connection: Integer) {
+    letter_dropped.set_at(connection, true)
+    crash letter_entities[connection]
+    world.despawn(letter_entities[connection])
 }
 
 func strip_mirror(remote: Integer) {

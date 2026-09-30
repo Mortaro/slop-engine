@@ -11,6 +11,7 @@ type Observation {
 var world = World()
 var frames = Network.Frames()
 var messages = Asset.Bytes()
+var letters = Network.Letters()
 var removals = Asset.Bytes()
 var everyone = List<Integer>()
 var still = List<Integer>()
@@ -22,9 +23,12 @@ var visible = List<Integer>()
 
 func last_all(peers: List<Peer>, observations: List<Observation>) {
     messages.clear()
+    letters.begin()
     frames.begin()
     encode_components()
     frames.finish()
+    letters.gather(messages)
+    forget_sent()
     find_everyone()
     group_visible(peers, observations)
     var index = 0
@@ -38,7 +42,11 @@ func last_all(peers: List<Peer>, observations: List<Observation>) {
 func encode_component(component: Symbol<Component>) {
     var codec = Network.Codec<component.class>()
     codec.mirror(frames)
-    codec.send(messages)
+    codec.send(letters)
+}
+
+func forget_sent() {
+    letters.entities.each(world.despawn)
 }
 
 func find_everyone() {

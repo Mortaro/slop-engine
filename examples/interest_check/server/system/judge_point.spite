@@ -1,5 +1,6 @@
 type Pointed {
     entity: Entity
+    point: Component.Point
     target: Component.Target
     arrived: Network.Component.Arrived
 }
@@ -8,9 +9,10 @@ var beacons = Lookup<Component.Beacon>()
 var world = World()
 
 func update_each(pointed: Pointed) {
-    pointed.entity.remove_component(Component.Target)
+    pointed.entity.remove_component(Component.Point)
     var named = beacons.of(pointed.target.entity.id)
     crash named
+    crash pointed.point.offset == 1000
     var verdict = Component.Verdict()
     verdict.number = named.number
     world.as_entity().add_component(verdict)

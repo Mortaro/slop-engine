@@ -8,6 +8,19 @@ var target = -1
 var holders = List<Integer>()
 var living = true
 var made_below = 0
+var holding = false
+
+func holds_entity(): Boolean {
+    holding = false
+    mark_links()
+    return holding
+}
+
+func mark_link(link: Symbol<$component_type>) {
+    if link.class == Entity {
+        holding = true
+    }
+}
 
 func target_of(value: $component_type): Integer {
     target = -1
