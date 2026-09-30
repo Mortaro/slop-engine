@@ -3,20 +3,36 @@ type Peer {
     connection: Network.Component.Connection
 }
 
+type Observation {
+    parent: Component.Parent
+    observer: Network.Component.Observer
+}
+
 var world = World()
 var frames = Network.Frames()
 var messages = Asset.Bytes()
 var removals = Asset.Bytes()
 var everyone = List<Integer>()
 var still = List<Integer>()
+var knowledge = Dictionary<Network.Known>()
+var peer_of = List<Integer>()
+var visible_counts = List<Integer>()
+var visible_starts = List<Integer>()
+var visible = List<Integer>()
 
-func last_all(peers: List<Peer>) {
+func last_all(peers: List<Peer>, observations: List<Observation>) {
     messages.clear()
     frames.begin()
     encode_components()
     frames.finish()
     find_everyone()
-    peers.each(deliver)
+    group_visible(peers, observations)
+    var index = 0
+    while index < peers.count() {
+        deliver(peers[index], index)
+        index = index + 1
+    }
+    forget_peers(peers)
 }
 
 func encode_component(component: Symbol<Component>) {
@@ -38,61 +54,150 @@ func find_everyone() {
     }
 }
 
-func deliver(peer: Peer) {
+func group_visible(peers: List<Peer>, observations: List<Observation>) {
+    visible_counts.clear()
+    visible_starts.clear()
+    var index = 0
+    while index < peers.count() {
+        var connection = peers[index].entity.id
+        while peer_of.count() <= connection {
+            peer_of.append(0)
+        }
+        peer_of.set_at(connection, index + 1)
+        visible_counts.append(0)
+        visible_starts.append(0)
+        index = index + 1
+    }
+    index = 0
+    while index < observations.count() {
+        count_visible(observations[index])
+        index = index + 1
+    }
+    var start = 0
+    index = 0
+    while index < peers.count() {
+        visible_starts.set_at(index, start)
+        crash visible_counts[index]
+        start = start + visible_counts[index]
+        visible_counts.set_at(index, 0)
+        index = index + 1
+    }
+    visible.clear()
+    while visible.count() < start {
+        visible.append(0)
+    }
+    index = 0
+    while index < observations.count() {
+        place_visible(observations[index])
+        index = index + 1
+    }
+}
+
+func peer_index(observation: Observation): Integer {
+    var connection = observation.observer.entity.id
+    if connection >= peer_of.count() {
+        return -1
+    }
+    return peer_of[connection] - 1
+}
+
+func count_visible(observation: Observation) {
+    var peer = peer_index(observation)
+    assert peer >= 0
+    crash visible_counts[peer]
+    visible_counts.set_at(peer, visible_counts[peer] + 1)
+}
+
+func place_visible(observation: Observation) {
+    var peer = peer_index(observation)
+    assert peer >= 0
+    crash visible_starts[peer]
+    crash visible_counts[peer]
+    var at = visible_starts[peer] + visible_counts[peer]
+    visible.set_at(at, observation.parent.entity.id)
+    visible_counts.set_at(peer, visible_counts[peer] + 1)
+}
+
+func forget_peers(peers: List<Peer>) {
+    var index = 0
+    while index < peers.count() {
+        peer_of.set_at(peers[index].entity.id, 0)
+        index = index + 1
+    }
+}
+
+func known_of(peer: Entity): Network.Known {
+    var key: String = peer.id
+    var found = knowledge.get(key)
+    if found {
+        return found
+    }
+    var made = Network.Known()
+    knowledge.set(key, made)
+    return made
+}
+
+func deliver(peer: Peer, place: Integer) {
     var connection = peer.connection
     var stream = connection.stream
+    var known = known_of(peer.entity)
     removals.clear()
-    send_all(connection, everyone)
-    send_all(connection, connection.visible)
-    connection.visible.clear()
-    forget_hidden(connection)
+    var everyone_count = everyone.count()
+    send_all(stream, known, everyone, 0, everyone_count)
+    crash visible_starts[place]
+    crash visible_counts[place]
+    var first = visible_starts[place]
+    send_all(stream, known, visible, first, first + visible_counts[place])
+    forget_hidden(known)
     stream.queue(removals)
     stream.queue(messages)
     stream.flush()
     if stream.closed {
         stream.close()
         world.despawn(peer.entity.id)
+        var key: String = peer.entity.id
+        knowledge.remove(key)
     }
 }
 
-func send_all(connection: Network.Component.Connection, entities: List<Integer>) {
-    var index = 0
-    while index < entities.count() {
-        send_entity(connection, entities[index])
+func send_all(stream: Network.Stream, known: Network.Known, entities: List<Integer>, first: Integer, end: Integer) {
+    var index = first
+    while index < end {
+        crash entities[index]
+        send_entity(stream, known, entities[index])
         index = index + 1
     }
 }
 
-func send_entity(connection: Network.Component.Connection, entity: Integer) {
+func send_entity(stream: Network.Stream, known: Network.Known, entity: Integer) {
     assert frames.encoded(entity)
-    var known = connection.known
-    while known.count() <= entity {
-        known.append(0)
+    var ticks = known.ticks
+    while ticks.count() <= entity {
+        ticks.append(-1)
     }
-    assert known[entity] != frames.tick
-    var stream = connection.stream
-    if known[entity] == frames.tick - 1 {
+    assert ticks[entity] != frames.tick
+    if ticks[entity] == frames.tick - 1 {
         var changed = frames.changed(entity)
         stream.queue(changed)
     } else {
         var full = frames.full(entity)
         stream.queue(full)
-        connection.known_list.append(entity)
+        known.entities.append(entity)
     }
-    known.set_at(entity, frames.tick)
+    ticks.set_at(entity, frames.tick)
 }
 
-func forget_hidden(connection: Network.Component.Connection) {
-    var known = connection.known
-    var kept = connection.known_list
+func forget_hidden(known: Network.Known) {
+    var ticks = known.ticks
+    var kept = known.entities
     still.clear()
     var index = 0
     while index < kept.count() {
         var entity = kept[index]
-        if known[entity] == frames.tick {
+        if ticks[entity] == frames.tick {
             still.append(entity)
         } else {
-            known.set_at(entity, 0)
+            ticks.set_at(entity, -1)
             write_removal(entity)
         }
         index = index + 1

@@ -191,8 +191,9 @@ write per entity and clearing resets only the cells used. `server_bench` (15,000
 
 ## slop_interest_plugin
 
-Observing by distance: `Interest.Component.Viewer` on a connection entity, and the `Equip`, `MarkObserved` and
-`Gather` systems that keep `Network.Component.Observer` children on every indexed entity in a viewer's range. It
+Observing by distance: `Interest.Component.Viewer` and the link `Interest.Component.Viewpoint` on a connection
+entity, and the `MarkObserved` and `Gather` systems that keep an observation (a child holding
+`Network.Component.Observer`) on every indexed entity in a viewer's range. It
 loads the network and spatial plugins. See [networking.md](networking.md#area-of-interest).
 
 ## slop_mongodb_plugin

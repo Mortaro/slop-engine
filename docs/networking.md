@@ -133,28 +133,30 @@ same translation through a link component's codec.
 
 There are no players in the engine, only observers (Mortaro, 2026-09-27). An entity marked
 `Network.Component.Observed` is sent only to the connections that observe it; an unmarked entity (world state, a
-counter) is sent to every connection. An observation is its own entity, a child of the observed one:
-`Network.Component.Observer { subject, observer }`, where `observer` is a connection entity. An entity has as many
-Observer children as it has observers, and systems keep them up to date:
+counter) is sent to every connection. An observation is its own entity, a child of the observed one (its
+`Component.Parent`), holding the link `Network.Component.Observer`, which names the connection. An entity has as many
+observations as it has observers, and systems keep them up to date:
 
-- an item has one Observer, its owner's connection;
+- an item has one observation, naming its owner's connection;
 - a monster or another player has one for every connection whose viewer is near it (`slop_interest_plugin`, below);
-- private state, such as a player's own stats, lives on a separate entity whose only Observer is that player's
-  connection, while the public entity is observed by everyone in sight.
+- private state, such as a player's own stats, lives on a separate entity whose only observation names that
+  player's connection, while the public entity is observed by everyone in sight.
 
 ```gdscript
-var item_view = world.spawn_entity()
+var observation = item.spawn_entity()
 var observer = Network.Component.Observer()
-observer.subject = item.id
-observer.observer = owner_connection
-item_view.add_component(observer)
+observer.entity = owner_connection
+observation.add_component(observer)
 ```
 
-(`subject` and `observer` are still entity ids kept as `Integer`s, from before links were components; making the
-observation a child of the observed entity with a link to its connection is queued. Both are proposals by Claude.)
+Both ends are links, so neither can dangle: despawning the observed entity despawns its observations (they are its
+children), and despawning a connection removes its `Observer`, after which `ForgetObservations` despawns the
+observation.
 
-The network plugin collects each connection's observed entities every tick (`Address`, in `present`). It keeps, per
-connection, which entities the peer knows. An entity that becomes observed is sent in full, one that stays is sent
+`Send` collects each connection's observed entities every tick from the observations. It keeps, per connection,
+which entities the peer knows (a `Network.Known` table inside the system, keyed by the connection: a proposal by
+Claude. It cannot be links, because a despawned entity's id is still needed to tell the peer to drop its mirror,
+and a link to it is gone in the same flush). An entity that becomes observed is sent in full, one that stays is sent
 only the frames that changed since the last tick, and one that stops being observed or is despawned is sent a
 removal frame (message `-3`), on which the receiver despawns its mirror. Each tick every replicated component is
 encoded once into a per-entity buffer and compared, component by component, with the last tick (`Network.Frames`),
@@ -165,17 +167,21 @@ message id) in that entity's changes, and the receiver removes it from its mirro
 ### Area of interest
 
 `slop_interest_plugin` observes by distance, as plain ECS a game can leave out. A connection entity with an
-`Interest.Component.Viewer` (`entity`, whose `Transform` is where the peer looks from, and `radius`) is given an
-`Interest.Component.Watching`, and every entity with `Spatial.Component.Indexed` is marked `Observed`. Every tick, in
-`prepare`, `Gather` asks `Spatial.Grid` what each viewer sees in its entity's space and compares it with what it saw: it spawns an
-Observer child only for an entity that came into range, and despawns one only for an entity that left. The work
-follows how much changes, not how much is in sight.
+`Interest.Component.Viewer` (`radius`) and the link `Interest.Component.Viewpoint` (the entity whose `Transform` is
+where the peer looks from) sees what is near that entity, and every entity with `Spatial.Component.Indexed` is marked
+`Observed`. Every tick, in `prepare`, `Gather` asks `Spatial.Grid` what each viewer sees in its viewpoint's space and
+compares it with the observations it made for that connection (marked `Interest.Component.InSight`, so observations a
+game makes itself are left alone): it spawns an observation only for an entity that came into range, and despawns
+one only for an entity that left. The work follows how much changes, not how much is in sight. A connection whose
+viewpoint is despawned loses its `Viewpoint` and sees nothing new until it is given another.
 
 ```gdscript
 var viewer = Interest.Component.Viewer()
-viewer.entity = avatar.id
 viewer.radius = 60.0
 connection.add_component(viewer)
+var viewpoint = Interest.Component.Viewpoint()
+viewpoint.entity = avatar
+connection.add_component(viewpoint)
 ```
 
 `interest_check` tests it across two processes: a bot sees 6 of 100 beacons, 11 after the server moves its eye, 10
@@ -213,18 +219,22 @@ Connections are entities. Settings and state are components on the world entity:
 | `Network.Component.Listen` | world | accept connections on `host` (default `127.0.0.1`; `0.0.0.0` for every address) and `port` |
 | `Network.Component.Listening` | world | marker: the listener is open |
 | `Network.Component.Connect` | world | keep a connection to `host` and `port`, redialling a second after a failure |
-| `Network.Component.Connection` | one entity per peer | its stream, and what the peer has been sent |
-| `Network.Component.Sender` | an arrived message | the connection entity it came from |
+| `Network.Component.Dialing` | world | marker: a dial is in flight (its job lives in the `Network.Dials` resource) |
+| `Network.Component.Connected` | world | link: the connection entity the dial made; removed when that connection closes, which redials |
+| `Network.Component.Connection` | one entity per peer | its stream |
+| `Network.Component.Sender` | an arrived message | link: the connection entity it came from |
 | `Network.Component.Arrived` | an arrived message | despawned once its request component is removed, or its connection closes |
 | `Network.Component.Mirrored` | a mirrored entity | the sender's entity id |
 
 | Phase | System | Does |
 |---|---|---|
 | `input` | `Accept` | opens the listener and adds `Listening`, accepts every waiting connection |
-| `input` | `Dial` | starts a connect on the thread pool and polls it; a failed dial waits 60 ticks |
+| `input` | `Dial` | while there is no `Connected`: starts a connect on the thread pool (adding `Dialing`) and takes its socket once done; a failed dial waits 60 ticks |
 | `after_input` | `Receive` | reads every socket, decodes each frame, mirrors state and spawns arrived messages |
 | `last` | `Send` | encodes mirrored state once, picks each peer's frames by its area of interest, writes to every peer |
-| `last` | `ForgetArrived` | despawns consumed messages and those of closed connections; closes a connection with more than 256 unhandled |
+| `last` | `ForgetArrived` | despawns consumed messages; closes a connection with more than 256 unhandled |
+| `last` | `ForgetOrphanedMessages` | despawns messages whose connection closed (their `Sender` went with it) |
+| `last` | `ForgetObservations` | despawns an observation whose connection closed (its `Observer` went with it) |
 
 Nothing blocks a frame: sockets are non-blocking and are polled once per tick, and the one call that can take
 seconds (a TCP connect to a port nobody listens on) runs on the pool (D191).

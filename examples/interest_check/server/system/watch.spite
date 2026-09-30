@@ -19,10 +19,12 @@ var world = World()
 func update_each(joined: Joined, eyed: Eyed, lit: Lit) {
     assert lit.beacon.number == 52 and lit.indexed.space == 0
     var viewer = Interest.Component.Viewer()
-    viewer.entity = eyed.entity.id
     viewer.radius = 55.0
     var peer = joined.entity
     peer.add_component(viewer)
+    var viewpoint = Interest.Component.Viewpoint()
+    viewpoint.entity = eyed.entity
+    peer.add_component(viewpoint)
     var timer = Component.Timer()
     timer.start(1000)
     peer.add_component(timer)
@@ -32,18 +34,18 @@ func update_each(joined: Joined, eyed: Eyed, lit: Lit) {
     peer.add_component(script)
     var index = 0
     while index < 5 {
-        place_stash(joined.entity.id, index, lit.entity.id)
+        place_stash(joined.entity, index, lit.entity)
         index = index + 1
     }
 }
 
-func place_stash(connection: Integer, index: Integer, pointed: Integer) {
+func place_stash(connection: Entity, index: Integer, pointed: Entity) {
     var stash = world.spawn_entity()
     var value = Component.Stash()
     value.amount = index
     stash.add_component(value)
     var near = Component.Near()
-    near.entity = world.entity_of(pointed)
+    near.entity = pointed
     stash.add_component(near)
     var observed = Network.Component.Observed()
     stash.add_component(observed)
@@ -52,9 +54,8 @@ func place_stash(connection: Integer, index: Integer, pointed: Integer) {
         stash.add_component(sealed)
     }
     assert index < 3
-    var link = world.spawn_entity()
+    var observation = stash.spawn_entity()
     var observer = Network.Component.Observer()
-    observer.subject = stash.id
-    observer.observer = connection
-    link.add_component(observer)
+    observer.entity = connection
+    observation.add_component(observer)
 }

@@ -1,0 +1,46 @@
+singleton
+
+var dialers = List<Integer>()
+var tasks = List<Network.DialTask>()
+var jobs = List<Parallel<Socket?>>()
+
+func start(dialer: Integer, host: String, port: Integer) {
+    var task = Network.DialTask(host, port)
+    var job = Parallel(task.run)
+    dialers.append(dialer)
+    tasks.append(task)
+    jobs.append(job)
+}
+
+func finished(dialer: Integer): Boolean {
+    var index = place_of(dialer)
+    if index < 0 {
+        return false
+    }
+    crash jobs[index]
+    return jobs[index].finished
+}
+
+func take(dialer: Integer): Socket? {
+    var index = place_of(dialer)
+    crash index >= 0
+    crash jobs[index]
+    var job = jobs[index]
+    var connected = job.finished_value()
+    dialers.remove_at(index)
+    tasks.remove_at(index)
+    jobs.remove_at(index)
+    assert connected
+    return connected
+}
+
+func place_of(dialer: Integer): Integer {
+    var index = 0
+    while index < dialers.count() {
+        if dialers[index] == dialer {
+            return index
+        }
+        index = index + 1
+    }
+    return -1
+}

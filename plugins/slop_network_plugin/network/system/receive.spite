@@ -47,7 +47,7 @@ func target_entity(remote: Integer, connection: Integer, message: Integer): Enti
     }
     var arrived = world.spawn_entity()
     var sender = Network.Component.Sender()
-    sender.connection = connection
+    sender.entity = world.entity_of(connection)
     arrived.add_component(sender)
     var marker = Network.Component.Arrived()
     marker.message = message

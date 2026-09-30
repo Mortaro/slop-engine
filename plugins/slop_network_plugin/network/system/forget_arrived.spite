@@ -31,7 +31,7 @@ func last_all(delivered: List<Delivered>) {
 }
 
 func forget_or_keep(message: Delivered) {
-    var connection = connections.of(message.sender.connection)
+    var connection = connections.of(message.sender.entity.id)
     var open = false
     if connection {
         open = not connection.stream.closed
@@ -42,7 +42,7 @@ func forget_or_keep(message: Delivered) {
         world.despawn(message.entity.id)
         return
     }
-    count_pending(message.sender.connection, message.arrived.message)
+    count_pending(message.sender.entity.id, message.arrived.message)
 }
 
 func holds_component(component: Symbol<Component>, entity: Entity, message: Integer) {
