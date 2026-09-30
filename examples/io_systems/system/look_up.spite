@@ -3,19 +3,17 @@ type Pending {
     request: Added<Component.LookupRequest>
 }
 
-type Clock {
-    frame: Component.Frame
+type Store {
+    client: Mongo.Component.Client
 }
 
-var database = Mongo.Component.Database()
 var program = Program()
 var frames = Lookup<Component.Frame>()
 var world = World()
 
-func update_each(pending: Pending) {
+func update_each(pending: Pending, store: Store) {
     program.sleep(200)
-    database.name = "spite_kal"
-    var accounts = database.collection("accounts")
+    var accounts = store.client.collection("accounts")
     var filter = Mongo.Document()
     var found = accounts.find_one(filter)
     var reply = Component.LookupReply()

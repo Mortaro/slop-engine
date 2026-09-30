@@ -13,7 +13,7 @@ var world = World()
 
 func last_all(replies: List<Replied>, quitting: List<Quitting>) {
     var state = quitting.first()
-    crash state
+    assert state
     assert replies.count() == 3
     var index = 0
     while index < replies.count() {

@@ -333,8 +333,8 @@ A system whose phase function can reach a wait (a socket or file read, a sleep, 
 found at compile time (`$system_type.function_waits`, D209). Nothing marks it; writing straight-line code is enough:
 
 ```gdscript
-func update_each(pending: Pending) {
-    var accounts = database.collection("accounts")
+func update_each(pending: Pending, store: Store) {
+    var accounts = store.client.collection("accounts")
     var found = accounts.find_one(filter)
     ...
 }

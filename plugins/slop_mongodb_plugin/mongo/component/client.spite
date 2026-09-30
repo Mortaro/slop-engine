@@ -1,0 +1,6 @@
+var pool = Mongo.Client("127.0.0.1", 27017)
+var database = ""
+
+func collection(collection_name: String): Mongo.Collection {
+    return pool.collection(database, collection_name)
+}
