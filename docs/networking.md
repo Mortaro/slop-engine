@@ -154,8 +154,8 @@ children), and despawning a connection removes its `Observer`, after which `Forg
 observation.
 
 `Send` collects each connection's observed entities every tick from the observations. It keeps, per connection,
-which entities the peer knows (a `Network.Known` table inside the system, keyed by the connection: a proposal by
-Claude. It cannot be links, because a despawned entity's id is still needed to tell the peer to drop its mirror,
+which entities the peer knows (a `Network.Known` table inside the system, keyed by the connection.
+It cannot be links, because a despawned entity's id is still needed to tell the peer to drop its mirror,
 and a link to it is gone in the same flush). An entity that becomes observed is sent in full, one that stays is sent
 only the frames that changed since the last tick, and one that stops being observed or is despawned is sent a
 removal frame (message `-3`), on which the receiver despawns its mirror. Each tick every replicated component is

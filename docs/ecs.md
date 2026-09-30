@@ -25,7 +25,7 @@ never added, looked up or used.
 | `Lookup<Component.Health>().has(id)` | whether it has one | now |
 
 A row's `entity: Entity` field is an `Entity`, so a system writes `row.entity.add_component(marker)`; with only an id,
-`world.entity_of(id)` makes one (a proposal by Claude: Spite has neither overloading nor visibility narrower than a
+`world.entity_of(id)` makes one, replacing `Entity(id)` (Spite has neither overloading nor visibility narrower than a
 class, so there is no constructor taking an id that only the engine may call; `Entity`'s `set_id` refuses a negative
 id instead, and every entity call crashes on an `Entity()` not set yet, `an_entity_is_set_before_it_is_used`). There
 are no generics in this API (D123): `add_component` takes `Anything` (an empty
@@ -145,8 +145,8 @@ hunter.add_component(chase)
   mirrored link vanishes on every peer. So a system never checks whether its target still exists.
 - The links are found at compile time: `App()` registers every component class holding an `Entity`, and the despawn
   flush walks only those columns, reading each row's entity where it is stored. It costs one pass over the link
-  rows for each flush that despawns something, plus one more pass over `Parent` per level of children (a proposal
-  by Claude, chosen over a reverse index from entity to holders, which a system writing a link's entity in place
+  rows for each flush that despawns something, plus one more pass over `Parent` per level of children (chosen
+  over a reverse index from entity to holders, which a system writing a link's entity in place
   would silently leave stale).
 
 Changing a link is adding it again (`add_component` replaces), and removing it is `remove_component`. Links are
@@ -215,8 +215,8 @@ holds indexes and bookkeeping, never the items themselves, which are entities:
 | `Network.Dials` | the dial jobs in flight, keyed by the entity marked `Dialing` |
 
 A system that binds a resource names it in what it touches, so two systems binding the same one never share a stage
-(the runner counts every singleton a system holds, `World` aside). Choosing a resource over entities is a proposal by
-Claude case by case, noted where each is documented.
+(the runner counts every singleton a system holds, `World` aside). Each resource chosen over entities says why where
+it is documented.
 
 `World` is the engine's central singleton: `var world = World()` at the top of a file.
 
@@ -280,7 +280,7 @@ Replacing a component in the row (`target.health = target.health + ...`) is writ
 ### Following a link
 
 A row asks for a link by holding the link component, and in a system of two rows, a link in the first row makes the
-second row the entity it names (a proposal by Claude: the first link component of the first row is followed):
+second row the entity it names; the first link component of the first row is the one followed:
 
 ```gdscript
 # examples/relations_check/system/sum_held.spite

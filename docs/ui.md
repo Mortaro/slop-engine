@@ -378,7 +378,7 @@ label.add_component(font)
   size of it is asked for and keeps the faces by name (a `TrueType.Face` cannot be made without its bytes, so it is
   not a component). Each face and size gets an entity holding `Ui.Component.GlyphAtlas`: its metrics, the atlas
   texture and texels, the shelf packer, and its glyph table (`Ui.GlyphTable`, the atlas's own data: code to glyph,
-  each glyph's rectangle and bearing, and the codes queued; a proposal by Claude). It measures text from the font's advances (so layout is right on the first frame), and
+  each glyph's rectangle and bearing, and the codes queued). It measures text from the font's advances (so layout is right on the first frame), and
   rasterises glyphs anti-aliased with the standalone `spite_truetype` package
   (`D:/Projects/spite_truetype`, loaded by `ui/ui.spite`).
 - **Glyphs are made on demand**, 32 per frame at most, into a 1024² atlas per face and size, like Unreal's Slate font

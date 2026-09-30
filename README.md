@@ -109,7 +109,7 @@ func update_each(potion: Potion, target: Target) {
   `Health.sum`) is written back after the call.
 - In a row, an `Entity` field named `entity` is the row's own id. A link between entities is a component holding
   only `var entity = Entity()` (`Component.Parent`, the potion's `Component.Owner`); a link in the first row makes
-  the next row the entity it names (following it is Claude's proposal), and a link never outlives its entity
+  the next row the entity it names (the first link component of the first row is followed), and a link never outlives its entity
   ([docs/ecs.md](docs/ecs.md#links-between-entities)).
 - There are no resources. State is a component on an entity: program-wide state (`Component.Quit`,
   `Component.Frame`) on the world entity, per-window state (`Input.Component.Mouse`, the draw list, the renderer)
