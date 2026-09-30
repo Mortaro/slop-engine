@@ -1,10 +1,12 @@
 type DrivenWindow {
+    entity: Entity
     window: Window.Component.Window
     handle: Window.Component.Handle
     progress: Component.Progress
 }
 
 var user = DynamicLibrary("user32.dll", 'identity', "")
+var dones = Lookup<Component.Done>()
 
 func update_each(driven: DrivenWindow) {
     var handle = driven.handle.value
@@ -25,7 +27,11 @@ func update_each(driven: DrivenWindow) {
     var extra = since_first - progress.wanted * frames_per_click
     send_other_buttons(handle, extra)
     var settled = since_first >= progress.wanted * frames_per_click + 12
-    progress.done = progress.sent == progress.wanted and settled
+    var owner = driven.entity
+    if progress.sent == progress.wanted and settled and not dones.has(owner.id) {
+        var done = Component.Done()
+        owner.add_component(done)
+    }
 }
 
 func send_other_buttons(handle: Long, extra: Integer) {

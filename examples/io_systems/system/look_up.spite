@@ -19,7 +19,8 @@ func update_each(pending: Pending, store: Store) {
     var reply = Component.LookupReply()
     reply.name = pending.request.value.name
     if found {
-        reply.found = true
+        var marker = Component.Found()
+        pending.entity.add_component(marker)
     }
     var frame = frames.of(world.entity)
     if frame {

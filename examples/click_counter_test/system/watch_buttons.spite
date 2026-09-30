@@ -4,20 +4,30 @@ type Watched {
 }
 
 type Tested {
+    entity: Entity
     progress: Component.Progress
 }
 
 var right_presses = Lookup<Input.Component.RightPressed>()
 var middle_presses = Lookup<Input.Component.MiddlePressed>()
 var double_clicks = Lookup<Input.Component.DoubleClicked>()
+var saw_rights = Lookup<Component.SawRight>()
+var saw_middles = Lookup<Component.SawMiddle>()
+var saw_doubles = Lookup<Component.SawDouble>()
 
 func update_each(watched: Watched, tested: Tested) {
-    var progress = tested.progress
     var owner = watched.entity.id
-    var right = right_presses.has(owner)
-    var middle = middle_presses.has(owner)
-    var doubled = double_clicks.has(owner)
-    progress.saw_right = progress.saw_right or right
-    progress.saw_middle = progress.saw_middle or middle
-    progress.saw_double = progress.saw_double or doubled
+    var tester = tested.entity
+    if right_presses.has(owner) and not saw_rights.has(tester.id) {
+        var right = Component.SawRight()
+        tester.add_component(right)
+    }
+    if middle_presses.has(owner) and not saw_middles.has(tester.id) {
+        var middle = Component.SawMiddle()
+        tester.add_component(middle)
+    }
+    if double_clicks.has(owner) and not saw_doubles.has(tester.id) {
+        var doubled = Component.SawDouble()
+        tester.add_component(doubled)
+    }
 }

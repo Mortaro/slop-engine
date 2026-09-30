@@ -1,4 +1,5 @@
 type Driven {
+    entity: Entity
     handle: Window.Component.Handle
     progress: Component.Progress
 }
@@ -57,7 +58,8 @@ func update_each(driven: Driven) {
         post(handle, button_up, 0, 10, 10)
         progress.step = 7
     } else if step == 7 and misses.has(progress.source) {
-        progress.missed = true
+        var missed = Component.Missed()
+        driven.entity.add_component(missed)
         post(handle, mouse_move, 0, source_x, source_y)
         post(handle, button_down, left_held, source_x, source_y)
         progress.step = 8
@@ -69,11 +71,11 @@ func update_each(driven: Driven) {
         post(handle, button_down, left_held, source_x, source_y)
         progress.step = 10
     } else if step >= 10 {
-        later_steps(progress, handle, source_x, source_y)
+        later_steps(progress, driven.entity, handle, source_x, source_y)
     }
 }
 
-func later_steps(progress: Component.Progress, handle: Long, source_x: Integer, source_y: Integer) {
+func later_steps(progress: Component.Progress, tester: Entity, handle: Long, source_x: Integer, source_y: Integer) {
     var step = progress.step
     if step >= 10 and step <= 13 and clicks.has(progress.holder) {
         progress.holder_clicks_in_drag = progress.holder_clicks_in_drag + 1
@@ -94,14 +96,16 @@ func later_steps(progress: Component.Progress, handle: Long, source_x: Integer, 
         post(handle, 517, 0, source_x, source_y)
         progress.step = 15
     } else if step == 15 and right_clicks.has(progress.source) {
-        progress.right_clicked = true
+        var right_clicked = Component.SawRightClick()
+        tester.add_component(right_clicked)
         post(handle, button_down, left_held, source_x, source_y)
         post(handle, button_up, 0, source_x, source_y)
         post(handle, 515, left_held, source_x, source_y)
         post(handle, button_up, 0, source_x, source_y)
         progress.step = 16
     } else if step == 16 and double_clicks.has(progress.source) {
-        progress.double_clicked = true
+        var double_clicked = Component.SawDoubleClick()
+        tester.add_component(double_clicked)
         progress.step = 17
     }
 }

@@ -1,4 +1,5 @@
 type Replied {
+    entity: Entity
     reply: Component.LookupReply
 }
 
@@ -8,6 +9,7 @@ type Quitting {
 }
 
 var console = Console()
+var founds = Lookup<Component.Found>()
 
 var world = World()
 
@@ -18,7 +20,8 @@ func last_all(replies: List<Replied>, quitting: List<Quitting>) {
     var index = 0
     while index < replies.count() {
         var reply = replies[index].reply
-        console.print("reply", reply.name, "found", reply.found, "at frame", reply.frame)
+        var found = founds.has(replies[index].entity.id)
+        console.print("reply", reply.name, "found", found, "at frame", reply.frame)
         index = index + 1
     }
     var frame = state.frame.count

@@ -1,10 +1,12 @@
 type DrivenWindow {
+    entity: Entity
     window: Window.Component.Window
     handle: Window.Component.Handle
     progress: Component.Progress
 }
 
 var user = DynamicLibrary("user32.dll", 'identity', "")
+var dones = Lookup<Component.Done>()
 var keys = Input.Key()
 
 func update_each(driven: DrivenWindow) {
@@ -34,7 +36,11 @@ func update_each(driven: DrivenWindow) {
     } else if progress.frame == 18 {
         type_text(handle, "Y")
     }
-    progress.done = progress.frame >= 22
+    var owner = driven.entity
+    if progress.frame >= 22 and not dones.has(owner.id) {
+        var done = Component.Done()
+        owner.add_component(done)
+    }
 }
 
 func type_text(handle: Long, text: String) {

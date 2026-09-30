@@ -1,3 +1,2 @@
 var name = ""
-var found = false
 var frame = 0

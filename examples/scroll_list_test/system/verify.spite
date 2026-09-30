@@ -11,7 +11,7 @@ type RowView {
 }
 
 type Tested {
-    progress: Component.Progress
+    done: Component.Done
 }
 
 type Quitting {
@@ -26,8 +26,6 @@ var world = World()
 func last_all(panels: List<Panel>, rows: List<RowView>, tested: List<Tested>, quitting: List<Quitting>) {
     assert panels.count() == 1 and tested.count() == 1 and quitting.count() == 1
     var panel = panels[0]
-    var progress = tested[0].progress
-    assert progress.done
     var scrolled = panel.position.top
     var expected_first_top = panel.layout.top + 2.0 - scrolled
     var first_top = row_top(rows, 0)

@@ -1,4 +1,5 @@
 type Tested {
+    entity: Entity
     progress: Component.Progress
 }
 
@@ -9,6 +10,7 @@ type Quitting {
 
 var console = Console()
 var displays = Lookup<Ui.Component.Display>()
+var closed_by_picks = Lookup<Component.ClosedByPick>()
 
 var world = World()
 
@@ -19,14 +21,15 @@ func last_each(tested: Tested, _quitting: Quitting) {
     crash popup_display
     var hidden = popup_display.value == 'none'
     var picked_third = progress.selected == 2 and progress.shown == "Third"
-    var passed = picked_third and progress.closed_by_pick and hidden
+    var closed_by_pick = closed_by_picks.has(tested.entity.id)
+    var passed = picked_third and closed_by_pick and hidden
     console.print(
         "selected",
         progress.selected,
         "shown",
         progress.shown,
         "closed by the pick",
-        progress.closed_by_pick,
+        closed_by_pick,
         "passed",
         passed,
     )

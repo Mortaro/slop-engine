@@ -100,9 +100,8 @@ func send_point(target: Integer) {
 
 func server_agrees(): Boolean {
     var verdict = verdicts.of(world.entity)
-    var agrees = false
     if verdict {
-        agrees = verdict.heard and verdict.correct
+        return verdict.number == 52
     }
-    return agrees
+    return false
 }

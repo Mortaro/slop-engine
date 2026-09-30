@@ -7,41 +7,15 @@ func WireProbe() {
     var app = App()
     var local = mirrors.local_of(5000)
     world.flush()
-    var holder = world.create_entity()
-    var poke = Component.Poke()
-    poke.target = Entity(local)
-    holder.add_component(poke)
-    var nudge = Component.Nudge()
-    nudge.target = Entity(local)
-    holder.add_component(nudge)
-    world.flush()
-    var pokes = Lookup<Component.Poke>()
-    var stored_poke = pokes.of(holder.id)
-    crash stored_poke
-    var poke_bytes = Asset.Bytes()
-    var poke_pack = Pack<Component.Poke>()
-    poke_pack.write(stored_poke, poke_bytes)
-    var nudges = Lookup<Component.Nudge>()
-    var stored_nudge = nudges.of(holder.id)
-    crash stored_nudge
-    var nudge_bytes = Asset.Bytes()
-    var nudge_pack = Pack<Component.Nudge>()
-    nudge_pack.write(stored_nudge, nudge_bytes)
-    var poke_wire = poke_bytes.read_integer()
-    var nudge_wire = nudge_bytes.read_integer()
-    var poke_back = mirrors.field_from_wire(poke_wire)
-    var passed = poke_wire == -5100 and nudge_wire == -5100 and poke_back == 5000
-    console.print(
-        "local",
-        local,
-        "inline wire",
-        poke_wire,
-        "reference wire",
-        nudge_wire,
-        "read back on the other side",
-        poke_back,
-        "passed",
-        passed,
-    )
+    var target = Entity(local)
+    var bytes = Asset.Bytes()
+    var field = Field<Entity>()
+    field.write(target, bytes)
+    var wire = bytes.read_integer()
+    var sent = Asset.Bytes()
+    sent.write_integer(wire)
+    var back = field.read(sent)
+    var passed = wire == -5100 and back.id == 5000
+    console.print("local", local, "wire", wire, "read back on the other side", back.id, "passed", passed)
     app.tick()
 }

@@ -5,4 +5,3 @@ var label = 0
 var third = 0
 var selected = -1
 var shown = ""
-var closed_by_pick = false
