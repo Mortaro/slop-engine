@@ -1,5 +1,4 @@
 var slot = 0
-var connected = false
 var held = List<Integer>()
 var pressed = List<Integer>()
 var released = List<Integer>()

@@ -11,6 +11,7 @@ var buttons = Input.Button()
 var ticks = 0
 var disconnected_every = 60
 var slots = 4
+var connected_pads = Lookup<Input.Component.GamepadConnected>()
 
 func input_all(pads: List<Pad>) {
     ticks = ticks + 1
@@ -27,7 +28,7 @@ func poll_slot(pads: List<Pad>, slot: Integer, state: Long) {
     var pad = pad_of(pads, slot)
     var due = ticks % disconnected_every == 1
     if pad {
-        if pad.gamepad.connected {
+        if connected_pads.has(pad.entity.id) {
             due = true
         }
     }
@@ -36,12 +37,25 @@ func poll_slot(pads: List<Pad>, slot: Integer, state: Long) {
     var connected = result == 0
     if pad {
         read_pad(pad.gamepad, connected, state)
+        mark_connected(pad.entity, connected)
     } else if connected {
         var gamepad = Input.Component.Gamepad()
         gamepad.slot = slot
         read_pad(gamepad, connected, state)
         var entity = world.create_entity()
         entity.add_component(gamepad)
+        var marker = Input.Component.GamepadConnected()
+        entity.add_component(marker)
+    }
+}
+
+func mark_connected(owner: Entity, connected: Boolean) {
+    var was = connected_pads.has(owner.id)
+    if connected and not was {
+        var marker = Input.Component.GamepadConnected()
+        owner.add_component(marker)
+    } else if was and not connected {
+        owner.remove_component(Input.Component.GamepadConnected)
     }
 }
 
@@ -57,7 +71,6 @@ func pad_of(pads: List<Pad>, slot: Integer): Pad? {
 }
 
 func read_pad(gamepad: Input.Component.Gamepad, connected: Boolean, state: Long) {
-    gamepad.connected = connected
     var now = List<Integer>()
     if connected {
         var bits = unsigned_short(state, 4)

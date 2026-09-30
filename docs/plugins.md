@@ -88,7 +88,8 @@ system reads them.
 | | |
 |---|---|
 | `Input.Event` | one input event, independent of the platform |
-| `Input.Component.Gamepad` | one controller: `slot`, `connected`, `held`/`pressed`/`released` buttons, sticks (`left_x`, `left_y`, `right_x`, `right_y`, -1 to 1, dead zone applied) and triggers (0 to 1) |
+| `Input.Component.Gamepad` | one controller: `slot`, `held`/`pressed`/`released` buttons, sticks (`left_x`, `left_y`, `right_x`, `right_y`, -1 to 1, dead zone applied) and triggers (0 to 1) |
+| `Input.Component.GamepadConnected` | marker on a gamepad: its controller answered this tick; removed when it stops answering |
 | `Input.Button` | platform-neutral button names: `south`, `east`, `west`, `north`, the d-pad, `start`, `select`, shoulders, stick clicks |
 | `Input.Component.Events` | `pending`: the events a platform delivered this tick |
 | `Input.Component.Keyboard` | on a window: `held` and `pressed` keys, `typed` characters, and `strokes` (key presses and characters in order) for the current tick |
