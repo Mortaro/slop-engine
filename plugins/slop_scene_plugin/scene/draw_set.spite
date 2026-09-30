@@ -1,0 +1,11 @@
+var draws = List<Scene.Draw>()
+var terrain_draws = List<Scene.TerrainDraw>()
+var palettes = List<Math.Matrix4>()
+
+func begin() {
+    draws.clear()
+    terrain_draws.clear()
+    palettes.clear()
+    var identity = Math.Matrix4()
+    palettes.append(identity)
+}

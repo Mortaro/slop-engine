@@ -95,10 +95,11 @@ var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
 func record(
     renderer: RenderVulkan.Component.Renderer,
     view: Scene.Component.View,
+    drawn: Scene.DrawSet,
     camera: Scene.Component.ViewCamera,
     meshes: Scene.Meshes,
     terrain_materials: Scene.TerrainMaterials,
-    lights: Scene.Component.Lights,
+    lights: Scene.Lights,
 ) {
     ensure_depth(renderer)
     upload_meshes(renderer, meshes)
@@ -109,7 +110,7 @@ func record(
     aspect = aspect / height
     camera.aspect = aspect
     clusters.assign(camera, lights, aspect)
-    write_frame_data(renderer, view, slot)
+    write_frame_data(renderer, drawn, slot)
     write_local_lights(renderer, view, lights, slot)
     terrain.upload_step(renderer, terrain_materials)
     release_retired_scene_sets(renderer)
@@ -119,7 +120,7 @@ func record(
     crash storage_sets[slot]
     storage.append_long(storage_sets[slot])
     var no_offsets: Long = 0
-    record_shadows(renderer, view, storage)
+    record_shadows(renderer, drawn, storage)
     renderer.barrier(hdr_image, 0, 256, 0, 2, 1, 1024)
     depth_barrier(renderer)
     begin_rendering(renderer, view)
@@ -128,8 +129,8 @@ func record(
     vulkan.vkCmdBindDescriptorSets(frame.command_buffer, 0, pipeline_layout, 1, 1, storage.address, 0, no_offsets)
     var projection = camera.projection(aspect)
     var view_projection = projection.multiplied(camera.view)
-    record_runs(renderer, view, view_projection)
-    record_terrain(renderer, view, terrain_materials, storage, view_projection)
+    record_runs(renderer, drawn, view_projection)
+    record_terrain(renderer, drawn, terrain_materials, storage, view_projection)
     vulkan.vkCmdEndRendering(frame.command_buffer)
     renderer.barrier(hdr_image, 256, 32, 2, 5, 1024, 128)
     record_tone_map(renderer)
@@ -151,11 +152,7 @@ func aim_sun(view: Scene.Component.View, camera: Scene.Component.ViewCamera) {
     light_view_projection = light_projection.multiplied(light_view)
 }
 
-func record_shadows(
-    renderer: RenderVulkan.Component.Renderer,
-    view: Scene.Component.View,
-    storage: RenderVulkan.Structure,
-) {
+func record_shadows(renderer: RenderVulkan.Component.Renderer, drawn: Scene.DrawSet, storage: RenderVulkan.Structure) {
     var frame = renderer.frame
     image_barrier(renderer, shadow_image, 0, 1536, 0, 3, 1, 768, 2)
     var depth = RenderVulkan.Structure(72)
@@ -191,11 +188,11 @@ func record_shadows(
     set_viewport(renderer, shadow_size, shadow_size)
     var no_offsets: Long = 0
     vulkan.vkCmdBindDescriptorSets(frame.command_buffer, 0, pipeline_layout, 1, 1, storage.address, 0, no_offsets)
-    record_runs(renderer, view, light_view_projection)
-    var first_terrain = view.draws.count()
+    record_runs(renderer, drawn, light_view_projection)
+    var first_terrain = drawn.draws.count()
     var index = 0
-    while index < view.terrain_draws.count() {
-        var cell = view.terrain_draws[index]
+    while index < drawn.terrain_draws.count() {
+        var cell = drawn.terrain_draws[index]
         record_mesh(
             renderer,
             cell.mesh_slot,
@@ -532,7 +529,7 @@ func write_lighting(view: Scene.Component.View, camera: Scene.Component.ViewCame
 func write_local_lights(
     renderer: RenderVulkan.Component.Renderer,
     view: Scene.Component.View,
-    lights: Scene.Component.Lights,
+    lights: Scene.Lights,
     slot: Integer,
 ) {
     var visible_count = clusters.visible.count()
@@ -619,14 +616,14 @@ func put(at: Long, index: Integer, first: Float, second: Float, third: Float, fo
     floats.write_value(at, index + 3, fourth)
 }
 
-func record_runs(renderer: RenderVulkan.Component.Renderer, view: Scene.Component.View, view_projection: Math.Matrix4) {
+func record_runs(renderer: RenderVulkan.Component.Renderer, drawn: Scene.DrawSet, view_projection: Math.Matrix4) {
     var run = 0
     while run < run_starts.count() {
         crash run_draws[run]
         crash run_counts[run]
         var first_draw = run_draws[run]
-        crash view.draws[first_draw]
-        var draw = view.draws[first_draw]
+        crash drawn.draws[first_draw]
+        var draw = drawn.draws[first_draw]
         var set_index = draw.texture_slot + 1
         if set_index >= renderer.texture_sets.count() {
             set_index = 0
@@ -708,20 +705,20 @@ func push_and_draw(
 
 func record_terrain(
     renderer: RenderVulkan.Component.Renderer,
-    view: Scene.Component.View,
+    drawn: Scene.DrawSet,
     terrain_materials: Scene.TerrainMaterials,
     storage: RenderVulkan.Structure,
     view_projection: Math.Matrix4,
 ) {
-    assert view.terrain_draws.count() > 0
+    assert drawn.terrain_draws.count() > 0
     var command_buffer = renderer.frame.command_buffer
     vulkan.vkCmdBindPipeline(command_buffer, 0, terrain.pipeline)
     var no_offsets: Long = 0
     vulkan.vkCmdBindDescriptorSets(command_buffer, 0, terrain.pipeline_layout, 1, 1, storage.address, 0, no_offsets)
-    var first_terrain = view.draws.count()
+    var first_terrain = drawn.draws.count()
     var index = 0
-    while index < view.terrain_draws.count() {
-        var cell = view.terrain_draws[index]
+    while index < drawn.terrain_draws.count() {
+        var cell = drawn.terrain_draws[index]
         var set = terrain.set_for(renderer, terrain_materials, cell.material_slot)
         if set != 0 and vertex_buffers[cell.mesh_slot] != 0 {
             var sets = RenderVulkan.Structure(8)
@@ -1492,19 +1489,19 @@ func record_viewport(renderer: RenderVulkan.Component.Renderer) {
     vulkan.vkCmdSetScissor(frame.command_buffer, 0, 1, scissor.address)
 }
 
-func write_frame_data(renderer: RenderVulkan.Component.Renderer, view: Scene.Component.View, slot: Integer) {
-    var draw_count = view.draws.count()
-    var terrain_count = view.terrain_draws.count()
-    var palette_count = view.palettes.count()
+func write_frame_data(renderer: RenderVulkan.Component.Renderer, drawn: Scene.DrawSet, slot: Integer) {
+    var draw_count = drawn.draws.count()
+    var terrain_count = drawn.terrain_draws.count()
+    var palette_count = drawn.palettes.count()
     ensure_frame_buffers(renderer, slot, draw_count + terrain_count, palette_count)
     crash draw_mapped[slot]
     crash palette_mapped[slot]
     var draws_at = draw_mapped[slot]
     var palettes_at = palette_mapped[slot]
-    group_draws(view)
+    group_draws(drawn)
     var index = 0
     while index < draw_count {
-        var draw = view.draws[index]
+        var draw = drawn.draws[index]
         var key = key_of(draw)
         crash key_counts[key]
         var position = key_counts[key]
@@ -1527,7 +1524,7 @@ func write_frame_data(renderer: RenderVulkan.Component.Renderer, view: Scene.Com
     }
     index = 0
     while index < terrain_count {
-        var cell = view.terrain_draws[index]
+        var cell = drawn.terrain_draws[index]
         var cell_at = draws_at + (draw_count + index) * draw_stride
         cell.model.write_to(cell_at)
         raw.write_integer(cell_at, 64, 0)
@@ -1537,7 +1534,7 @@ func write_frame_data(renderer: RenderVulkan.Component.Renderer, view: Scene.Com
     index = 0
     while index < palette_count {
         var palette_at = palettes_at + index * palette_stride
-        view.palettes[index].write_to(palette_at)
+        drawn.palettes[index].write_to(palette_at)
         index = index + 1
     }
 }
@@ -1548,14 +1545,14 @@ func key_of(draw: Scene.Draw): Integer {
     return draw.mesh_slot * sections_per_mesh + draw.section
 }
 
-func group_draws(view: Scene.Component.View) {
+func group_draws(drawn: Scene.DrawSet) {
     used_keys.clear()
     run_starts.clear()
     run_counts.clear()
     run_draws.clear()
     var index = 0
-    while index < view.draws.count() {
-        var draw = view.draws[index]
+    while index < drawn.draws.count() {
+        var draw = drawn.draws[index]
         var key = key_of(draw)
         while key_counts.count() <= key {
             key_counts.append(0)
@@ -1570,8 +1567,8 @@ func group_draws(view: Scene.Component.View) {
         } else {
             crash key_first_draws[key]
             var first_index = key_first_draws[key]
-            crash view.draws[first_index]
-            var first = view.draws[first_index]
+            crash drawn.draws[first_index]
+            var first = drawn.draws[first_index]
             var same_section = first.first_index == draw.first_index and first.index_count == draw.index_count
             var same_look = first.texture_slot == draw.texture_slot and first.masked == draw.masked
             crash same_section and same_look

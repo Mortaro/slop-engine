@@ -10,6 +10,7 @@ type Quitting {
     running: Without<Component.Quit>
 }
 
+var draws = Scene.Draws()
 var console = Console()
 var rendered_frames = 0
 var capture = Capture()
@@ -18,7 +19,7 @@ var world = World()
 var captured_frames = Lookup<RenderVulkan.Component.Captured>()
 
 func last_each(checked: Checked, quitting: Quitting) {
-    assert checked.view.terrain_draws.count() > 0
+    assert draws.of(checked.entity.id).terrain_draws.count() > 0
     var renderer = checked.renderer
     rendered_frames = rendered_frames + 1
     if rendered_frames == 30 {

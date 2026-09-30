@@ -1,4 +1,5 @@
 type Checked {
+    entity: Entity
     view: Scene.Component.View
 }
 
@@ -7,16 +8,17 @@ type Quitting {
     running: Without<Component.Quit>
 }
 
+var draws = Scene.Draws()
 var console = Console()
 var rendered = 0
 
 var world = World()
 
 func last_each(checked: Checked, quitting: Quitting) {
-    assert checked.view.draws.count() > 0
+    assert draws.of(checked.entity.id).draws.count() > 0
     rendered = rendered + 1
     assert rendered == 300
-    var drawn = checked.view.draws.count()
+    var drawn = draws.of(checked.entity.id).draws.count()
     console.print("drawn", drawn)
     var quit = Component.Quit()
     var shelf = world.as_entity()

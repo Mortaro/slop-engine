@@ -1,3 +1,5 @@
+singleton
+
 var floats = List<Float>()
 var light_floats = 16
 

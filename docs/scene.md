@@ -11,9 +11,9 @@ with `spite kal_character --kal_assets=<folder>`.
 |---|---|---|
 | `slop_transform_plugin` | `Transform` | `Transform.Component.Transform`: position, a rotation quaternion and scale |
 | `slop_camera_plugin` | `Camera` | `Camera.Component.Camera` (eye, target, field of view, near, far) and `Camera.Component.Orbit` with the `AimOrbit` system |
-| `slop_scene_plugin` | `Scene` | `Scene.Component.Model` (a mesh id and a bone palette); `Scene.Component.View` on each window; the `Scene.Meshes` and `Scene.TerrainMaterials` resources, which give each mesh and terrain material an entity (`Scene.Component.Mesh`, `Scene.Component.TerrainMaterial`, marked `Component.Loading` while a job runs and `TerrainTexturesRequested` once its control textures are asked for); and `Scene.Component.ViewCamera` (the view matrix, field of view, near, far, eye and shadow centre) while a camera exists; `Gather` collects the camera, the models and the lighting every frame |
+| `slop_scene_plugin` | `Scene` | `Scene.Component.Model` (a mesh id) and, on an animated model, `Scene.Component.Skin` (its `Scene.Pose`: the bone palette and each bone's pose, asset data rewritten every frame); `Scene.Component.View` on each window, whose draws, terrain draws and palettes for the frame live in the `Scene.Draws` resource (`draws.of(view)`, a `Scene.DrawSet` per view); the `Scene.Meshes` and `Scene.TerrainMaterials` resources, which give each mesh and terrain material an entity (`Scene.Component.Mesh`, `Scene.Component.TerrainMaterial`, marked `Component.Loading` while a job runs and `TerrainTexturesRequested` once its control textures are asked for); and `Scene.Component.ViewCamera` (the view matrix, field of view, near, far, eye and shadow centre) while a camera exists; `Gather` collects the camera, the models and the lighting every frame |
 | `slop_scene_vulkan_plugin` | `SceneVulkan` | the Vulkan passes: sun shadow map, lit scene into HDR, tone map into the frame, then the UI draws on top; `SceneVulkan.Component.MeshRendererCreated` marks a window whose passes are built |
-| `slop_animation_plugin` | `Animation` | `Animation.Component.Animator` (skeleton, clip, time, speed), looping unless the entity has the marker `Animation.Component.PlayOnce`; `Animate` samples the clip into the model's palette |
+| `slop_animation_plugin` | `Animation` | `Animation.Component.Animator` (skeleton, clip, time, speed), looping unless the entity has the marker `Animation.Component.PlayOnce`; `Animate` samples the clip into the model's `Skin`, adding one the first time |
 | `slop_lighting_plugin` | `Lighting` | `Sun`, `Sky`, `HeightFog` and `Exposure` components and a `Daylight` bundle, written into each view; `PointLight` and `SpotLight` components gathered into `Scene.Lights` |
 | `slop_blend_plugin` | `Blend` | `MeshReader`, `SkeletonReader` and `ActionReader`: what a recipe needs from a `.blend` |
 | `slop_png_plugin` | `Png` | a PNG decoder, pixel-exact against Pillow, for the images packed in a `.blend` |
@@ -75,7 +75,7 @@ samples its clip. The step is measured once per tick, so every part of a charact
 measuring wall-clock time per row made the parts drift apart (the face slid off the head) whenever a tick's rows
 crossed a millisecond. - Position and scale are interpolated linearly. - Rotation uses a shortest-arc slerp, falling
 back to a normalised lerp for near-identical keys. - It writes `global · inverse_bind` for each bone into
-`Scene.Component.Model.palette`, and each bone's model-space pose (`global`) into `Model.bones`. - It skips a model
+the `Skin`'s `pose.palette`, and each bone's model-space pose (`global`) into `pose.bones`. - It skips a model
 marked `Scene.Component.OffView`. Gather adds that marker when a skinned model leaves the view cone and its shadow
 cannot reach the view (its sphere swept away from the sun), and removes it when either comes back, so an off-screen
 character costs no sampling and the marker changes only on those crossings. A character coming into view shows its
@@ -111,13 +111,13 @@ How it's resolved:
 - **Which bone:** name the bone with `bone`, or give `bone_index` (0 or more) for an index, as monsters' effect bones
   are. The name is looked up once in the carrier's skeleton and cached against the name, so changing `bone` later
   looks it up again. A name the skeleton doesn't have crashes, naming the bone and the skeleton.
-- **The carrier:** it needs an `Animator`, a `Model` and a `Transform`. Until its skeleton has loaded and been posed,
+- **The carrier:** it needs an `Animator`, a `Skin` and a `Transform`. Until its skeleton has loaded and been posed,
   the attachment keeps its own `Transform`.
 - **Despawning:** because the attachment is a child, it despawns with its carrier.
 
 `examples/attachment_check` checks a named bone with an offset and an indexed bone on a synthetic, turned skeleton.
 
-The scene plugin knows nothing of animation: it uploads any palette a model carries, and the vertex shader skins
+The scene plugin knows nothing of animation: it uploads the palette of any model with a `Skin`, and the vertex shader skins
 with four bones per vertex.
 
 ## Lighting
@@ -216,7 +216,7 @@ How a light is shaded:
 - **Surface response:** the same GGX and Lambert as the sun.
 
 Each frame:
-1. `ClearLights` (`prepare`) empties the `Scene.Lights` singleton.
+1. `ClearLights` (`prepare`) empties the `Scene.Lights` resource (a singleton: the lights are gathered once, not per window).
 2. `GatherPointLights` and `GatherSpotLights` (`render`) stream every light into it, 16 floats each.
 
 Only the position is read, so a light that is a child of a moving entity needs its own transform kept in world

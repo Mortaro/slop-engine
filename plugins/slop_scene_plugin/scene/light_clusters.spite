@@ -21,7 +21,7 @@ var scalar = Math.Scalar()
 var eye = Math.Vector3()
 var ints = TypedMemory<Integer>()
 
-func assign(camera: Scene.Component.ViewCamera, lights: Scene.Component.Lights, aspect: Float) {
+func assign(camera: Scene.Component.ViewCamera, lights: Scene.Lights, aspect: Float) {
     prepare(camera, aspect)
     var light_count = lights.count()
     var floats = lights.floats

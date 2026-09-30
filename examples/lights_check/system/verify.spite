@@ -3,7 +3,6 @@ type Checked {
     renderer: RenderVulkan.Component.Renderer
     view: Scene.Component.View
     draw_list: Render.Component.DrawList
-    lights: Scene.Component.Lights
 }
 
 type Quitting {
@@ -11,6 +10,8 @@ type Quitting {
     running: Without<Component.Quit>
 }
 
+var draws = Scene.Draws()
+var lights = Scene.Lights()
 var console = Console()
 var clock = Clock()
 var environment = Environment()
@@ -22,7 +23,7 @@ var world = World()
 var captured_frames = Lookup<RenderVulkan.Component.Captured>()
 
 func last_each(checked: Checked, quitting: Quitting) {
-    assert checked.view.draws.count() > 0
+    assert draws.of(checked.entity.id).draws.count() > 0
     var renderer = checked.renderer
     rendered_frames = rendered_frames + 1
     if rendered_frames == 20 {
@@ -30,8 +31,8 @@ func last_each(checked: Checked, quitting: Quitting) {
     }
     if rendered_frames == 120 {
         var spent = clock.elapsed_nanoseconds() - started
-        var lights = checked.lights.count()
-        console.print("lights", lights, "microseconds per frame", spent / 100000)
+        var light_count = lights.count()
+        console.print("lights", light_count, "microseconds per frame", spent / 100000)
         var request = RenderVulkan.Component.CaptureRequested()
         checked.entity.add_component(request)
     }

@@ -10,6 +10,7 @@ type Quitting {
     running: Without<Component.Quit>
 }
 
+var draws = Scene.Draws()
 var console = Console()
 var rendered_frames = 0
 
@@ -17,7 +18,7 @@ var world = World()
 var captured_frames = Lookup<RenderVulkan.Component.Captured>()
 
 func last_each(checked: Checked, quitting: Quitting) {
-    assert checked.view.draws.count() > 0
+    assert draws.of(checked.entity.id).draws.count() > 0
     var renderer = checked.renderer
     rendered_frames = rendered_frames + 1
     if rendered_frames == 20 {
@@ -32,7 +33,7 @@ func last_each(checked: Checked, quitting: Quitting) {
     var clear = checked.draw_list.clear_color
     var corner_color = corner.bits_and(16777215)
     var center_color = center.bits_and(16777215)
-    var drawn = checked.view.draws.count()
+    var drawn = draws.of(checked.entity.id).draws.count()
     var culled_behind = drawn == 1
     var passed = corner_color != clear and center_color != corner_color and center_color != 0 and culled_behind
     console.print("center", center_color, "corner", corner_color, "clear", clear, "drawn", drawn, "passed", passed)

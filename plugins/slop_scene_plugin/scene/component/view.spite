@@ -1,7 +1,4 @@
 var cone = Scene.ViewCone()
-var draws = List<Scene.Draw>()
-var terrain_draws = List<Scene.TerrainDraw>()
-var palettes = List<Math.Matrix4>()
 var sun_toward_x: Float = -0.5792
 var sun_toward_y: Float = 0.7071
 var sun_toward_z: Float = -0.4056
@@ -25,11 +22,3 @@ var roughness: Float = 0.7
 var shadow_radius: Float = 6.0
 var specular: Float = 0.5
 var metallic: Float = 0.0
-
-func begin() {
-    draws.clear()
-    terrain_draws.clear()
-    palettes.clear()
-    var identity = Math.Matrix4()
-    palettes.append(identity)
-}

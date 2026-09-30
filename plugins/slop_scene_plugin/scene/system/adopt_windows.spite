@@ -5,8 +5,6 @@ type NewWindow {
 
 func after_input_each(created: NewWindow) {
     var window = created.entity
-    var lights = Component.Lights()
-    window.add_component(lights)
     var view = Component.View()
     window.add_component(view)
 }
