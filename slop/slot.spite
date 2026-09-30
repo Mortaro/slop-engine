@@ -4,6 +4,7 @@ generic $slot_type
 
 var raw = Raw()
 var column = Column<$slot_type>()
+var world = World()
 
 func tracking_kind(current: $slot_type): Integer {
     if $slot_type.has_function("tracking_kind") {
@@ -25,8 +26,7 @@ func fetch(entity: Integer, current: $slot_type, column_header: Long, row: Integ
         return current
     }
     if $slot_type == Entity {
-        current.id = entity
-        return current
+        return world.entity_of(entity)
     }
     crash column_header != 0
     var entities = raw.read_long(column_header, 24)

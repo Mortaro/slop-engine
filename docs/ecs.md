@@ -227,7 +227,7 @@ func update_each(potion: Potion, target: Target) {
 |---|---|
 | a component class | the entity must have it; the field is the stored component, and changing its fields changes it |
 | a marker component | the entity must have it; nothing is fetched |
-| `entity: Entity` (named `entity`) | the entity's own id; not a filter. An `Entity` field with any other name is a startup crash, `a_row_field_of_class_entity_is_named_entity` |
+| `entity: Entity` (named `entity`) | the entity's own id; not a filter. Each row gets an `Entity` of its own, so storing it in a link (`chase.entity = prey.entity`) keeps naming that entity after the runner moves on (it once named whichever entity the runner filled next). An `Entity` field with any other name is a startup crash, `a_row_field_of_class_entity_is_named_entity` |
 | a link component, e.g. `parent: Component.Parent` | the entity must have it, like any component; in a system's first row it also says the next row is the entity it names ([below](#following-a-link)) |
 | `Added<T>` | `T` was added since this system last ran; `.value` is the component |
 | `Removed<T>` | `T` was removed (or its entity despawned) since this system last ran; the component itself is gone, so there is no `.value` to read |
