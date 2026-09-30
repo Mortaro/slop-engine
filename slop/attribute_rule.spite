@@ -1,0 +1,20 @@
+generic $component_type
+generic $attribute_type
+
+func check() {
+    a_component_holds_no_list()
+    a_component_holds_no_dictionary()
+    a_component_holds_no_parallel_job()
+}
+
+func a_component_holds_no_list() {
+    crash $attribute_type != List
+}
+
+func a_component_holds_no_dictionary() {
+    crash $attribute_type != Dictionary
+}
+
+func a_component_holds_no_parallel_job() {
+    crash not $attribute_type.has_function("finished_value")
+}

@@ -69,6 +69,11 @@ compile time (a plural template over the class finds nothing), and a marker is o
 
 ### Components hold data
 
+Information goes into components, implementation into systems (Mortaro, 2026-09-30). State is a marker because a
+marker is a public fact other code can query and combine: a specialised library can ask for `Render.Component.Texture`
+and `Component.Loading` to drive its own loading screen without touching the texture system. So the markers a system
+adds are plain, reusable ones (`Loading`, `JustPressed`), never something private to that system.
+
 A component that is not in use is removed; a field never says "inactive" (Mortaro, 2026-09-28). So a component may
 not have:
 
@@ -77,13 +82,32 @@ not have:
 - an `Entity` attribute beside other attributes: a component holding an `Entity` is a
   [link component](#links-between-entities), which holds only `var entity = Entity()`;
 - an optional `T?` attribute: whether the value is there is another component;
-- a collection of Booleans (`List<Boolean>`, `Dictionary<Boolean>`): each item's state is a marker on that item's own
-  entity, as each texture's `Render.Component.TextureReady`;
+- a `List` or a `Dictionary` (Mortaro, 2026-09-30), **a compile error**: parallel lists indexed by an id become one
+  entity per item with its own components (each texture, mesh, terrain material and font size is an entity), a list
+  of entity ids becomes a link component on each item's entity (an observation names its connection with
+  `Network.Component.Observer`), a list of states becomes a marker on each item (`Input.Component.JustPressed` on a
+  held key's entity), and the entity's own variable data is either entities (input events, held keys, gamepad
+  buttons) or asset data held by an object (a model's `Scene.Pose`, an atlas's `Ui.GlyphTable`, a grid template's
+  CSS text). Lists live only in [resources](#resources);
+- a `Parallel` (Mortaro, 2026-09-30, resolving Theseus A99), **a compile error**: an entity with a job in flight has
+  the marker `Component.Loading` (or another public marker, such as `Network.Component.Dialing`), added when the job
+  starts and removed when its result lands, and the `Parallel` itself lives with whoever started it, in a resource
+  keyed by the entity (`Render.Textures`, `Scene.Meshes`, `Network.Dials`);
 - a `stored_inline()` function: storage is inferred.
 
-At startup `App()` walks every registered component (`slop/component_rule.spite`), prints each break as
-`ECS rule: <Component>.<attribute> ...`, then crashes on `components_follow_the_ecs_rules` if there was any. For an
-`Entity` attribute it also reports one not named `entity`, and a default naming a real entity instead of `Entity()`.
+The `List`, `Dictionary` and `Parallel` rules are checked while compiling: `ComponentRule` makes an
+`AttributeRule<Component, attribute class>` for every attribute, whose `crash $attribute_type != List` (and the
+other two) folds to false for a breaking attribute, which Spite reports as a compile error naming the instance, for
+example `'crash $attribute_type != List' always halts in AttributeRule<Bag, List<Integer>>` in
+`a_component_holds_no_list`. `examples/list_component_refused/test.sh` checks all three. A `Parallel` is recognised by
+its `finished_value` function, since `$T == Parallel` does not name a kind the way `List` and `Dictionary` do.
+
+The other rules are checked at startup: `App()` walks every registered component (`slop/component_rule.spite`),
+prints each break as `ECS rule: <Component>.<attribute> ...`, then crashes on `components_follow_the_ecs_rules` if
+there was any. For an `Entity` attribute it also reports one not named `entity`, and a default naming a real entity
+instead of `Entity()`. An `Integer` holding an entity id cannot be told from any other number, so no rule catches
+one: an entity a component keeps is a link, never an `Integer` field (the last ones, `Viewer.entity`,
+`Observer.subject`/`observer`, `Sender.connection` and `Connect.connection`, are links now).
 
 A component marks only what an entity has, never what it lacks (Mortaro, 2026-09-30): no field, marker or value
 says "none", "not yet" or "no target". An entity with nothing to chase has no `Target`.
@@ -157,9 +181,9 @@ func CountLabel(button: Entity) {
 
 ## State is components
 
-There are no resources (Mortaro, 2026-09-25): "Resources shouldnt exist, its just a entity that is only used once
-instead, if we want to use it we query for that entity." State that another engine keeps in a resource is a
-component on an entity, and a system reaches it through a row like any other data.
+State that another engine keeps in a resource is a component on an entity (Mortaro, 2026-09-25: "Resources
+shouldnt exist, its just a entity that is only used once instead, if we want to use it we query for that entity"),
+and a system reaches it through a row like any other data.
 
 - **Program-wide state lives on the world entity.** `App()` puts the core's two there:
 
@@ -176,7 +200,25 @@ component on an entity, and a system reaches it through a row like any other dat
   `Added<Window.Component.Window>` matches. So several windows each get their own.
 - **Services that are not world state are plain classes**: `Render.Font`, `Recipes.Cache`.
 
-`World` is the only singleton the engine has: `var world = World()` at the top of a file.
+### Resources
+
+Since components hold no lists (above), what is a list by nature lives in a **resource**: a singleton class outside
+`component/`, bound like any singleton (`var textures = Render.Textures()` at the top of a system's file). A resource
+holds indexes and bookkeeping, never the items themselves, which are entities:
+
+| Resource | Holds |
+|---|---|
+| `Render.Textures`, `Scene.Meshes`, `Scene.TerrainMaterials` | asset id to slot, each slot's entity, and the load jobs in flight keyed by entity |
+| `Ui.Fonts` | the loaded font faces by name, and each size's atlas entity |
+| `Scene.Draws`, `Scene.Lights` | this frame's draws and palettes per view, and the gathered lights (scratch, rebuilt each frame) |
+| `RenderVulkan.Renderer`, `SceneVulkan.MeshRenderer` | the Vulkan device, pipelines and per-frame GPU buffers |
+| `Network.Dials` | the dial jobs in flight, keyed by the entity marked `Dialing` |
+
+A system that binds a resource names it in what it touches, so two systems binding the same one never share a stage
+(the runner counts every singleton a system holds, `World` aside). Choosing a resource over entities is a proposal by
+Claude case by case, noted where each is documented.
+
+`World` is the engine's central singleton: `var world = World()` at the top of a file.
 
 A row that matches one entity costs nothing extra: a system that takes `(button: Pressable, pointer: Pointer)`
 runs once per button, with the window's mouse in `pointer`.

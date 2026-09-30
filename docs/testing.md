@@ -37,6 +37,7 @@ Every behaviour the docs claim is checked by a program in `examples/`. Run them 
 | `psd_probe` | `buttons.psd`'s layer tree and sizes |
 | `interest_check/test.sh` | area of interest across two processes: a bot's view of 100 beacons follows the server's eye (6, then 11), a despawn in view reaches it (10), links travel both ways (`Near` from the server, a `Target` message from the bot), and despawning the beacon the stashes are `Near` removes each `Near` on the bot too (9) |
 | `relations_check` | `Parent` links set, changed and removed at run time; a two-row system follows 10,000 items' `Parent` to their 1,000 players; a despawn cascades to children; despawning a hunter's prey removes its `Target` in that flush, and a `Removed<Component.Target>` row sees it |
+| `list_component_refused/test.sh` | a component holding a `List`, a `Dictionary` or a `Parallel` fails to compile, each error naming the rule and the component |
 | `dead_link_refused/test.sh` | adding a link component whose entity is despawned, or left at `Entity()`, crashes naming the rule |
 | `wire_probe` | an `Entity` naming a mirror goes on the wire as the remote id, and the other side reads its own id back; through a link component's codec, a mirror arrives as the receiver's own entity and a sender's own entity arrives as a new mirror |
 | `timers_check` | timers ring on the right ticks, a list system's writes to inline components stick, a list system whose first list is empty never runs, and `run`'s fixed-rate pacing holds 25 ms ticks |

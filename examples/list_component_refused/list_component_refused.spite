@@ -1,0 +1,5 @@
+func ListComponentRefused() {
+    load "../../slop"
+    var app = App()
+    app.tick()
+}

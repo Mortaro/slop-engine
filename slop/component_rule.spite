@@ -25,6 +25,8 @@ func check(): Integer {
 }
 
 func check_attribute(attribute: Symbol<$component_type>, value: $component_type) {
+    var folded = AttributeRule<$component_type, attribute.class>()
+    folded.check()
     counted_attributes = counted_attributes + 1
     var type_name: String = attribute.class
     if attribute.class == Entity {
@@ -39,8 +41,6 @@ func check_attribute(attribute: Symbol<$component_type>, value: $component_type)
         )
     } else if type_name.ends_with("?") {
         report(".{attribute.name}", "is optional: whether it is there is another component")
-    } else if type_name.contains("Boolean>") {
-        report(".{attribute.name}", "holds Booleans: each item's state is a marker on that item's own entity")
     }
 }
 
