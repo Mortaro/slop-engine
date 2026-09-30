@@ -14,7 +14,7 @@ var rendered = 0
 
 var world = World()
 
-func last_each(checked: Checked, quitting: Quitting) {
+func last_each(checked: Checked, _quitting: Quitting) {
     assert draws.of(checked.entity.id).draws.count() > 0
     rendered = rendered + 1
     assert rendered == 300
