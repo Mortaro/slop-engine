@@ -115,6 +115,9 @@ func spawn(is_player: Boolean) {
         var timer = Component.Timer()
         timer.start(1500)
         entity.add_component(timer)
+        var now = world.now()
+        var ticking = timer.resume(now)
+        entity.add_component(ticking)
         var again = Component.Repeating()
         entity.add_component(again)
     }

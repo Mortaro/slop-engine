@@ -309,7 +309,7 @@ slop/                     the core, loaded by every program
   column.spite, columns.spite, slot.spite    component storage: sparse sets in raw Memory
   spawn.spite, insert.spite, remove.spite, lookup.spite, entity.spite
   world.spite             World: entity ids, the world entity, queued changes
-  component/              Component.Quit, Component.Frame (on the world entity); Component.Timer, Rang, Repeating
+  component/              Component.Quit, Component.Frame (on the world entity); Component.Timer, Ticking, Rang, Repeating, Expires, Stopwatch
   component_rule.spite    ComponentRule<component>: the startup report of components that break the ECS rules
   system/                 System.CountFrames
   cook.spite, cooking.spite   Cook: runs every Recipe

@@ -14,6 +14,7 @@ var columns = Columns()
 
 var spawned_typed = false
 var parents = Link<Component.Parent>()
+var frames = Lookup<Component.Frame>()
 
 func prepare() {
     assert buffers.count() == 0
@@ -150,4 +151,10 @@ func take_despawns(pending: List<Integer>, despawned: List<Integer>) {
         index = index + 1
     }
     pending.clear()
+}
+
+func now(): Long {
+    var frame = frames.of(entity)
+    crash frame
+    return frame.elapsed_milliseconds
 }

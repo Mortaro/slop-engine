@@ -1,2 +1,3 @@
 var count = 0
 var step_milliseconds = 16
+var elapsed_milliseconds: Long = 0

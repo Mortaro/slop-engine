@@ -1,0 +1,26 @@
+type Running {
+    entity: Entity
+    ticking: Component.Ticking
+}
+
+var repeating = Lookup<Component.Repeating>()
+var timers = Lookup<Component.Timer>()
+
+func input_each(clock: GameClock, running: Running) {
+    var ticking = running.ticking
+    var now = clock.frame.elapsed_milliseconds
+    assert ticking.ends_at <= now
+    var owner = running.entity
+    var marker = Component.Rang()
+    owner.add_component(marker)
+    var timer = timers.of(owner.id)
+    crash timer
+    if repeating.has(owner.id) and timer.duration > 0 {
+        while ticking.ends_at <= now {
+            ticking.ends_at = ticking.ends_at + timer.duration
+        }
+        return
+    }
+    timer.remaining_while_paused = 0
+    owner.remove_component(Component.Ticking)
+}

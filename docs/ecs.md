@@ -189,7 +189,7 @@ and a system reaches it through a row like any other data.
 
   | Component | Holds |
   |---|---|
-  | `Component.Frame` | `count`, the number of finished ticks (kept by `System.CountFrames`), and `step_milliseconds`, this tick's step |
+  | `Component.Frame` | `count`, the number of finished ticks (kept by `System.CountFrames`); `step_milliseconds`, this tick's step; `elapsed_milliseconds`, the game clock (every step so far, read with `world.now()`) |
 
   Quitting is a marker: a system that ends the program adds `Component.Quit` to the world entity, and the app ends
   after that tick, plus one final tick. A row that should stop once quitting asks for `Without<Component.Quit>`.
@@ -365,12 +365,56 @@ Ordering inside a phase is by name, not by data. The finer phase names carry the
 
 ## Timers
 
-`Component.Timer` is a timer as a component (a proposal by Claude): `timer.start(milliseconds)`, then the engine's
-`RingTimers` system counts it down by the step every tick, in `input`, and adds the marker `Component.Rang` to the
-entity on the tick it reaches zero; `SilenceTimers` removes it in `last`, so every system of that tick sees it and
-none of the next. A timer with the marker `Component.Repeating` starts
-over; a one-shot timer is removed once it rings. A system reacts by asking for `Rang` in its row, so it runs only on
-the ticks a timer rang:
+A timer is components, and its state is which of them an entity has (Mortaro, 2026-09-30: "just make sure it's
+always ECS"). Names follow Bevy's `Timer` where they fit (a proposal by Claude, accepted).
+
+| Component | Holds | Means |
+|---|---|---|
+| `Component.Timer` | `duration`, and `remaining_while_paused` | the entity has a timer; alone, it is paused |
+| `Component.Ticking` | `ends_at`, on the game clock | the timer is running and ends then |
+| `Component.Repeating` | marker | it starts over when it ends (Bevy `TimerMode::Repeating`); absent, it runs once |
+| `Component.Rang` | marker | it ended this tick (Bevy `just_finished()`) |
+| `Component.Expires` | marker | the entity is despawned when its one-shot timer ends |
+| `Component.Stopwatch` | `started_at`, on the game clock | counts up (Bevy `Stopwatch`) |
+
+An entity has at most one timer, so things that time independently are entities of their own, usually children of
+their owner (`owner.spawn_entity()`), which die with it.
+
+**The game clock** is the world entity's `Component.Frame.elapsed_milliseconds`: the sum of every tick's step, so it
+stands still while nothing ticks and repeats exactly under `app.tick()`. `world.now()` reads it. A running timer keeps
+its end on this clock, so nothing writes to it while it runs: ticking is comparing `ends_at` with now.
+
+| Call | Does |
+|---|---|
+| `timer.start(milliseconds)` | sets the duration and what remains; add the `Timer` to the entity |
+| `timer.resume(now)` | the `Ticking` to add to start or resume it: `ends_at = now + remaining` |
+| `timer.pause(ticking, now)` | keeps what remains in the `Timer`; then remove the `Ticking` |
+| `timer.reset()` | what remains goes back to the duration (for a running timer, add a new `timer.resume(now)`) |
+| `timer.remaining()`, `remaining_seconds()`, `elapsed()`, `fraction()`, `fraction_remaining()` | of a paused or ended timer |
+| `ticking.remaining(now)`, `remaining_seconds(now)`, `elapsed(timer, now)`, `fraction(timer, now)`, `fraction_remaining(timer, now)` | of a running one |
+| `stopwatch.reset(now)`, `stopwatch.elapsed(now)`, `elapsed_seconds(now)` | a stopwatch started (or restarted) at `now` |
+
+Starting a timer is two components:
+
+```gdscript
+var timer = Component.Timer()
+timer.start(1500)
+entity.add_component(timer)
+var now = world.now()
+var ticking = timer.resume(now)
+entity.add_component(ticking)
+```
+
+Two engine systems run them:
+
+- `System.TickTimers` (`input`) walks the running timers. For each whose `ends_at` has come it adds `Rang`; a
+  `Repeating` one moves `ends_at` on by whole durations, so it keeps its phase; a one-shot keeps its `Timer`, with
+  nothing remaining, and loses its `Ticking`.
+- `System.SilenceTimers` (`last`) walks only the `Rang` markers: it removes `Rang`, and for a one-shot that is still
+  ended (no `Ticking`, not `Repeating`) removes the `Timer`, or despawns the entity if it `Expires`.
+
+So every system of the ring tick, from `after_input` to `present`, sees `Rang` beside the whole `Timer`, and none of
+the next tick does. A system reacts by asking for `Rang` in its row, so it runs only on the ticks a timer rang:
 
 ```gdscript
 type Attacking {
@@ -383,16 +427,105 @@ func update_each(attacking: Attacking) {
 }
 ```
 
+A reaction that starts a one-shot again on its ring tick (adds a new `Ticking`) keeps it: `SilenceTimers` removes
+only a timer that is still ended. There is no world pause or time scale yet (the server never pauses).
+
 The step is the world entity's `Component.Frame.step_milliseconds`, set once at the start of each tick. Under
 `app.run()` it is the time that really passed since the last tick, carried to the nanosecond so fractions of a
 millisecond add up, and at most 100 ms, so a hitch doesn't teleport anything. A fixed step made everything move in
 slow motion whenever a frame took longer than `frame_milliseconds` (Theseus A87: half speed at 25 to 40 ms frames). A
 program that calls `app.tick()` itself, as tests and benchmarks do, gets `frame_milliseconds` every tick, so it stays
-repeatable. The timer is stored inline and `RingTimers` is a one-row system (the step is read from the world's
-`Frame` with a lookup), so counting down 10,000 timers costs about 0.32 ms a tick (`server_bench`, optimized; it
-was 1.3 ms as a list system over the timers, the rung markers and the frame, which built a row object per timer). `timers_check`
-tests it: a 50 ms repeating timer rings 6 times in 30 ticks of 10 ms and a 120 ms one-shot rings once, and 40 paced
-ticks of 25 ms take 1,012 ms.
+repeatable.
+
+`TickTimers` is `input_each(clock: GameClock, running: Running)`: the runner fills the clock once and streams the
+running timers in place (the [clock row](#storage)); the timer row is only `entity` and `Ticking`, and `Timer` and
+`Repeating` are looked up on a ring. Ticking 10,000 timers costs about 0.27 ms a tick (`server_bench`, optimized;
+1.25 ms through the pair path, which copies each row, and 0.34 ms for the one-row system before it, which looked the
+`Frame` up for every timer and wrote every timer every tick). `timers_check` tests it: a 50 ms repeating timer rings 6 times in 30 ticks of 10 ms and a 120 ms one-shot
+rings once, seen with its `Timer` on the ring tick; a paused timer stays paused, then rings three ticks after it
+resumes and is removed; a cooldown child with `Expires` is despawned and the link naming it goes; and 40 paced ticks
+of 25 ms take about 1,000 ms.
+
+### Timers on the network
+
+A running timer's data changes only when it starts, pauses, resumes or rings, so a mirrored timer would cost no
+traffic while it runs. Two things are missing for that (Theseus alert A108): the game clock is each process's own,
+so a server's `ends_at` means nothing to a client, and the engine's components have no `mirrored_from`, so a game
+cannot mirror a `Timer` or a `Ticking`. Until then a game mirrors a component of its own (a duration, or what
+remains) and the receiver starts a local timer from it.
+
+### Timer patterns
+
+The shapes a game builds from timers (documentation examples: `CooledBy`, `Cast`, `Buff` and the rest are the
+game's own components). They rest on one rule of links: despawning an entity removes every link naming it, so a link
+to a timer entity says "busy" for exactly as long as the timer lives.
+
+**A cooldown** is a child entity of the skill with `Timer`, `Ticking` and `Expires`, and a link on the skill naming
+it. The skill is ready when it has no link, so a cast row asks for `Without<Component.CooledBy>`:
+
+```gdscript
+func start_cooldown(skill: Entity, milliseconds: Integer) {
+    var cooldown = skill.spawn_entity()
+    var timer = Component.Timer()
+    timer.start(milliseconds)
+    cooldown.add_component(timer)
+    var now = world.now()
+    var ticking = timer.resume(now)
+    cooldown.add_component(ticking)
+    var expires = Component.Expires()
+    cooldown.add_component(expires)
+    var cooled = Component.CooledBy()
+    cooled.entity = cooldown
+    skill.add_component(cooled)
+}
+```
+
+**A cast** is an entity of its own, a child of the caster, holding the links it needs (`Target`, `OfSkill`), the
+marker `Cast`, and `Timer`, `Ticking` and `Expires`; the caster holds `CastingWith` naming it. Interrupting is
+despawning the cast. It lands when it rings, and if its target died first, the `Target` link is gone and the row
+never matches:
+
+```gdscript
+type Finishing {
+    rang: Component.Rang
+    cast: Component.Cast
+    parent: Component.Parent
+    of_skill: Component.OfSkill
+    target: Component.Target
+}
+```
+
+**A buff** is a child entity of its bearer with `Buff`, a `Source` link, and `Timer`, `Ticking` and `Expires`; a
+permanent buff has no timer. Refreshing it is `timer.reset()` and a new `timer.resume(now)` on the same entity.
+
+**A repeating spawner** (or AI think, or regeneration) is `Timer`, `Ticking` and `Repeating` on the spawn area, and a
+system whose row holds `rang: Component.Rang` beside the area. Staggering many of them is giving each `Ticking` its
+own `ends_at`.
+
+**A cooldown sweep** in the UI reads the timer through the link, with lookups (a hot bar has a dozen slots):
+
+```gdscript
+type Slotted {
+    slot: Component.HotbarSlot
+    shows: Component.ShowsSkill
+}
+
+var world = World()
+var cooled_by = Lookup<Component.CooledBy>()
+var timers = Lookup<Component.Timer>()
+var tickings = Lookup<Component.Ticking>()
+
+func update_each(slotted: Slotted) {
+    var cooled = cooled_by.of(slotted.shows.entity.id)
+    assert cooled
+    var timer = timers.of(cooled.entity.id)
+    var ticking = tickings.of(cooled.entity.id)
+    crash timer
+    crash ticking
+    var now = world.now()
+    show_sweep(slotted.slot, ticking.fraction_remaining(timer, now))
+}
+```
 
 ## Storage
 
@@ -424,6 +557,15 @@ A system with two rows (and no link in the first) takes the smaller row as the o
 inside it: `render_each(target: Target, modeled: Modeled)` fills the one window's row once and walks every model,
 instead of pairing them through the general combination path. Scene Gather is written this way (`BeginView`,
 `GatherModels`, `GatherCells`): 17,000 models went from 30 ms as a list system to 8 ms.
+
+**The clock row** is the fast path for a system that needs the game clock beside one other row: a row of the
+engine's class `GameClock` (`frame: Component.Frame`, the world entity's) is filled once per run, the other row is
+streamed through `Stream` exactly like a one-row system (inline items borrowed in place, no copy and no write-back
+per row), and the clock is written back after the walk. `TickTimers` is written this way: 10,000 timers in 0.27 ms,
+against 1.25 ms through the pair path. It is opted into by the row's class, not chosen for every two-row system
+(a proposal by Claude): streaming a row borrows its columns for each call, which Spite refuses for a system that
+may add to them, as `Animate` and `FollowBones` may, so the runner builds the stream only where it is asked for.
+The other row may not have `Added` or `Removed` fields; with them, the pair path runs.
 
 A `_all` system's rows are written back after it runs, like a single row's, so writing a field of an inline
 component in a list sticks. Its row objects are kept between runs and refilled, and each entity is matched once

@@ -160,6 +160,7 @@ func tick() {
     var frame = frames.of(world.entity)
     crash frame
     frame.step_milliseconds = step_now()
+    frame.elapsed_milliseconds = frame.elapsed_milliseconds + frame.step_milliseconds
     var index = 0
     while index < stages.count() {
         var stage_started = clock.elapsed_nanoseconds()

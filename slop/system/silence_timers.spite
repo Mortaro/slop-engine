@@ -3,6 +3,21 @@ type Rung {
     rang: Component.Rang
 }
 
+var repeating = Lookup<Component.Repeating>()
+var ticking = Lookup<Component.Ticking>()
+var timers = Lookup<Component.Timer>()
+var expires = Lookup<Component.Expires>()
+
 func last_each(rung: Rung) {
-    rung.entity.remove_component(Component.Rang)
+    var owner = rung.entity
+    var id = owner.id
+    var ended = timers.has(id) and not repeating.has(id) and not ticking.has(id)
+    if ended and expires.has(id) {
+        owner.remove()
+        return
+    }
+    owner.remove_component(Component.Rang)
+    if ended {
+        owner.remove_component(Component.Timer)
+    }
 }

@@ -8,6 +8,24 @@ func TimersCheck() {
     app.frame_milliseconds = 10
     var repeating = spawn_timer(50, true)
     var once = spawn_timer(120, false)
+    var paused = world.spawn_entity()
+    var held = Component.Timer()
+    held.start(30)
+    paused.add_component(held)
+    var skill = world.spawn_entity()
+    var cooldown = skill.spawn_entity()
+    var cooling = Component.Timer()
+    cooling.start(40)
+    cooldown.add_component(cooling)
+    var now = world.now()
+    var cooling_ticks = cooling.resume(now)
+    cooldown.add_component(cooling_ticks)
+    var expires = Component.Expires()
+    cooldown.add_component(expires)
+    world.flush()
+    var cooled = Component.CooledBy()
+    cooled.entity = cooldown
+    skill.add_component(cooled)
     world.flush()
     var tick = 0
     while tick < 30 {
@@ -19,6 +37,12 @@ func TimersCheck() {
     var single = rings.of(once)
     crash repeated
     crash single
+    var timers = Lookup<Component.Timer>()
+    var tickings = Lookup<Component.Ticking>()
+    var cooled_by = Lookup<Component.CooledBy>()
+    var one_shot_ended = not timers.has(once) and not tickings.has(once)
+    var still_paused = timers.has(paused.id) and not tickings.has(paused.id)
+    var expired = not timers.has(cooldown.id) and not cooled_by.has(skill.id)
     var counted_right = repeated.repeating == 6 and single.once == 1 and repeated.ticks == 30 and repeated.gated == 0
     console.print(
         "repeating rang",
@@ -27,9 +51,11 @@ func TimersCheck() {
         single.once,
         "list system ticks",
         repeated.ticks,
-        "passed",
-        counted_right,
     )
+    var resumed_right = resume_paused(app, paused)
+    var passed = counted_right and one_shot_ended and still_paused and expired and resumed_right
+    console.print("paused held", still_paused, "expired", expired, "resumed", resumed_right, "passed", passed)
+    crash passed
     pace(app)
 }
 
@@ -38,6 +64,9 @@ func spawn_timer(milliseconds: Integer, repeat: Boolean): Integer {
     var timer = Component.Timer()
     timer.start(milliseconds)
     entity.add_component(timer)
+    var now = world.now()
+    var ticking = timer.resume(now)
+    entity.add_component(ticking)
     if repeat {
         var again = Component.Repeating()
         entity.add_component(again)
@@ -45,6 +74,27 @@ func spawn_timer(milliseconds: Integer, repeat: Boolean): Integer {
     var rings = Component.Rings()
     entity.add_component(rings)
     return entity.id
+}
+
+func resume_paused(app: App, paused: Entity): Boolean {
+    var timers = Lookup<Component.Timer>()
+    var held = timers.of(paused.id)
+    crash held
+    var now = world.now()
+    var ticking = held.resume(now)
+    paused.add_component(ticking)
+    world.flush()
+    var rangs = Lookup<Component.Rang>()
+    var ticks = 0
+    var rang_at = -1
+    while ticks < 5 and rang_at < 0 {
+        app.tick()
+        ticks = ticks + 1
+        if not timers.has(paused.id) {
+            rang_at = ticks
+        }
+    }
+    return rang_at == 3 and not rangs.has(paused.id)
 }
 
 func pace(app: App) {
