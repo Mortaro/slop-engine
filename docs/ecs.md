@@ -367,7 +367,8 @@ Ordering inside a phase is by name, not by data. The finer phase names carry the
 
 `Component.Timer` is a timer as a component (a proposal by Claude): `timer.start(milliseconds)`, then the engine's
 `RingTimers` system counts it down by the step every tick, in `input`, and adds the marker `Component.Rang` to the
-entity on the tick it reaches zero; the next tick removes it. A timer with the marker `Component.Repeating` starts
+entity on the tick it reaches zero; `SilenceTimers` removes it in `last`, so every system of that tick sees it and
+none of the next. A timer with the marker `Component.Repeating` starts
 over; a one-shot timer is removed once it rings. A system reacts by asking for `Rang` in its row, so it runs only on
 the ticks a timer rang:
 
@@ -387,7 +388,9 @@ The step is the world entity's `Component.Frame.step_milliseconds`, set once at 
 millisecond add up, and at most 100 ms, so a hitch doesn't teleport anything. A fixed step made everything move in
 slow motion whenever a frame took longer than `frame_milliseconds` (Theseus A87: half speed at 25 to 40 ms frames). A
 program that calls `app.tick()` itself, as tests and benchmarks do, gets `frame_milliseconds` every tick, so it stays
-repeatable. The timer is stored inline, so counting down 10,000 timers costs about 0.26 ms a tick. `timers_check`
+repeatable. The timer is stored inline and `RingTimers` is a one-row system (the step is read from the world's
+`Frame` with a lookup), so counting down 10,000 timers costs about 0.32 ms a tick (`server_bench`, optimized; it
+was 1.3 ms as a list system over the timers, the rung markers and the frame, which built a row object per timer). `timers_check`
 tests it: a 50 ms repeating timer rings 6 times in 30 ticks of 10 ms and a 120 ms one-shot rings once, and 40 paced
 ticks of 25 ms take 1,012 ms.
 
@@ -423,7 +426,8 @@ instead of pairing them through the general combination path. Scene Gather is wr
 `GatherModels`, `GatherCells`): 17,000 models went from 30 ms as a list system to 8 ms.
 
 A `_all` system's rows are written back after it runs, like a single row's, so writing a field of an inline
-component in a list sticks.
+component in a list sticks. Its row objects are kept between runs and refilled, and each entity is matched once
+while the list is built, so a list system allocates its list and nothing per row.
 
 ## IO systems
 

@@ -18,7 +18,6 @@ var matcher = Row<$row_type>()
 var since = -1
 var found = List<Integer>()
 var wanted = ""
-var world = World()
 
 func Stream(streamed_system: $system_type, last_run: Integer, wanted_phase: String) {
     system = streamed_system
@@ -51,7 +50,9 @@ func run_positions(phase: Symbol<$system_type.phase_each>, first: Integer, end: 
 
 func fill_attribute(attribute: Symbol<$row_type>, row: $row_type, rows: List<Integer>, entity: Integer) {
     if attribute.class == Entity {
-        row.attributes[attribute] = world.entity_of(entity)
+        var own = Entity()
+        own.id = entity
+        row.attributes[attribute] = own
     } else if attribute.class.fits_vector() and attribute.class != Entity {
         crash rows[attribute.index]
         crash Column<attribute.class>().values[rows[attribute.index]]

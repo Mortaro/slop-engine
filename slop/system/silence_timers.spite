@@ -1,0 +1,8 @@
+type Rung {
+    entity: Entity
+    rang: Component.Rang
+}
+
+func last_each(rung: Rung) {
+    rung.entity.remove_component(Component.Rang)
+}
