@@ -194,11 +194,12 @@ Godot's LineEdit, or the web's `<input>`, as components:
 | `Caret` | `index`: where typing goes, from 0 to the value's length |
 
 `Ui.System.EditText` (`after_input`) edits the focused `TextInput`. It replays this tick's keystrokes in the order
-they happened (`Keyboard.strokes`: key presses and typed characters interleaved, since the window thread can
+they happened (the tick's key-pressed and character-typed event entities, sorted by id, since the window thread can
 deliver several frames' worth of input in one tick), so Backspace, Delete, Left, Right, Home and End apply exactly
 where they were typed, and it mirrors the value into the element's `Text`. `DrawUi` draws the
-focused element's caret after its text. Keyboard state is `Input.Component.Keyboard` on the window: `held`,
-`pressed` (virtual keys) and `typed` (characters, from `WM_CHAR`). `Input.Key` names the virtual keys.
+focused element's caret after its text. Keyboard state is key entities, children of the window: `Input.Component.Key`
+(`code`, a virtual key) while it is held, marked `JustPressed` on the tick it went down; characters arrive as
+`character_typed` events (from `WM_CHAR`). `Input.Key` names the virtual keys.
 
 `examples/text_field` is a form with two fields. `examples/text_field_test` clicks the first, types "HELLO",
 presses Backspace and Left twice, types "X", presses Tab, types "Y", and checks "HEXLL" (caret 3) in the first and

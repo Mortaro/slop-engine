@@ -12,7 +12,6 @@ var kind: Kind = 'pointer_moved'
 var left = 0
 var top = 0
 var button = 0
-var double = false
 var wheel = 0
 var key = 0
 var character = ""

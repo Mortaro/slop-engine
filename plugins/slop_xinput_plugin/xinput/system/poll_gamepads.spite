@@ -3,6 +3,12 @@ type Pad {
     gamepad: Input.Component.Gamepad
 }
 
+type PadButton {
+    entity: Entity
+    button: Input.Component.GamepadButton
+    parent: Component.Parent
+}
+
 var xinput = DynamicLibrary("xinput1_4.dll", 'identity', "")
 var world = World()
 var raw = Raw()
@@ -12,19 +18,23 @@ var ticks = 0
 var disconnected_every = 60
 var slots = 4
 var connected_pads = Lookup<Input.Component.GamepadConnected>()
+var just_pressed = Lookup<Input.Component.JustPressed>()
+var just_released = Lookup<Input.Component.JustReleased>()
+var now = List<Integer>()
+var held_codes = List<Integer>()
 
-func input_all(pads: List<Pad>) {
+func input_all(pads: List<Pad>, buttons: List<PadButton>) {
     ticks = ticks + 1
     var state = heap.allocate(16)
     var slot = 0
     while slot < slots {
-        poll_slot(pads, slot, state)
+        poll_slot(pads, buttons, slot, state)
         slot = slot + 1
     }
     heap.free(state)
 }
 
-func poll_slot(pads: List<Pad>, slot: Integer, state: Long) {
+func poll_slot(pads: List<Pad>, buttons: List<PadButton>, slot: Integer, state: Long) {
     var pad = pad_of(pads, slot)
     var due = ticks % disconnected_every == 1
     if pad {
@@ -37,6 +47,7 @@ func poll_slot(pads: List<Pad>, slot: Integer, state: Long) {
     var connected = result == 0
     if pad {
         read_pad(pad.gamepad, connected, state)
+        settle_buttons(pad.entity, buttons)
         mark_connected(pad.entity, connected)
     } else if connected {
         var gamepad = Input.Component.Gamepad()
@@ -46,6 +57,7 @@ func poll_slot(pads: List<Pad>, slot: Integer, state: Long) {
         entity.add_component(gamepad)
         var marker = Input.Component.GamepadConnected()
         entity.add_component(marker)
+        settle_buttons(entity, buttons)
     }
 }
 
@@ -71,7 +83,7 @@ func pad_of(pads: List<Pad>, slot: Integer): Pad? {
 }
 
 func read_pad(gamepad: Input.Component.Gamepad, connected: Boolean, state: Long) {
-    var now = List<Integer>()
+    now.clear()
     if connected {
         var bits = unsigned_short(state, 4)
         collect_buttons(bits, now)
@@ -82,29 +94,71 @@ func read_pad(gamepad: Input.Component.Gamepad, connected: Boolean, state: Long)
         gamepad.right_x = axis(state, 12, 8689.0)
         gamepad.right_y = axis(state, 14, 8689.0)
     }
-    gamepad.set_buttons(now)
 }
 
-func collect_buttons(bits: Integer, now: List<Integer>) {
-    add_if(bits, 1, buttons.up, now)
-    add_if(bits, 2, buttons.down, now)
-    add_if(bits, 4, buttons.left, now)
-    add_if(bits, 8, buttons.right, now)
-    add_if(bits, 16, buttons.start, now)
-    add_if(bits, 32, buttons.select, now)
-    add_if(bits, 64, buttons.left_stick, now)
-    add_if(bits, 128, buttons.right_stick, now)
-    add_if(bits, 256, buttons.left_shoulder, now)
-    add_if(bits, 512, buttons.right_shoulder, now)
-    add_if(bits, 4096, buttons.south, now)
-    add_if(bits, 8192, buttons.east, now)
-    add_if(bits, 16384, buttons.west, now)
-    add_if(bits, 32768, buttons.north, now)
+func settle_buttons(pad: Entity, buttons: List<PadButton>) {
+    held_codes.clear()
+    var index = 0
+    while index < buttons.count() {
+        settle_button(pad.id, buttons[index])
+        index = index + 1
+    }
+    index = 0
+    while index < now.count() {
+        press_new(pad, now[index])
+        index = index + 1
+    }
 }
 
-func add_if(bits: Integer, mask: Integer, button: Integer, now: List<Integer>) {
+func settle_button(pad: Integer, held: PadButton) {
+    assert held.parent.entity.id == pad
+    var button = held.entity
+    if just_released.has(button.id) {
+        button.remove()
+        return
+    }
+    if just_pressed.has(button.id) {
+        button.remove_component(Input.Component.JustPressed)
+    }
+    var code = held.button.code
+    if now.contains(code) {
+        held_codes.append(code)
+        return
+    }
+    var marker = Input.Component.JustReleased()
+    button.add_component(marker)
+}
+
+func press_new(pad: Entity, code: Integer) {
+    assert not held_codes.contains(code)
+    var button = pad.spawn_entity()
+    var held = Input.Component.GamepadButton()
+    held.code = code
+    button.add_component(held)
+    var marker = Input.Component.JustPressed()
+    button.add_component(marker)
+}
+
+func collect_buttons(bits: Integer, held_now: List<Integer>) {
+    add_if(bits, 1, buttons.up, held_now)
+    add_if(bits, 2, buttons.down, held_now)
+    add_if(bits, 4, buttons.left, held_now)
+    add_if(bits, 8, buttons.right, held_now)
+    add_if(bits, 16, buttons.start, held_now)
+    add_if(bits, 32, buttons.select, held_now)
+    add_if(bits, 64, buttons.left_stick, held_now)
+    add_if(bits, 128, buttons.right_stick, held_now)
+    add_if(bits, 256, buttons.left_shoulder, held_now)
+    add_if(bits, 512, buttons.right_shoulder, held_now)
+    add_if(bits, 4096, buttons.south, held_now)
+    add_if(bits, 8192, buttons.east, held_now)
+    add_if(bits, 16384, buttons.west, held_now)
+    add_if(bits, 32768, buttons.north, held_now)
+}
+
+func add_if(bits: Integer, mask: Integer, button: Integer, held_now: List<Integer>) {
     assert bits.bits_and(mask) != 0
-    now.append(button)
+    held_now.append(button)
 }
 
 func unsigned_short(address: Long, offset: Integer): Integer {

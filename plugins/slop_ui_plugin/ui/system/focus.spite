@@ -15,8 +15,14 @@ type Pointer {
     mouse: Input.Component.Mouse
 }
 
-type Keys {
-    keyboard: Input.Component.Keyboard
+type PressedKey {
+    key: Input.Component.Key
+    pressed: Input.Component.JustPressed
+}
+
+type HeldKey {
+    key: Input.Component.Key
+    held: Without<Input.Component.JustReleased>
 }
 
 var world = World()
@@ -28,7 +34,8 @@ func after_input_all(
     pointers: List<Pointer>,
     candidates: List<Candidate>,
     holders: List<Holder>,
-    keyboards: List<Keys>,
+    pressed_keys: List<PressedKey>,
+    held_keys: List<HeldKey>,
 ) {
     var index = 0
     while index < pointers.count() {
@@ -37,11 +44,7 @@ func after_input_all(
         focus_under(candidates, holders, pointer.mouse)
         index = index + 1
     }
-    index = 0
-    while index < keyboards.count() {
-        tab_focus(candidates, holders, keyboards[index].keyboard)
-        index = index + 1
-    }
+    tab_focus(candidates, holders, pressed_keys, held_keys)
 }
 
 func focus_under(candidates: List<Candidate>, holders: List<Holder>, mouse: Input.Component.Mouse) {
@@ -50,9 +53,15 @@ func focus_under(candidates: List<Candidate>, holders: List<Holder>, mouse: Inpu
     move_focus(holders, target)
 }
 
-func tab_focus(candidates: List<Candidate>, holders: List<Holder>, keyboard: Input.Component.Keyboard) {
-    assert keyboard.was_pressed(keys.tab) and candidates.count() > 0
-    var backwards = keyboard.is_held(keys.shift)
+func tab_focus(
+    candidates: List<Candidate>,
+    holders: List<Holder>,
+    pressed_keys: List<PressedKey>,
+    held_keys: List<HeldKey>,
+) {
+    var tab_pressed = any_pressed(pressed_keys, keys.tab)
+    assert tab_pressed and candidates.count() > 0
+    var backwards = any_held(held_keys, keys.shift)
     var current_order = focused_order(holders)
     var target = neighbour(candidates, current_order, backwards)
     move_focus(holders, target)
@@ -142,4 +151,26 @@ func topmost_under(candidates: List<Candidate>, mouse: Input.Component.Mouse): I
 
 func read_buttons(entity: Integer) {
     left_pressed = Lookup<Input.Component.LeftPressed>().has(entity)
+}
+
+func any_pressed(pressed_keys: List<PressedKey>, code: Integer): Boolean {
+    var index = 0
+    while index < pressed_keys.count() {
+        if pressed_keys[index].key.code == code {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func any_held(held_keys: List<HeldKey>, code: Integer): Boolean {
+    var index = 0
+    while index < held_keys.count() {
+        if held_keys[index].key.code == code {
+            return true
+        }
+        index = index + 1
+    }
+    return false
 }

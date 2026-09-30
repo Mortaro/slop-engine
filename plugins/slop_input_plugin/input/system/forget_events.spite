@@ -1,0 +1,8 @@
+type Arrived {
+    entity: Entity
+    event: Component.Event
+}
+
+func last_each(arrived: Arrived) {
+    arrived.entity.remove()
+}

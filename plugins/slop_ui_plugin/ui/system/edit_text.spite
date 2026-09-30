@@ -5,26 +5,67 @@ type Editing {
     text: Component.Text
 }
 
-type Keys {
-    keyboard: Input.Component.Keyboard
+type Stroke {
+    entity: Entity
+    event: Input.Component.Event
 }
 
 var keys = Input.Key()
+var order = List<Integer>()
 
-func after_input_each(editing: Editing, typing: Keys) {
-    var strokes = typing.keyboard.strokes
+func after_input_all(editing: List<Editing>, strokes: List<Stroke>) {
+    order_strokes(strokes)
+    var index = 0
+    while index < editing.count() {
+        edit(editing[index], strokes)
+        index = index + 1
+    }
+}
+
+func order_strokes(strokes: List<Stroke>) {
+    order.clear()
     var index = 0
     while index < strokes.count() {
-        apply_stroke(editing, strokes[index])
+        insert_in_order(strokes, index)
+        index = index + 1
+    }
+}
+
+func insert_in_order(strokes: List<Stroke>, index: Integer) {
+    crash strokes[index]
+    var entity = strokes[index].entity.id
+    order.append(index)
+    var at = order.count() - 1
+    while at > 0 and earlier(strokes, entity, at - 1) {
+        crash order[at - 1]
+        order.set_at(at, order[at - 1])
+        at = at - 1
+    }
+    order.set_at(at, index)
+}
+
+func earlier(strokes: List<Stroke>, entity: Integer, at: Integer): Boolean {
+    crash order[at]
+    var listed = order[at]
+    crash strokes[listed]
+    return entity < strokes[listed].entity.id
+}
+
+func edit(editing: Editing, strokes: List<Stroke>) {
+    var index = 0
+    while index < order.count() {
+        var listed = order[index]
+        crash strokes[listed]
+        apply_stroke(editing, strokes[listed].event)
         index = index + 1
     }
     editing.text.text = editing.input.value
 }
 
-func apply_stroke(editing: Editing, stroke: Input.Event) {
+func apply_stroke(editing: Editing, stroke: Input.Component.Event) {
     if stroke.kind == 'character_typed' {
         insert_typed(editing, stroke.character)
-    } else {
+    } else if stroke.kind == 'key_pressed' {
         apply_key(editing, stroke.key)
     }
 }
