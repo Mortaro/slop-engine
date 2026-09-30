@@ -69,11 +69,12 @@ not have:
   `Component.Rang`, `Window.Component.Hidden`, `Input.Component.LeftDown`);
 - an `Entity` attribute: a link between entities is a relation, `entity.relate(name, target)`;
 - an optional `T?` attribute: whether the value is there is another component;
+- a collection of Booleans (`List<Boolean>`, `Dictionary<Boolean>`): each item's state is a marker on that item's own
+  entity, as each texture's `Render.Component.TextureReady`;
 - a `stored_inline()` function: storage is inferred.
 
-At startup `App()` walks every registered component (`slop/component_rule.spite`) and prints each break as
-`ECS rule: <Component>.<attribute> ...`. For now it only reports; it becomes a crash once the engine's own components
-and Theseus's follow the rules.
+At startup `App()` walks every registered component (`slop/component_rule.spite`), prints each break as
+`ECS rule: <Component>.<attribute> ...`, then crashes on `components_follow_the_ecs_rules` if there was any.
 
 ## Bundles
 

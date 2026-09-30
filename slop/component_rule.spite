@@ -21,6 +21,8 @@ func check_attribute(attribute: Symbol<$component_type>) {
         report(attribute.name, "is an Entity: a link is a relation, entity.relate(name, target)")
     } else if type_name.ends_with("?") {
         report(attribute.name, "is optional: whether it is there is another component")
+    } else if type_name.contains("Boolean>") {
+        report(attribute.name, "holds Booleans: each item's state is a marker on that item's own entity")
     }
 }
 

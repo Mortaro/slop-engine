@@ -34,6 +34,8 @@ func App() {
     frame_column.insert(world.entity, frame)
     scheduler.resume_only_when_asked()
     register_components()
+    var components_follow_the_ecs_rules = rule_breaks == 0
+    crash components_follow_the_ecs_rules
     add_systems()
     phases.each(build_phase)
 }
