@@ -7,7 +7,8 @@ pointer markers and two background styles.
 ## Elements are entities
 
 A UI element is an entity with components. There is no element class and no widget hierarchy: a tree is built from
-`Ui.Component.Parent` (the parent's entity id), and a tree's root carries `Ui.Component.Screen`. The click counter's
+the core's `Component.Parent` (the parent's entity, so an element is despawned with its parent), and a tree's root
+carries `Ui.Component.Screen`. The click counter's
 tree, one bundle per element:
 
 ```
@@ -19,7 +20,7 @@ Screen    Screen, Display flex, FlexDirection column, JustifyContent center, Ali
 
 ```gdscript
 # examples/click_counter/bundle/counter_button.spite
-var parent = Ui.Component.Parent()
+var parent = Component.Parent()
 var button = Ui.Component.Button()
 var width = Ui.Component.Width()
 var height = Ui.Component.Height()
@@ -30,7 +31,7 @@ var background_image = Ui.Component.BackgroundImage()
 var click_count = Component.ClickCount()
 var primary = Component.ButtonPrimary()
 
-func CounterButton(screen: Integer) {
+func CounterButton(screen: Entity) {
     parent.entity = screen
     width.length.pixels(176.0)
     height.length.pixels(40.0)
@@ -50,7 +51,7 @@ without touching the others.
 | Component | Values | Initial (absent) |
 |---|---|---|
 | `Display` | `'block'`, `'flex'`, `'grid'`, `'none'` | `'block'` |
-| `GridTemplateColumns`, `GridTemplateRows` | `tracks`: a list of lengths (pixels, percent, `automatic`, `fraction`) | one automatic column, implicit rows |
+| `GridTemplateColumns`, `GridTemplateRows` | `value`: the tracks as CSS writes them, `"100px 1fr 2fr"` (`px`, `%`, `em`, `rem`, `vw`, `vh`, `fr` or `auto`, separated by spaces; a proposal by Claude, since a component holds no list) | one automatic column, implicit rows |
 | `FlexDirection` | `'row'`, `'row_reverse'`, `'column'`, `'column_reverse'` | `'row'` |
 | `FlexWrap` | `'no_wrap'`, `'wrap'`, `'wrap_reverse'` | `'no_wrap'` |
 | `JustifyContent` | `'flex_start'`, `'flex_end'`, `'center'`, `'space_between'`, `'space_around'`, `'space_evenly'` | `'flex_start'` |
@@ -97,7 +98,7 @@ Percentages resolve against the containing block, as on the web; `viewport_*` ag
 ### The algorithm
 
 `Ui.System.ComputeLayout` runs in the `layout` phase (after `prepare`, before `render`). It gathers the `Parent`
-relations into a child list per entity, then lays out each `Screen` with a port of css-flexbox-1 §9: line breaking, resolving flexible lengths with min/max freezing, cross sizes
+links into a child list per entity, then lays out each `Screen` with a port of css-flexbox-1 §9: line breaking, resolving flexible lengths with min/max freezing, cross sizes
 and stretch, auto margins, `justify-content` and `align-content` distribution, reversed axes, `order`, relative
 offsets, and absolute boxes placed against the nearest positioned ancestor's padding box (at their static position
 when no inset is given). `Display 'block'` children stack vertically; `'none'` removes the element and its subtree.
@@ -123,7 +124,7 @@ spite flex_layout --debug-memory
 
 ## Grid
 
-Godot's GridContainer, done as CSS Grid: `Display 'grid'` and a `GridTemplateColumns` list of tracks. Children are
+Godot's GridContainer, done as CSS Grid: `Display 'grid'` and a `GridTemplateColumns` holding its tracks as CSS text. Children are
 placed row by row, one per cell, in `Order` then tree order; there are as many columns as tracks and as many rows as
 needed (`GridTemplateRows` sizes the first ones, the rest are automatic). `ColumnGap` and `RowGap` separate them.
 
@@ -168,9 +169,11 @@ absolute descendants' containing block moves with them, as on the web. Clips int
 - **Scrollbars.** Overlay bars (they take no layout space, like macOS and mobile), inside the padding box's right
   and bottom edges. `'scroll'` always shows one, and `'automatic'` shows one when there is somewhere to scroll.
   `ScrollbarWidth` (`'automatic'` 8 px, `'thin'` 4 px, `'none'`) and `ScrollbarColor` (`thumb`, `track`) are the CSS
-  properties of the same names. The layout writes `ComputedScrollbars` (the track and thumb geometry). Dragging a
-  thumb (`Ui.Component.ScrollDrag` while the button is held) scrolls proportionally, and a press on a scrollbar never
-  reaches the element under it.
+  properties of the same names. The layout writes `ComputedScrollbars` (the bars' thickness and paint order) and,
+  for each bar that is shown, a `VerticalScrollbar` or `HorizontalScrollbar` holding its track and thumb geometry; a
+  bar that is not shown has no component. Dragging a thumb (`Ui.Component.ScrollDrag` while the button is held, with
+  the marker `DraggingVertical` for the vertical bar) scrolls proportionally, and a press on a scrollbar never reaches
+  the element under it.
 
 Not built yet: clicking the track to page, and a clip that an absolute element escapes when its containing block lies outside the
 scroller (here, an absolute element is clipped by every clipping ancestor).
@@ -191,11 +194,12 @@ Godot's LineEdit, or the web's `<input>`, as components:
 | `Caret` | `index`: where typing goes, from 0 to the value's length |
 
 `Ui.System.EditText` (`after_input`) edits the focused `TextInput`. It replays this tick's keystrokes in the order
-they happened (`Keyboard.strokes`: key presses and typed characters interleaved, since the window thread can
+they happened (the tick's key-pressed and character-typed event entities, sorted by id, since the window thread can
 deliver several frames' worth of input in one tick), so Backspace, Delete, Left, Right, Home and End apply exactly
 where they were typed, and it mirrors the value into the element's `Text`. `DrawUi` draws the
-focused element's caret after its text. Keyboard state is `Input.Component.Keyboard` on the window: `held`,
-`pressed` (virtual keys) and `typed` (characters, from `WM_CHAR`). `Input.Key` names the virtual keys.
+focused element's caret after its text. Keyboard state is key entities, children of the window: `Input.Component.Key`
+(`code`, a virtual key) while it is held, marked `JustPressed` on the tick it went down; characters arrive as
+`character_typed` events (from `WM_CHAR`). `Input.Key` names the virtual keys.
 
 `examples/text_field` is a form with two fields. `examples/text_field_test` clicks the first, types "HELLO",
 presses Backspace and Left twice, types "X", presses Tab, types "Y", and checks "HEXLL" (caret 3) in the first and
@@ -277,11 +281,11 @@ element, driving the real window with posted mouse messages, each step waiting f
 **Proposal** (Claude's). A combo box is four bundles and one system, `Ui.System.Choose` (`update`):
 
 ```gdscript
-var box = world.create_entity_from_bundle(Ui.Bundle.ComboBox(panel.id))
-world.create_entity_from_bundle(Ui.Bundle.ComboLabel(box.id, "Choose"))
-var popup = world.create_entity_from_bundle(Ui.Bundle.ComboPopup(box.id))
-world.create_entity_from_bundle(Ui.Bundle.ComboOption(popup.id, 0, "First"))
-world.create_entity_from_bundle(Ui.Bundle.ComboOption(popup.id, 1, "Second"))
+var box = world.create_entity_from_bundle(Ui.Bundle.ComboBox(panel))
+world.create_entity_from_bundle(Ui.Bundle.ComboLabel(box, "Choose"))
+var popup = world.create_entity_from_bundle(Ui.Bundle.ComboPopup(box))
+world.create_entity_from_bundle(Ui.Bundle.ComboOption(popup, 0, "First"))
+world.create_entity_from_bundle(Ui.Bundle.ComboOption(popup, 1, "Second"))
 ```
 
 (each bundle built into a variable first, as Spite wants). The box is a `Button` with
@@ -370,13 +374,16 @@ font.size = 12
 label.add_component(font)
 ```
 
-- **The font cache is a component.** `Ui.Component.Fonts` lives on the world entity. It loads a face the first time
-  a size of it is asked for, measures text from the font's advances (so layout is right on the first frame), and
+- **The font cache is a resource, each size an entity.** `Ui.Fonts()` (a singleton) loads a face the first time a
+  size of it is asked for and keeps the faces by name (a `TrueType.Face` cannot be made without its bytes, so it is
+  not a component). Each face and size gets an entity holding `Ui.Component.GlyphAtlas`: its metrics, the atlas
+  texture and texels, the shelf packer, and its glyph table (`Ui.GlyphTable`, the atlas's own data: code to glyph,
+  each glyph's rectangle and bearing, and the codes queued). It measures text from the font's advances (so layout is right on the first frame), and
   rasterises glyphs anti-aliased with the standalone `spite_truetype` package
   (`D:/Projects/spite_truetype`, loaded by `ui/ui.spite`).
 - **Glyphs are made on demand**, 32 per frame at most, into a 1024² atlas per face and size, like Unreal's Slate font
   cache: a character seen for the first time is drawn from the next frame. `PendingGlyphs` and `AtlasChanged` markers
-  on the world entity make the rasterising and publishing systems run only when there is work.
+  on the atlas's entity make the rasterising and publishing systems run only for the sizes that have work.
 - **Drawing.** `DrawUi` lays glyph quads along a pen from the baseline; each is a draw-list image with a texel source
   rectangle into the atlas and the text's colour as tint, drawn the same by Vulkan and the software rasteriser
   (`render_parity`).

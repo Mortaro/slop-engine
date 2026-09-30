@@ -1,0 +1,14 @@
+var started_at: Long = 0
+
+func reset(now: Long) {
+    started_at = now
+}
+
+func elapsed(now: Long): Long {
+    return now - started_at
+}
+
+func elapsed_seconds(now: Long): Float {
+    var passed: Float = elapsed(now)
+    return passed / 1000.0
+}

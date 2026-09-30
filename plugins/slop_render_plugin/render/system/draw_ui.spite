@@ -12,24 +12,16 @@ type Bars {
 
 type Target {
     draw_list: Component.DrawList
-    textures: Component.Textures
 }
 
-type Cache {
-    fonts: Ui.Component.Fonts
-}
+var textures = Render.Textures()
+var fonts = Ui.Fonts()
 
-var no_fonts = Ui.Component.Fonts()
-
-func render_all(targets: List<Target>, elements: List<Element>, bars: List<Bars>, caches: List<Cache>) {
+func render_all(targets: List<Target>, elements: List<Element>, bars: List<Bars>) {
     var painted = paint_slots(elements, bars)
-    var fonts = no_fonts
-    if caches.count() > 0 {
-        fonts = caches[0].fonts
-    }
     var index = 0
     while index < targets.count() {
-        paint_target(targets[index], elements, bars, painted, fonts)
+        paint_target(targets[index], elements, bars, painted)
         index = index + 1
     }
 }
@@ -60,13 +52,7 @@ func paint_slots(elements: List<Element>, bars: List<Bars>): List<Integer> {
     return slots
 }
 
-func paint_target(
-    target: Target,
-    elements: List<Element>,
-    bars: List<Bars>,
-    painted: List<Integer>,
-    fonts: Ui.Component.Fonts,
-) {
+func paint_target(target: Target, elements: List<Element>, bars: List<Bars>, painted: List<Integer>) {
     var index = 0
     while index < painted.count() {
         var slot = painted[index]
@@ -76,13 +62,13 @@ func paint_target(
             paint_bars(target, bars[bar_index])
         } else if slot >= 0 {
             crash elements[slot]
-            paint_element(target, elements[slot], fonts)
+            paint_element(target, elements[slot])
         }
         index = index + 1
     }
 }
 
-func paint_element(target: Target, element: Element, fonts: Ui.Component.Fonts) {
+func paint_element(target: Target, element: Element) {
     var draw_list = target.draw_list
     var layout = element.layout
     var clip = element.clip
@@ -96,11 +82,13 @@ func paint_element(target: Target, element: Element, fonts: Ui.Component.Fonts) 
     if image {
         paint_image(target, layout, image.texture)
     }
-    var text = Lookup<Ui.Component.Text>().of(entity)
-    assert text
+    var stored_text = Lookup<Ui.Component.Text>().of(entity)
+    assert stored_text
+    var text = stored_text.copy()
     var font = Lookup<Ui.Component.Font>().of(entity)
     if font {
-        paint_font_text(target, fonts, font, text, layout, entity)
+        var font_copy = font.copy()
+        paint_font_text(target, font_copy, text, layout, entity)
         return
     }
     draw_list.append_text(text.text, layout.content_left, layout.content_top, text.scale, text.color)
@@ -114,37 +102,36 @@ func paint_element(target: Target, element: Element, fonts: Ui.Component.Fonts) 
 
 func paint_font_text(
     target: Target,
-    fonts: Ui.Component.Fonts,
     font: Ui.Component.Font,
     text: Ui.Component.Text,
     layout: Ui.Component.ComputedLayout,
     entity: Integer,
 ) {
-    var size = fonts.size_slot(font.name, font.face, font.size)
-    assert size >= 0
-    var atlas_name = fonts.atlas_id(size)
-    var atlas = target.textures.slot_of(atlas_name)
+    var atlas = fonts.atlas_of(font.name, font.face, font.size)
+    assert atlas
+    var face = fonts.face_of(atlas)
+    var atlas_name = fonts.atlas_id(atlas)
+    var texture = textures.slot_of(atlas_name)
     var codes = List<Integer>()
     fonts.codepoints(text.text, codes)
     var pen: Float = layout.content_left
-    var baseline = layout.content_top + fonts.ascent_of(size)
+    var baseline = layout.content_top + atlas.ascent
     var index = 0
     while index < codes.count() {
         var code = codes[index]
-        var glyph = fonts.glyph_of(size, code)
-        if glyph >= 0 and atlas >= 0 {
-            place_glyph(target, fonts, glyph, atlas, pen, baseline, text.color)
+        var glyph = fonts.glyph_of(atlas, code)
+        if glyph >= 0 and texture >= 0 {
+            place_glyph(target, atlas, glyph, texture, pen, baseline, text.color)
         }
-        pen = pen + fonts.advance_of(size, code)
+        pen = pen + fonts.advance_of(face, atlas, code)
         index = index + 1
     }
-    paint_font_caret(target, fonts, size, text, layout, entity)
+    paint_font_caret(target, atlas, text, layout, entity)
 }
 
 func paint_font_caret(
     target: Target,
-    fonts: Ui.Component.Fonts,
-    size: Integer,
+    atlas: Ui.Component.GlyphAtlas,
     text: Ui.Component.Text,
     layout: Ui.Component.ComputedLayout,
     entity: Integer,
@@ -154,36 +141,35 @@ func paint_font_caret(
     assert focused
     assert caret
     var before = text.text.slice(0, caret.index)
-    var offset = fonts.text_width(size, before)
+    var offset = fonts.text_width(atlas, before)
     var caret_left: Integer = layout.content_left + offset
-    var line: Integer = fonts.line_height_of(size)
+    var line: Integer = atlas.line_height
     target.draw_list.append_rectangle(caret_left, layout.content_top, 1, line, text.color)
 }
 
 func place_glyph(
     target: Target,
-    fonts: Ui.Component.Fonts,
+    atlas: Ui.Component.GlyphAtlas,
     glyph: Integer,
-    atlas: Integer,
+    texture: Integer,
     pen: Float,
     baseline: Float,
     color: Integer,
 ) {
-    var width = fonts.glyph_width(glyph)
-    var height = fonts.glyph_height(glyph)
+    var width = fonts.glyph_width(atlas, glyph)
+    var height = fonts.glyph_height(atlas, glyph)
     assert width > 0 and height > 0
     var pen_pixel: Integer = pen + 0.5
     var baseline_pixel: Integer = baseline
-    var left = pen_pixel + fonts.glyph_bearing(glyph)
-    var top = baseline_pixel - fonts.glyph_riser(glyph)
-    var source_left = fonts.glyph_left(glyph)
-    var source_top = fonts.glyph_top(glyph)
-    target.draw_list.append_image_part(left, top, width, height, atlas, source_left, source_top, width, height, color)
+    var left = pen_pixel + fonts.glyph_bearing(atlas, glyph)
+    var top = baseline_pixel - fonts.glyph_riser(atlas, glyph)
+    var source_left = fonts.glyph_left(atlas, glyph)
+    var source_top = fonts.glyph_top(atlas, glyph)
+    target.draw_list.append_image_part(left, top, width, height, texture, source_left, source_top, width, height, color)
 }
 
 func paint_image(target: Target, layout: Ui.Component.ComputedLayout, texture_name: String) {
     assert texture_name != ""
-    var textures = target.textures
     var texture = textures.request(texture_name)
     assert textures.is_ready(texture)
     target.draw_list.append_image(layout.left, layout.top, layout.width, layout.height, texture)
@@ -202,36 +188,13 @@ func paint_bars(target: Target, painted: Bars) {
         track = colors.track
     }
     var thickness = bars.thickness
-    if bars.vertical_shown {
-        draw_list.append_rectangle(
-            bars.vertical_track_left,
-            bars.vertical_track_top,
-            thickness,
-            bars.vertical_track_height,
-            track,
-        )
-        draw_list.append_rectangle(
-            bars.vertical_track_left,
-            bars.vertical_thumb_top,
-            thickness,
-            bars.vertical_thumb_height,
-            thumb,
-        )
+    var vertical = Lookup<Ui.Component.VerticalScrollbar>().of(painted.entity.id)
+    if vertical {
+        draw_list.append_rectangle(vertical.track_left, vertical.track_top, thickness, vertical.track_height, track)
+        draw_list.append_rectangle(vertical.track_left, vertical.thumb_top, thickness, vertical.thumb_height, thumb)
     }
-    if bars.horizontal_shown {
-        draw_list.append_rectangle(
-            bars.horizontal_track_left,
-            bars.horizontal_track_top,
-            bars.horizontal_track_width,
-            thickness,
-            track,
-        )
-        draw_list.append_rectangle(
-            bars.horizontal_thumb_left,
-            bars.horizontal_track_top,
-            bars.horizontal_thumb_width,
-            thickness,
-            thumb,
-        )
-    }
+    var horizontal = Lookup<Ui.Component.HorizontalScrollbar>().of(painted.entity.id)
+    assert horizontal
+    draw_list.append_rectangle(horizontal.track_left, horizontal.track_top, horizontal.track_width, thickness, track)
+    draw_list.append_rectangle(horizontal.thumb_left, horizontal.track_top, horizontal.thumb_width, thickness, thumb)
 }

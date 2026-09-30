@@ -1,0 +1,15 @@
+generic $counted_type
+
+var count = 0
+
+func count_in(current: $counted_type): Integer {
+    count = 0
+    count_links(current)
+    return count
+}
+
+func count_link(link: Symbol<$counted_type>, _current: $counted_type) {
+    if link.class == Entity {
+        count = count + 1
+    }
+}

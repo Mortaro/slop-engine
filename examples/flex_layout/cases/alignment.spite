@@ -1,3 +1,4 @@
+var world = World()
 var tree = Cases.Tree()
 
 func build() {
@@ -23,7 +24,7 @@ func cross_axis() {
     var capped = tree.sized(root, 50.0, -1.0)
     var maximum = Ui.Component.MaximumHeight()
     maximum.length.pixels(60.0)
-    Entity(capped).add_component(maximum)
+    world.entity_of(capped).add_component(maximum)
     tree.expect_later("align-self flex-start", start, 0.0, 0.0, 50.0, 20.0)
     tree.expect_later("align-self flex-end", end, 50.0, 80.0, 50.0, 20.0)
     tree.expect_later("align-self center", center, 100.0, 40.0, 50.0, 20.0)

@@ -11,8 +11,6 @@ func update_each(_started: Started) {
     listen.port = environment.port
     var host = world.as_entity()
     host.add_component(listen)
-    var verdict = Component.Verdict()
-    host.add_component(verdict)
     var index = 0
     while index < 100 {
         place_beacon(index, 0)

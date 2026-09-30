@@ -1,5 +1,3 @@
 var host = "127.0.0.1"
 var port = 7070
-var dialer = Network.Dialer()
-var connection = -1
 var wait_ticks = 0

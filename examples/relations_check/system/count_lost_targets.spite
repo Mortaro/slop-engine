@@ -1,0 +1,13 @@
+type Lost {
+    target: Removed<Component.Target>
+}
+
+type Tallied {
+    losses: Component.Losses
+}
+
+func update_all(lost: List<Lost>, tallies: List<Tallied>) {
+    assert tallies.count() > 0
+    var losses = tallies[0].losses
+    losses.count = losses.count + lost.count()
+}

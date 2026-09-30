@@ -8,7 +8,7 @@ var heap = Memory.Heap()
 var raw = Raw()
 
 func input_each(tracked: Tracked) {
-    assert tracked.handle.value != 0 and not tracked.window.closed
+    assert tracked.handle.value != 0
     var rectangle = heap.allocate(16)
     user.GetClientRect(tracked.handle.value, rectangle)
     var width = raw.read_integer(rectangle, 8) - raw.read_integer(rectangle, 0)

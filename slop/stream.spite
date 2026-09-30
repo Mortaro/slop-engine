@@ -15,6 +15,7 @@ enum Phase {
 
 var system: $system_type = null
 var matcher = Row<$row_type>()
+var clock_row = Row<GameClock>()
 var since = -1
 var found = List<Integer>()
 var wanted = ""
@@ -40,21 +41,37 @@ func run_positions(phase: Symbol<$system_type.phase_each>, first: Integer, end: 
     while position < end {
         var entity = matcher.stream_entity(position)
         if matcher.match_into(entity, rows) {
-            var row: $row_type = null
-            fill_attributes(row, rows, entity)
-            system.phase_each(row)
+            if phase.argument_count() == 1 {
+                var row: $row_type = null
+                fill_attributes(row, rows, entity)
+                system.phase_each(row)
+            } else {
+                system.phase_each(clocked_arguments(rows, entity))
+            }
         }
         position = position + 1
     }
 }
 
+func clocked_argument(argument: Symbol<$system_type.phase_each>, rows: List<Integer>, entity: Integer): argument.class {
+    if argument.class == $row_type {
+        var row: $row_type = null
+        fill_attributes(row, rows, entity)
+        return row
+    }
+    return clock_row.current
+}
+
 func fill_attribute(attribute: Symbol<$row_type>, row: $row_type, rows: List<Integer>, entity: Integer) {
     if attribute.class == Entity {
-        row.attributes[attribute] = Entity(entity)
+        var own = Entity()
+        own.id = entity
+        row.attributes[attribute] = own
     } else if attribute.class.fits_vector() and attribute.class != Entity {
         crash rows[attribute.index]
-        crash Column<attribute.class>().values[rows[attribute.index]]
-        row.attributes[attribute] = Column<attribute.class>().values[rows[attribute.index]]
+        var stored_row = rows[attribute.index]
+        crash Column<attribute.class>().values[stored_row]
+        row.attributes[attribute] = Column<attribute.class>().values[stored_row]
     } else {
         crash rows[attribute.index]
         var stored_row = rows[attribute.index]

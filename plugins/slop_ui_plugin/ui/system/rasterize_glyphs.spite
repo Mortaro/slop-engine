@@ -1,8 +1,15 @@
-type Cache {
-    fonts: Ui.Component.Fonts
-    pending: Ui.Component.PendingGlyphs
+type Pending {
+    atlas: Component.GlyphAtlas
+    pending: Component.PendingGlyphs
 }
 
-func prepare_each(cache: Cache) {
-    cache.fonts.rasterize_pending()
+var fonts = Ui.Fonts()
+
+func prepare_all(pending: List<Pending>) {
+    var budget = fonts.glyphs_per_frame
+    var index = 0
+    while index < pending.count() and budget > 0 {
+        budget = budget - fonts.rasterize_pending(pending[index].atlas, budget)
+        index = index + 1
+    }
 }

@@ -1,1 +1,1 @@
-var connection = -1
+var entity = Entity()

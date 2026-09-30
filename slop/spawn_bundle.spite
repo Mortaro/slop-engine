@@ -2,7 +2,6 @@ generic $bundle_type
 
 var entity = 0
 var bundle: $bundle_type? = null
-var entity_column = Column<Entity>()
 
 func SpawnBundle(target: Integer, source: Anything) {
     entity = target
@@ -17,11 +16,7 @@ func apply() {
 }
 
 func insert_attribute(attribute: Symbol<$bundle_type>, value: $bundle_type) {
-    if attribute.class == Entity {
-        entity_column.insert_keyed(entity, value.attributes[attribute], "Entity.{attribute.name}")
-    } else {
-        var column = Column<attribute.class>()
-        var copied = value.attributes[attribute].deep_copy()
-        column.insert_own(entity, copied)
-    }
+    var column = Column<attribute.class>()
+    var copied = value.attributes[attribute].deep_copy()
+    column.insert_own(entity, copied)
 }

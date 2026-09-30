@@ -1,0 +1,100 @@
+singleton
+
+generic $component_type
+
+var column = Column<$component_type>()
+var columns = Columns()
+var target = -1
+var holders = List<Integer>()
+var living = true
+var made_below = 0
+
+func target_of(value: $component_type): Integer {
+    target = -1
+    find_links(value)
+    return target
+}
+
+func find_link(link: Symbol<$component_type>, value: $component_type) {
+    if link.class == Entity {
+        target = value.attributes[link].id
+    }
+}
+
+func names_living(value: $component_type, next_entity: Integer): Boolean {
+    living = true
+    made_below = next_entity
+    check_links(value)
+    return living
+}
+
+func check_link(link: Symbol<$component_type>, value: $component_type) {
+    if link.class == Entity {
+        var linked = value.attributes[link].id
+        if linked < 0 or linked >= made_below or columns.is_dead(linked) {
+            living = false
+        }
+    }
+}
+
+func refuse_dead(value: $component_type) {
+    refuse_dead_links(value)
+}
+
+func refuse_dead_link(link: Symbol<$component_type>, value: $component_type) {
+    if link.class == Entity {
+        var linked = value.attributes[link].id
+        var a_link_is_added_only_once_its_entity_is_set = linked >= 0
+        crash a_link_is_added_only_once_its_entity_is_set
+        var a_link_names_a_living_entity = not columns.is_dead(linked)
+        crash a_link_names_a_living_entity
+    }
+}
+
+func target_at(row: Integer): Integer {
+    if column.inline() {
+        crash column.values[row]
+        return target_of(column.values[row])
+    }
+    var stored = column.at(row)
+    return target_of(stored)
+}
+
+func cascade(despawned: List<Integer>): Boolean {
+    var grown = false
+    var key = columns.key($component_type)
+    var count = columns.count_of(key)
+    var row = 0
+    while row < count {
+        var child = columns.entity_at(key, row)
+        var parent = target_at(row)
+        if columns.is_dead(parent) and not columns.is_dead(child) {
+            columns.bury(child)
+            despawned.append(child)
+            grown = true
+        }
+        row = row + 1
+    }
+    return grown
+}
+
+func unlink() {
+    assert $component_type != Component.Parent
+    holders.clear()
+    var key = columns.key($component_type)
+    var count = columns.count_of(key)
+    var row = 0
+    while row < count {
+        var holder = columns.entity_at(key, row)
+        var linked = target_at(row)
+        if columns.is_dead(linked) and not columns.is_dead(holder) {
+            holders.append(holder)
+        }
+        row = row + 1
+    }
+    var index = 0
+    while index < holders.count() {
+        columns.remove_one(key, holders[index])
+        index = index + 1
+    }
+}

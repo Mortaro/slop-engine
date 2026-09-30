@@ -1,18 +1,10 @@
 var host = "127.0.0.1"
 var port = 27017
 var name = ""
-var client: Mongo.Client? = null
 
-func collection(collection_name: String): Mongo.Collection {
-    var opened = connected()
-    return opened.collection(name, collection_name)
-}
-
-func connected(): Mongo.Client {
-    if client {
-        return client
-    }
-    var made = Mongo.Client(host, port)
-    client = made
-    return made
+func connect(): Mongo.Component.Client {
+    var opened = Mongo.Component.Client()
+    opened.pool = Mongo.Client(host, port)
+    opened.database = name
+    return opened
 }

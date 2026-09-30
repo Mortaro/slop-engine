@@ -1,0 +1,357 @@
+singleton
+
+var blobs = Recipes.Blobs()
+var world = World()
+var raw = Raw()
+var faces = Dictionary<TrueType.Face>()
+var waiting_faces = List<String>()
+var atlases = Dictionary<Ui.Component.GlyphAtlas>()
+var atlas_entities = Dictionary<Integer>()
+var atlas_names = List<String>()
+var first_atlas_side = 256
+var largest_atlas_side = 4096
+var glyphs_per_frame = 32
+var outline = TrueType.Outline()
+var rasterizer = TrueType.Rasterizer()
+var bitmap = TrueType.GlyphBitmap()
+
+func atlas_of(font: String, face_index: Integer, pixels: Integer): Ui.Component.GlyphAtlas? {
+    var name = "{font}#{face_index}@{pixels}"
+    var found = atlases.get(name)
+    if found {
+        return found
+    }
+    var face_name = "{font}#{face_index}"
+    var face = face_of_name(font, face_index, face_name)
+    assert face
+    var pixels_fit = pixels > 0 and pixels < 512
+    crash pixels_fit
+    var units: Float = face.units_per_em
+    var scale_of_size: Float = pixels
+    var per_unit = scale_of_size / units
+    var ascent_units: Float = face.ascender
+    var descent_units: Float = face.descender
+    var gap_units: Float = face.line_gap
+    var atlas = Ui.Component.GlyphAtlas()
+    atlas.name = name
+    atlas.face_name = face_name
+    atlas.pixels = pixels
+    atlas.ascent = ascent_units * per_unit + 0.5
+    atlas.line_height = (ascent_units - descent_units + gap_units) * per_unit + 0.5
+    atlas.side = first_atlas_side
+    fill_blank(atlas.texture, atlas.texels, first_atlas_side)
+    var owner = world.create_entity()
+    owner.add_component(atlas)
+    atlases.set(name, atlas)
+    atlas_entities.set(name, owner.id)
+    atlas_names.append(name)
+    return atlas
+}
+
+func face_of_name(font: String, face_index: Integer, name: String): TrueType.Face? {
+    var found = faces.get(name)
+    if found {
+        return found
+    }
+    var cooked = blobs.bytes_of(font)
+    if not cooked {
+        if not waiting_faces.contains(name) {
+            waiting_faces.append(name)
+        }
+        return null
+    }
+    var waiting = waiting_faces.count() - 1
+    while waiting >= 0 {
+        if waiting_faces[waiting] == name {
+            waiting_faces.remove_at(waiting)
+        }
+        waiting = waiting - 1
+    }
+    var data = TrueType.FontData()
+    data.copy_bytes(cooked.address, cooked.length)
+    var face = TrueType.Face(data, face_index)
+    faces.set(name, face)
+    return face
+}
+
+func face_of(atlas: Ui.Component.GlyphAtlas): TrueType.Face {
+    var face = faces.get(atlas.face_name)
+    crash face
+    return face
+}
+
+func advance_of(face: TrueType.Face, atlas: Ui.Component.GlyphAtlas, codepoint: Integer): Float {
+    var glyph = face.glyph_index(codepoint)
+    var units: Float = face.units_per_em
+    var advance_units: Float = face.advance(glyph)
+    var pixels: Float = atlas.pixels
+    return advance_units * pixels / units
+}
+
+func text_width(atlas: Ui.Component.GlyphAtlas, text: String): Float {
+    var face = face_of(atlas)
+    var codes = List<Integer>()
+    codepoints(text, codes)
+    var width: Float = 0.0
+    var index = 0
+    while index < codes.count() {
+        var code = codes[index]
+        width = width + advance_of(face, atlas, code)
+        index = index + 1
+    }
+    return width
+}
+
+func glyph_of(atlas: Ui.Component.GlyphAtlas, codepoint: Integer): Integer {
+    var found = atlas.glyphs.codes.get(codepoint)
+    if found {
+        return found
+    }
+    queue(atlas, codepoint)
+    return -1
+}
+
+func queue(atlas: Ui.Component.GlyphAtlas, codepoint: Integer) {
+    var pending = atlas.glyphs.pending
+    assert not pending.contains(codepoint)
+    if pending.count() == 0 {
+        var marker = Ui.Component.PendingGlyphs()
+        entity_of(atlas).add_component(marker)
+    }
+    pending.append(codepoint)
+}
+
+func entity_of(atlas: Ui.Component.GlyphAtlas): Entity {
+    var owner = atlas_entities.get(atlas.name)
+    crash owner
+    return world.entity_of(owner)
+}
+
+func rasterize_pending(atlas: Ui.Component.GlyphAtlas, budget: Integer): Integer {
+    var pending = atlas.glyphs.pending
+    var done = 0
+    while done < budget and pending.count() > 0 {
+        var codepoint = pending.remove_first()
+        crash codepoint
+        add_glyph(atlas, codepoint)
+        done = done + 1
+    }
+    if pending.count() == 0 {
+        entity_of(atlas).remove_component(Ui.Component.PendingGlyphs)
+    }
+    return done
+}
+
+func add_glyph(atlas: Ui.Component.GlyphAtlas, codepoint: Integer) {
+    var face = face_of(atlas)
+    var glyph = face.glyph_index(codepoint)
+    face.outline_of(glyph, outline)
+    var units: Float = face.units_per_em
+    var pixels: Float = atlas.pixels
+    var per_unit = pixels / units
+    var advance_units: Float = face.advance(glyph)
+    bitmap.clear()
+    if outline.xs.count() > 0 {
+        rasterizer.raster(outline, per_unit, advance_units * per_unit, bitmap)
+    }
+    var table = atlas.glyphs
+    var place = table.lefts.count()
+    var packed = pack(atlas, bitmap.width, bitmap.height)
+    while packed < 0 {
+        grow(atlas)
+        packed = pack(atlas, bitmap.width, bitmap.height)
+    }
+    var left = packed % atlas.side
+    var top = packed / atlas.side
+    copy_into_atlas(atlas, left, top)
+    table.lefts.append(left)
+    table.tops.append(top)
+    table.widths.append(bitmap.width)
+    table.heights.append(bitmap.height)
+    table.bearings.append(bitmap.left)
+    table.risers.append(bitmap.top)
+    table.codes.set(codepoint, place)
+    note_changed(atlas)
+}
+
+func pack(atlas: Ui.Component.GlyphAtlas, width: Integer, height: Integer): Integer {
+    var left = atlas.shelf_left
+    var top = atlas.shelf_top
+    var shelf = atlas.shelf_height
+    if left + width + 1 > atlas.side {
+        top = top + shelf + 1
+        left = 1
+        shelf = 0
+    }
+    if top + height + 1 > atlas.side {
+        return -1
+    }
+    if height > shelf {
+        shelf = height
+    }
+    atlas.shelf_left = left + width + 1
+    atlas.shelf_top = top
+    atlas.shelf_height = shelf
+    return top * atlas.side + left
+}
+
+func copy_into_atlas(atlas: Ui.Component.GlyphAtlas, left: Integer, top: Integer) {
+    var texture = atlas.texture
+    var texels = atlas.texels
+    var row = 0
+    while row < bitmap.height {
+        var column = 0
+        while column < bitmap.width {
+            var coverage = bitmap.coverage_at(column, row)
+            var alpha = coverage.shifted_left(24)
+            var texel = alpha.bits_or(16777215)
+            var at = (top + row) * atlas.side + left + column
+            texture.pixels.set_at(at, texel)
+            raw.write_integer(texels.address, at * 4, texel)
+            column = column + 1
+        }
+        row = row + 1
+    }
+}
+
+func fill_blank(texture: Asset.Texture, texels: Asset.Bytes, side: Integer) {
+    texture.width = side
+    texture.height = side
+    while texture.pixels.count() < side * side {
+        texture.pixels.append(16777215)
+    }
+    texels.reserve(side * side * 4 + 4)
+    var blank = 0
+    while blank < side * side {
+        texels.write_integer(16777215)
+        blank = blank + 1
+    }
+}
+
+func grow(atlas: Ui.Component.GlyphAtlas) {
+    var old_side = atlas.side
+    var side = old_side * 2
+    var atlas_fits_the_largest_side = side <= largest_atlas_side
+    crash atlas_fits_the_largest_side
+    var old_texture = atlas.texture
+    var old_texels = atlas.texels
+    var texture = Asset.Texture()
+    var texels = Asset.Bytes()
+    fill_blank(texture, texels, side)
+    var row = 0
+    while row < old_side {
+        copy_row(old_texture, old_texels, old_side, texture, texels, side, row)
+        row = row + 1
+    }
+    atlas.texture = texture
+    atlas.texels = texels
+    atlas.side = side
+    note_changed(atlas)
+}
+
+func copy_row(
+    old_texture: Asset.Texture,
+    old_texels: Asset.Bytes,
+    old_side: Integer,
+    texture: Asset.Texture,
+    texels: Asset.Bytes,
+    side: Integer,
+    row: Integer,
+) {
+    var source = old_texels.address + row * old_side * 4
+    var target = texels.address + row * side * 4
+    raw.copy(source, target, old_side * 4)
+    var column = 0
+    while column < old_side {
+        crash old_texture.pixels[row * old_side + column]
+        var texel = old_texture.pixels[row * old_side + column]
+        texture.pixels.set_at(row * side + column, texel)
+        column = column + 1
+    }
+}
+
+func glyph_left(atlas: Ui.Component.GlyphAtlas, glyph: Integer): Integer {
+    crash atlas.glyphs.lefts[glyph]
+    return atlas.glyphs.lefts[glyph]
+}
+
+func glyph_top(atlas: Ui.Component.GlyphAtlas, glyph: Integer): Integer {
+    crash atlas.glyphs.tops[glyph]
+    return atlas.glyphs.tops[glyph]
+}
+
+func glyph_width(atlas: Ui.Component.GlyphAtlas, glyph: Integer): Integer {
+    crash atlas.glyphs.widths[glyph]
+    return atlas.glyphs.widths[glyph]
+}
+
+func glyph_height(atlas: Ui.Component.GlyphAtlas, glyph: Integer): Integer {
+    crash atlas.glyphs.heights[glyph]
+    return atlas.glyphs.heights[glyph]
+}
+
+func glyph_bearing(atlas: Ui.Component.GlyphAtlas, glyph: Integer): Integer {
+    crash atlas.glyphs.bearings[glyph]
+    return atlas.glyphs.bearings[glyph]
+}
+
+func glyph_riser(atlas: Ui.Component.GlyphAtlas, glyph: Integer): Integer {
+    crash atlas.glyphs.risers[glyph]
+    return atlas.glyphs.risers[glyph]
+}
+
+func atlas_id(atlas: Ui.Component.GlyphAtlas): String {
+    return "font-atlas:{atlas.name}"
+}
+
+func codepoints(text: String, codes: List<Integer>) {
+    var index = 0
+    var length = text.length()
+    while index < length {
+        var lead = text.code_at(index).bits_and(255)
+        var count = 1
+        var code = lead
+        if lead >= 240 {
+            count = 4
+            code = lead.bits_and(7)
+        } else if lead >= 224 {
+            count = 3
+            code = lead.bits_and(15)
+        } else if lead >= 192 {
+            count = 2
+            code = lead.bits_and(31)
+        }
+        var follow = 1
+        while follow < count and index + follow < length {
+            var next = text.code_at(index + follow).bits_and(63)
+            code = code * 64 + next
+            follow = follow + 1
+        }
+        codes.append(code)
+        index = index + count
+    }
+}
+
+func settled(): Boolean {
+    if waiting_faces.count() > 0 {
+        return false
+    }
+    var index = 0
+    while index < atlas_names.count() {
+        var atlas = atlases.get(atlas_names[index])
+        crash atlas
+        if atlas.glyphs.pending.count() > 0 or atlas.generation != atlas.published {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func note_changed(atlas: Ui.Component.GlyphAtlas) {
+    if atlas.generation == atlas.published {
+        var marker = Ui.Component.AtlasChanged()
+        entity_of(atlas).add_component(marker)
+    }
+    atlas.generation = atlas.generation + 1
+}

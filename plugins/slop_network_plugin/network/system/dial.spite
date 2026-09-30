@@ -1,42 +1,48 @@
 type Joining {
+    entity: Entity
     connect: Network.Component.Connect
+    unconnected: Without<Network.Component.Connected>
 }
 
 var world = World()
-var peers = Lookup<Network.Component.Connection>()
+var dials = Network.Dials()
+var dialing = Lookup<Network.Component.Dialing>()
 var retry_ticks = 60
 
 func input_each(joining: Joining) {
     var connect = joining.connect
-    if connect.connection >= 0 {
-        assert not peers.has(connect.connection)
-        connect.connection = -1
-    }
-    if connect.dialer.ready() {
-        take_socket(connect)
-    } else if connect.dialer.idle() {
-        dial(connect)
+    var dialer = joining.entity
+    if dialing.has(dialer.id) {
+        take_socket(dialer, connect)
+    } else {
+        dial(dialer, connect)
     }
 }
 
-func take_socket(connect: Network.Component.Connect) {
-    var socket = connect.dialer.take()
+func take_socket(dialer: Entity, connect: Network.Component.Connect) {
+    assert dials.finished(dialer.id)
+    dialer.remove_component(Network.Component.Dialing)
+    var socket = dials.take(dialer.id)
     if socket {
         var connection = Network.Component.Connection()
         connection.stream.adopt(socket)
         var peer = world.create_entity()
         peer.add_component(connection)
-        connect.connection = peer.id
+        var connected = Network.Component.Connected()
+        connected.entity = peer
+        dialer.add_component(connected)
         connect.wait_ticks = 1
     } else {
         connect.wait_ticks = retry_ticks
     }
 }
 
-func dial(connect: Network.Component.Connect) {
+func dial(dialer: Entity, connect: Network.Component.Connect) {
     if connect.wait_ticks > 0 {
         connect.wait_ticks = connect.wait_ticks - 1
         return
     }
-    connect.dialer.start(connect.host, connect.port)
+    dials.start(dialer.id, connect.host, connect.port)
+    var marker = Network.Component.Dialing()
+    dialer.add_component(marker)
 }

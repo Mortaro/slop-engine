@@ -1,6 +1,7 @@
 type Playing {
+    frame: Component.Frame
     count: Component.ClickCount
-    quit: Component.Quit
+    running: Without<Component.Quit>
 }
 
 var world = World()
@@ -18,9 +19,11 @@ func update_each(playing: Playing) {
         }
         send_clicks()
     }
-    if not playing.quit.requested and clicks >= first_seen + environment.clicks {
+    if clicks >= first_seen + environment.clicks {
         console.print("bot clicked", environment.clicks, "and sees", clicks)
-        playing.quit.requested = true
+        var quit = Component.Quit()
+        var shelf = world.as_entity()
+        shelf.add_component(quit)
     }
 }
 

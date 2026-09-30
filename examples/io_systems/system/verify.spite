@@ -1,27 +1,34 @@
 type Replied {
+    entity: Entity
     reply: Component.LookupReply
 }
 
 type Quitting {
     frame: Component.Frame
-    quit: Component.Quit
+    running: Without<Component.Quit>
 }
 
 var console = Console()
+var founds = Lookup<Component.Found>()
+
+var world = World()
 
 func last_all(replies: List<Replied>, quitting: List<Quitting>) {
     var state = quitting.first()
-    crash state
-    assert replies.count() == 3 and not state.quit.requested
+    assert state
+    assert replies.count() == 3
     var index = 0
     while index < replies.count() {
         var reply = replies[index].reply
-        console.print("reply", reply.name, "found", reply.found, "at frame", reply.frame)
+        var found = founds.has(replies[index].entity.id)
+        console.print("reply", reply.name, "found", found, "at frame", reply.frame)
         index = index + 1
     }
     var frame = state.frame.count
     var passed = frame > 10
     console.print("frames while waiting", frame, "passed", passed)
     crash passed
-    state.quit.requested = true
+    var quit = Component.Quit()
+    var shelf = world.as_entity()
+    shelf.add_component(quit)
 }

@@ -1,27 +1,32 @@
 type Checked {
-    renderer: RenderVulkan.Component.Renderer
+    entity: Entity
     view: Scene.Component.View
     draw_list: Render.Component.DrawList
 }
 
 type Quitting {
-    quit: Component.Quit
+    frame: Component.Frame
+    running: Without<Component.Quit>
 }
 
+var renderer = RenderVulkan.Renderer()
+var draws = Scene.Draws()
 var console = Console()
 var world = World()
 var environment = Environment()
 var rendered_frames = 0
 var checked_once = false
 
+var captured_frames = Lookup<RenderVulkan.Component.Captured>()
+
 func last_each(checked: Checked, quitting: Quitting) {
-    assert environment.frames > 0 and not quitting.quit.requested and checked.view.draws.count() > 0
-    var renderer = checked.renderer
+    assert environment.frames > 0 and draws.of(checked.entity.id).draws.count() > 0
     rendered_frames = rendered_frames + 1
     if rendered_frames == environment.frames {
-        renderer.capture_requested = true
+        var request = RenderVulkan.Component.CaptureRequested()
+        checked.entity.add_component(request)
     }
-    assert renderer.captured and not checked_once
+    assert captured_frames.has(checked.entity.id) and not checked_once
     checked_once = true
     var width = checked.draw_list.width
     var height = checked.draw_list.height
@@ -30,19 +35,21 @@ func last_each(checked: Checked, quitting: Quitting) {
     var clear = checked.draw_list.clear_color
     var center_color = center.bits_and(16777215)
     var corner_color = corner.bits_and(16777215)
-    var palettes = checked.view.palettes.count()
+    var palettes = draws.of(checked.entity.id).palettes.count()
     var passed = center_color != corner_color and corner_color != clear
-    var draws_count = checked.view.draws.count()
+    var draws_count = draws.of(checked.entity.id).draws.count()
     console.print("draws", draws_count, "palettes", palettes, "center", center_color, "passed", passed)
     crash passed
     if environment.capture.is_empty() {
-        quitting.quit.requested = true
+        var quit = Component.Quit()
+        var shelf = world.as_entity()
+        shelf.add_component(quit)
     } else {
         keep_capture(renderer, width, height)
     }
 }
 
-func keep_capture(renderer: RenderVulkan.Component.Renderer, width: Integer, height: Integer) {
+func keep_capture(renderer: RenderVulkan.Renderer, width: Integer, height: Integer) {
     var capture = Component.Capture()
     capture.width = width
     capture.height = height
@@ -55,7 +62,7 @@ func keep_capture(renderer: RenderVulkan.Component.Renderer, width: Integer, hei
     holder.add_component(capture)
 }
 
-func write_row(renderer: RenderVulkan.Component.Renderer, image: Asset.Bytes, row: Integer, width: Integer) {
+func write_row(renderer: RenderVulkan.Renderer, image: Asset.Bytes, row: Integer, width: Integer) {
     var column = 0
     while column < width {
         var texel = renderer.pixel_at(column, row)

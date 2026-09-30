@@ -1,7 +1,0 @@
-type Loading {
-    textures: Component.Textures
-}
-
-func after_input_each(loading: Loading) {
-    loading.textures.check_for_changes()
-}

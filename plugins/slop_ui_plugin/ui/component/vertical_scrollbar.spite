@@ -1,0 +1,14 @@
+var track_left: Float = 0.0
+var track_top: Float = 0.0
+var track_height: Float = 0.0
+var thumb_top: Float = 0.0
+var thumb_height: Float = 0.0
+
+func on_track(across: Float, down: Float, thickness: Float): Boolean {
+    var inside_x = across >= track_left and across < track_left + thickness
+    return inside_x and down >= track_top and down < track_top + track_height
+}
+
+func on_thumb(across: Float, down: Float, thickness: Float): Boolean {
+    return on_track(across, down, thickness) and down >= thumb_top and down < thumb_top + thumb_height
+}

@@ -1,16 +1,31 @@
 type Target {
+    entity: Entity
     window: Window.Component.Window
     swapchain: RenderVulkan.Component.Swapchain
-    renderer: RenderVulkan.Component.Renderer
-    mesh_renderer: Component.MeshRenderer
+    device: RenderVulkan.Component.Device
     view: Scene.Component.View
-    meshes: Scene.Component.Meshes
-    terrain_materials: Scene.Component.TerrainMaterials
+    camera: Scene.Component.ViewCamera
 }
 
+var meshes = Scene.Meshes()
+var terrain_materials = Scene.TerrainMaterials()
+var lights = Scene.Lights()
+var draws = Scene.Draws()
+var renderer = RenderVulkan.Renderer()
+var mesh_renderer = SceneVulkan.MeshRenderer()
+var world = World()
+var created = Lookup<Component.MeshRendererCreated>()
+
 func after_render_each(target: Target) {
-    var renderer = target.renderer
-    assert not target.window.closed and renderer.device != 0
-    assert target.swapchain.acquired >= 0 and target.view.has_camera
-    target.mesh_renderer.record(renderer, target.view, target.meshes, target.terrain_materials)
+    assert renderer.device != 0
+    assert target.swapchain.acquired >= 0
+    var owner = target.entity
+    if not created.has(world.entity) {
+        assert mesh_renderer.shaders_ready(renderer)
+        mesh_renderer.create(renderer, target.device)
+        var marker = Component.MeshRendererCreated()
+        world.as_entity().add_component(marker)
+    }
+    var drawn = draws.of(owner.id)
+    mesh_renderer.record(renderer, target.view, drawn, target.camera, meshes, terrain_materials, lights)
 }

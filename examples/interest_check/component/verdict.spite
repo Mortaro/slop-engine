@@ -1,5 +1,4 @@
-var heard = false
-var correct = false
+var number = 0
 
 func mirrored_from(environment: String): Boolean {
     return environment == "server"

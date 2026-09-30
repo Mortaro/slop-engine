@@ -1,8 +1,7 @@
 type Target {
+    entity: Entity
     view: Component.View
-    meshes: Component.Meshes
-    textures: Render.Component.Textures
-    terrain_materials: Component.TerrainMaterials
+    camera: Component.ViewCamera
 }
 
 type Modeled {
@@ -11,20 +10,30 @@ type Modeled {
     transform: Transform.Component.Transform
 }
 
+var textures = Render.Textures()
+var meshes = Scene.Meshes()
+
 var off_views = Lookup<Component.OffView>()
+var skins = Lookup<Component.Skin>()
+var draws = Scene.Draws()
+var no_palette = List<Math.Matrix4>()
 
 func render_each(target: Target, modeled: Modeled) {
-    assert target.view.has_camera
     add_draw(target, modeled)
 }
 
 func add_draw(target: Target, modeled: Modeled) {
-    var slot = target.meshes.request(modeled.model.mesh)
-    assert target.meshes.is_ready(slot)
-    var loaded = target.meshes.mesh_at(slot)
+    var slot = meshes.request(modeled.model.mesh)
+    var loaded = meshes.loaded_of(slot)
+    assert loaded
     var model = modeled.transform.matrix()
-    var skinned = modeled.model.palette.count() > 0
-    var palette = modeled.model.palette
+    var drawn = draws.of(target.entity.id)
+    var palette = no_palette
+    var skin = skins.of(modeled.entity.id)
+    if skin {
+        palette = skin.pose.palette
+    }
+    var skinned = palette.count() > 0
     if skinned {
         var mesh_name = modeled.model.mesh
         var palette_covers_the_mesh_joints = loaded.joint_limit <= palette.count()
@@ -41,10 +50,10 @@ func add_draw(target: Target, modeled: Modeled) {
     assert in_view
     var palette_first = 0
     if skinned {
-        palette_first = target.view.palettes.count()
+        palette_first = drawn.palettes.count()
         var index = 0
         while index < palette.count() {
-            target.view.palettes.append(palette[index])
+            drawn.palettes.append(palette[index])
             index = index + 1
         }
     }
@@ -54,12 +63,12 @@ func add_draw(target: Target, modeled: Modeled) {
         draw.mesh_slot = slot
         draw.model = model
         draw.palette_first = palette_first
-        add_section(target, loaded, draw, section)
+        add_section(drawn, loaded, draw, section)
         section = section + 1
     }
 }
 
-func add_section(target: Target, loaded: Scene.LoadedMesh, draw: Scene.Draw, section: Integer) {
+func add_section(drawn: Scene.DrawSet, loaded: Scene.LoadedMesh, draw: Scene.Draw, section: Integer) {
     var at = section * 3
     crash loaded.sections[at]
     crash loaded.sections[at + 1]
@@ -72,10 +81,10 @@ func add_section(target: Target, loaded: Scene.LoadedMesh, draw: Scene.Draw, sec
     if material < loaded.textures.count() {
         var texture = loaded.textures[material]
         if not texture.is_empty() {
-            draw.texture_slot = target.textures.request(texture)
+            draw.texture_slot = textures.request(texture)
         }
     }
-    target.view.draws.append(draw)
+    drawn.draws.append(draw)
 }
 
 func mark_view(view: Component.View, entity: Entity, radius: Float, in_view: Boolean) {

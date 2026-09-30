@@ -1,0 +1,2 @@
+var name = ""
+var maximum_anisotropy: Float = 1.0

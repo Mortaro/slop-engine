@@ -1,0 +1,32 @@
+var ends_at: Long = 0
+
+func remaining(now: Long): Integer {
+    var left = ends_at - now
+    if left <= 0 {
+        return 0
+    }
+    var whole: Integer = left
+    return whole
+}
+
+func remaining_seconds(now: Long): Float {
+    var left: Float = remaining(now)
+    return left / 1000.0
+}
+
+func elapsed(timer: Component.Timer, now: Long): Integer {
+    return timer.duration - remaining(now)
+}
+
+func fraction(timer: Component.Timer, now: Long): Float {
+    return 1.0 - fraction_remaining(timer, now)
+}
+
+func fraction_remaining(timer: Component.Timer, now: Long): Float {
+    if timer.duration <= 0 {
+        return 0.0
+    }
+    var left: Float = remaining(now)
+    var whole: Float = timer.duration
+    return left / whole
+}

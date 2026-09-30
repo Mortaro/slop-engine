@@ -1,4 +1,4 @@
-var parent = Ui.Component.Parent()
+var parent = Component.Parent()
 var button = Ui.Component.Button()
 var height = Ui.Component.Height()
 var shrink = Ui.Component.FlexShrink()
@@ -6,7 +6,7 @@ var background = Ui.Component.BackgroundColor()
 var text = Ui.Component.Text()
 var row = Component.Row()
 
-func ListRow(panel: Integer, index: Integer) {
+func ListRow(panel: Entity, index: Integer) {
     parent.entity = panel
     height.length.pixels(30.0)
     shrink.value = 0.0

@@ -5,11 +5,13 @@ type OpenedWindow {
     handle: Window.Component.Handle
 }
 
+var renderer = RenderVulkan.Renderer()
+
 func present_each(created: OpenedWindow) {
-    var renderer = Component.Renderer()
-    renderer.ensure()
+    var device = Component.Device()
+    renderer.ensure(device)
     var swapchain = Component.Swapchain()
     renderer.create_swapchain(created.window, created.handle.value, swapchain)
+    created.entity.add_component(device)
     created.entity.add_component(swapchain)
-    created.entity.add_component(renderer)
 }

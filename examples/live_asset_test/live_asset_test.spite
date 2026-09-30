@@ -1,3 +1,4 @@
+var meshes = Scene.Meshes()
 var cookbook = Recipes.Cookbook()
 var console = Console()
 var world = World()
@@ -5,7 +6,6 @@ var program = Program()
 var build = Build()
 var clock = Clock()
 var worst_tick: Long = 0
-var holder = 0
 
 func LiveAssetTest() {
     load "../../slop"
@@ -21,7 +21,6 @@ func LiveAssetTest() {
     write_source("bones", "2")
     cookbook.cook()
     var app = App()
-    spawn_holder()
     var first_top = wait_for_top(app, 1.0)
     var first_bones = wait_for_bones(app, 2)
     crash first_top == 1.0 and first_bones == 2
@@ -41,13 +40,6 @@ func write_source(name: String, value: String) {
     var file = File("{build.program}/assets/test/{name}.txt")
     var written = file.write("{value}\n")
     crash written
-}
-
-func spawn_holder() {
-    var made = world.create_entity()
-    var meshes = Scene.Component.Meshes()
-    made.add_component(meshes)
-    holder = made.id
 }
 
 func step(app: App) {
@@ -72,8 +64,6 @@ func wait_for_top(app: App, wanted: Float): Float {
 }
 
 func bar_top(): Float {
-    var meshes = Lookup<Scene.Component.Meshes>().of(holder)
-    crash meshes
     var slot = meshes.request("test.bar")
     if not meshes.is_ready(slot) {
         return -1.0

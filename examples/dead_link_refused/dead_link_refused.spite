@@ -1,0 +1,18 @@
+var world = World()
+var environment = Environment()
+
+func DeadLinkRefused() {
+    load "../../slop"
+    var app = App()
+    var prey = world.create_entity()
+    var hunter = world.create_entity()
+    var target = Component.Target()
+    if environment.link == "dead" {
+        prey.remove()
+        world.flush()
+        target.entity = prey
+    }
+    hunter.add_component(target)
+    world.flush()
+    app.tick()
+}

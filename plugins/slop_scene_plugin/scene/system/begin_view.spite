@@ -1,28 +1,28 @@
 type Target {
+    entity: Entity
     view: Component.View
-    meshes: Component.Meshes
-    textures: Render.Component.Textures
-    terrain_materials: Component.TerrainMaterials
 }
 
 type Viewing {
     camera: Camera.Component.Camera
 }
 
+var cameras = Lookup<Component.ViewCamera>()
+var draws = Scene.Draws()
+
 func prepare_each(target: Target, viewing: Viewing) {
     var view = target.view
-    view.begin()
-    var lens = viewing.camera
-    view.has_camera = true
-    view.field_of_view = lens.field_of_view
-    view.near = lens.near
-    view.far = lens.far
-    view.eye_x = lens.eye_x
-    view.eye_y = lens.eye_y
-    view.eye_z = lens.eye_z
-    view.shadow_center_x = lens.target_x
-    view.shadow_center_y = lens.target_y
-    view.shadow_center_z = lens.target_z
-    view.view.set_look_at(lens.eye_x, lens.eye_y, lens.eye_z, lens.target_x, lens.target_y, lens.target_z)
-    view.cone.prepare(view)
+    var owner = target.entity
+    var drawn = draws.of(owner.id)
+    drawn.begin()
+    var existing = cameras.of(owner.id)
+    if existing {
+        existing.look_through(viewing.camera)
+        view.cone.prepare(existing)
+        return
+    }
+    var camera = Component.ViewCamera()
+    camera.look_through(viewing.camera)
+    view.cone.prepare(camera)
+    owner.add_component(camera)
 }

@@ -1,9 +1,0 @@
-type NewRenderer {
-    entity: Entity
-    renderer: Added<RenderVulkan.Component.Renderer>
-}
-
-func update_each(created: NewRenderer) {
-    var mesh_renderer = Component.MeshRenderer()
-    created.entity.add_component(mesh_renderer)
-}

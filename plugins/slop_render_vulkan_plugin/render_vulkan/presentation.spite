@@ -1,0 +1,4 @@
+var surface: Long = 0
+var swapchain: Long = 0
+var images = List<Long>()
+var frames_done = List<Long>()

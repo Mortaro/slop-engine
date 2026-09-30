@@ -8,8 +8,11 @@ var environment = Environment()
 func update_each(_started: Started) {
     var window_bundle = Window.Bundle.Window()
     window_bundle.window.title = "Scene probe"
-    window_bundle.window.visible = environment.show_window
-    world.create_entity_from_bundle(window_bundle)
+    var window_entity = world.create_entity_from_bundle(window_bundle)
+    if not environment.show_window {
+        var hidden = Window.Component.Hidden()
+        window_entity.add_component(hidden)
+    }
     var camera_entity = world.create_entity()
     var camera = Camera.Component.Camera()
     camera.eye_x = 2.0

@@ -1,8 +1,7 @@
 type Target {
+    entity: Entity
     view: Component.View
-    meshes: Component.Meshes
-    textures: Render.Component.Textures
-    terrain_materials: Component.TerrainMaterials
+    camera: Component.ViewCamera
 }
 
 type Cell {
@@ -10,29 +9,33 @@ type Cell {
     transform: Transform.Component.Transform
 }
 
+var textures = Render.Textures()
+var draws = Scene.Draws()
+var meshes = Scene.Meshes()
+var terrain_materials = Scene.TerrainMaterials()
+
 func render_each(target: Target, placed: Cell) {
-    assert target.view.has_camera
     add_cell(target, placed)
 }
 
 func add_cell(target: Target, placed: Cell) {
     var cell = placed.cell
-    var slot = target.meshes.request(cell.mesh)
-    var material_slot = target.terrain_materials.request(cell.material)
-    assert target.meshes.is_ready(slot) and target.terrain_materials.is_ready(material_slot)
-    target.terrain_materials.request_textures(material_slot, target.textures)
-    var loaded = target.meshes.mesh_at(slot)
+    var slot = meshes.request(cell.mesh)
+    var material_slot = terrain_materials.request(cell.material)
+    assert meshes.is_ready(slot) and terrain_materials.is_ready(material_slot)
+    terrain_materials.request_textures(material_slot, textures)
+    var loaded = meshes.mesh_at(slot)
     var model = placed.transform.matrix()
     target.view.cone.place(model, loaded)
     var radius = target.view.cone.radius_of(loaded, placed.transform)
     assert target.view.cone.contains(radius)
     if cell.far_mesh != "" and target.view.cone.distance_to_eye() - radius > cell.far_distance {
-        var far_slot = target.meshes.request(cell.far_mesh)
-        if target.meshes.is_ready(far_slot) {
+        var far_slot = meshes.request(cell.far_mesh)
+        if meshes.is_ready(far_slot) {
             slot = far_slot
         }
     }
-    var drawn = target.meshes.mesh_at(slot)
+    var drawn = meshes.mesh_at(slot)
     var section = 0
     while section * 3 + 2 < drawn.sections.count() {
         var draw = Scene.TerrainDraw()
@@ -41,7 +44,7 @@ func add_cell(target: Target, placed: Cell) {
         draw.first_index = drawn.sections[section * 3]
         draw.index_count = drawn.sections[section * 3 + 1]
         draw.material_slot = material_slot
-        target.view.terrain_draws.append(draw)
+        draws.of(target.entity.id).terrain_draws.append(draw)
         section = section + 1
     }
 }

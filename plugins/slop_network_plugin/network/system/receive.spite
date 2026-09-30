@@ -35,6 +35,8 @@ func decode_component(component: Symbol<Component>, message: Integer, remote: In
         var value = codec.read(frame)
         if value {
             understood = true
+            var link = Link<component.class>()
+            assert link.names_living(value, world.next_entity)
             var target = target_entity(remote, connection, message)
             target.add_component(value)
         }
@@ -47,7 +49,7 @@ func target_entity(remote: Integer, connection: Integer, message: Integer): Enti
     }
     var arrived = world.create_entity()
     var sender = Network.Component.Sender()
-    sender.connection = connection
+    sender.entity = world.entity_of(connection)
     arrived.add_component(sender)
     var marker = Network.Component.Arrived()
     marker.message = message
@@ -78,7 +80,7 @@ func forget_mirror(remote: Integer) {
 
 func local_entity(remote: Integer): Entity {
     var local = mirrors.local_of(remote)
-    return Entity(local)
+    return world.entity_of(local)
 }
 
 func mark_mirrors() {
@@ -87,7 +89,7 @@ func mark_mirrors() {
         var mirrored = Network.Component.Mirrored()
         crash mirrors.created_remotes[index]
         mirrored.remote = mirrors.created_remotes[index]
-        var made = Entity(mirrors.created[index])
+        var made = world.entity_of(mirrors.created[index])
         made.add_component(mirrored)
         index = index + 1
     }

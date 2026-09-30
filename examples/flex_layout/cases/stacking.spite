@@ -1,3 +1,4 @@
+var world = World()
 var tree = Cases.Tree()
 var console = Console()
 var raised = 0
@@ -10,13 +11,13 @@ func build() {
     raised = tree.sized(root, 50.0, 50.0)
     var level = Ui.Component.ZIndex()
     level.value = 2
-    Entity(raised).add_component(level)
+    world.entity_of(raised).add_component(level)
     raised_child = tree.sized(raised, 10.0, 10.0)
     plain = tree.sized(root, 50.0, 50.0)
     sunk = tree.sized(root, 50.0, 50.0)
     var below = Ui.Component.ZIndex()
     below.value = -1
-    Entity(sunk).add_component(below)
+    world.entity_of(sunk).add_component(below)
 }
 
 func check() {

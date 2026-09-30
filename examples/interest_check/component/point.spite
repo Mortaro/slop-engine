@@ -1,5 +1,0 @@
-var target = Entity(-1)
-
-func sent_from(environment: String): Boolean {
-    return environment == "bot"
-}

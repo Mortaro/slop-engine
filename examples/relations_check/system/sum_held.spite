@@ -1,6 +1,6 @@
 type Held {
     item: Component.Item
-    parent: Entity
+    parent: Component.Parent
 }
 
 type Owner {

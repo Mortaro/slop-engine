@@ -19,8 +19,8 @@ one is one `load` line.
 ## Platforms and devices
 
 A platform is a plugin. `slop_window_plugin` and `slop_input_plugin` are platform-neutral: window data, the mouse
-and keyboard state, and the `Input.Event` records a platform produces. `slop_windows_plugin` is Win32: its window
-thread owns the windows and turns their messages into `Input.Event`s. Another OS, or a console, is another plugin
+and keyboard state, and the `Input.Component.Event` entities a platform produces. `slop_windows_plugin` is Win32: its
+window thread owns the windows and turns their messages into event entities. Another OS, or a console, is another plugin
 producing the same events; a controller family (XInput, a console pad) is a plugin producing its own device
 components.
 
@@ -47,11 +47,12 @@ queue, and whatever the render plugins add).
 
 | | |
 |---|---|
-| `Window.Component.Window` | `title`, `width` (640), `height` (400), `visible`, `closed`: plain data, any thread |
+| `Window.Component.Window` | `title`, `width` (640), `height` (400): plain data, any thread |
+| `Window.Component.Hidden` | marker: the window is created hidden (tests, benchmarks) |
 | `Window.Component.Handle` | `value`: the platform's native window handle, 0 until the platform has created it |
 | `Window.Component.Opening` | `slot`: the window's pending request to the platform |
 | `Window.Component.Requested` | marker: this window has not been opened yet |
-| `Window.Bundle.Window` | a `Window`, a `Handle`, a `Requested`, and the input plugin's `Mouse`, `Keyboard` and `Events` |
+| `Window.Bundle.Window` | a `Window`, a `Handle`, a `Requested`, and the input plugin's `Mouse` and `Keyboard` |
 
 "The window entity exists" is `Added<Window.Component.Window>`; "the window is open" (it has a handle) is
 `Removed<Window.Component.Opening>`, which is what the Vulkan renderer waits for.
@@ -67,39 +68,48 @@ memory behind an SRW lock; no system is tied to a thread.
 |---|---|
 | `Windows.System.OpenWindow` (`input`) | asks the window thread for every requested window, then swaps `Requested` for `Opening` |
 | `Windows.System.FinishOpening` (`after_input`) | takes the handle once the window exists and removes `Opening` |
-| `Windows.System.PumpMessages` (`input`) | translates the window thread's messages into `Input.Event`s on each window's `Events`, notices a closed window, removes it and sets the world's `Component.Quit` |
-| `Windows.System.StopWindows` (`last`) | stops the window thread once quit is requested |
+| `Windows.System.PumpMessages` (`input`) | translates the window thread's messages into event entities, children of their window, notices a closed window, removes its entity and adds `Component.Quit` to the world entity |
+| `Windows.System.StopWindows` (`last`) | stops the window thread once the world entity has `Component.Quit` |
 
 ## slop_xinput_plugin
 
 Windows controllers through XInput (`xinput1_4.dll`). `Xinput.System.PollGamepads` (`input`) creates a gamepad
-entity when a controller connects, and fills its `Input.Component.Gamepad` every tick; an empty slot is asked only
+entity when a controller connects, fills its `Input.Component.Gamepad` every tick and keeps one child entity per
+held button (`Input.Component.GamepadButton`, marked `JustPressed` on the tick it went down and `JustReleased` on
+the tick it went up, then despawned); an empty slot is asked only
 once a second, since XInput is slow to answer for a disconnected controller. `slop_platform_plugin` loads it on
 Windows. A console's controllers would be another plugin filling the same component.
 
 ## slop_input_plugin
 
-Platform-neutral input. A platform appends `Input.Event`s (pointer moved, button pressed or released, wheel turned,
-key pressed or released, character typed) to a window's `Input.Component.Events`; `Input.System.ApplyEvents`
-(`after_input`) resets the per-tick state and applies them to the window's `Mouse` and `Keyboard`, before any UI
-system reads them.
+Platform-neutral input. A platform spawns one entity per input event (pointer moved, button pressed or released,
+wheel turned, key pressed or released, character typed), a child of its window holding `Input.Component.Event`, in
+the order they happened, so their ids are their order; `Input.System.ApplyEvents` (`after_input`) resets the
+per-tick state and applies them to the window's `Mouse` and key entities, before any UI system reads them, and
+`Input.System.ForgetEvents` (`last`) despawns them. Held keys are entities too (a proposal by Claude: a key is a
+child of its window holding `Input.Component.Key`, so a system asks for keys held or pressed with a row, and nothing
+is a list of codes).
 
 | | |
 |---|---|
-| `Input.Event` | one input event, independent of the platform |
-| `Input.Component.Gamepad` | one controller: `slot`, `connected`, `held`/`pressed`/`released` buttons, sticks (`left_x`, `left_y`, `right_x`, `right_y`, -1 to 1, dead zone applied) and triggers (0 to 1) |
+| `Input.Component.Event` | on an event entity (a child of its window): one input event, independent of the platform; lives one tick |
+| `Input.Component.DoubleClick` | marker on a button-pressed event that was a double click |
+| `Input.Component.Key` | `code`: a held key, on a child of its window; despawned the tick after it is released |
+| `Input.Component.JustPressed`, `JustReleased` | markers on a key or gamepad button: it went down, or up, this tick |
+| `Input.Component.GamepadButton` | `code` (an `Input.Button` name): a held controller button, on a child of its gamepad |
+| `Input.Component.Gamepad` | one controller: `slot`, sticks (`left_x`, `left_y`, `right_x`, `right_y`, -1 to 1, dead zone applied) and triggers (0 to 1) |
+| `Input.Component.GamepadConnected` | marker on a gamepad: its controller answered this tick; removed when it stops answering |
 | `Input.Button` | platform-neutral button names: `south`, `east`, `west`, `north`, the d-pad, `start`, `select`, shoulders, stick clicks |
-| `Input.Component.Events` | `pending`: the events a platform delivered this tick |
-| `Input.Component.Keyboard` | on a window: `held` and `pressed` keys, `typed` characters, and `strokes` (key presses and characters in order) for the current tick |
+| `Input.Component.Keyboard` | marker on a window: it takes keys |
 | `Input.Key` | names for virtual keys (`backspace`, `left`, `delete`, ...) |
-| `Input.Component.Mouse` | on a window: `left`, `top` (pixels in the window); the left button's `down`, `pressed`, `released` and `double_clicked`; the same for `right_…` and `middle_…`; and `wheel` (notches), for the current tick |
+| `Input.Component.Mouse` | on a window: `left`, `top` (pixels in the window) and `wheel` (notches), for the current tick |
+| `Input.Component.LeftDown`, `LeftPressed`, `LeftReleased`, `DoubleClicked` | markers on a window: the left button is held, went down this tick, went up this tick, was double-clicked this tick; `Right…` and `Middle…` are the same for the other buttons |
 
 ## slop_ui_plugin
 
 | | |
 |---|---|
 | `Ui.Component.Screen` | the root of an element tree; `width` and `height` are the viewport it fills |
-| `Ui.Component.Parent` | the element's parent entity |
 | layout components | one per CSS property: `Display`, `FlexDirection`, `Width`, `Margin`, ... (see [ui.md](ui.md)) |
 | `Ui.Component.ComputedLayout` | the border box the layout computed: `left`, `top`, `width`, `height` |
 | `Ui.Component.ContentSize` | a leaf's own size, measured from its content |
@@ -125,14 +135,16 @@ See [ui.md](ui.md).
 | | |
 |---|---|
 | `Render.Component.DrawList` | on a draw target: this frame's rectangles, solid or textured, in raw memory |
-| `Render.Component.Textures` | on a draw target: asset id to slot, and background loading |
+| `Render.Textures` | a resource (singleton): asset id to slot, each slot's texture entity, and the background loads in flight, keyed by entity |
+| `Component.Loading` | core marker on any entity whose asset job is in flight (a texture's, a mesh's, a terrain material's), added when the job starts and removed when its result lands, so a loading screen can ask for `Texture` + `Loading` |
+| `Render.Component.Texture` | on a texture's own entity: its `id`, `slot`, decoded `image`, `raw` texels for the GPU, `generation` (bumped on every load) and the catalog revision it was loaded at |
+| `Render.Component.TextureReady` | marker on a texture's entity: its texels are loaded |
 | `Render.Component.ClearColor` | on a draw target: the clear colour |
 | `Render.Font` | the built-in 5x7 font (a plain class) |
 | `Render.System.AdoptWindows` (`after_input`) | makes each new window a draw target |
 | `Render.System.BeginFrame` (`prepare`) | starts each window's draw list at the window's size |
 | `Render.System.DrawUi` (`render`) | paints every laid-out element in tree order: background colour, image, text, then its scrollbars |
-| `Render.System.FinishTextureLoads` (`last`) | takes finished loading jobs' textures |
-| `Render.System.WatchTextures` (`after_input`) | checks, off the frame thread, whether a loaded texture's cooked bytes changed, and reloads it (see [hot reload](assets-and-recipes.md#hot-reload-change-a-source-see-it-in-the-game)) |
+| `Render.System.FinishTextureLoads` (`last`) | takes finished loading jobs' textures, and reloads every texture whose cooked record changed in `Recipes.Catalog` (see [hot reload](assets-and-recipes.md#hot-reload-change-a-source-see-it-in-the-game)) |
 
 A draw target is any entity with the three components; `render_parity` makes an offscreen one with no window.
 
@@ -149,11 +161,15 @@ A draw target is any entity with the three components; `render_parity` makes an 
 
 | | |
 |---|---|
-| `RenderVulkan.Component.Renderer` | on a window: the device, pipeline, frames in flight, textures and swapchains |
-| `RenderVulkan.Component.Swapchain` | a window's surface, swapchain, images and per-image semaphores |
-| `RenderVulkan.System.CreateRenderer` (`present`) | gives each new window a renderer and a swapchain |
+| `RenderVulkan.Renderer` | a resource (singleton): the one Vulkan device, pipeline, frames in flight, upload stream, and each surface's swapchain images and per-image semaphores (`RenderVulkan.Presentation`, so it can release them); one device is shared by every window, where each window made its own before |
+| `RenderVulkan.Component.GpuTexture` | on a texture's entity: its uploaded image, memory, view, descriptor set and the generation uploaded; added by `AttachGpuTextures` (`last`) to every new texture |
+| `RenderVulkan.Component.Device` | on a window: what the chosen GPU offers, its `name` and `maximum_anisotropy` (1 when it has no anisotropic filtering) |
+| `RenderVulkan.Component.Swapchain` | a window's surface, swapchain, size, and the image acquired this frame |
+| `RenderVulkan.Component.SwapchainOutOfDate` | marker: the last acquire or present found the swapchain stale, so the next frame rebuilds it |
+| `RenderVulkan.System.CreateRenderer` (`present`) | makes the device on the first window, and gives each new window a `Device` and a swapchain |
 | `RenderVulkan.System.DrawFrame` (`present`) | draws the list offscreen, blits it to the swapchain, presents |
-| `RenderVulkan.System.ReleaseRenderer` (`last`) | releases each renderer once quit is requested |
+| `RenderVulkan.Component.CaptureRequested`, `Captured` | markers on a window: add `CaptureRequested` to read back the next presented frame; `DrawFrame` swaps it for `Captured` once the pixels are read |
+| `RenderVulkan.System.ReleaseRenderer` (`last`) | releases the renderer once the world entity has `Component.Quit` |
 | `RenderVulkan.Recipe.Shaders` | compiles the rectangle shaders |
 
 See [rendering.md](rendering.md).
@@ -185,8 +201,9 @@ write per entity and clearing resets only the cells used. `server_bench` (15,000
 
 ## slop_interest_plugin
 
-Observing by distance: `Interest.Component.Viewer` on a connection entity, and the `Equip`, `MarkObserved` and
-`Gather` systems that keep `Network.Component.Observer` children on every indexed entity in a viewer's range. It
+Observing by distance: `Interest.Component.Viewer` and the link `Interest.Component.Viewpoint` on a connection
+entity, and the `MarkObserved` and `Gather` systems that keep an observation (a child holding
+`Network.Component.Observer`) on every indexed entity in a viewer's range. It
 loads the network and spatial plugins. See [networking.md](networking.md#area-of-interest).
 
 ## slop_mongodb_plugin
@@ -194,6 +211,7 @@ loads the network and spatial plugins. See [networking.md](networking.md#area-of
 The engine side of MongoDB. The driver itself (BSON, OP_MSG, `Mongo.Client`, `Mongo.Collection`,
 `Mongo.TypedCollection<T>`, the compile-time `Mongo.Codec<T>`) is its own package, `spite_mongodb_driver`, beside
 this repository, so programs that are not games use it too. The plugin loads it
-(`load "../../../../spite_mongodb_driver/mongodb"`) and adds `Mongo.Component.Database` (host, port, database
-name, and a client opened on first use). Running queries as IO systems between frames comes with the compiler's
+(`load "../../../../spite_mongodb_driver@f0c4aea/mongodb"`, a pinned commit) and adds `Mongo.Component.Database` (host, port, database
+name) and `Mongo.Component.Client` (a connection pool and the database it names), which `database.connect()` makes;
+`Mongo.System.ConnectDatabases` (`input`) adds one beside every database that has none. Running queries as IO systems between frames comes with the compiler's
 "does this function wait" (D209).

@@ -1,9 +1,0 @@
-type Ringing {
-    timer: Component.Timer
-}
-
-var tick = Tick()
-
-func input_each(ringing: Ringing) {
-    ringing.timer.advance(tick.step_milliseconds)
-}

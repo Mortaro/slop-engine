@@ -1,3 +1,0 @@
-var reader: Recipes.CacheReader? = null
-var slots = List<Integer>()
-var records = List<Recipes.Record>()

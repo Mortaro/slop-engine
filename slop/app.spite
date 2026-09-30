@@ -14,7 +14,6 @@ var stage_phases = List<String>()
 var stage_timings = List<Profile.Timing>()
 var frame_timing = Profile.Timing()
 var clock = Clock()
-var pace = Tick()
 var next_tick: Long = 0
 var world = World()
 var program = Program()
@@ -27,16 +26,16 @@ var unspent_nanoseconds: Long = 0
 var parallel = true
 var release_budget = 4096
 var columns = Columns()
-var quit_column = Column<Component.Quit>()
 var frame_column = Column<Component.Frame>()
+var rule_breaks = 0
 
 func App() {
-    var quit = Component.Quit()
-    quit_column.insert(world.entity, quit)
     var frame = Component.Frame()
     frame_column.insert(world.entity, frame)
     scheduler.resume_only_when_asked()
     register_components()
+    var components_follow_the_ecs_rules = rule_breaks == 0
+    crash components_follow_the_ecs_rules
     add_systems()
     phases.each(build_phase)
 }
@@ -44,6 +43,12 @@ func App() {
 func register_component(component: Symbol<Component>) {
     var column = Column<component.class>()
     column.prepare_column()
+    var rule = ComponentRule<component.class>()
+    rule_breaks = rule_breaks + rule.check()
+    if rule.links > 0 and component.class != Component.Parent {
+        var link = Link<component.class>()
+        columns.add_link(link)
+    }
 }
 
 func add_system(system: Symbol<System>) {
@@ -102,9 +107,7 @@ func shares_access(member: Runnable, candidate: Runnable): Boolean {
 
 func quit_requested(): Boolean {
     var quits = Lookup<Component.Quit>()
-    var quit = quits.of(world.entity)
-    crash quit
-    return quit.requested
+    return quits.has(world.entity)
 }
 
 func run() {
@@ -153,7 +156,11 @@ func step_now(): Integer {
 
 func tick() {
     var frame_started = clock.elapsed_nanoseconds()
-    pace.step_milliseconds = step_now()
+    var frames = Lookup<Component.Frame>()
+    var frame = frames.of(world.entity)
+    crash frame
+    frame.step_milliseconds = step_now()
+    frame.elapsed_milliseconds = frame.elapsed_milliseconds + frame.step_milliseconds
     var index = 0
     while index < stages.count() {
         var stage_started = clock.elapsed_nanoseconds()

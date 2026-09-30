@@ -1,0 +1,5 @@
+var id = ""
+var slot = 0
+var mesh = Scene.LoadedMesh()
+var generation = 0
+var loaded_revision = 0

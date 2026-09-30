@@ -1,0 +1,10 @@
+type Unobserved {
+    entity: Entity
+    lost: Removed<Network.Component.Observer>
+}
+
+var world = World()
+
+func last_each(unobserved: Unobserved) {
+    world.despawn(unobserved.entity.id)
+}

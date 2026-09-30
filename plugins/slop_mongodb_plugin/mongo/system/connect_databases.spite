@@ -1,0 +1,10 @@
+type Unconnected {
+    entity: Entity
+    database: Mongo.Component.Database
+    unconnected: Without<Mongo.Component.Client>
+}
+
+func input_each(unconnected: Unconnected) {
+    var client = unconnected.database.connect()
+    unconnected.entity.add_component(client)
+}

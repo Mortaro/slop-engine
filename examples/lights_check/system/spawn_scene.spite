@@ -8,8 +8,11 @@ var environment = Environment()
 func update_each(_started: Started) {
     var window_bundle = Window.Bundle.Window()
     window_bundle.window.title = "Lights check"
-    window_bundle.window.visible = environment.show_window
-    world.create_entity_from_bundle(window_bundle)
+    var window_entity = world.create_entity_from_bundle(window_bundle)
+    if not environment.show_window {
+        var hidden = Window.Component.Hidden()
+        window_entity.add_component(hidden)
+    }
     var night = Lighting.Bundle.Daylight()
     night.sun.illuminance = 0.0
     night.sky.luminance = 0.05

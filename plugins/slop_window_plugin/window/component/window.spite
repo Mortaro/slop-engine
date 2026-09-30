@@ -1,5 +1,3 @@
 var title = "Slop Engine"
 var width = 640
 var height = 400
-var visible = true
-var closed = false

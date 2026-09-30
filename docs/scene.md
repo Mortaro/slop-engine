@@ -11,9 +11,9 @@ with `spite kal_character --kal_assets=<folder>`.
 |---|---|---|
 | `slop_transform_plugin` | `Transform` | `Transform.Component.Transform`: position, a rotation quaternion and scale |
 | `slop_camera_plugin` | `Camera` | `Camera.Component.Camera` (eye, target, field of view, near, far) and `Camera.Component.Orbit` with the `AimOrbit` system |
-| `slop_scene_plugin` | `Scene` | `Scene.Component.Model` (a mesh id and a bone palette); `Scene.Component.View` and `Scene.Component.Meshes` on each window; `Gather` collects the camera, the models and the lighting every frame |
-| `slop_scene_vulkan_plugin` | `SceneVulkan` | the Vulkan passes: sun shadow map, lit scene into HDR, tone map into the frame, then the UI draws on top |
-| `slop_animation_plugin` | `Animation` | `Animation.Component.Animator` (skeleton, clip, time, speed, looping); `Animate` samples the clip into the model's palette |
+| `slop_scene_plugin` | `Scene` | `Scene.Component.Model` (a mesh id) and, on an animated model, `Scene.Component.Skin` (its `Scene.Pose`: the bone palette and each bone's pose, asset data rewritten every frame); `Scene.Component.View` on each window, whose draws, terrain draws and palettes for the frame live in the `Scene.Draws` resource (`draws.of(view)`, a `Scene.DrawSet` per view); the `Scene.Meshes` and `Scene.TerrainMaterials` resources, which give each mesh and terrain material an entity (`Scene.Component.Mesh`, `Scene.Component.TerrainMaterial`, marked `Component.Loading` while a job runs and `TerrainTexturesRequested` once its control textures are asked for); and `Scene.Component.ViewCamera` (the view matrix, field of view, near, far, eye and shadow centre) while a camera exists; `Gather` collects the camera, the models and the lighting every frame |
+| `slop_scene_vulkan_plugin` | `SceneVulkan` | the Vulkan passes: sun shadow map, lit scene into HDR, tone map into the frame, then the UI draws on top; `SceneVulkan.MeshRenderer` is a resource (singleton) holding the passes and the per-frame buffers; each mesh's entity gets `SceneVulkan.Component.GpuMesh` (its vertex and index buffers) and each texture's `SceneVulkan.Component.SceneTexture` (its scene-sampler descriptor set); `SceneVulkan.Component.MeshRendererCreated` marks the world entity once the passes are built |
+| `slop_animation_plugin` | `Animation` | `Animation.Component.Animator` (skeleton, clip, time, speed), looping unless the entity has the marker `Animation.Component.PlayOnce`; `Animate` samples the clip into the model's `Skin`, adding one the first time |
 | `slop_lighting_plugin` | `Lighting` | `Sun`, `Sky`, `HeightFog` and `Exposure` components and a `Daylight` bundle, written into each view; `PointLight` and `SpotLight` components gathered into `Scene.Lights` |
 | `slop_blend_plugin` | `Blend` | `MeshReader`, `SkeletonReader` and `ActionReader`: what a recipe needs from a `.blend` |
 | `slop_png_plugin` | `Png` | a PNG decoder, pixel-exact against Pillow, for the images packed in a `.blend` |
@@ -70,22 +70,19 @@ What the readers do:
 
 ## Animation
 
-`Animate` advances each animator by the tick's step (`Tick().step_milliseconds`) and samples its clip. The step is
-measured once per tick, so every part of a character advances by the same amount; measuring wall-clock time per row
-made the parts drift apart (the face slid off the head) whenever a tick's rows crossed a millisecond.
-- Position and scale are interpolated linearly.
-- Rotation uses a shortest-arc slerp, falling back to a normalised lerp for near-identical keys.
-- It writes `global · inverse_bind` for each bone into `Scene.Component.Model.palette`, and each bone's model-space
-  pose (`global`) into `Model.bones`.
-- It skips a model marked `Scene.Component.OffView`. Gather adds that marker when a skinned model leaves the view cone
-  and its shadow cannot reach the view (its sphere swept away from the sun), and removes it when either comes back,
-  so an off-screen character costs no sampling and the marker changes only on those crossings. A character coming
-  into view shows its last pose for one frame.
-- An animator on the same skeleton, clip, time and looping as the one sampled just before it copies that pose instead
-  of sampling. The parts of one character are spawned together and sit next to each other in the row, so a
-  seven-part archer samples once.
-- The palette and bones matrices are rewritten in place, and the inverse binds are multiplied straight from the
-  skeleton's floats, so a frame allocates nothing per bone.
+`Animate` advances each animator by the tick's step (the world entity's `Component.Frame.step_milliseconds`) and
+samples its clip. The step is measured once per tick, so every part of a character advances by the same amount;
+measuring wall-clock time per row made the parts drift apart (the face slid off the head) whenever a tick's rows
+crossed a millisecond. - Position and scale are interpolated linearly. - Rotation uses a shortest-arc slerp, falling
+back to a normalised lerp for near-identical keys. - It writes `global · inverse_bind` for each bone into
+the `Skin`'s `pose.palette`, and each bone's model-space pose (`global`) into `pose.bones`. - It skips a model
+marked `Scene.Component.OffView`. Gather adds that marker when a skinned model leaves the view cone and its shadow
+cannot reach the view (its sphere swept away from the sun), and removes it when either comes back, so an off-screen
+character costs no sampling and the marker changes only on those crossings. A character coming into view shows its
+last pose for one frame. - An animator on the same skeleton, clip, time and `PlayOnce` as the one sampled just before
+it copies that pose instead of sampling. The parts of one character are spawned together and sit next to each other in
+the row, so a seven-part archer samples once. - The palette and bones matrices are rewritten in place, and the inverse
+binds are multiplied straight from the skeleton's floats, so a frame allocates nothing per bone.
 
 `examples/animate_bench` animates 400 seven-part archers (2,800 animators, 65 bones) in rings around the camera,
 each archer at its own time. Optimised, on an RTX 3090 machine: Animate went from 81 ms to 9 ms, GatherModels from
@@ -97,7 +94,7 @@ A weapon, a shield or an effect rides a bone of another entity's animated skelet
 to decide). Give it a `Transform`, an `Animation.Component.BoneAttachment`, and make it a child of the carrier:
 
 ```gdscript
-var sword = world.create_entity()
+var sword = carrier.create_entity()
 var attachment = Animation.Component.BoneAttachment()
 attachment.bone = "Bip01 R Hand"
 attachment.rotation_z = 0.7071068
@@ -105,7 +102,6 @@ attachment.rotation_w = 0.7071068
 sword.add_component(attachment)
 sword.add_component(model)
 sword.add_component(transform)
-sword.add_parent_entity(carrier)
 ```
 
 How it's resolved:
@@ -115,13 +111,13 @@ How it's resolved:
 - **Which bone:** name the bone with `bone`, or give `bone_index` (0 or more) for an index, as monsters' effect bones
   are. The name is looked up once in the carrier's skeleton and cached against the name, so changing `bone` later
   looks it up again. A name the skeleton doesn't have crashes, naming the bone and the skeleton.
-- **The carrier:** it needs an `Animator`, a `Model` and a `Transform`. Until its skeleton has loaded and been posed,
+- **The carrier:** it needs an `Animator`, a `Skin` and a `Transform`. Until its skeleton has loaded and been posed,
   the attachment keeps its own `Transform`.
 - **Despawning:** because the attachment is a child, it despawns with its carrier.
 
 `examples/attachment_check` checks a named bone with an offset and an indexed bone on a synthetic, turned skeleton.
 
-The scene plugin knows nothing of animation: it uploads any palette a model carries, and the vertex shader skins
+The scene plugin knows nothing of animation: it uploads the palette of any model with a `Skin`, and the vertex shader skins
 with four bones per vertex.
 
 ## Lighting
@@ -220,7 +216,7 @@ How a light is shaded:
 - **Surface response:** the same GGX and Lambert as the sun.
 
 Each frame:
-1. `ClearLights` (`prepare`) empties the `Scene.Lights` singleton.
+1. `ClearLights` (`prepare`) empties the `Scene.Lights` resource (a singleton: the lights are gathered once, not per window).
 2. `GatherPointLights` and `GatherSpotLights` (`render`) stream every light into it, 16 floats each.
 
 Only the position is read, so a light that is a child of a moving entity needs its own transform kept in world

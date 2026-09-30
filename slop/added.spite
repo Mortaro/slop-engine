@@ -14,9 +14,5 @@ func tracked_key(): String {
 
 func fill_from(column_header: Long, row: Integer) {
     assert column_header != 0 and row >= 0
-    var name = ""
-    if $tracked_type == Entity {
-        name = columns.name_of_header(column_header)
-    }
-    value = column.value_at(name, row)
+    value = column.value_at(row)
 }

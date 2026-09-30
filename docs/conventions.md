@@ -29,11 +29,15 @@ An engine plugin lives in `plugins/slop_<feature>_plugin/<feature>/`, so loading
 ## Rules the engine enforces
 
 - A system has exactly one phase function, and its phase must be one of the engine's.
-- There are no resources: state is a component on an entity (program-wide state on `world.entity`), and `World`
-  is the only singleton a system holds.
+- State is a component on an entity (program-wide state on `world.entity`). A component holds no `List`,
+  `Dictionary` or `Parallel` (a compile error): lists live in resources, singletons outside `component/`
+  ([ecs.md](ecs.md#resources)).
 - No system has thread affinity. Something the OS ties to one thread (a window's message queue) gets a thread of
   its own that owns it, and systems talk to that thread through a lock-guarded buffer.
 - A component class with no attributes is a marker, and is never fetched.
+- A component holding an `Entity` is a link and holds only `var entity = Entity()`; it is added once its entity is
+  alive and goes when that entity does ([ecs.md](ecs.md#links-between-entities)). No component, marker or value
+  stands for something an entity lacks.
 
 ## Memory
 

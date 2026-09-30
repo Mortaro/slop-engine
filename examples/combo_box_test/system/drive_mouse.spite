@@ -1,4 +1,5 @@
 type Driven {
+    entity: Entity
     handle: Window.Component.Handle
     progress: Component.Progress
 }
@@ -31,7 +32,7 @@ func update_each(driven: Driven) {
     } else if step == 3 and presses.has(progress.third) {
         release_third(progress, handle)
     } else if step == 4 and changes.has(progress.box) {
-        note_choice(progress)
+        note_choice(progress, driven.entity)
         press(handle, box_x, box_y)
         progress.step = 5
     } else if step == 5 and presses.has(progress.box) {
@@ -64,14 +65,17 @@ func release_third(progress: Component.Progress, handle: Long) {
     progress.step = 4
 }
 
-func note_choice(progress: Component.Progress) {
+func note_choice(progress: Component.Progress, tester: Entity) {
     var combo = boxes.of(progress.box)
     var text = texts.of(progress.label)
     crash combo
     crash text
     progress.selected = combo.selected
     progress.shown = text.text
-    progress.closed_by_pick = not opened.has(progress.box)
+    if not opened.has(progress.box) {
+        var closed = Component.ClosedByPick()
+        tester.add_component(closed)
+    }
 }
 
 func press(handle: Long, left: Integer, top: Integer) {

@@ -1,4 +1,4 @@
-var parent = Ui.Component.Parent()
+var parent = Component.Parent()
 var width = Ui.Component.Width()
 var height = Ui.Component.Height()
 var padding = Ui.Component.Padding()
@@ -9,7 +9,7 @@ var caret = Ui.Component.Caret()
 var text = Ui.Component.Text()
 var field = Component.Field()
 
-func FormField(screen: Integer, index: Integer) {
+func FormField(screen: Entity, index: Integer) {
     parent.entity = screen
     field.index = index
     width.length.pixels(200.0)

@@ -1,4 +1,5 @@
 type Animated {
+    entity: Entity
     animator: Animation.Component.Animator
     model: Scene.Component.Model
     on_view: Without<Scene.Component.OffView>
@@ -6,42 +7,55 @@ type Animated {
 
 type Shelf {
     library: Animation.Component.Library
+    frame: Component.Frame
 }
 
-var tick = Tick()
 var sampler = Animation.Sampler()
 var last_skeleton = -1
 var last_clip = -1
 var last_time: Float = 0.0
 var last_looping = false
+var once = Lookup<Animation.Component.PlayOnce>()
 var last_palette = List<Math.Matrix4>()
 var last_bones = List<Math.Matrix4>()
+var skins = Lookup<Scene.Component.Skin>()
 
 func update_each(animated: Animated, shelf: Shelf) {
-    var step: Float = tick.step_milliseconds
+    var step: Float = shelf.frame.step_milliseconds
     var library = shelf.library
     var animator = animated.animator
     var skeleton_slot = library.skeletons.request(animator.skeleton)
     var clip_slot = library.clips.request(animator.clip)
     assert library.skeletons.is_ready(skeleton_slot) and library.clips.is_ready(clip_slot)
     animator.time = animator.time + step / 1000.0 * animator.speed
-    var model = animated.model
+    var pose = pose_of(animated.entity)
+    var looping = not once.has(animated.entity.id)
     var same_skeleton = skeleton_slot == last_skeleton and clip_slot == last_clip
-    var same_moment = animator.time == last_time and animator.looping == last_looping
+    var same_moment = animator.time == last_time and looping == last_looping
     if same_skeleton and same_moment {
-        copy_pose(last_palette, model.palette)
-        copy_pose(last_bones, model.bones)
+        copy_pose(last_palette, pose.palette)
+        copy_pose(last_bones, pose.bones)
         return
     }
     var skeleton = library.skeletons.value_at(skeleton_slot)
     var clip = library.clips.value_at(clip_slot)
-    sampler.sample(skeleton, clip, animator, model.palette, model.bones)
+    sampler.sample(skeleton, clip, animator, looping, pose.palette, pose.bones)
     last_skeleton = skeleton_slot
     last_clip = clip_slot
     last_time = animator.time
-    last_looping = animator.looping
-    last_palette = model.palette
-    last_bones = model.bones
+    last_looping = looping
+    last_palette = pose.palette
+    last_bones = pose.bones
+}
+
+func pose_of(animated: Entity): Scene.Pose {
+    var skin = skins.of(animated.id)
+    if skin {
+        return skin.pose
+    }
+    var made = Scene.Component.Skin()
+    animated.add_component(made)
+    return made.pose
 }
 
 func copy_pose(source: List<Math.Matrix4>, target: List<Math.Matrix4>) {

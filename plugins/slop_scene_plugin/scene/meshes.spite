@@ -1,0 +1,162 @@
+singleton
+
+var report_console = Console()
+var world = World()
+var known_slots = Dictionary<Integer>()
+var entities = List<Integer>()
+var loads = List<Parallel<Scene.LoadedMesh>>()
+var load_slots = List<Integer>()
+var load_revisions = List<Integer>()
+var catalog = Recipes.Catalog()
+var unstarted = List<String>()
+var seen_revision = 0
+var records = Lookup<Scene.Component.Mesh>()
+
+func request(id: String): Integer {
+    var found = known_slots.get(id)
+    if found {
+        return found
+    }
+    var slot = entities.count()
+    known_slots.set(id, slot)
+    var created = Scene.Component.Mesh()
+    created.id = id
+    created.slot = slot
+    var owner = world.create_entity()
+    owner.add_component(created)
+    entities.append(owner.id)
+    unstarted.append(id)
+    start_waiting_loads()
+    return slot
+}
+
+func count(): Integer {
+    return entities.count()
+}
+
+func entity_of(slot: Integer): Integer {
+    crash entities[slot]
+    return entities[slot]
+}
+
+func record_of(slot: Integer): Scene.Component.Mesh? {
+    var owner = entity_of(slot)
+    return records.of(owner)
+}
+
+func is_ready(slot: Integer): Boolean {
+    var record = record_of(slot)
+    if record {
+        return record.generation > 0
+    }
+    return false
+}
+
+func loaded_of(slot: Integer): Scene.LoadedMesh? {
+    var record = record_of(slot)
+    assert record
+    assert record.generation > 0
+    return record.mesh
+}
+
+func mesh_at(slot: Integer): Scene.LoadedMesh {
+    var record = record_of(slot)
+    crash record
+    return record.mesh
+}
+
+func generation(slot: Integer): Integer {
+    var record = record_of(slot)
+    if record {
+        return record.generation
+    }
+    return 0
+}
+
+func start_waiting_loads() {
+    assert unstarted.count() > 0 and catalog.ready()
+    var reader = catalog.current()
+    var index = 0
+    while index < unstarted.count() {
+        start_load(reader, unstarted[index])
+        index = index + 1
+    }
+    unstarted.clear()
+}
+
+func start_load(reader: Recipes.CacheReader, id: String) {
+    var slot = known_slots.get(id)
+    crash slot
+    var record = reader.locate(id)
+    if not record {
+        report_console.print("asset never cooked:", id)
+    }
+    crash record
+    var job = Scene.MeshLoad(record)
+    var loading = Parallel(job.run)
+    loads.append(loading)
+    load_slots.append(slot)
+    load_revisions.append(catalog.revision)
+    var marker = Component.Loading()
+    var owner = entity_of(slot)
+    world.entity_of(owner).add_component(marker)
+}
+
+func finish_loads() {
+    start_waiting_loads()
+    reload_changed()
+    var index = loads.count() - 1
+    while index >= 0 {
+        finish_if_done(index)
+        index = index - 1
+    }
+}
+
+func finish_if_done(index: Integer) {
+    crash loads[index]
+    crash load_slots[index]
+    crash load_revisions[index]
+    var loaded = loads[index].finished_value()
+    assert loaded
+    var slot = load_slots[index]
+    var record = record_of(slot)
+    assert record
+    record.mesh = loaded
+    record.generation = record.generation + 1
+    record.loaded_revision = load_revisions[index]
+    var owner = entity_of(slot)
+    world.entity_of(owner).remove_component(Component.Loading)
+    loads.remove_at(index)
+    load_slots.remove_at(index)
+    load_revisions.remove_at(index)
+}
+
+func reload_changed() {
+    assert catalog.revision != seen_revision
+    var reader = catalog.current()
+    var deferred = false
+    var slot = 0
+    while slot < entities.count() {
+        deferred = reload_if_changed(reader, slot) or deferred
+        slot = slot + 1
+    }
+    if not deferred {
+        seen_revision = catalog.revision
+    }
+}
+
+func reload_if_changed(reader: Recipes.CacheReader, slot: Integer): Boolean {
+    var record = record_of(slot)
+    if not record {
+        return true
+    }
+    var changed = catalog.revision_of(record.id) > record.loaded_revision
+    if not changed {
+        return false
+    }
+    if load_slots.contains(slot) {
+        return true
+    }
+    start_load(reader, record.id)
+    return false
+}

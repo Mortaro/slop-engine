@@ -11,21 +11,21 @@ type RowView {
 }
 
 type Tested {
-    progress: Component.Progress
+    done: Component.Done
 }
 
 type Quitting {
-    quit: Component.Quit
+    frame: Component.Frame
+    running: Without<Component.Quit>
 }
 
 var console = Console()
 
+var world = World()
+
 func last_all(panels: List<Panel>, rows: List<RowView>, tested: List<Tested>, quitting: List<Quitting>) {
     assert panels.count() == 1 and tested.count() == 1 and quitting.count() == 1
     var panel = panels[0]
-    var progress = tested[0].progress
-    var quit = quitting[0].quit
-    assert progress.done and not quit.requested
     var scrolled = panel.position.top
     var expected_first_top = panel.layout.top + 2.0 - scrolled
     var first_top = row_top(rows, 0)
@@ -45,7 +45,9 @@ func last_all(panels: List<Panel>, rows: List<RowView>, tested: List<Tested>, qu
         passed,
     )
     crash passed
-    quit.requested = true
+    var quit = Component.Quit()
+    var shelf = world.as_entity()
+    shelf.add_component(quit)
 }
 
 func near(value: Float, wanted: Float): Boolean {

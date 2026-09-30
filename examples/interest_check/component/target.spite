@@ -1,0 +1,5 @@
+var entity = Entity()
+
+func sent_from(environment: String): Boolean {
+    return environment == "bot"
+}

@@ -1,22 +1,17 @@
 type Pointed {
     entity: Entity
-    point: Component.Point
+    target: Component.Target
     arrived: Network.Component.Arrived
 }
 
-type Judged {
-    verdict: Component.Verdict
-}
-
 var beacons = Lookup<Component.Beacon>()
+var world = World()
 
-func update_each(pointed: Pointed, judged: Judged) {
-    pointed.entity.remove_component(Component.Point)
-    var named = beacons.of(pointed.point.target.id)
-    var correct = false
-    if named {
-        correct = named.number == 52
-    }
-    judged.verdict.heard = true
-    judged.verdict.correct = correct
+func update_each(pointed: Pointed) {
+    pointed.entity.remove_component(Component.Target)
+    var named = beacons.of(pointed.target.entity.id)
+    crash named
+    var verdict = Component.Verdict()
+    verdict.number = named.number
+    world.as_entity().add_component(verdict)
 }

@@ -1,3 +1,4 @@
+var world = World()
 var tree = Cases.Tree()
 var grow_root = 0
 var grow_first = 0
@@ -42,7 +43,7 @@ func build_clamps() {
     clamp_floored = flexible(clamp_root)
     var minimum = Ui.Component.MinimumWidth()
     minimum.length.pixels(300.0)
-    Entity(clamp_floored).add_component(minimum)
+    world.entity_of(clamp_floored).add_component(minimum)
     var alone_root = tree.screen(600.0, 50.0)
     alone_capped = flexible(alone_root)
     maximum_width(alone_capped, 100.0)
@@ -60,7 +61,7 @@ func flexible(root: Integer): Integer {
 func maximum_width(entity: Integer, pixels: Float) {
     var maximum = Ui.Component.MaximumWidth()
     maximum.length.pixels(pixels)
-    Entity(entity).add_component(maximum)
+    world.entity_of(entity).add_component(maximum)
 }
 
 func check() {

@@ -6,7 +6,10 @@ type NewWindow {
 var environment = Environment()
 
 func prepare_each(created: NewWindow) {
-    created.window.value.visible = environment.show_window
+    if not environment.show_window {
+        var hidden = Window.Component.Hidden()
+        created.entity.add_component(hidden)
+    }
     var progress = Component.Progress()
     progress.wanted = environment.clicks
     created.entity.add_component(progress)

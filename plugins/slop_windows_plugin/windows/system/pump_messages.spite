@@ -1,12 +1,7 @@
 type OpenedWindow {
     entity: Entity
     window: Window.Component.Window
-    events: Input.Component.Events
     handle: Window.Component.Handle
-}
-
-type Quitting {
-    quit: Component.Quit
 }
 
 var user = DynamicLibrary("user32.dll", 'identity', "")
@@ -14,7 +9,10 @@ var heap = Memory.Heap()
 var raw = Raw()
 var owner = Windows.Owner()
 
-func input_all(windows: List<OpenedWindow>, quitting: List<Quitting>) {
+var world = World()
+var double_click = false
+
+func input_all(windows: List<OpenedWindow>) {
     assert owner.shared != 0
     var messages = owner.take_events()
     var message = 0
@@ -22,11 +20,7 @@ func input_all(windows: List<OpenedWindow>, quitting: List<Quitting>) {
         deliver(windows, messages, message * 4)
         message = message + 1
     }
-    var index = 0
-    while index < windows.count() {
-        notice_closed(windows[index], quitting)
-        index = index + 1
-    }
+    windows.each(notice_closed)
 }
 
 func deliver(windows: List<OpenedWindow>, messages: List<Long>, at: Integer) {
@@ -38,20 +32,29 @@ func deliver(windows: List<OpenedWindow>, messages: List<Long>, at: Integer) {
     var kind: Integer = messages[at + 1]
     var word = messages[at + 2]
     var position = messages[at + 3]
+    double_click = false
     var event = translate(kind, word, position)
     assert event
     var index = 0
     while index < windows.count() {
         var opened = windows[index]
         if opened.handle.value == target {
-            opened.events.pending.append(event)
+            spawn_event(opened.entity, event)
         }
         index = index + 1
     }
 }
 
-func translate(kind: Integer, word: Long, position: Long): Input.Event? {
-    var event = Input.Event()
+func spawn_event(window: Entity, event: Input.Component.Event) {
+    var arrived = window.create_entity()
+    arrived.add_component(event)
+    assert double_click
+    var marker = Input.Component.DoubleClick()
+    arrived.add_component(marker)
+}
+
+func translate(kind: Integer, word: Long, position: Long): Input.Component.Event? {
+    var event = Input.Component.Event()
     event.left = position % 65536
     event.top = position / 65536 % 65536
     if kind == 512 {
@@ -75,7 +78,7 @@ func translate(kind: Integer, word: Long, position: Long): Input.Event? {
     return event
 }
 
-func press_or_release(event: Input.Event, kind: Integer) {
+func press_or_release(event: Input.Component.Event, kind: Integer) {
     var offset = kind - 513
     event.button = offset / 3
     var step = offset % 3
@@ -83,7 +86,7 @@ func press_or_release(event: Input.Event, kind: Integer) {
         event.kind = 'button_released'
     } else {
         event.kind = 'button_pressed'
-        event.double = step == 2
+        double_click = step == 2
     }
 }
 
@@ -100,28 +103,24 @@ func wheel_notches(word: Long): Integer {
     return delta / 120
 }
 
-func typed(word: Long): Input.Event? {
+func typed(word: Long): Input.Component.Event? {
     var code: Integer = word % 65536
     var printable = code >= 32 and code != 127 and code < 256
     assert printable
     var one = heap.allocate(1)
     raw.write_byte(one, 0, code)
-    var event = Input.Event()
+    var event = Input.Component.Event()
     event.kind = 'character_typed'
     event.character = raw.text(one, 1)
     heap.free(one)
     return event
 }
 
-func notice_closed(opened: OpenedWindow, quitting: List<Quitting>) {
+func notice_closed(opened: OpenedWindow) {
     var handle = opened.handle.value
-    assert handle != 0 and not opened.window.closed
-    opened.window.closed = user.IsWindow(handle) == 0
-    assert opened.window.closed
+    assert handle != 0 and user.IsWindow(handle) == 0
     opened.entity.remove()
-    var index = 0
-    while index < quitting.count() {
-        quitting[index].quit.requested = true
-        index = index + 1
-    }
+    var quit = Component.Quit()
+    var shelf = world.as_entity()
+    shelf.add_component(quit)
 }

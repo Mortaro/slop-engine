@@ -3,8 +3,8 @@ type Pointed {
     transform: Transform.Component.Transform
 }
 
-var lights = Scene.Lights()
 var light = Scene.Light()
+var lights = Scene.Lights()
 
 func render_each(pointed: Pointed) {
     var point = pointed.light

@@ -37,7 +37,7 @@ func mirror_column(frames: Network.Frames) {
     var row = 0
     while row < count {
         var entity = columns.entity_at(name, row)
-        var value = column.get(entity, name)
+        var value = column.get(entity)
         if value.mirrored_from(build.environment) {
             var remote = remote_of(entity)
             var buffer = frames.buffer_for(entity)
@@ -60,7 +60,7 @@ func send_column(messages: Asset.Bytes) {
     var row = 0
     while row < count {
         var entity = columns.entity_at(name, row)
-        var value = column.get(entity, name)
+        var value = column.get(entity)
         if value.sent_from(build.environment) {
             write_frame(messages, message, -2, value)
             world.despawn(entity)

@@ -2,11 +2,8 @@ type Quitting {
     quit: Component.Quit
 }
 
-type Released {
-    renderer: Component.Renderer
-}
+var renderer = RenderVulkan.Renderer()
 
-func last_each(quitting: Quitting, released: Released) {
-    assert quitting.quit.requested
-    released.renderer.release_device()
+func last_each(_quitting: Quitting) {
+    renderer.release_device()
 }

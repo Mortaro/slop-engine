@@ -1,6 +1,11 @@
+var world = World()
+
 func IoSystems() {
     load "../../slop"
     load "../../plugins/slop_mongodb_plugin"
     var app = App()
+    var database = Mongo.Component.Database()
+    database.name = "spite_kal"
+    world.as_entity().add_component(database)
     app.run()
 }

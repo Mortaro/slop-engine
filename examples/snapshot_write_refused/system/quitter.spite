@@ -1,10 +1,10 @@
 type Quitting {
-    quit: Component.Quit
+    frame: Component.Frame
 }
 
 var program = Program()
 
 func last_each(quitting: Quitting) {
     program.sleep(1)
-    quitting.quit.requested = true
+    quitting.frame.count = 0
 }

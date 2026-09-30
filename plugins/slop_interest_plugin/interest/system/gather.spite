@@ -1,15 +1,24 @@
 type Viewing {
     entity: Entity
     viewer: Interest.Component.Viewer
-    watching: Interest.Component.Watching
+    viewpoint: Interest.Component.Viewpoint
+}
+
+type Observation {
+    entity: Entity
+    parent: Component.Parent
+    observer: Network.Component.Observer
+    in_sight: Interest.Component.InSight
 }
 
 var grid = Spatial.Grid()
 var world = World()
 var found = List<Integer>()
 var stamps = List<Integer>()
-var kept_subjects = List<Integer>()
-var kept_links = List<Integer>()
+var viewer_of = List<Integer>()
+var observed_counts = List<Integer>()
+var observed_starts = List<Integer>()
+var observed_order = List<Integer>()
 var pass = 0
 var center_x: Float = 0.0
 var center_z: Float = 0.0
@@ -18,32 +27,109 @@ var keep_reach: Float = 0.0
 var positions = Lookup<Transform.Component.Transform>()
 var spaces = Lookup<Spatial.Component.Indexed>()
 
-func prepare_each(viewing: Viewing) {
+func prepare_all(viewing: List<Viewing>, observations: List<Observation>) {
+    group_observations(viewing, observations)
+    var index = 0
+    while index < viewing.count() {
+        gather_viewer(viewing[index], index, observations)
+        index = index + 1
+    }
+    forget_viewers(viewing)
+}
+
+func group_observations(viewing: List<Viewing>, observations: List<Observation>) {
+    observed_counts.clear()
+    observed_starts.clear()
+    var index = 0
+    while index < viewing.count() {
+        var connection = viewing[index].entity.id
+        while viewer_of.count() <= connection {
+            viewer_of.append(0)
+        }
+        viewer_of.set_at(connection, index + 1)
+        observed_counts.append(0)
+        observed_starts.append(0)
+        index = index + 1
+    }
+    index = 0
+    while index < observations.count() {
+        count_observation(observations[index])
+        index = index + 1
+    }
+    var start = 0
+    index = 0
+    while index < viewing.count() {
+        observed_starts.set_at(index, start)
+        crash observed_counts[index]
+        start = start + observed_counts[index]
+        observed_counts.set_at(index, 0)
+        index = index + 1
+    }
+    observed_order.clear()
+    while observed_order.count() < start {
+        observed_order.append(0)
+    }
+    index = 0
+    while index < observations.count() {
+        place_observation(observations[index], index)
+        index = index + 1
+    }
+}
+
+func count_observation(observation: Observation) {
+    var viewer = viewer_index(observation)
+    assert viewer >= 0
+    crash observed_counts[viewer]
+    observed_counts.set_at(viewer, observed_counts[viewer] + 1)
+}
+
+func place_observation(observation: Observation, index: Integer) {
+    var viewer = viewer_index(observation)
+    assert viewer >= 0
+    crash observed_starts[viewer]
+    crash observed_counts[viewer]
+    var at = observed_starts[viewer] + observed_counts[viewer]
+    observed_order.set_at(at, index)
+    observed_counts.set_at(viewer, observed_counts[viewer] + 1)
+}
+
+func viewer_index(observation: Observation): Integer {
+    var connection = observation.observer.entity.id
+    if connection >= viewer_of.count() {
+        return -1
+    }
+    return viewer_of[connection] - 1
+}
+
+func forget_viewers(viewing: List<Viewing>) {
+    var index = 0
+    while index < viewing.count() {
+        viewer_of.set_at(viewing[index].entity.id, 0)
+        index = index + 1
+    }
+}
+
+func gather_viewer(viewing: Viewing, viewer: Integer, observations: List<Observation>) {
+    var eye = viewing.viewpoint.entity.id
+    var placed = positions.of(eye)
+    assert placed
     pass = pass + 1
     found.clear()
-    var transforms = Lookup<Transform.Component.Transform>()
-    var placed = transforms.of(viewing.viewer.entity)
-    assert placed
-    var indexes = Lookup<Spatial.Component.Indexed>()
-    var index = indexes.of(viewing.viewer.entity)
+    var index = spaces.of(eye)
     var space = 0
     if index {
         space = index.space
     }
     grid.within(space, placed.position_x, placed.position_z, viewing.viewer.radius, found)
-    found.append(viewing.viewer.entity)
+    found.append(eye)
     center_x = placed.position_x
     center_z = placed.position_z
     center_space = space
     var keep_radius = viewing.viewer.radius * 1.25
     keep_reach = keep_radius * keep_radius
     stamp_found()
-    kept_subjects.clear()
-    kept_links.clear()
-    keep_or_drop(viewing.watching)
-    link_new(viewing.entity.id)
-    copy(kept_subjects, viewing.watching.subjects)
-    copy(kept_links, viewing.watching.links)
+    keep_or_drop(viewer, observations)
+    observe_new(viewing.entity.id)
 }
 
 func stamp_found() {
@@ -58,47 +144,47 @@ func stamp_found() {
     }
 }
 
-func keep_or_drop(watching: Interest.Component.Watching) {
-    var index = 0
-    while index < watching.subjects.count() {
-        var subject = watching.subjects[index]
-        crash watching.links[index]
-        var link = watching.links[index]
-        var found_now = subject < stamps.count() and stamps[subject] == pass
-        if found_now or still_near(subject) {
-            stamps.set_at(subject, 0 - pass)
-            kept_subjects.append(subject)
-            kept_links.append(link)
-        } else {
-            world.despawn(link)
-        }
-        index = index + 1
+func keep_or_drop(viewer: Integer, observations: List<Observation>) {
+    crash observed_starts[viewer]
+    crash observed_counts[viewer]
+    var first = observed_starts[viewer]
+    var end = first + observed_counts[viewer]
+    var at = first
+    while at < end {
+        crash observed_order[at]
+        var listed = observed_order[at]
+        crash observations[listed]
+        keep_or_drop_one(observations[listed])
+        at = at + 1
     }
 }
 
-func link_new(connection: Integer) {
+func keep_or_drop_one(observation: Observation) {
+    var subject = observation.parent.entity.id
+    var found_now = subject < stamps.count() and stamps[subject] == pass
+    if found_now or still_near(subject) {
+        while stamps.count() <= subject {
+            stamps.append(0)
+        }
+        stamps.set_at(subject, 0 - pass)
+    } else {
+        world.despawn(observation.entity.id)
+    }
+}
+
+func observe_new(connection: Integer) {
     var index = 0
     while index < found.count() {
         var subject = found[index]
-        if stamps[subject] == pass {
+        if stamps[subject] == pass and positions.has(subject) {
             stamps.set_at(subject, 0 - pass)
-            var link = world.create_entity()
+            var observation = world.entity_of(subject).create_entity()
             var observer = Network.Component.Observer()
-            observer.subject = subject
-            observer.observer = connection
-            link.add_component(observer)
-            kept_subjects.append(subject)
-            kept_links.append(link.id)
+            observer.entity = world.entity_of(connection)
+            observation.add_component(observer)
+            var in_sight = Interest.Component.InSight()
+            observation.add_component(in_sight)
         }
-        index = index + 1
-    }
-}
-
-func copy(from: List<Integer>, into: List<Integer>) {
-    into.clear()
-    var index = 0
-    while index < from.count() {
-        into.append(from[index])
         index = index + 1
     }
 }

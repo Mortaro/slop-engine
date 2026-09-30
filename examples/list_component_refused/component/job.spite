@@ -1,0 +1,2 @@
+var work = Work()
+var running = Parallel(work.run)

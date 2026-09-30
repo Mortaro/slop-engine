@@ -1,5 +1,5 @@
 type Staged {
-    timer: Component.Timer
+    rang: Component.Rang
     script: Component.Script
 }
 
@@ -9,7 +9,6 @@ type Eyed {
 }
 
 func update_each(staged: Staged, eyed: Eyed) {
-    assert staged.timer.rang
     staged.script.step = staged.script.step + 1
     if staged.script.step == 1 {
         eyed.transform.position_x = 500.0

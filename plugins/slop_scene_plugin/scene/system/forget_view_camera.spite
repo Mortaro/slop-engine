@@ -1,0 +1,17 @@
+type Watched {
+    entity: Entity
+    camera: Component.ViewCamera
+}
+
+type Viewing {
+    camera: Camera.Component.Camera
+}
+
+func prepare_all(watched: List<Watched>, viewing: List<Viewing>) {
+    assert viewing.count() == 0
+    watched.each(forget)
+}
+
+func forget(watched: Watched) {
+    watched.entity.remove_component(Component.ViewCamera)
+}

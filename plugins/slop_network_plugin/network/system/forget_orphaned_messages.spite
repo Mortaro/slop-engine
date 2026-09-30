@@ -1,0 +1,11 @@
+type Orphaned {
+    entity: Entity
+    arrived: Network.Component.Arrived
+    unsent: Without<Network.Component.Sender>
+}
+
+var world = World()
+
+func last_each(orphaned: Orphaned) {
+    world.despawn(orphaned.entity.id)
+}

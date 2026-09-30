@@ -13,8 +13,8 @@ var id_lock = Lock()
 var columns = Columns()
 
 var spawned_typed = false
-var parents_linked = false
-var dead = List<Long>()
+var parents = Link<Component.Parent>()
+var frames = Lookup<Component.Frame>()
 
 func prepare() {
     assert buffers.count() == 0
@@ -49,12 +49,18 @@ func current(): Integer {
 }
 
 func as_entity(): Entity {
-    return Entity(entity)
+    return entity_of(entity)
+}
+
+func entity_of(id: Integer): Entity {
+    var made = Entity()
+    made.id = id
+    return made
 }
 
 func create_entity(): Entity {
     var spawned = spawn()
-    return Entity(spawned)
+    return entity_of(spawned)
 }
 
 func create_entity_from_bundle(bundle: Anything): Entity {
@@ -84,7 +90,7 @@ func queue_bundle(bundle: Symbol<Bundle>, given: Anything, entity: Integer) {
 
 func add_bundle_attribute(made: Entity, attribute: Spite.Attribute) {
     assert attribute.value
-    var command = AddComponent(made.id, attribute.value, attribute.name)
+    var command = AddComponent(made.id, attribute.value)
     command.copying = true
     queue(command)
 }
@@ -119,34 +125,14 @@ func flush() {
         take_despawns(despawn_buffers[index], despawned)
         index = index + 1
     }
-    assert despawned.count() > 0 or parents_linked
-    parents_linked = false
-    add_children(despawned)
-    despawned.each(bury)
     assert despawned.count() > 0
-    columns.remove_entities(despawned)
-}
-
-func bury(despawned: Integer) {
-    var word = despawned / 64
-    while dead.count() <= word {
-        dead.append(0)
+    despawned.each(columns.bury)
+    var grown = true
+    while grown {
+        grown = parents.cascade(despawned)
     }
-    var bit: Long = 1
-    var shifted = bit.shifted_left(despawned % 64)
-    crash dead[word]
-    var buried = dead[word].bits_or(shifted)
-    dead.set_at(word, buried)
-}
-
-func parent_linked() {
-    parents_linked = true
-}
-
-func add_children(despawned: List<Integer>) {
-    assert columns.headers.has("Entity.parent")
-    var finder = ChildFinder()
-    finder.add_children(despawned, dead)
+    columns.unlink_dead()
+    columns.remove_entities(despawned)
 }
 
 func apply_buffer(commands: List<Command>) {
@@ -165,4 +151,10 @@ func take_despawns(pending: List<Integer>, despawned: List<Integer>) {
         index = index + 1
     }
     pending.clear()
+}
+
+func now(): Long {
+    var frame = frames.of(entity)
+    crash frame
+    return frame.elapsed_milliseconds
 }

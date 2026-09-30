@@ -1,4 +1,4 @@
-var parent = Ui.Component.Parent()
+var parent = Component.Parent()
 var button = Ui.Component.Button()
 var display = Ui.Component.Display()
 var justify = Ui.Component.JustifyContent()
@@ -6,7 +6,7 @@ var alignment = Ui.Component.AlignItems()
 var click_count = Component.ClickCount()
 var primary = Component.ButtonPrimary()
 
-func CounterButton(screen: Integer) {
+func CounterButton(screen: Entity) {
     parent.entity = screen
     display.value = 'flex'
     justify.value = 'center'

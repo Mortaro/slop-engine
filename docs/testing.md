@@ -30,15 +30,17 @@ Every behaviour the docs claim is checked by a program in `examples/`. Run them 
 | `resize_check` | a hidden window resized, minimised and restored: the swapchain is rebuilt to the new client size, minimised frames are skipped, and presenting resumes at full size |
 | `without_check` | a system over `Health` and `Without<Frozen>` heals only entities without `Frozen`, and heals one once its `Frozen` is removed |
 | `tracking` | `Added<T>` and `Removed<T>` are each seen exactly once by a system before the change and one after it |
-| `use_potion` | two related rows: each potion heals only the hero its `owner` points at, only if that hero is `Alive`, and a replaced component is written back |
+| `use_potion` | two linked rows: each potion heals only the hero its `Owner` names, only if that hero is `Alive`, and a replaced component is written back |
 | `healing` | headless systems, entity ids in rows, and two independent systems sharing a parallel stage |
 | `stress` | 200,000 entities through two systems; prints the tick time |
 | `asset_round_trip` | an asset class with every kind of field saved and read back through its derived codec |
 | `psd_probe` | `buttons.psd`'s layer tree and sizes |
-| `interest_check/test.sh` | area of interest across two processes: a bot's view of 100 beacons follows the server's eye (6, then 11), and a despawn in view reaches it (10) |
-| `relations_check` | relations set, changed and removed at run time; a two-row system joins 10,000 items to their 1,000 parents; a despawn cascades to children, and a child linked to an already despawned parent goes in that flush |
-| `wire_probe` | an `Entity` field naming a mirror goes on the wire as the remote id, for an inline and a reference component alike |
-| `timers_check` | timers ring on the right ticks, a list system's writes to inline components stick, a list system whose first list is empty never runs, and `run`'s fixed-rate pacing holds 25 ms ticks |
+| `interest_check/test.sh` | area of interest across two processes: a bot's view of 100 beacons follows the server's eye (6, then 11), a despawn in view reaches it (10), links travel both ways (`Near` from the server, a `Target` message from the bot), and despawning the beacon the stashes are `Near` removes each `Near` on the bot too (9); a `Target` message naming the beacon the server despawned is dropped, and the server judges the valid one after it |
+| `relations_check` | `Parent` links set, changed and removed at run time; a two-row system follows 10,000 items' `Parent` to their 1,000 players; a despawn cascades to children; despawning a hunter's prey removes its `Target` in that flush, and a `Removed<Component.Target>` row sees it |
+| `list_component_refused/test.sh` | a component holding a `List`, a `Dictionary` or a `Parallel` fails to compile, each error naming the rule and the component |
+| `dead_link_refused/test.sh` | adding a link component whose entity is despawned, or left at `Entity()`, crashes naming the rule |
+| `wire_probe` | an `Entity` naming a mirror goes on the wire as the remote id, and the other side reads its own id back; through a link component's codec, a mirror arrives as the receiver's own entity and a sender's own entity arrives as a new mirror |
+| `timers_check` | timers ring on the right ticks and a one-shot is seen with its `Timer` on its ring tick; a paused timer (a `Timer` without `Ticking`) holds, then rings three ticks after it resumes; an `Expires` cooldown child is despawned and the link naming it goes; a list system's writes to inline components stick, a list system whose first list is empty never runs, and `run`'s fixed-rate pacing holds 25 ms ticks |
 | `server_bench` | 5,000 players and 10,000 monsters moving on a 4 km square: spatial grid, aggro and area-of-interest queries, timers, and the profile; a grid query is checked against brute force. Run with `--optimized` |
 | `psd_zip_probe` | sixteen generated PSDs, layered and flat, 8 and 16 bit with raw, PackBits, ZIP and ZIP-with-prediction channels, decode to the expected checksum (`python make_fixtures.py` regenerates them) |
 | `zstd_probe` | decompresses a `.blend` (`-- --source=file.blend --output=plain.blend`); compared byte for byte with Zig's decoder when it was written |

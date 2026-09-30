@@ -7,13 +7,18 @@ type AnyColumn {
     release_buried(Integer): Integer
 }
 
+type AnyLink {
+    unlink()
+}
+
 var headers = Dictionary<Long>()
-var names_by_header = Dictionary<String>()
 var releasers = Dictionary<AnyColumn>()
 var raw = Raw()
 var heap = Memory.Heap()
 var stage_counter = 0
 var removals = Dictionary<Removals>()
+var links = List<AnyLink>()
+var dead = List<Long>()
 
 func key(kind: Spite.Class): String {
     var namespace = namespace_of(kind)
@@ -41,13 +46,7 @@ func header(name: String): Long {
         offset = offset + 8
     }
     headers.set(name, made)
-    names_by_header.set(made, name)
     return made
-}
-
-func name_of_header(column_header: Long): String {
-    crash names_by_header[column_header]
-    return names_by_header[column_header]
 }
 
 func removals_of(column_key: String): Removals {
@@ -208,4 +207,38 @@ func free_block(column_header: Long, offset: Integer) {
     var address = raw.read_long(column_header, offset)
     assert address != 0
     heap.free(address)
+}
+
+func add_link(link: AnyLink) {
+    links.append(link)
+}
+
+func unlink_dead() {
+    var index = 0
+    while index < links.count() {
+        links[index].unlink()
+        index = index + 1
+    }
+}
+
+func bury(despawned: Integer) {
+    var word = despawned / 64
+    while dead.count() <= word {
+        dead.append(0)
+    }
+    var bit: Long = 1
+    var shifted = bit.shifted_left(despawned % 64)
+    crash dead[word]
+    var buried = dead[word].bits_or(shifted)
+    dead.set_at(word, buried)
+}
+
+func is_dead(entity: Integer): Boolean {
+    var word = entity / 64
+    if entity < 0 or word >= dead.count() {
+        return false
+    }
+    var bit: Long = 1
+    var shifted = bit.shifted_left(entity % 64)
+    return dead[word].bits_and(shifted) != 0
 }

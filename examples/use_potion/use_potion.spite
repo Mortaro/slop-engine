@@ -15,6 +15,6 @@ func UsePotion() {
 
 func give_potion(entity: Integer) {
     var potion = Bundle.Potion()
-    potion.owner.id = entity
+    potion.owner.entity = world.entity_of(entity)
     world.create_entity_from_bundle(potion)
 }

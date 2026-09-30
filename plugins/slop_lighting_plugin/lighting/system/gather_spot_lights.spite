@@ -3,8 +3,8 @@ type Spotted {
     transform: Transform.Component.Transform
 }
 
-var lights = Scene.Lights()
 var light = Scene.Light()
+var lights = Scene.Lights()
 var scalar = Math.Scalar()
 var axis = Math.Vector3()
 

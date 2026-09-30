@@ -1,3 +1,4 @@
+var world = World()
 var tree = Cases.Tree()
 var roots = List<Integer>()
 var items = List<Integer>()
@@ -66,7 +67,7 @@ func set_justify(root: Integer, mode: String) {
     } else if mode == "space_evenly" {
         justify.value = 'space_evenly'
     }
-    Entity(root).add_component(justify)
+    world.entity_of(root).add_component(justify)
 }
 
 func check() {

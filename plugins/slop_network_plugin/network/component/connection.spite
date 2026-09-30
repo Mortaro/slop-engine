@@ -1,5 +1,1 @@
 var stream = Network.Stream()
-var fresh = true
-var known = List<Integer>()
-var known_list = List<Integer>()
-var visible = List<Integer>()

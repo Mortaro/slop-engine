@@ -108,44 +108,62 @@ func sent_from(environment: String): Boolean {
 
 ### Entity fields travel as the receiver's entities
 
-A replicated component may hold other entities in fields typed `Entity` (a monster's `target`, an item's `owner`),
-and each side reads them as its own entities. On the wire a field says whose entity it is:
+A replicated [link component](ecs.md#links-between-entities) holds another entity (a monster's `Target`, an item's
+`Owner`), and each side reads it as its own entity. There is no network API for links: they are ordinary components,
+replicated by `mirrored_from` or `sent_from` on their class like any other. On the wire an `Entity` field says whose
+entity it is:
 
 - an entity of the sender's own goes as its id; the receiver turns it into its mirror of that entity, made on the
   spot if it has not arrived yet, so a pointer can arrive before what it points at;
 - a mirror goes as the id it has on the other side, marked (`-100 - id`), so a client naming a server monster
   through its mirror names the server's own entity, and the server uses it as it is;
-- the world entity and "no entity" (a negative id) keep their meaning on both sides.
+- the world entity keeps its meaning on both sides.
+
+A link whose entity is despawned on the sender is removed there in the same flush, so the removal travels like any
+other and the receiver drops its copy; the receiver also removes it itself when the mirror of that entity goes.
+Either way a link never names a gone entity on any side.
+
+The receiver checks every arriving component's links before adding it. A link naming an entity that is dead or was
+never made there (a client's `Target` naming a monster the server despawned while the message was in flight, or a
+peer sending made-up ids) drops that component, and for a message, the whole message: nothing is added, nothing is
+logged, and the connection stays open, since the race is not a bug in either side. Local code adding such a link
+still crashes (see [ecs.md](ecs.md#links-between-entities)).
 
 `Mirrors()` (a core singleton) holds the table; `mirrors.local_of(remote)` answers the local entity for a remote id.
-A field typed `Integer` is sent as it is. `interest_check` tests both directions: a server-side pointer arrives as the
-bot's mirror, and a bot message naming a beacon through its mirror reaches the server as the server's own beacon.
+A field typed `Integer` is sent as it is. `interest_check` tests both directions: a server-side `Near` arrives naming the
+bot's mirror, a bot's `Target` message naming a beacon through its mirror reaches the server as the server's own
+beacon, and once the server despawns that beacon, every stash's `Near` is gone on the bot too; the bot then sends a
+`Target` naming that despawned beacon, which the server drops, and a valid one after it, which it judges. `wire_probe` checks the
+same translation through a link component's codec.
 
 ### Who observes what
 
 There are no players in the engine, only observers (Mortaro, 2026-09-27). An entity marked
 `Network.Component.Observed` is sent only to the connections that observe it; an unmarked entity (world state, a
-counter) is sent to every connection. An observation is its own entity, a child of the observed one:
-`Network.Component.Observer { subject, observer }`, where `observer` is a connection entity. An entity has as many
-Observer children as it has observers, and systems keep them up to date:
+counter) is sent to every connection. An observation is its own entity, a child of the observed one (its
+`Component.Parent`), holding the link `Network.Component.Observer`, which names the connection. An entity has as many
+observations as it has observers, and systems keep them up to date:
 
-- an item has one Observer, its owner's connection;
+- an item has one observation, naming its owner's connection;
 - a monster or another player has one for every connection whose viewer is near it (`slop_interest_plugin`, below);
-- private state, such as a player's own stats, lives on a separate entity whose only Observer is that player's
-  connection, while the public entity is observed by everyone in sight.
+- private state, such as a player's own stats, lives on a separate entity whose only observation names that
+  player's connection, while the public entity is observed by everyone in sight.
 
 ```gdscript
-var item_view = world.create_entity()
+var observation = item.create_entity()
 var observer = Network.Component.Observer()
-observer.subject = item.id
-observer.observer = owner_connection
-item_view.add_component(observer)
+observer.entity = owner_connection
+observation.add_component(observer)
 ```
 
-(`subject` names the observed entity until the engine has a parent relation; both ids are proposals by Claude.)
+Both ends are links, so neither can dangle: despawning the observed entity despawns its observations (they are its
+children), and despawning a connection removes its `Observer`, after which `ForgetObservations` despawns the
+observation.
 
-The network plugin collects each connection's observed entities every tick (`Address`, in `present`). It keeps, per
-connection, which entities the peer knows. An entity that becomes observed is sent in full, one that stays is sent
+`Send` collects each connection's observed entities every tick from the observations. It keeps, per connection,
+which entities the peer knows (a `Network.Known` table inside the system, keyed by the connection.
+It cannot be links, because a despawned entity's id is still needed to tell the peer to drop its mirror,
+and a link to it is gone in the same flush). An entity that becomes observed is sent in full, one that stays is sent
 only the frames that changed since the last tick, and one that stops being observed or is despawned is sent a
 removal frame (message `-3`), on which the receiver despawns its mirror. Each tick every replicated component is
 encoded once into a per-entity buffer and compared, component by component, with the last tick (`Network.Frames`),
@@ -156,17 +174,21 @@ message id) in that entity's changes, and the receiver removes it from its mirro
 ### Area of interest
 
 `slop_interest_plugin` observes by distance, as plain ECS a game can leave out. A connection entity with an
-`Interest.Component.Viewer` (`entity`, whose `Transform` is where the peer looks from, and `radius`) is given an
-`Interest.Component.Watching`, and every entity with `Spatial.Component.Indexed` is marked `Observed`. Every tick, in
-`prepare`, `Gather` asks `Spatial.Grid` what each viewer sees in its entity's space and compares it with what it saw: it spawns an
-Observer child only for an entity that came into range, and despawns one only for an entity that left. The work
-follows how much changes, not how much is in sight.
+`Interest.Component.Viewer` (`radius`) and the link `Interest.Component.Viewpoint` (the entity whose `Transform` is
+where the peer looks from) sees what is near that entity, and every entity with `Spatial.Component.Indexed` is marked
+`Observed`. Every tick, in `prepare`, `Gather` asks `Spatial.Grid` what each viewer sees in its viewpoint's space and
+compares it with the observations it made for that connection (marked `Interest.Component.InSight`, so observations a
+game makes itself are left alone): it spawns an observation only for an entity that came into range, and despawns
+one only for an entity that left. The work follows how much changes, not how much is in sight. A connection whose
+viewpoint is despawned loses its `Viewpoint` and sees nothing new until it is given another.
 
 ```gdscript
 var viewer = Interest.Component.Viewer()
-viewer.entity = avatar.id
 viewer.radius = 60.0
 connection.add_component(viewer)
+var viewpoint = Interest.Component.Viewpoint()
+viewpoint.entity = avatar
+connection.add_component(viewpoint)
 ```
 
 `interest_check` tests it across two processes: a bot sees 6 of 100 beacons, 11 after the server moves its eye, 10
@@ -202,19 +224,24 @@ Connections are entities. Settings and state are components on the world entity:
 | Component | On | Meaning |
 |---|---|---|
 | `Network.Component.Listen` | world | accept connections on `host` (default `127.0.0.1`; `0.0.0.0` for every address) and `port` |
+| `Network.Component.Listening` | world | marker: the listener is open |
 | `Network.Component.Connect` | world | keep a connection to `host` and `port`, redialling a second after a failure |
-| `Network.Component.Connection` | one entity per peer | its stream, and `fresh` until the first snapshot is sent |
-| `Network.Component.Sender` | an arrived message | the connection entity it came from |
+| `Network.Component.Dialing` | world | marker: a dial is in flight (its job lives in the `Network.Dials` resource) |
+| `Network.Component.Connected` | world | link: the connection entity the dial made; removed when that connection closes, which redials |
+| `Network.Component.Connection` | one entity per peer | its stream |
+| `Network.Component.Sender` | an arrived message | link: the connection entity it came from |
 | `Network.Component.Arrived` | an arrived message | despawned once its request component is removed, or its connection closes |
 | `Network.Component.Mirrored` | a mirrored entity | the sender's entity id |
 
 | Phase | System | Does |
 |---|---|---|
-| `input` | `Accept` | opens the listener, accepts every waiting connection |
-| `input` | `Dial` | starts a connect on the thread pool and polls it; a failed dial waits 60 ticks |
+| `input` | `Accept` | opens the listener and adds `Listening`, accepts every waiting connection |
+| `input` | `Dial` | while there is no `Connected`: starts a connect on the thread pool (adding `Dialing`) and takes its socket once done; a failed dial waits 60 ticks |
 | `after_input` | `Receive` | reads every socket, decodes each frame, mirrors state and spawns arrived messages |
 | `last` | `Send` | encodes mirrored state once, picks each peer's frames by its area of interest, writes to every peer |
-| `last` | `ForgetArrived` | despawns consumed messages and those of closed connections; closes a connection with more than 256 unhandled |
+| `last` | `ForgetArrived` | despawns consumed messages; closes a connection with more than 256 unhandled |
+| `last` | `ForgetOrphanedMessages` | despawns messages whose connection closed (their `Sender` went with it) |
+| `last` | `ForgetObservations` | despawns an observation whose connection closed (its `Observer` went with it) |
 
 Nothing blocks a frame: sockets are non-blocking and are polled once per tick, and the one call that can take
 seconds (a TCP connect to a port nobody listens on) runs on the pool (D191).
@@ -233,8 +260,8 @@ lost a scripted client's first `/give` that way, silently.
 - `Network.Component.Arrived.message` holds the codec id of the component the message carries.
 
 For several events of one type in one tick (two `Grant`s to one player), make each event an entity of its own,
-parented to its target (`event.add_parent_entity(player)`), and let the handler despawn it once applied; a
-component on the target holds only one value per type.
+a child of its target (`player.create_entity()`), and let the handler despawn it once applied; a component on the
+target holds only one value per type.
 
 ### The wire
 

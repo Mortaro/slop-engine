@@ -1,0 +1,19 @@
+singleton
+
+var views = List<Integer>()
+var sets = List<Scene.DrawSet>()
+
+func of(view: Integer): Scene.DrawSet {
+    var index = 0
+    while index < views.count() {
+        if views[index] == view {
+            crash sets[index]
+            return sets[index]
+        }
+        index = index + 1
+    }
+    var made = Scene.DrawSet()
+    views.append(view)
+    sets.append(made)
+    return made
+}

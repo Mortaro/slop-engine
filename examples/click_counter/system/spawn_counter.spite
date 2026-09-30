@@ -7,10 +7,10 @@ var world = World()
 func update_each(_window: NewWindow) {
     var screen_bundle = Bundle.Screen()
     var screen = world.create_entity_from_bundle(screen_bundle)
-    var title = Bundle.Title(screen.id)
+    var title = Bundle.Title(screen)
     world.create_entity_from_bundle(title)
-    var counter_button_bundle = Bundle.CounterButton(screen.id)
+    var counter_button_bundle = Bundle.CounterButton(screen)
     var button = world.create_entity_from_bundle(counter_button_bundle)
-    var count_label = Bundle.CountLabel(button.id)
+    var count_label = Bundle.CountLabel(button)
     world.create_entity_from_bundle(count_label)
 }

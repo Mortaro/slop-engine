@@ -1,29 +1,40 @@
 type Tested {
+    entity: Entity
     progress: Component.Progress
 }
 
 type Quitting {
-    quit: Component.Quit
+    frame: Component.Frame
+    running: Without<Component.Quit>
 }
 
 var console = Console()
 var drags = Lookup<Ui.Component.Dragging>()
 var overs = Lookup<Ui.Component.DragOver>()
+var misses = Lookup<Component.Missed>()
+var right_clicks = Lookup<Component.SawRightClick>()
+var double_clicks = Lookup<Component.SawDoubleClick>()
+
+var world = World()
 
 func last_each(tested: Tested, quitting: Quitting) {
     var progress = tested.progress
-    assert progress.step == 17 and not quitting.quit.requested
+    assert progress.step == 17
     var dropped_right = progress.dropped_source == progress.source
     var one_click = progress.clicks_seen >= 1
     var settled = not drags.has(progress.source) and not overs.has(progress.target)
     var no_parent_click = progress.holder_clicks_in_drag == 0
-    var other_buttons = progress.right_clicked and progress.double_clicked
-    var passed = dropped_right and progress.missed and one_click and settled and no_parent_click and other_buttons
+    var tester = tested.entity.id
+    var missed = misses.has(tester)
+    var right_clicked = right_clicks.has(tester)
+    var double_clicked = double_clicks.has(tester)
+    var other_buttons = right_clicked and double_clicked
+    var passed = dropped_right and missed and one_click and settled and no_parent_click and other_buttons
     console.print(
         "dropped from source",
         dropped_right,
         "missed",
-        progress.missed,
+        missed,
         "clicks",
         progress.clicks_seen,
         "settled",
@@ -31,12 +42,14 @@ func last_each(tested: Tested, quitting: Quitting) {
         "parent clicks in the short drag",
         progress.holder_clicks_in_drag,
         "right",
-        progress.right_clicked,
+        right_clicked,
         "double",
-        progress.double_clicked,
+        double_clicked,
         "passed",
         passed,
     )
     crash passed
-    quitting.quit.requested = true
+    var quit = Component.Quit()
+    var shelf = world.as_entity()
+    shelf.add_component(quit)
 }

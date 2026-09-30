@@ -43,7 +43,7 @@ func unlock() {
     kernel.ReleaseSRWLockExclusive(shared)
 }
 
-func request(window: Window.Component.Window): Integer {
+func request(window: Window.Component.Window, hidden: Boolean): Integer {
     start()
     lock()
     var slot = free_slot()
@@ -60,9 +60,9 @@ func request(window: Window.Component.Window): Integer {
     raw.write_byte(title, title_length, 0)
     var width: Long = window.width
     var height: Long = window.height
-    var visible: Long = 0
-    if window.visible {
-        visible = 1
+    var visible: Long = 1
+    if hidden {
+        visible = 0
     }
     var wide_length: Long = title_length
     raw.write_long(at, 8, width)

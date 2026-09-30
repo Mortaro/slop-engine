@@ -1,20 +1,18 @@
-type Cache {
-    fonts: Component.Fonts
-}
-
 type FontText {
     entity: Entity
     text: Component.Text
     font: Component.Font
 }
 
-func prepare_each(cache: Cache, measured: FontText) {
+var fonts = Ui.Fonts()
+var sizes = Lookup<Component.ContentSize>()
+
+func prepare_each(measured: FontText) {
     var font = measured.font
-    var size = cache.fonts.size_slot(font.name, font.face, font.size)
-    assert size >= 0
-    var width = cache.fonts.text_width(size, measured.text.text)
-    var height: Float = cache.fonts.line_height_of(size)
-    var sizes = Lookup<Component.ContentSize>()
+    var atlas = fonts.atlas_of(font.name, font.face, font.size)
+    assert atlas
+    var width = fonts.text_width(atlas, measured.text.text)
+    var height: Float = atlas.line_height
     var content = sizes.of(measured.entity.id)
     if content {
         content.width = width

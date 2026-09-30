@@ -3,7 +3,7 @@ type Named {
     heat: Component.Heat
 }
 
-var counted = 0
+var counted: Long = 0
 
 func update_each(named: Named) {
     counted = counted + named.entity.id

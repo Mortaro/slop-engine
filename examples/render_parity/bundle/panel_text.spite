@@ -1,7 +1,7 @@
-var parent = Ui.Component.Parent()
+var parent = Component.Parent()
 var text = Ui.Component.Text()
 
-func PanelText(panel: Integer) {
+func PanelText(panel: Entity) {
     parent.entity = panel
     text.text = "CLIPPED TEXT"
     text.scale = 2

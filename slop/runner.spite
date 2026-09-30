@@ -27,6 +27,9 @@ var buffer = 0
 var argument_count = 0
 var streamed = -1
 var plain_rows = false
+var plain_count = 0
+var clocked = false
+var clock_row = Row<GameClock>()
 var leading_relation = false
 var pair_sizes = List<Integer>()
 var pair_outer = 0
@@ -67,6 +70,9 @@ func prepare_argument(argument: Symbol<$system_type.phase_each>) {
     var row = Row<argument.class>()
     row.prepare()
     plain_rows = row.is_plain()
+    if plain_rows {
+        plain_count = plain_count + 1
+    }
     if argument_count == 0 {
         leading_relation = row.relation >= 0
     }
@@ -155,6 +161,14 @@ func run_phase_each(phase: Symbol<$system_type.phase_each>) {
     if argument_count == 2 and leading_relation {
         run_related(phase)
         return
+    }
+    if phase.argument_count() == 2 {
+        streaming_phase = phase.name
+        clocked = false
+        if plain_count == 2 {
+            run_clocked_arguments()
+        }
+        assert not clocked
     }
     if argument_count == 2 {
         run_pair(phase)
@@ -439,4 +453,20 @@ func begin_stream_argument(argument: Symbol<$system_type.phase_each>) {
 func advance_stream_argument(argument: Symbol<$system_type.phase_each>) {
     var row = Row<argument.class>()
     streamed = row.advance()
+}
+
+func run_clocked_argument(argument: Symbol<$system_type.phase_each>) {
+    if argument.class == GameClock {
+        clock_row.fill(world.entity)
+        stream_clocked_arguments()
+        clock_row.store(world.entity)
+        clocked = true
+    }
+}
+
+func stream_clocked_argument(argument: Symbol<$system_type.phase_each>) {
+    if argument.class != GameClock {
+        var stream = Stream<$system_type, argument.class>(system, last_run, streaming_phase)
+        stream.run_phases_each()
+    }
 }

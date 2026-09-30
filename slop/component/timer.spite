@@ -1,22 +1,47 @@
-var period = 0
-var remaining = 0
-var repeating = false
-var rang = false
+var duration = 0
+var remaining_while_paused = 0
 
-func start(milliseconds: Integer, repeat: Boolean) {
-    period = milliseconds
-    remaining = milliseconds
-    repeating = repeat
-    rang = false
+func start(milliseconds: Integer) {
+    duration = milliseconds
+    remaining_while_paused = milliseconds
 }
 
-func advance(elapsed: Integer) {
-    rang = false
-    assert period > 0 and remaining > 0
-    remaining = remaining - elapsed
-    assert remaining <= 0
-    rang = true
-    while repeating and remaining <= 0 {
-        remaining = remaining + period
+func reset() {
+    remaining_while_paused = duration
+}
+
+func resume(now: Long): Component.Ticking {
+    var ticking = Component.Ticking()
+    ticking.ends_at = now + remaining_while_paused
+    return ticking
+}
+
+func pause(ticking: Component.Ticking, now: Long) {
+    remaining_while_paused = ticking.remaining(now)
+}
+
+func remaining(): Integer {
+    return remaining_while_paused
+}
+
+func remaining_seconds(): Float {
+    var left: Float = remaining_while_paused
+    return left / 1000.0
+}
+
+func elapsed(): Integer {
+    return duration - remaining_while_paused
+}
+
+func fraction(): Float {
+    return 1.0 - fraction_remaining()
+}
+
+func fraction_remaining(): Float {
+    if duration <= 0 {
+        return 0.0
     }
+    var left: Float = remaining_while_paused
+    var whole: Float = duration
+    return left / whole
 }

@@ -1,26 +1,31 @@
 type Checked {
-    renderer: RenderVulkan.Component.Renderer
+    entity: Entity
     view: Scene.Component.View
     draw_list: Render.Component.DrawList
 }
 
 type Quitting {
     frame: Component.Frame
-    quit: Component.Quit
+    running: Without<Component.Quit>
 }
 
+var renderer = RenderVulkan.Renderer()
+var draws = Scene.Draws()
 var console = Console()
 var rendered_frames = 0
 var capture = Capture()
 
+var world = World()
+var captured_frames = Lookup<RenderVulkan.Component.Captured>()
+
 func last_each(checked: Checked, quitting: Quitting) {
-    assert not quitting.quit.requested and checked.view.terrain_draws.count() > 0
-    var renderer = checked.renderer
+    assert draws.of(checked.entity.id).terrain_draws.count() > 0
     rendered_frames = rendered_frames + 1
     if rendered_frames == 30 {
-        renderer.capture_requested = true
+        var request = RenderVulkan.Component.CaptureRequested()
+        checked.entity.add_component(request)
     }
-    assert renderer.captured
+    assert captured_frames.has(checked.entity.id)
     var width = checked.draw_list.width
     var height = checked.draw_list.height
     var left = renderer.pixel_at(width / 2 - height / 4, height / 2)
@@ -36,14 +41,16 @@ func last_each(checked: Checked, quitting: Quitting) {
     console.print("left", left_color, "center", center_color, "right", right_color, "passed", passed)
     keep(renderer, width, height)
     crash passed
-    quitting.quit.requested = true
+    var quit = Component.Quit()
+    var shelf = world.as_entity()
+    shelf.add_component(quit)
 }
 
 func channel(pixel: Integer, shift: Integer): Integer {
     return pixel.shifted_right(shift).bits_and(255)
 }
 
-func keep(renderer: RenderVulkan.Component.Renderer, width: Integer, height: Integer) {
+func keep(renderer: RenderVulkan.Renderer, width: Integer, height: Integer) {
     capture.width = width
     capture.height = height
     var top = 0

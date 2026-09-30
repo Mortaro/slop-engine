@@ -1,12 +1,12 @@
 type Attached {
     attachment: Animation.Component.BoneAttachment
     transform: Transform.Component.Transform
-    parent: Entity
+    parent: Component.Parent
 }
 
 type Carrier {
     animator: Animation.Component.Animator
-    model: Scene.Component.Model
+    skin: Scene.Component.Skin
     transform: Transform.Component.Transform
 }
 
@@ -14,7 +14,7 @@ var world = World()
 var pose = Math.Pose()
 
 func prepare_each(attached: Attached, carrier: Carrier) {
-    var bones = carrier.model.bones
+    var bones = carrier.skin.pose.bones
     assert bones.count() > 0
     var index = bone_of(attached.attachment, carrier.animator)
     assert index >= 0

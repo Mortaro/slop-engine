@@ -1,4 +1,4 @@
-var parent = Ui.Component.Parent()
+var parent = Component.Parent()
 var width = Ui.Component.Width()
 var height = Ui.Component.Height()
 var border = Ui.Component.BorderWidth()
@@ -9,7 +9,7 @@ var horizontal = Ui.Component.OverflowX()
 var background = Ui.Component.BackgroundColor()
 var panel = Component.ListPanel()
 
-func ListPanel(screen: Integer) {
+func ListPanel(screen: Entity) {
     parent.entity = screen
     width.length.pixels(200.0)
     height.length.pixels(200.0)

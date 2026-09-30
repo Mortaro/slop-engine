@@ -1,7 +1,7 @@
-var parent = Ui.Component.Parent()
+var parent = Component.Parent()
 var text = Ui.Component.Text()
 
-func Title(screen: Integer) {
+func Title(screen: Entity) {
     parent.entity = screen
     text.text = "SCROLL LIST"
     text.scale = 2

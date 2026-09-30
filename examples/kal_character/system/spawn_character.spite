@@ -13,8 +13,11 @@ func update_each(_started: Started) {
     window_bundle.window.title = "Kal character"
     window_bundle.window.width = 960
     window_bundle.window.height = 720
-    window_bundle.window.visible = environment.show_window
-    world.create_entity_from_bundle(window_bundle)
+    var window_entity = world.create_entity_from_bundle(window_bundle)
+    if not environment.show_window {
+        var hidden = Window.Component.Hidden()
+        window_entity.add_component(hidden)
+    }
     var camera_entity = world.create_entity()
     var camera = Camera.Component.Camera()
     camera_entity.add_component(camera)

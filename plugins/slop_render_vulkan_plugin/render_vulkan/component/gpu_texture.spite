@@ -1,0 +1,5 @@
+var image: Long = 0
+var image_memory: Long = 0
+var view: Long = 0
+var set: Long = 0
+var generation = 0

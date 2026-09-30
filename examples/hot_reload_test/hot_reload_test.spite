@@ -1,3 +1,5 @@
+var renderer = RenderVulkan.Renderer()
+var textures = Render.Textures()
 var cookbook = Recipes.Cookbook()
 var console = Console()
 var world = World()
@@ -67,11 +69,9 @@ func software_pixel(target: Integer): Integer {
 
 func vulkan_pixel(target: Integer): Integer {
     var draw_list = Lookup<Render.Component.DrawList>().of(target)
-    var textures = Lookup<Render.Component.Textures>().of(target)
     crash draw_list
-    crash textures
-    var renderer = RenderVulkan.Component.Renderer()
-    renderer.ensure()
+    var device = RenderVulkan.Component.Device()
+    renderer.ensure(device)
     renderer.draw_offscreen(draw_list, textures)
     var pixel = renderer.pixel_at(5, 5)
     renderer.release_device()
@@ -86,8 +86,6 @@ func spawn_target(): Integer {
     target.add_component(draw_list)
     var clear_color = Render.Component.ClearColor()
     target.add_component(clear_color)
-    var textures = Render.Component.Textures()
-    target.add_component(textures)
     return target.id
 }
 
@@ -95,10 +93,7 @@ func spawn_swatch() {
     var screen = world.create_entity()
     var root = Ui.Component.Screen()
     screen.add_component(root)
-    var swatch = world.create_entity()
-    var parent = Ui.Component.Parent()
-    parent.entity = screen.id
-    swatch.add_component(parent)
+    var swatch = screen.create_entity()
     var width = Ui.Component.Width()
     width.length.pixels(20.0)
     swatch.add_component(width)

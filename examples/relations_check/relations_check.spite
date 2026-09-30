@@ -8,6 +8,8 @@ var passed = true
 func RelationsCheck() {
     load "../../slop"
     var app = App()
+    var losses = Component.Losses()
+    world.as_entity().add_component(losses)
     var index = 0
     while index < 1000 {
         var player = world.create_entity()
@@ -36,16 +38,16 @@ func RelationsCheck() {
     expect(1, 90010)
     expect(2, 0)
     cascade(app)
+    lose_target(app)
     console.print("passed", passed)
 }
 
 func cascade(app: App) {
-    var gem = world.create_entity()
+    crash items[1]
+    var holder = world.entity_of(items[1])
+    var gem = holder.create_entity()
     var value = Component.Item()
     gem.add_component(value)
-    crash items[1]
-    var holder = Entity(items[1])
-    gem.add_parent_entity(holder)
     world.flush()
     crash players[1]
     world.despawn(players[1])
@@ -58,25 +60,38 @@ func cascade(app: App) {
     var cascaded = remaining == 9980 and gem_gone
     passed = passed and cascaded
     console.print("items left after despawning player 1", remaining, "gem gone", gem_gone)
-    var late = world.create_entity()
-    var late_value = Component.Item()
-    late.add_component(late_value)
-    late.add_parent_entity(holder)
+}
+
+func lose_target(app: App) {
+    crash players[5]
+    var prey = world.entity_of(players[5])
+    var hunter = world.create_entity()
+    var target = Component.Target()
+    target.entity = prey
+    hunter.add_component(target)
     world.flush()
+    var targets = Lookup<Component.Target>()
+    var linked = targets.has(hunter.id)
+    prey.remove()
+    world.flush()
+    var unlinked = not targets.has(hunter.id)
     app.tick()
-    var late_gone = not alive.has(late.id)
-    passed = passed and late_gone
-    console.print("child linked to an already despawned parent gone", late_gone)
+    var tallies = Lookup<Component.Losses>()
+    var tally = tallies.of(world.entity)
+    crash tally
+    var seen = tally.count == 1
+    var held = linked and unlinked and seen
+    passed = passed and held
+    console.print("target linked", linked, "removed in the despawn's flush", unlinked, "seen by a system", seen)
 }
 
 func spawn_item(index: Integer) {
-    var item = world.create_entity()
+    crash players[index % 1000]
+    var owner = world.entity_of(players[index % 1000])
+    var item = owner.create_entity()
     var value = Component.Item()
     value.value = index
     item.add_component(value)
-    crash players[index % 1000]
-    var owner = Entity(players[index % 1000])
-    item.add_parent_entity(owner)
     items.append(item.id)
 }
 
@@ -91,13 +106,14 @@ func move_items() {
 func move_item(index: Integer) {
     assert index % 1000 == 0 or index % 1000 == 2
     crash items[index]
-    var item = Entity(items[index])
+    var item = world.entity_of(items[index])
     if index % 1000 == 0 {
         crash players[1]
-        var other = Entity(players[1])
-        item.add_parent_entity(other)
+        var parent = Component.Parent()
+        parent.entity = world.entity_of(players[1])
+        item.add_component(parent)
     } else {
-        item.remove_parent_entity()
+        item.remove_component(Component.Parent)
     }
 }
 

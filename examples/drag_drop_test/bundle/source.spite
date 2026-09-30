@@ -1,11 +1,11 @@
-var parent = Ui.Component.Parent()
+var parent = Component.Parent()
 var button = Ui.Component.Button()
 var draggable = Ui.Component.Draggable()
 var width = Ui.Component.Width()
 var height = Ui.Component.Height()
 var background = Ui.Component.BackgroundColor()
 
-func Source(screen: Integer) {
+func Source(screen: Entity) {
     parent.entity = screen
     width.length.pixels(100.0)
     height.length.pixels(100.0)

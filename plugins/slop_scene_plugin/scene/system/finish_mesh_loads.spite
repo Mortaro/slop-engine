@@ -1,7 +1,5 @@
-type Loading {
-    meshes: Component.Meshes
-}
+var meshes = Scene.Meshes()
 
-func last_each(loading: Loading) {
-    loading.meshes.finish_loads()
+func last_each() {
+    meshes.finish_loads()
 }
