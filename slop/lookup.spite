@@ -8,7 +8,7 @@ func of(entity: Integer): $component_type? {
     if $component_type.fits_vector() and $component_type != Entity {
         return column.values[row]
     }
-    return column.value_at(column.own_key, row)
+    return column.value_at(row)
 }
 
 func has(entity: Integer): Boolean {

@@ -35,7 +35,6 @@ func describe_attribute(attribute: Symbol<$row_type>, row: $row_type) {
     if attribute.class.fits_vector() and attribute.class != Entity {
         holds_copies = true
     }
-    var name = attribute.name
     var key = columns.key(attribute.class)
     var slot = Slot<attribute.class>()
     var kind = slot.tracking_kind(row.attributes[attribute])
@@ -47,11 +46,12 @@ func describe_attribute(attribute: Symbol<$row_type>, row: $row_type) {
     kinds.append(kind)
     if kind == 1 or kind == 2 or kind == 4 {
         key = slot.tracked_key(row.attributes[attribute])
-    } else if key == "Entity" and name == "entity" {
-        key = ""
     } else if key == "Entity" {
-        key = "Entity.{name}"
-        relation = keys.count()
+        var a_row_field_of_class_entity_is_named_entity = attribute.name == "entity"
+        crash a_row_field_of_class_entity_is_named_entity
+        key = ""
+    } else if kind == 0 and relation < 0 {
+        note_link(attribute, row)
     }
     keys.append(key)
     var header: Long = 0
@@ -60,6 +60,16 @@ func describe_attribute(attribute: Symbol<$row_type>, row: $row_type) {
     }
     headers.append(header)
     rows.append(-1)
+}
+
+func note_link(attribute: Symbol<$row_type>, row: $row_type) {
+    if attribute.class == Entity or attribute.class.has_function("fill_from") {
+        return
+    }
+    var links = LinkCount<attribute.class>()
+    if links.count_in(row.attributes[attribute]) > 0 {
+        relation = keys.count()
+    }
 }
 
 func component_keys(): List<String> {
@@ -155,9 +165,6 @@ func smaller(current_smallest: Long, candidate: Long): Long {
 }
 
 func is_plain(): Boolean {
-    if relation >= 0 {
-        return false
-    }
     var index = 0
     while index < kinds.count() {
         if kinds[index] == 1 or kinds[index] == 2 or kinds[index] == 4 {
@@ -300,7 +307,7 @@ func fill_attribute(attribute: Symbol<$row_type>, row: $row_type, entity: Intege
     assert kinds[position] != 3
     row.attributes[attribute] = slot.fetch(entity, row.attributes[attribute], header, found)
     if position == relation {
-        related = slot.entity_of(row.attributes[attribute])
+        related = slot.link_target(row.attributes[attribute])
     }
 }
 
@@ -322,7 +329,7 @@ func store_attribute(attribute: Symbol<$row_type>, row: $row_type, _entity: Inte
     crash rows[position]
     var found = rows[position]
     crash kinds[position]
-    assert header != 0 and position != relation and kinds[position] == 0
+    assert header != 0 and kinds[position] == 0
     slot.store(row.attributes[attribute], header, found)
 }
 

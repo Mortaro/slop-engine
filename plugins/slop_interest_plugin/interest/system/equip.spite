@@ -5,6 +5,6 @@ type Joined {
 
 func update_each(joined: Joined) {
     var watching = Interest.Component.Watching()
-    var peer = Entity(joined.entity.id)
+    var peer = joined.entity
     peer.add_component(watching)
 }

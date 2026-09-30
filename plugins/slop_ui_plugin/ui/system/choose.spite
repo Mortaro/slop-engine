@@ -102,7 +102,7 @@ func show(popups: List<Popup>, popup: Integer, shown: Component.Display.Kind) {
 func popup_of(popups: List<Popup>, box: Integer): Integer {
     var index = 0
     while index < popups.count() {
-        if popups[index].parent.entity == box {
+        if popups[index].parent.entity.id == box {
             return index
         }
         index = index + 1
@@ -117,7 +117,7 @@ func picked_choice(popups: List<Popup>, choices: List<Choice>, popup_index: Inte
     var index = 0
     while index < choices.count() {
         var choice = choices[index]
-        if clicks.has(choice.entity.id) and choice.parent.entity == popup_entity {
+        if clicks.has(choice.entity.id) and choice.parent.entity.id == popup_entity {
             return index
         }
         index = index + 1
@@ -129,7 +129,7 @@ func show_label(labels: List<Label>, box: Integer, shown: String) {
     var index = 0
     while index < labels.count() {
         var label = labels[index]
-        if label.parent.entity == box {
+        if label.parent.entity.id == box {
             label.text.text = shown
         }
         index = index + 1

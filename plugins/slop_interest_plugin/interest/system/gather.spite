@@ -82,7 +82,7 @@ func link_new(connection: Integer) {
         var subject = found[index]
         if stamps[subject] == pass {
             stamps.set_at(subject, 0 - pass)
-            var link = world.create_entity()
+            var link = world.spawn_entity()
             var observer = Network.Component.Observer()
             observer.subject = subject
             observer.observer = connection

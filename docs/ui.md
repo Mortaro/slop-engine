@@ -7,7 +7,8 @@ pointer markers and two background styles.
 ## Elements are entities
 
 A UI element is an entity with components. There is no element class and no widget hierarchy: a tree is built from
-`Ui.Component.Parent` (the parent's entity id), and a tree's root carries `Ui.Component.Screen`. The click counter's
+the core's `Component.Parent` (the parent's entity, so an element is despawned with its parent), and a tree's root
+carries `Ui.Component.Screen`. The click counter's
 tree, one bundle per element:
 
 ```
@@ -19,7 +20,7 @@ Screen    Screen, Display flex, FlexDirection column, JustifyContent center, Ali
 
 ```gdscript
 # examples/click_counter/bundle/counter_button.spite
-var parent = Ui.Component.Parent()
+var parent = Component.Parent()
 var button = Ui.Component.Button()
 var width = Ui.Component.Width()
 var height = Ui.Component.Height()
@@ -30,7 +31,7 @@ var background_image = Ui.Component.BackgroundImage()
 var click_count = Component.ClickCount()
 var primary = Component.ButtonPrimary()
 
-func CounterButton(screen: Integer) {
+func CounterButton(screen: Entity) {
     parent.entity = screen
     width.length.pixels(176.0)
     height.length.pixels(40.0)
@@ -97,7 +98,7 @@ Percentages resolve against the containing block, as on the web; `viewport_*` ag
 ### The algorithm
 
 `Ui.System.ComputeLayout` runs in the `layout` phase (after `prepare`, before `render`). It gathers the `Parent`
-relations into a child list per entity, then lays out each `Screen` with a port of css-flexbox-1 §9: line breaking, resolving flexible lengths with min/max freezing, cross sizes
+links into a child list per entity, then lays out each `Screen` with a port of css-flexbox-1 §9: line breaking, resolving flexible lengths with min/max freezing, cross sizes
 and stretch, auto margins, `justify-content` and `align-content` distribution, reversed axes, `order`, relative
 offsets, and absolute boxes placed against the nearest positioned ancestor's padding box (at their static position
 when no inset is given). `Display 'block'` children stack vertically; `'none'` removes the element and its subtree.
@@ -279,11 +280,11 @@ element, driving the real window with posted mouse messages, each step waiting f
 **Proposal** (Claude's). A combo box is four bundles and one system, `Ui.System.Choose` (`update`):
 
 ```gdscript
-var box = world.create_entity_from_bundle(Ui.Bundle.ComboBox(panel.id))
-world.create_entity_from_bundle(Ui.Bundle.ComboLabel(box.id, "Choose"))
-var popup = world.create_entity_from_bundle(Ui.Bundle.ComboPopup(box.id))
-world.create_entity_from_bundle(Ui.Bundle.ComboOption(popup.id, 0, "First"))
-world.create_entity_from_bundle(Ui.Bundle.ComboOption(popup.id, 1, "Second"))
+var box = world.spawn_entity_from_bundle(Ui.Bundle.ComboBox(panel))
+world.spawn_entity_from_bundle(Ui.Bundle.ComboLabel(box, "Choose"))
+var popup = world.spawn_entity_from_bundle(Ui.Bundle.ComboPopup(box))
+world.spawn_entity_from_bundle(Ui.Bundle.ComboOption(popup, 0, "First"))
+world.spawn_entity_from_bundle(Ui.Bundle.ComboOption(popup, 1, "Second"))
 ```
 
 (each bundle built into a variable first, as Spite wants). The box is a `Button` with

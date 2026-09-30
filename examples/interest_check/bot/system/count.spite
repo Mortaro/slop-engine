@@ -9,6 +9,12 @@ type Stashed {
     mirrored: Network.Component.Mirrored
 }
 
+type Nearby {
+    stash: Component.Stash
+    near: Component.Near
+    mirrored: Network.Component.Mirrored
+}
+
 type Seal {
     sealed: Component.Sealed
     mirrored: Network.Component.Mirrored
@@ -23,10 +29,17 @@ var console = Console()
 var counts = List<Integer>()
 var saw_seal = false
 var pointed = false
+var saw_near = false
 var world = World()
 var verdicts = Lookup<Component.Verdict>()
 
-func update_all(runs: List<Running>, beacons: List<Seen>, stashes: List<Stashed>, seals: List<Seal>) {
+func update_all(
+    runs: List<Running>,
+    beacons: List<Seen>,
+    stashes: List<Stashed>,
+    nears: List<Nearby>,
+    seals: List<Seal>,
+) {
     var running = runs.first()
     crash running
     var seen = beacons.count()
@@ -37,7 +50,10 @@ func update_all(runs: List<Running>, beacons: List<Seen>, stashes: List<Stashed>
         console.print("bot sees", seen, "beacons")
     }
     var stashed = stashes.count()
-    var pointed_right = points_at_beacon(beacons, stashes)
+    if not saw_near and points_at_beacon(beacons, nears) {
+        saw_near = true
+        console.print("bot sees its stashes near beacon 52")
+    }
     point_at_beacon(beacons)
     var verdict_correct = server_agrees()
     var sealed = seals.count()
@@ -45,9 +61,14 @@ func update_all(runs: List<Running>, beacons: List<Seen>, stashes: List<Stashed>
         saw_seal = true
         console.print("bot sees a sealed stash")
     }
-    var expected = counts.count() == 3 and counts[0] == 6 and counts[1] == 11 and counts[2] == 10 and stashed == 3 and saw_seal and sealed == 0 and pointed_right and verdict_correct
+    var near_gone = nears.count() == 0
+    var expected = counts.count() == 4 and counts[0] == 6 and counts[1] == 11 and counts[2] == 10 and counts[3] == 9 and stashed == 3 and saw_seal and sealed == 0 and saw_near and near_gone and verdict_correct
     if expected {
-        console.print("bot sees", stashed, "stashes of its own, and the seal is gone")
+        console.print(
+            "bot sees",
+            stashed,
+            "stashes of its own, the seal is gone, and so is each Near of the despawned beacon",
+        )
         console.print("passed true")
         var quit = Component.Quit()
         var shelf = world.as_entity()
@@ -61,7 +82,7 @@ func update_all(runs: List<Running>, beacons: List<Seen>, stashes: List<Stashed>
     }
 }
 
-func points_at_beacon(beacons: List<Seen>, stashes: List<Stashed>): Boolean {
+func points_at_beacon(beacons: List<Seen>, nears: List<Nearby>): Boolean {
     var target = -1
     var index = 0
     while index < beacons.count() {
@@ -72,8 +93,8 @@ func points_at_beacon(beacons: List<Seen>, stashes: List<Stashed>): Boolean {
     }
     var found = false
     index = 0
-    while index < stashes.count() {
-        found = found or target >= 0 and stashes[index].stash.near.id == target
+    while index < nears.count() {
+        found = found or target >= 0 and nears[index].near.entity.id == target
         index = index + 1
     }
     return found
@@ -92,10 +113,10 @@ func point_at_beacon(beacons: List<Seen>) {
 
 func send_point(target: Integer) {
     pointed = true
-    var message = world.create_entity()
-    var point = Component.Point()
-    point.target = Entity(target)
-    message.add_component(point)
+    var message = world.spawn_entity()
+    var pointing = Component.Target()
+    pointing.entity = world.entity_of(target)
+    message.add_component(pointing)
 }
 
 func server_agrees(): Boolean {

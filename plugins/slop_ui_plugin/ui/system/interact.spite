@@ -30,6 +30,7 @@ type Target {
     clip: Component.ComputedClip
 }
 
+var world = World()
 var drag_threshold: Float = 4.0
 var drag_ended = List<Integer>()
 var dragging_now = false
@@ -243,7 +244,7 @@ func continue_drag(source: Source, pointer: Pointer, targets: List<Target>) {
     }
     var dropped = Component.Dropped()
     dropped.source = owner.id
-    var receiver = Entity(target)
+    var receiver = world.entity_of(target)
     receiver.add_component(dropped)
 }
 

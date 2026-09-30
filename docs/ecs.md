@@ -8,11 +8,15 @@ found by the compiler instead.
 
 An entity is an `Integer` id, handed out by `World` and wrapped in an `Entity`. Ids are not reused. The world is an entity
 too: `world.as_entity()` carries the program-wide components (see [State is components](#state-is-components)).
+`Entity()` is an entity not set yet, which a [link component](#links-between-entities) declares as its default; it is
+never added, looked up or used.
 
 | Call | Does | When |
 |---|---|---|
-| `world.create_entity()` | a new `Entity` with no components; its `id` is known at once | now |
-| `world.create_entity_from_bundle(bundle)` | a new `Entity` with a copy of every component the bundle holds (an `Entity` attribute becomes a relation named after it), so one bundle can be spawned any number of times as a prefab | components after the current stage |
+| `world.spawn_entity()` | a new `Entity` with no components; its `id` is known at once | now |
+| `entity.spawn_entity()` | a new `Entity` that is a child of `entity`: it gets `Component.Parent` naming `entity`, so it is despawned with it | now; the `Parent` after the current stage |
+| `world.spawn_entity_from_bundle(bundle)` | a new `Entity` with a copy of every component the bundle holds, so one bundle can be spawned any number of times as a prefab | components after the current stage |
+| `world.entity_of(id)` | the `Entity` of an id a program kept as an `Integer`; a negative id crashes (`an_entity_id_is_zero_or_more`) | now |
 | `entity.add_component(component)` | adds a component, or replaces the one of that class | after the current stage |
 | `entity.remove_component(Ui.Component.Hovered)` | removes one component; the class itself is the argument | after the current stage |
 | `entity.remove()` | removes the entity and all its components | after the current stage |
@@ -21,15 +25,18 @@ too: `world.as_entity()` carries the program-wide components (see [State is comp
 | `Lookup<Component.Health>().has(id)` | whether it has one | now |
 
 A row's `entity: Entity` field is an `Entity`, so a system writes `row.entity.add_component(marker)`; with only an id,
-`Entity(id)` makes one. There are no generics in this API (D123): `add_component` takes `Anything` (an empty
+`world.entity_of(id)` makes one (a proposal by Claude: Spite has neither overloading nor visibility narrower than a
+class, so there is no constructor taking an id that only the engine may call; `Entity`'s `set_id` refuses a negative
+id instead, and every entity call crashes on an `Entity()` not set yet, `an_entity_is_set_before_it_is_used`). There
+are no generics in this API (D123): `add_component` takes `Anything` (an empty
 `type`, which any class fits), and the class test `if value == $component_type` inside each column narrows it back.
 Every class in a `Component` namespace gets its column when `App()` starts, found at compile time the way systems
 are. A component built in place goes into a named `var` first, since Spite allows a constructor as an argument only
 one level deep.
 
 A negative id is no entity, so `of` and `has` crash on one (`looked_up_a_real_entity_not_a_negative_id`) instead of
-reading outside the column, which once segfaulted Theseus. An optional relation is a component that is present or
-absent, not an id of −1.
+reading outside the column, which once segfaulted Theseus. An optional link is a component that is present or
+absent, never an id of −1.
 
 Changes are applied between stages, like Bevy's `Commands`, so a column never changes while a system is iterating
 it. **Each runner has its own command buffer**: before a system runs, its thread is marked with the runner's buffer (a
@@ -67,14 +74,60 @@ not have:
 
 - a `Boolean` attribute: a state is a marker, added when it holds and removed when it does not (`Component.Quit`,
   `Component.Rang`, `Window.Component.Hidden`, `Input.Component.LeftDown`);
-- an `Entity` attribute: a link between entities is a relation, `entity.relate(name, target)`;
+- an `Entity` attribute beside other attributes: a component holding an `Entity` is a
+  [link component](#links-between-entities), which holds only `var entity = Entity()`;
 - an optional `T?` attribute: whether the value is there is another component;
 - a collection of Booleans (`List<Boolean>`, `Dictionary<Boolean>`): each item's state is a marker on that item's own
   entity, as each texture's `Render.Component.TextureReady`;
 - a `stored_inline()` function: storage is inferred.
 
 At startup `App()` walks every registered component (`slop/component_rule.spite`), prints each break as
-`ECS rule: <Component>.<attribute> ...`, then crashes on `components_follow_the_ecs_rules` if there was any.
+`ECS rule: <Component>.<attribute> ...`, then crashes on `components_follow_the_ecs_rules` if there was any. For an
+`Entity` attribute it also reports one not named `entity`, and a default naming a real entity instead of `Entity()`.
+
+A component marks only what an entity has, never what it lacks (Mortaro, 2026-09-30): no field, marker or value
+says "none", "not yet" or "no target". An entity with nothing to chase has no `Target`.
+
+### Links between entities
+
+A link is an ordinary component whose one attribute is the entity it names, in a file of its own (Mortaro,
+2026-09-30):
+
+```gdscript
+# slop/component/parent.spite
+var entity = Entity()
+```
+
+`Component.Parent`, a game's `Target`, `Source`, `Owner` or `Near` all have this shape. Anything else about the link
+goes in a component of its own on the same entity, and a link that carries data is an entity of its own: a hit is
+an entity holding `Source`, `Target` and `Hit { damage }`, so several hits in one frame are several entities. A
+component holding an `Entity` and anything else is an ECS rule break at startup.
+
+`Entity()` is only the declared default, because Spite gives every attribute one. A link is added when its entity is
+known, like any component, and never before:
+
+```gdscript
+var chase = Component.Target()
+chase.entity = prey
+hunter.add_component(chase)
+```
+
+- **Adding a link whose entity is not set, or is already despawned, crashes** when the command applies
+  (`a_link_is_added_only_once_its_entity_is_set`, `a_link_names_a_living_entity`), whether it came from
+  `add_component`, a bundle or the network. `examples/dead_link_refused/test.sh` checks both.
+- **A link's entity is always alive.** When an entity is despawned, every link naming it goes in the same flush:
+  a `Parent`'s holder is despawned with it (and its children, and theirs); any other link component is removed
+  from its holder, which stays. The removal is an ordinary one, so `Removed<Component.Target>` sees it and a
+  mirrored link vanishes on every peer. So a system never checks whether its target still exists.
+- The links are found at compile time: `App()` registers every component class holding an `Entity`, and the despawn
+  flush walks only those columns, reading each row's entity where it is stored. It costs one pass over the link
+  rows for each flush that despawns something, plus one more pass over `Parent` per level of children (a proposal
+  by Claude, chosen over a reverse index from entity to holders, which a system writing a link's entity in place
+  would silently leave stale).
+
+Changing a link is adding it again (`add_component` replaces), and removing it is `remove_component`. Links are
+networked like any component: `mirrored_from` or `sent_from` on the link's class, and its entity travels as the
+receiver's own ([networking.md](networking.md#entity-fields-travel-as-the-receivers-entities)).
 
 ## Bundles
 
@@ -86,16 +139,16 @@ D237), so a bundle the typed path does not recognise takes the reflective path, 
 
 
 A bundle is a class in a `bundle/` folder whose attributes are components, with a constructor that sets them up.
-`world.create_entity_from_bundle(bundle)` adds each attribute, walked at run time through `attribute.value`, so a
+`world.spawn_entity_from_bundle(bundle)` adds each attribute, walked at run time through `attribute.value`, so a
 bundle has no code for spawning itself.
 
 ```gdscript
 # examples/click_counter/bundle/count_label.spite
-var parent = Ui.Component.Parent()
+var parent = Component.Parent()
 var text = Ui.Component.Text()
 var label = Component.CountLabel()
 
-func CountLabel(button: Integer) {
+func CountLabel(button: Entity) {
     parent.entity = button
     text.text = "0"
     text.scale = 3
@@ -152,7 +205,7 @@ type Potion {
     entity: Entity
     item: Component.HealingItem
     active: Component.Active
-    owner: Entity
+    owner: Component.Owner
 }
 
 type Target {
@@ -174,37 +227,40 @@ func update_each(potion: Potion, target: Target) {
 |---|---|
 | a component class | the entity must have it; the field is the stored component, and changing its fields changes it |
 | a marker component | the entity must have it; nothing is fetched |
-| `entity: Entity` (named `entity`) | the entity's own id; not a filter |
-| any other `Entity` field, e.g. `owner: Entity` | a relation: stored as the component `Entity.owner`, and the next row is the entity it points at |
+| `entity: Entity` (named `entity`) | the entity's own id; not a filter. An `Entity` field with any other name is a startup crash, `a_row_field_of_class_entity_is_named_entity` |
+| a link component, e.g. `parent: Component.Parent` | the entity must have it, like any component; in a system's first row it also says the next row is the entity it names ([below](#following-a-link)) |
 | `Added<T>` | `T` was added since this system last ran; `.value` is the component |
 | `Removed<T>` | `T` was removed (or its entity despawned) since this system last ran; the component itself is gone, so there is no `.value` to read |
 | `Without<T>` | the entity does not have `T`: a system skips entities in a state by the absence of a component, never by a flag in a field (name the field without a leading `_`, since private fields are not walked) |
 
 Replacing a component in the row (`target.health = target.health + ...`) is written back after the call.
 
-### Relations at any moment
+### Following a link
 
-A relation is a component, so it can be set or removed whenever an entity's components can (Mortaro, 2026-09-27;
-the names below are proposals). The change is queued like any other and applied after the stage.
+A row asks for a link by holding the link component, and in a system of two rows, a link in the first row makes the
+second row the entity it names (a proposal by Claude: the first link component of the first row is followed):
 
-| Call | Does |
-|---|---|
-| `entity.add_parent_entity(parent)` | sets the relation `parent`, replacing any earlier one |
-| `parent.add_child_entity(child)` | the same, from the parent's side |
-| `entity.remove_parent_entity()` | removes the relation `parent` |
-| `entity.relate(name, target)`, `entity.unrelate(name)` | any named relation: `target` for a chase, `owner`, `carrier` |
+```gdscript
+# examples/relations_check/system/sum_held.spite
+type Held {
+    item: Component.Item
+    parent: Component.Parent
+}
 
-Despawning an entity despawns its children too, and theirs, in the same flush: every entity whose `parent` relation
-points at it. Only `parent` cascades; a named relation such as `target` is simply left pointing at nothing.
-A child linked to a parent that is already gone (a stale id held across a frame) is despawned in the flush that links
-it, so no child outlives its parent. Entity ids are never reused, and the world keeps one bit per despawned id to
-know which parents are gone.
+type Owner {
+    player: Component.Player
+}
 
-A row asks for a relation with a field of that name (`parent: Entity`), and the next row is the entity it points at.
-A system over two such rows follows the relation instead of pairing every entity of one row with every entity of the
-other: `relations_check` sums 10,000 items into the 1,000 players that hold them in 4.4 ms a tick (optimized),
-then moves some to another player and drops others, and the sums follow; despawning a player despawns the items it
-holds and what they hold.
+func update_each(held: Held, owner: Owner) {
+    owner.player.total = owner.player.total + held.item.value
+}
+```
+
+So the system follows the link instead of pairing every entity of one row with every entity of the other:
+`relations_check` sums 10,000 items into the 1,000 players that hold them in 3.3 ms a tick (optimized), then moves
+some to another player (`add_component` of a new `Parent`) and takes others out (`remove_component`), and the sums
+follow; despawning a player despawns the items it holds and what they hold, and despawning a hunter's prey removes
+its `Target` in that flush, which a `Removed<Component.Target>` row sees.
 
 ### What decides where a system runs
 
@@ -299,8 +355,7 @@ Each component class has a column: a sparse set whose bookkeeping lives in raw `
 name through `Columns`. The raw header holds the entity of each row, the tick each row was added, and a sparse
 array from entity to row. `Column<T>` holds the values themselves. Removal swaps the last row into the gap.
 `Column<T>`, `Slot<T>` and `Row<T>` are generic singletons, one per type, so a system's fill is typed code with no
-lookup by name on the hot path. Only `Entity` relation columns (`Entity.owner`) look up their name, since they
-share one `Column<Entity>` and keep one list per relation.
+lookup by name on the hot path.
 
 Values are stored one of two ways:
 
@@ -314,13 +369,13 @@ Values are stored one of two ways:
 component. A borrowed result can't be replaced: `var layout = lookup.of(entity)` followed by `layout = made` is a
 compile error, so pass the found and the new item to a small writer function instead.
 
-A system with one row and no `Added`, `Removed` or relation field runs on the fast path, `Stream<System, Row>`. It
+A system with one row and no `Added` or `Removed` field runs on the fast path, `Stream<System, Row>`. It
 walks the driver column and fills each row straight from the columns (D217): inline items are borrowed and written
 in place, with no copy and no reference counting, and references are handed over as they are. The runner picks
 it with `phase.argument_count() == 1` (D219), so systems with several rows still compile and use the combination
 path. Other rows get a copy of inline items, which is written back after the system runs.
 
-A system with two rows (and no leading relation) takes the smaller row as the outer loop and streams the larger one
+A system with two rows (and no link in the first) takes the smaller row as the outer loop and streams the larger one
 inside it: `render_each(target: Target, modeled: Modeled)` fills the one window's row once and walks every model,
 instead of pairing them through the general combination path. Scene Gather is written this way (`BeginView`,
 `GatherModels`, `GatherCells`): 17,000 models went from 30 ms as a list system to 8 ms.

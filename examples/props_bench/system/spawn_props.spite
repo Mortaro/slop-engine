@@ -8,12 +8,12 @@ var environment = Environment()
 func update_each(_started: Started) {
     var window_bundle = Window.Bundle.Window()
     window_bundle.window.title = "Props bench"
-    var window_entity = world.create_entity_from_bundle(window_bundle)
+    var window_entity = world.spawn_entity_from_bundle(window_bundle)
     if not environment.show_window {
         var hidden = Window.Component.Hidden()
         window_entity.add_component(hidden)
     }
-    var camera_entity = world.create_entity()
+    var camera_entity = world.spawn_entity()
     var camera = Camera.Component.Camera()
     camera.eye_x = 0.0
     camera.eye_y = 40.0
@@ -25,7 +25,7 @@ func update_each(_started: Started) {
     camera_entity.add_component(camera)
     var index = 0
     while index < environment.props {
-        var prop = world.create_entity()
+        var prop = world.spawn_entity()
         var model = Scene.Component.Model()
         model.mesh = "mesh.bench.cube"
         prop.add_component(model)

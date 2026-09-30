@@ -1,3 +1,4 @@
+var world = World()
 var tree = Cases.Tree()
 var console = Console()
 var hidden_child = 0
@@ -7,7 +8,7 @@ func build() {
     var hidden_root = tree.screen(200.0, 100.0)
     var hiding = Ui.Component.Display()
     hiding.value = 'none'
-    Entity(hidden_root).add_component(hiding)
+    world.entity_of(hidden_root).add_component(hiding)
     hidden_child = tree.sized(hidden_root, 50.0, 50.0)
     var shown_root = tree.screen(200.0, 100.0)
     shown_child = tree.sized(shown_root, 50.0, 50.0)

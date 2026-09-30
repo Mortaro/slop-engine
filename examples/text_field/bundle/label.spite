@@ -1,7 +1,7 @@
-var parent = Ui.Component.Parent()
+var parent = Component.Parent()
 var text = Ui.Component.Text()
 
-func Label(screen: Integer) {
+func Label(screen: Entity) {
     parent.entity = screen
     text.text = "NAME:"
     text.scale = 2

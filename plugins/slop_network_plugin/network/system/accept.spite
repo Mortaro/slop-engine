@@ -24,6 +24,6 @@ func input_each(hosting: Hosting) {
 func adopt(accepted: Socket) {
     var connection = Network.Component.Connection()
     connection.stream.adopt(accepted)
-    var peer = world.create_entity()
+    var peer = world.spawn_entity()
     peer.add_component(connection)
 }

@@ -51,7 +51,11 @@ func read(bytes: Asset.Bytes): $field_type {
     } else if $field_type == Entity {
         var wire = bytes.read_integer()
         var local = mirrors.field_from_wire(wire)
-        return Entity(local)
+        var linked = Entity()
+        if local >= 0 {
+            linked.id = local
+        }
+        return linked
     } else if $field_type == List {
         var list_field = ListField<$field_type>()
         return list_field.read(bytes)

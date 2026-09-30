@@ -1,7 +1,7 @@
 type Attached {
     attachment: Animation.Component.BoneAttachment
     transform: Transform.Component.Transform
-    parent: Entity
+    parent: Component.Parent
 }
 
 type Carrier {

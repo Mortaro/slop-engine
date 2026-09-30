@@ -24,7 +24,7 @@ func take_socket(connect: Network.Component.Connect) {
     if socket {
         var connection = Network.Component.Connection()
         connection.stream.adopt(socket)
-        var peer = world.create_entity()
+        var peer = world.spawn_entity()
         peer.add_component(connection)
         connect.connection = peer.id
         connect.wait_ticks = 1

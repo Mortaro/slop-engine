@@ -1,4 +1,4 @@
-var parent = Ui.Component.Parent()
+var parent = Component.Parent()
 var width = Ui.Component.Width()
 var height = Ui.Component.Height()
 var border = Ui.Component.BorderWidth()
@@ -7,7 +7,7 @@ var horizontal = Ui.Component.OverflowX()
 var vertical = Ui.Component.OverflowY()
 var scroll = Ui.Component.ScrollPosition()
 
-func ClippedPanel(screen: Integer) {
+func ClippedPanel(screen: Entity) {
     parent.entity = screen
     width.length.pixels(120.0)
     height.length.pixels(50.0)

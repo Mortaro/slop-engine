@@ -1,4 +1,4 @@
-var parent = Ui.Component.Parent()
+var parent = Component.Parent()
 var button = Ui.Component.Button()
 var width = Ui.Component.Width()
 var height = Ui.Component.Height()
@@ -7,7 +7,7 @@ var justify = Ui.Component.JustifyContent()
 var alignment = Ui.Component.AlignItems()
 var background_image = Ui.Component.BackgroundImage()
 
-func CounterButton(screen: Integer) {
+func CounterButton(screen: Entity) {
     parent.entity = screen
     width.length.pixels(176.0)
     height.length.pixels(40.0)

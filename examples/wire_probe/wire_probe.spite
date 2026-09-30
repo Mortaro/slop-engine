@@ -7,7 +7,7 @@ func WireProbe() {
     var app = App()
     var local = mirrors.local_of(5000)
     world.flush()
-    var target = Entity(local)
+    var target = world.entity_of(local)
     var bytes = Asset.Bytes()
     var field = Field<Entity>()
     field.write(target, bytes)
@@ -15,7 +15,37 @@ func WireProbe() {
     var sent = Asset.Bytes()
     sent.write_integer(wire)
     var back = field.read(sent)
-    var passed = wire == -5100 and back.id == 5000
-    console.print("local", local, "wire", wire, "read back on the other side", back.id, "passed", passed)
+    var field_passed = wire == -5100 and back.id == 5000
+    console.print("local", local, "wire", wire, "read back on the other side", back.id)
+    var link_passed = link_round_trip(local)
+    console.print("passed", field_passed and link_passed)
     app.tick()
+}
+
+func link_round_trip(local: Integer): Boolean {
+    var near = Component.Near()
+    near.entity = world.entity_of(local)
+    var pack = Pack<Component.Near>()
+    var bytes = Asset.Bytes()
+    pack.write(near, bytes)
+    var arrived = Component.Near()
+    pack.read_into(arrived, bytes)
+    var own = world.spawn_entity()
+    var mine = Component.Near()
+    mine.entity = own
+    var own_bytes = Asset.Bytes()
+    pack.write(mine, own_bytes)
+    var unknown = Component.Near()
+    pack.read_into(unknown, own_bytes)
+    console.print(
+        "a Near naming mirror",
+        local,
+        "arrives naming the receiver's own",
+        arrived.entity.id,
+        "and one naming the sender's own",
+        own.id,
+        "arrives naming a new mirror",
+        unknown.entity.id,
+    )
+    return arrived.entity.id == 5000 and unknown.entity.id != own.id and unknown.entity.id > own.id
 }

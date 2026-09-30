@@ -91,7 +91,7 @@ func inside(
 }
 
 func spawn(is_player: Boolean) {
-    var entity = world.create_entity()
+    var entity = world.spawn_entity()
     last_spawned = entity.id
     if is_player and first_player < 0 {
         first_player = entity.id

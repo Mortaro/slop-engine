@@ -1,10 +1,10 @@
-var parent = Ui.Component.Parent()
+var parent = Component.Parent()
 var width = Ui.Component.Width()
 var height = Ui.Component.Height()
 var shrink = Ui.Component.FlexShrink()
 var background_image = Ui.Component.BackgroundImage()
 
-func PanelImage(panel: Integer) {
+func PanelImage(panel: Entity) {
     parent.entity = panel
     width.length.pixels(176.0)
     height.length.pixels(40.0)

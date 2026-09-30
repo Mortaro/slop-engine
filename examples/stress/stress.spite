@@ -59,7 +59,7 @@ func spawn_bodies(): List<Integer> {
     var index = 0
     while index < environment.bodies {
         var body_bundle = Bundle.Body()
-        var body = world.create_entity_from_bundle(body_bundle)
+        var body = world.spawn_entity_from_bundle(body_bundle)
         ids.append(body.id)
         index = index + 1
     }

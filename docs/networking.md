@@ -108,18 +108,26 @@ func sent_from(environment: String): Boolean {
 
 ### Entity fields travel as the receiver's entities
 
-A replicated component may hold other entities in fields typed `Entity` (a monster's `target`, an item's `owner`),
-and each side reads them as its own entities. On the wire a field says whose entity it is:
+A replicated [link component](ecs.md#links-between-entities) holds another entity (a monster's `Target`, an item's
+`Owner`), and each side reads it as its own entity. There is no network API for links: they are ordinary components,
+replicated by `mirrored_from` or `sent_from` on their class like any other. On the wire an `Entity` field says whose
+entity it is:
 
 - an entity of the sender's own goes as its id; the receiver turns it into its mirror of that entity, made on the
   spot if it has not arrived yet, so a pointer can arrive before what it points at;
 - a mirror goes as the id it has on the other side, marked (`-100 - id`), so a client naming a server monster
   through its mirror names the server's own entity, and the server uses it as it is;
-- the world entity and "no entity" (a negative id) keep their meaning on both sides.
+- the world entity keeps its meaning on both sides.
+
+A link whose entity is despawned on the sender is removed there in the same flush, so the removal travels like any
+other and the receiver drops its copy; the receiver also removes it itself when the mirror of that entity goes.
+Either way a link never names a gone entity on any side.
 
 `Mirrors()` (a core singleton) holds the table; `mirrors.local_of(remote)` answers the local entity for a remote id.
-A field typed `Integer` is sent as it is. `interest_check` tests both directions: a server-side pointer arrives as the
-bot's mirror, and a bot message naming a beacon through its mirror reaches the server as the server's own beacon.
+A field typed `Integer` is sent as it is. `interest_check` tests both directions: a server-side `Near` arrives naming the
+bot's mirror, a bot's `Target` message naming a beacon through its mirror reaches the server as the server's own
+beacon, and once the server despawns that beacon, every stash's `Near` is gone on the bot too. `wire_probe` checks the
+same translation through a link component's codec.
 
 ### Who observes what
 
@@ -135,14 +143,15 @@ Observer children as it has observers, and systems keep them up to date:
   connection, while the public entity is observed by everyone in sight.
 
 ```gdscript
-var item_view = world.create_entity()
+var item_view = world.spawn_entity()
 var observer = Network.Component.Observer()
 observer.subject = item.id
 observer.observer = owner_connection
 item_view.add_component(observer)
 ```
 
-(`subject` names the observed entity until the engine has a parent relation; both ids are proposals by Claude.)
+(`subject` and `observer` are still entity ids kept as `Integer`s, from before links were components; making the
+observation a child of the observed entity with a link to its connection is queued. Both are proposals by Claude.)
 
 The network plugin collects each connection's observed entities every tick (`Address`, in `present`). It keeps, per
 connection, which entities the peer knows. An entity that becomes observed is sent in full, one that stays is sent
@@ -234,8 +243,8 @@ lost a scripted client's first `/give` that way, silently.
 - `Network.Component.Arrived.message` holds the codec id of the component the message carries.
 
 For several events of one type in one tick (two `Grant`s to one player), make each event an entity of its own,
-parented to its target (`event.add_parent_entity(player)`), and let the handler despawn it once applied; a
-component on the target holds only one value per type.
+a child of its target (`player.spawn_entity()`), and let the handler despawn it once applied; a component on the
+target holds only one value per type.
 
 ### The wire
 

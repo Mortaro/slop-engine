@@ -102,7 +102,6 @@ system reads them.
 | | |
 |---|---|
 | `Ui.Component.Screen` | the root of an element tree; `width` and `height` are the viewport it fills |
-| `Ui.Component.Parent` | the element's parent entity |
 | layout components | one per CSS property: `Display`, `FlexDirection`, `Width`, `Margin`, ... (see [ui.md](ui.md)) |
 | `Ui.Component.ComputedLayout` | the border box the layout computed: `left`, `top`, `width`, `height` |
 | `Ui.Component.ContentSize` | a leaf's own size, measured from its content |

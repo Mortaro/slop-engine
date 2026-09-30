@@ -1,3 +1,4 @@
+var world = World()
 var children = Dictionary<List<Integer>>()
 var created_layouts = Dictionary<Ui.Component.ComputedLayout>()
 var created_clips = Dictionary<Ui.Component.ComputedClip>()
@@ -1421,7 +1422,7 @@ func fill_scrollbars(
     if vertical_shown and horizontal_shown {
         corner = bars.thickness
     }
-    var owner = Entity(entity)
+    var owner = world.entity_of(entity)
     remove_hidden_bars(owner, vertical_shown, horizontal_shown)
     if vertical_shown {
         var vertical_track = padding_height - corner

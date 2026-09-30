@@ -34,7 +34,7 @@ func TimersCheck() {
 }
 
 func spawn_timer(milliseconds: Integer, repeat: Boolean): Integer {
-    var entity = world.create_entity()
+    var entity = world.spawn_entity()
     var timer = Component.Timer()
     timer.start(milliseconds)
     entity.add_component(timer)

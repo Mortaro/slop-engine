@@ -2,7 +2,7 @@ type Potion {
     entity: Entity
     item: Component.HealingItem
     active: Component.Active
-    owner: Entity
+    owner: Component.Owner
 }
 
 type Target {

@@ -2,32 +2,64 @@ generic $component_type
 
 var console = Console()
 var columns = Columns()
+var sample: $component_type = $component_type()
 var broken = 0
+var counted_attributes = 0
+var links = 0
 
 func check(): Integer {
     broken = 0
-    check_attributes()
+    counted_attributes = 0
+    links = 0
+    check_attributes(sample)
+    if links > 0 and counted_attributes > 1 {
+        report(
+            "",
+            "holds an Entity and other attributes: a link component holds only its entity, and the rest goes in a component of its own",
+        )
+    }
     if $component_type.has_function("stored_inline") {
-        report("stored_inline()", "is declared: storage is inferred, so remove it")
+        report(".stored_inline()", "is declared: storage is inferred, so remove it")
     }
     return broken
 }
 
-func check_attribute(attribute: Symbol<$component_type>) {
+func check_attribute(attribute: Symbol<$component_type>, value: $component_type) {
+    counted_attributes = counted_attributes + 1
     var type_name: String = attribute.class
-    if type_name == "Boolean" {
-        report(attribute.name, "is a Boolean: a state is a marker component, added when it holds and removed when not")
-    } else if type_name == "Entity" {
-        report(attribute.name, "is an Entity: a link is a relation, entity.relate(name, target)")
+    if attribute.class == Entity {
+        links = links + 1
+        var linked = value.attributes[attribute].id
+        var name: String = attribute.name
+        check_link(name, linked)
+    } else if type_name == "Boolean" {
+        report(
+            ".{attribute.name}",
+            "is a Boolean: a state is a marker component, added when it holds and removed when not",
+        )
     } else if type_name.ends_with("?") {
-        report(attribute.name, "is optional: whether it is there is another component")
+        report(".{attribute.name}", "is optional: whether it is there is another component")
     } else if type_name.contains("Boolean>") {
-        report(attribute.name, "holds Booleans: each item's state is a marker on that item's own entity")
+        report(".{attribute.name}", "holds Booleans: each item's state is a marker on that item's own entity")
+    }
+}
+
+func check_link(name: String, linked: Integer) {
+    if name != "entity" {
+        report(
+            ".{name}",
+            "is an Entity not named entity: a link component holds one attribute, 'var entity = Entity()'",
+        )
+    } else if linked >= 0 {
+        report(
+            ".{name}",
+            "defaults to entity {linked}: declare 'var entity = Entity()' and add the component once its entity is known",
+        )
     }
 }
 
 func report(member: String, why: String) {
     var name = columns.key($component_type)
-    console.error("ECS rule: {name}.{member} {why} (docs/ecs.md#components-hold-data)")
+    console.error("ECS rule: {name}{member} {why} (docs/ecs.md#components-hold-data)")
     broken = broken + 1
 }

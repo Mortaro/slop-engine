@@ -7,7 +7,7 @@ func Tracking() {
     var starting_tally = Component.Tally()
     world.as_entity().add_component(starting_tally)
     var bell_bundle = BellBundle()
-    world.create_entity_from_bundle(bell_bundle)
+    world.spawn_entity_from_bundle(bell_bundle)
     var tick = 0
     while tick < 12 {
         app.tick()

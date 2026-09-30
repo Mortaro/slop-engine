@@ -4,7 +4,6 @@ generic $slot_type
 
 var raw = Raw()
 var column = Column<$slot_type>()
-var columns = Columns()
 
 func tracking_kind(current: $slot_type): Integer {
     if $slot_type.has_function("tracking_kind") {
@@ -26,16 +25,13 @@ func fetch(entity: Integer, current: $slot_type, column_header: Long, row: Integ
         return current
     }
     if $slot_type == Entity {
-        if column_header == 0 {
-            current.id = entity
-            return current
-        }
+        current.id = entity
+        return current
     }
     crash column_header != 0
     var entities = raw.read_long(column_header, 24)
     crash raw.read_long(entities, row * 8) == entity
-    var name = relation_name(column_header)
-    return column.value_at(name, row)
+    return column.value_at(row)
 }
 
 func store(current: $slot_type, column_header: Long, row: Integer) {
@@ -50,29 +46,13 @@ func store(current: $slot_type, column_header: Long, row: Integer) {
 
 func store_component(current: $slot_type, column_header: Long, row: Integer) {
     assert column_header != 0
-    var name = relation_name(column_header)
-    column.write_at(name, row, current)
+    column.write_at(row, current)
 }
 
-func relation_name(column_header: Long): String {
-    var name = ""
-    if $slot_type == Entity {
-        name = columns.name_of_header(column_header)
+func link_target(value: $slot_type): Integer {
+    if $slot_type == Entity or $slot_type.has_function("fill_from") {
+        return -1
     }
-    return name
-}
-
-func entity_of(value: $slot_type): Integer {
-    if $slot_type == Entity {
-        return value.id
-    }
-    return -1
-}
-
-func insert(entity: Integer, value: $slot_type, name: String) {
-    var key = columns.key(value.class)
-    if $slot_type == Entity {
-        key = "Entity.{name}"
-    }
-    column.insert_keyed(entity, value, key)
+    var link = Link<$slot_type>()
+    return link.target_of(value)
 }

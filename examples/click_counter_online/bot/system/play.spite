@@ -29,7 +29,7 @@ func update_each(playing: Playing) {
 
 func send_clicks() {
     assert environment.clicks > 0
-    var request = world.create_entity()
+    var request = world.spawn_entity()
     var click = Component.ClickRequest()
     click.clicks = environment.clicks
     request.add_component(click)

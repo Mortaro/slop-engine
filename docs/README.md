@@ -7,7 +7,7 @@ claim about behaviour is checked by one of the programs in `examples/` (see [tes
 | Page | What it covers |
 |---|---|
 | [getting-started.md](getting-started.md) | installing nothing, running the examples, the shape of a program |
-| [ecs.md](ecs.md) | entities, components, markers, state as components, systems, rows, relations, change tracking, phases, threads |
+| [ecs.md](ecs.md) | entities, components, markers, state as components, systems, rows, links between entities, change tracking, phases, threads |
 | [plugins.md](plugins.md) | every plugin: what it brings, its components and systems |
 | [ui.md](ui.md) | buttons, interaction markers, styles as components, how a game writes state styles |
 | [rendering.md](rendering.md) | the draw list, the software and Vulkan backends, parity, the window without callbacks |

@@ -5,6 +5,6 @@ type Placed {
 
 func update_each(placed: Placed) {
     var observed = Network.Component.Observed()
-    var target = Entity(placed.entity.id)
+    var target = placed.entity
     target.add_component(observed)
 }

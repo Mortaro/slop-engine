@@ -6,7 +6,7 @@ func InlineStringProbe() {
     var app = App()
     var index = 0
     while index < 2000 {
-        var entity = world.create_entity()
+        var entity = world.spawn_entity()
         var label = Component.Label()
         label.value = "starting text that is longer than fifteen bytes {index}"
         entity.add_component(label)
@@ -21,7 +21,7 @@ func InlineStringProbe() {
     while spawned < 300 {
         var bundle = LabelBundle()
         bundle.label.value = "made by a bundle, longer than fifteen {spawned}"
-        world.create_entity_from_bundle(bundle)
+        world.spawn_entity_from_bundle(bundle)
         spawned = spawned + 1
     }
     var tick = 0

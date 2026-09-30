@@ -9,6 +9,6 @@ type Sealed {
 
 func update_each(staged: Staged, sealed: Sealed) {
     assert staged.script.step == 2
-    var target = Entity(sealed.entity.id)
+    var target = sealed.entity
     target.remove_component(Component.Sealed)
 }

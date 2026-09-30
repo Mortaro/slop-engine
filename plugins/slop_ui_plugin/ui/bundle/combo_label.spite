@@ -2,7 +2,7 @@ var parent = Component.Parent()
 var label = Component.ComboLabel()
 var text = Component.Text()
 
-func ComboLabel(combo: Integer, shown: String) {
+func ComboLabel(combo: Entity, shown: String) {
     parent.entity = combo
     text.text = shown
 }

@@ -19,7 +19,7 @@ func request(id: String): Integer {
     var created = Render.Component.Texture()
     created.id = id
     created.slot = slot
-    var owner = world.create_entity()
+    var owner = world.spawn_entity()
     owner.add_component(created)
     entities.append(owner.id)
     unstarted.append(id)
@@ -89,7 +89,7 @@ func publish(id: String, image: Asset.Texture, raw_texels: Asset.Bytes): Integer
     created.image = image
     created.raw = raw_texels
     created.generation = 1
-    var entity = world.create_entity()
+    var entity = world.spawn_entity()
     entity.add_component(created)
     var ready = Render.Component.TextureReady()
     entity.add_component(ready)
@@ -122,7 +122,7 @@ func finish_if_done(index: Integer) {
     record.loaded_revision = load_revisions[index]
     if not Lookup<Render.Component.TextureReady>().has(owner) {
         var ready = Render.Component.TextureReady()
-        Entity(owner).add_component(ready)
+        world.entity_of(owner).add_component(ready)
     }
     loads.remove_at(index)
     load_slots.remove_at(index)

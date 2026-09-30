@@ -19,6 +19,7 @@ type Pointer {
     mouse: Input.Component.Mouse
 }
 
+var world = World()
 var step: Float = 40.0
 
 var left_down = false
@@ -111,7 +112,7 @@ func grab_thumb(candidate: Scrollable, mouse_left: Float, mouse_top: Float) {
 func begin_drag(entity: Integer, vertical: Boolean, grab: Float) {
     var started = Component.ScrollDrag()
     started.grab = grab
-    var owner = Entity(entity)
+    var owner = world.entity_of(entity)
     owner.add_component(started)
     if vertical {
         var marker = Component.DraggingVertical()

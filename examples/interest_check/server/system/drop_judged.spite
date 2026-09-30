@@ -1,0 +1,19 @@
+type Staged {
+    script: Component.Script
+}
+
+type Judged {
+    verdict: Component.Verdict
+}
+
+type Placed {
+    entity: Entity
+    beacon: Component.Beacon
+}
+
+var world = World()
+
+func update_each(staged: Staged, judged: Judged, placed: Placed) {
+    assert staged.script.step == 3 and placed.beacon.number == judged.verdict.number
+    world.despawn(placed.entity.id)
+}

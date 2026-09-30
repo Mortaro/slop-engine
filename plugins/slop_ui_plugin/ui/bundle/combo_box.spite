@@ -3,7 +3,7 @@ var button = Component.Button()
 var combo = Component.ComboBox()
 var position = Component.Position()
 
-func ComboBox(owner: Integer) {
+func ComboBox(owner: Entity) {
     parent.entity = owner
     position.value = 'relative'
 }

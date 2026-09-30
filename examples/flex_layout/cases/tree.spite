@@ -9,53 +9,50 @@ var expected_entities = List<Integer>()
 var expected_boxes = List<Float>()
 
 func screen(width: Float, height: Float): Integer {
-    var entity = world.create_entity().id
+    var entity = world.spawn_entity().id
     var root = Ui.Component.Screen()
-    Entity(entity).add_component(root)
+    world.entity_of(entity).add_component(root)
     var display = Ui.Component.Display()
     display.value = 'flex'
-    Entity(entity).add_component(display)
+    world.entity_of(entity).add_component(display)
     size(entity, width, height)
     return entity
 }
 
 func element(parent: Integer): Integer {
-    var entity = world.create_entity().id
-    var link = Ui.Component.Parent()
-    link.entity = parent
-    Entity(entity).add_component(link)
-    return entity
+    var child = world.entity_of(parent).spawn_entity()
+    return child.id
 }
 
 func size(entity: Integer, width: Float, height: Float) {
     if width >= 0.0 {
         var width_component = Ui.Component.Width()
         width_component.length.pixels(width)
-        Entity(entity).add_component(width_component)
+        world.entity_of(entity).add_component(width_component)
     }
     if height >= 0.0 {
         var height_component = Ui.Component.Height()
         height_component.length.pixels(height)
-        Entity(entity).add_component(height_component)
+        world.entity_of(entity).add_component(height_component)
     }
 }
 
 func basis(entity: Integer, pixels: Float) {
     var component = Ui.Component.FlexBasis()
     component.length.pixels(pixels)
-    Entity(entity).add_component(component)
+    world.entity_of(entity).add_component(component)
 }
 
 func grow(entity: Integer, factor: Float) {
     var component = Ui.Component.FlexGrow()
     component.value = factor
-    Entity(entity).add_component(component)
+    world.entity_of(entity).add_component(component)
 }
 
 func shrink(entity: Integer, factor: Float) {
     var component = Ui.Component.FlexShrink()
     component.value = factor
-    Entity(entity).add_component(component)
+    world.entity_of(entity).add_component(component)
 }
 
 func expect_box(name: String, entity: Integer, left: Float, top: Float, width: Float, height: Float) {
@@ -102,7 +99,7 @@ func margins(entity: Integer, top: Float, right: Float, bottom: Float, left: Flo
     length_of(component.right, right)
     length_of(component.bottom, bottom)
     length_of(component.left, left)
-    Entity(entity).add_component(component)
+    world.entity_of(entity).add_component(component)
 }
 
 func padding_all(entity: Integer, value: Float) {
@@ -111,14 +108,14 @@ func padding_all(entity: Integer, value: Float) {
     component.right.pixels(value)
     component.bottom.pixels(value)
     component.left.pixels(value)
-    Entity(entity).add_component(component)
+    world.entity_of(entity).add_component(component)
 }
 
 func padding_sides(entity: Integer, left: Float, right: Float) {
     var component = Ui.Component.Padding()
     component.left.pixels(left)
     component.right.pixels(right)
-    Entity(entity).add_component(component)
+    world.entity_of(entity).add_component(component)
 }
 
 func border_all(entity: Integer, value: Float) {
@@ -127,13 +124,13 @@ func border_all(entity: Integer, value: Float) {
     component.right.pixels(value)
     component.bottom.pixels(value)
     component.left.pixels(value)
-    Entity(entity).add_component(component)
+    world.entity_of(entity).add_component(component)
 }
 
 func border_box(entity: Integer) {
     var component = Ui.Component.BoxSizing()
     component.value = 'border_box'
-    Entity(entity).add_component(component)
+    world.entity_of(entity).add_component(component)
 }
 
 func position(entity: Integer, kind: String) {
@@ -143,7 +140,7 @@ func position(entity: Integer, kind: String) {
     } else {
         component.value = 'absolute'
     }
-    Entity(entity).add_component(component)
+    world.entity_of(entity).add_component(component)
 }
 
 func inset(entity: Integer, top: Float, right: Float, bottom: Float, left: Float) {
@@ -152,7 +149,7 @@ func inset(entity: Integer, top: Float, right: Float, bottom: Float, left: Float
     length_of(component.right, right)
     length_of(component.bottom, bottom)
     length_of(component.left, left)
-    Entity(entity).add_component(component)
+    world.entity_of(entity).add_component(component)
 }
 
 func align_self(entity: Integer, kind: String) {
@@ -166,7 +163,7 @@ func align_self(entity: Integer, kind: String) {
     } else {
         component.value = 'stretch'
     }
-    Entity(entity).add_component(component)
+    world.entity_of(entity).add_component(component)
 }
 
 func align_items(entity: Integer, kind: String) {
@@ -178,7 +175,7 @@ func align_items(entity: Integer, kind: String) {
     } else if kind == "center" {
         component.value = 'center'
     }
-    Entity(entity).add_component(component)
+    world.entity_of(entity).add_component(component)
 }
 
 func direction(entity: Integer, kind: String) {
@@ -190,7 +187,7 @@ func direction(entity: Integer, kind: String) {
     } else if kind == "column_reverse" {
         component.value = 'column_reverse'
     }
-    Entity(entity).add_component(component)
+    world.entity_of(entity).add_component(component)
 }
 
 func wrap(entity: Integer, kind: String) {
@@ -200,7 +197,7 @@ func wrap(entity: Integer, kind: String) {
     } else {
         component.value = 'wrap_reverse'
     }
-    Entity(entity).add_component(component)
+    world.entity_of(entity).add_component(component)
 }
 
 func align_content(entity: Integer, kind: String) {
@@ -210,22 +207,22 @@ func align_content(entity: Integer, kind: String) {
     } else if kind == "space_between" {
         component.value = 'space_between'
     }
-    Entity(entity).add_component(component)
+    world.entity_of(entity).add_component(component)
 }
 
 func gaps(entity: Integer, row: Float, column: Float) {
     var row_gap = Ui.Component.RowGap()
     row_gap.length.pixels(row)
-    Entity(entity).add_component(row_gap)
+    world.entity_of(entity).add_component(row_gap)
     var column_gap = Ui.Component.ColumnGap()
     column_gap.length.pixels(column)
-    Entity(entity).add_component(column_gap)
+    world.entity_of(entity).add_component(column_gap)
 }
 
 func order(entity: Integer, value: Integer) {
     var component = Ui.Component.Order()
     component.value = value
-    Entity(entity).add_component(component)
+    world.entity_of(entity).add_component(component)
 }
 
 func justify(entity: Integer, kind: String) {
@@ -233,7 +230,7 @@ func justify(entity: Integer, kind: String) {
     if kind == "center" {
         component.value = 'center'
     }
-    Entity(entity).add_component(component)
+    world.entity_of(entity).add_component(component)
 }
 
 func sized(parent: Integer, width: Float, height: Float): Integer {

@@ -42,7 +42,7 @@ func poll_slot(pads: List<Pad>, slot: Integer, state: Long) {
         var gamepad = Input.Component.Gamepad()
         gamepad.slot = slot
         read_pad(gamepad, connected, state)
-        var entity = world.create_entity()
+        var entity = world.spawn_entity()
         entity.add_component(gamepad)
         var marker = Input.Component.GamepadConnected()
         entity.add_component(marker)

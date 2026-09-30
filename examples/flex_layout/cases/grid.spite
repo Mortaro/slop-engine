@@ -1,3 +1,4 @@
+var world = World()
 var tree = Cases.Tree()
 
 func build() {
@@ -9,14 +10,14 @@ func build() {
 func grid(entity: Integer, first: Ui.Length, second: Ui.Length, third: Ui.Length?) {
     var display = Ui.Component.Display()
     display.value = 'grid'
-    Entity(entity).add_component(display)
+    world.entity_of(entity).add_component(display)
     var columns = Ui.Component.GridTemplateColumns()
     columns.tracks.append(first)
     columns.tracks.append(second)
     if third {
         columns.tracks.append(third)
     }
-    Entity(entity).add_component(columns)
+    world.entity_of(entity).add_component(columns)
 }
 
 func fixed_and_fractions() {

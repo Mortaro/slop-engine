@@ -6,7 +6,7 @@ var position = Component.Position()
 var inset = Component.Inset()
 var z_index = Component.ZIndex()
 
-func ComboPopup(combo: Integer) {
+func ComboPopup(combo: Entity) {
     parent.entity = combo
     display.value = 'none'
     direction.value = 'column'

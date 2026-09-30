@@ -1,4 +1,4 @@
-var parent = Ui.Component.Parent()
+var parent = Component.Parent()
 var button = Ui.Component.Button()
 var display = Ui.Component.Display()
 var justify = Ui.Component.JustifyContent()
@@ -7,7 +7,7 @@ var width = Ui.Component.Width()
 var height = Ui.Component.Height()
 var background = Ui.Component.BackgroundColor()
 
-func Holder(screen: Integer) {
+func Holder(screen: Entity) {
     parent.entity = screen
     display.value = 'flex'
     justify.value = 'center'

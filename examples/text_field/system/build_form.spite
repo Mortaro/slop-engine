@@ -6,11 +6,11 @@ var world = World()
 
 func update_each(_window: NewWindow) {
     var screen_bundle = Bundle.Screen()
-    var screen = world.create_entity_from_bundle(screen_bundle)
-    var label = Bundle.Label(screen.id)
-    world.create_entity_from_bundle(label)
-    var first = Bundle.FormField(screen.id, 0)
-    world.create_entity_from_bundle(first)
-    var second = Bundle.FormField(screen.id, 1)
-    world.create_entity_from_bundle(second)
+    var screen = world.spawn_entity_from_bundle(screen_bundle)
+    var label = Bundle.Label(screen)
+    world.spawn_entity_from_bundle(label)
+    var first = Bundle.FormField(screen, 0)
+    world.spawn_entity_from_bundle(first)
+    var second = Bundle.FormField(screen, 1)
+    world.spawn_entity_from_bundle(second)
 }

@@ -45,6 +45,10 @@ func register_component(component: Symbol<Component>) {
     column.prepare_column()
     var rule = ComponentRule<component.class>()
     rule_breaks = rule_breaks + rule.check()
+    if rule.links > 0 and component.class != Component.Parent {
+        var link = Link<component.class>()
+        columns.add_link(link)
+    }
 }
 
 func add_system(system: Symbol<System>) {

@@ -6,15 +6,15 @@ var world = World()
 
 func update_each(_window: NewWindow) {
     var screen_bundle = Bundle.Screen()
-    var screen = world.create_entity_from_bundle(screen_bundle)
-    var title = Bundle.Title(screen.id)
-    world.create_entity_from_bundle(title)
-    var list_panel_bundle = Bundle.ListPanel(screen.id)
-    var panel = world.create_entity_from_bundle(list_panel_bundle)
+    var screen = world.spawn_entity_from_bundle(screen_bundle)
+    var title = Bundle.Title(screen)
+    world.spawn_entity_from_bundle(title)
+    var list_panel_bundle = Bundle.ListPanel(screen)
+    var panel = world.spawn_entity_from_bundle(list_panel_bundle)
     var index = 0
     while index < 20 {
-        var row = Bundle.ListRow(panel.id, index)
-        world.create_entity_from_bundle(row)
+        var row = Bundle.ListRow(panel, index)
+        world.spawn_entity_from_bundle(row)
         index = index + 1
     }
 }

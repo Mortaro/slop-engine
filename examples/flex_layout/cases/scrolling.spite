@@ -1,3 +1,4 @@
+var world = World()
 var tree = Cases.Tree()
 var console = Console()
 var panel = 0
@@ -13,13 +14,13 @@ func build() {
     tree.direction(panel, "column")
     var horizontal = Ui.Component.OverflowX()
     horizontal.value = 'hidden'
-    Entity(panel).add_component(horizontal)
+    world.entity_of(panel).add_component(horizontal)
     var vertical = Ui.Component.OverflowY()
     vertical.value = 'scroll'
-    Entity(panel).add_component(vertical)
+    world.entity_of(panel).add_component(vertical)
     var position = Ui.Component.ScrollPosition()
     position.top = 30.0
-    Entity(panel).add_component(position)
+    world.entity_of(panel).add_component(position)
     var index = 0
     while index < 5 {
         var item = tree.sized(panel, -1.0, 40.0)

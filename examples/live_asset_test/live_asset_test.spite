@@ -44,7 +44,7 @@ func write_source(name: String, value: String) {
 }
 
 func spawn_holder() {
-    var made = world.create_entity()
+    var made = world.spawn_entity()
     var meshes = Scene.Component.Meshes()
     made.add_component(meshes)
     holder = made.id

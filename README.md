@@ -71,7 +71,7 @@ Every package, plugin or game has the same folders:
 |---|---|---|
 | `component/` | `Component` | components: plain data classes. A tag is an empty file |
 | `system/` | `System` | systems |
-| `bundle/` | `Bundle` | classes whose attributes are components, for `world.create_entity_from_bundle` |
+| `bundle/` | `Bundle` | classes whose attributes are components, for `world.spawn_entity_from_bundle` |
 | `recipe/` | `Recipe` | recipes: turn source files into assets |
 | `asset/` | `Asset` | asset formats: declared classes, with derived binary codecs |
 
@@ -85,7 +85,7 @@ type Potion {
     entity: Entity
     item: Component.HealingItem
     active: Component.Active
-    owner: Entity
+    owner: Component.Owner
 }
 
 type Target {
@@ -107,9 +107,10 @@ func update_each(potion: Potion, target: Target) {
 - A row is a `type` in the system's file. `Runner<T>` walks its fields with a plural template to decide what to
   query, and fills them from the columns. A replaced component (`target.health = target.health + ...`, through
   `Health.sum`) is written back after the call.
-- In a row, an `Entity` field named `entity` is the row's own id. Any other `Entity` field is a relation: `owner` is
-  stored as the component `Entity.owner`, and the next row is the entity it points at. (Claude's proposal,
-  unconfirmed.)
+- In a row, an `Entity` field named `entity` is the row's own id. A link between entities is a component holding
+  only `var entity = Entity()` (`Component.Parent`, the potion's `Component.Owner`); a link in the first row makes
+  the next row the entity it names (following it is Claude's proposal), and a link never outlives its entity
+  ([docs/ecs.md](docs/ecs.md#links-between-entities)).
 - There are no resources. State is a component on an entity: program-wide state (`Component.Quit`,
   `Component.Frame`) on the world entity, per-window state (`Input.Component.Mouse`, the draw list, the renderer)
   on the window, reached through rows like any other data. `World` is the only singleton a system holds.
@@ -145,15 +146,15 @@ type NewWindow {
 var world = World()
 
 func update_each(_window: NewWindow) {
-    var screen = world.create_entity_from_bundle(Bundle.Screen())
+    var screen = world.spawn_entity_from_bundle(Bundle.Screen())
     var title = Bundle.Title(screen.id)
-    world.create_entity_from_bundle(title)
+    world.spawn_entity_from_bundle(title)
 }
 ```
 
 | Call | Does |
 |---|---|
-| `world.create_entity()`, `world.create_entity_from_bundle(bundle)` | a new `Entity`; its `id` is known at once, so children can point at it |
+| `world.spawn_entity()`, `world.spawn_entity_from_bundle(bundle)` | a new `Entity`; its `id` is known at once, so children can point at it |
 | `entity.add_component(component)` | adds or replaces one component, after the stage |
 | `entity.remove_component(Ui.Component.Hovered)` | removes one component, after the stage |
 | `entity.remove()` | removes the entity, after the stage |
@@ -336,7 +337,7 @@ examples/
 | | |
 |---|---|
 | Systems as phase functions over `type` rows, found by folder, no registration | built |
-| Relations between rows (`owner: Entity`) | built for the `use_potion` shape |
+| Links between entities as components (`Parent`, `Owner`), followed by a two-row system, removed with their entity | built |
 | Stages by class conflicts, `Parallel` per system | built; 1.2x on two systems |
 | Window, mouse, button interaction, bitmap text | built, Windows only |
 | Vulkan and software backends with pixel parity | built |

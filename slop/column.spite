@@ -4,7 +4,6 @@ generic $component_type
 
 var values = Items<$component_type>()
 var references = List<$component_type>()
-var relations = Dictionary<List<$component_type>>()
 var buried = List<$component_type>()
 var raw = Raw()
 var heap = Memory.Heap()
@@ -14,9 +13,11 @@ var own_header: Long = 0
 var own_recorded = false
 
 func prepare_column() {
-    var name = columns.key($component_type)
-    columns.header(name)
-    record_column(name)
+    header_now()
+    if not own_recorded {
+        own_recorded = true
+        record_column(own_key)
+    }
 }
 
 func insert_object(entity: Integer, value: Anything, copying: Boolean) {
@@ -53,25 +54,40 @@ func row_of_entity(entity: Integer): Integer {
 
 func insert_own(entity: Integer, value: $component_type) {
     if not own_recorded {
-        own_recorded = true
-        var name = columns.key($component_type)
-        insert_keyed(entity, value, name)
+        insert(entity, value)
         return
     }
-    header_now()
+    var link = Link<$component_type>()
+    link.refuse_dead(value)
     grow_rows(own_header, entity)
     var rows = raw.read_long(own_header, 32)
     var existing = raw.read_long(rows, entity * 8) - 1
     if existing >= 0 {
-        write_at(own_key, existing, value)
+        write_at(existing, value)
     } else {
-        append(own_header, entity, value, own_key)
+        append(own_header, entity, value)
     }
 }
 
 func insert(entity: Integer, value: $component_type) {
-    var name = columns.key(value.class)
-    insert_keyed(entity, value, name)
+    var link = Link<$component_type>()
+    link.refuse_dead(value)
+    var column_header = header_now()
+    if not own_recorded {
+        own_recorded = true
+        record_column(own_key)
+    }
+    grow_rows(column_header, entity)
+    var fields = FieldCount<$component_type>()
+    if fields.is_marker(value) {
+        raw.write_long(column_header, 56, 1)
+    }
+    var existing = columns.row_of(column_header, entity)
+    if existing >= 0 {
+        write_at(existing, value)
+    } else {
+        append(column_header, entity, value)
+    }
 }
 
 func inline(): Boolean {
@@ -81,41 +97,12 @@ func inline(): Boolean {
     return $component_type.fits_vector()
 }
 
-func references_of(name: String): List<$component_type> {
-    if $component_type == Entity {
-        if relations.has(name) {
-            crash relations[name]
-            return relations[name]
-        }
-        var made = List<$component_type>()
-        relations.set(name, made)
-        return made
-    }
-    return references
-}
-
-func insert_keyed(entity: Integer, value: $component_type, name: String) {
-    var column_header = columns.header(name)
-    record_column(name)
-    grow_rows(column_header, entity)
-    var fields = FieldCount<$component_type>()
-    if fields.is_marker(value) {
-        raw.write_long(column_header, 56, 1)
-    }
-    var existing = columns.row_of(column_header, entity)
-    if existing >= 0 {
-        write_at(name, existing, value)
-    } else {
-        append(column_header, entity, value, name)
-    }
-}
-
 func record_column(name: String) {
     assert not columns.releasers.has(name)
     columns.record_releaser(name, this)
 }
 
-func append(column_header: Long, entity: Integer, value: $component_type, name: String) {
+func append(column_header: Long, entity: Integer, value: $component_type) {
     var count = raw.read_long(column_header, 0)
     grow_values(column_header, count + 1)
     var entities = raw.read_long(column_header, 24)
@@ -124,8 +111,7 @@ func append(column_header: Long, entity: Integer, value: $component_type, name: 
     if inline() {
         values.append(value)
     } else {
-        var stored = references_of(name)
-        stored.append(value)
+        references.append(value)
     }
     raw.write_long(ticks, count * 8, columns.stage_counter)
     raw.write_long(entities, count * 8, entity)
@@ -174,14 +160,13 @@ func resized(address: Long, bytes: Long): Long {
     return heap.resize(address, bytes)
 }
 
-func value_at(name: String, row: Integer): $component_type {
+func value_at(row: Integer): $component_type {
     if inline() {
         crash values[row]
         return values[row].copy()
     }
-    var stored = references_of(name)
-    crash stored[row]
-    return stored[row]
+    crash references[row]
+    return references[row]
 }
 
 func at(row: Integer): $component_type {
@@ -189,36 +174,23 @@ func at(row: Integer): $component_type {
     return references[row]
 }
 
-func write_at(name: String, row: Integer, value: $component_type) {
+func write_at(row: Integer, value: $component_type) {
     if inline() {
         values.set_at(row, value)
         return
     }
-    var stored = references_of(name)
-    crash row < stored.count()
-    stored.set_at(row, value)
+    crash row < references.count()
+    references.set_at(row, value)
 }
 
-func get(entity: Integer, name: String): $component_type {
-    var column_header = columns.header(name)
+func get(entity: Integer): $component_type {
+    var column_header = header_now()
     var row = columns.row_of(column_header, entity)
     crash row >= 0
-    return value_at(name, row)
-}
-
-func store(entity: Integer, value: $component_type) {
-    var name = columns.key(value.class)
-    var column_header = columns.header(name)
-    var row = columns.row_of(column_header, entity)
-    crash row >= 0
-    write_at(name, row, value)
+    return value_at(row)
 }
 
 func remove_all(column_header: Long, entities: List<Integer>, records: Removals, tick: Integer) {
-    var name = ""
-    if $component_type == Entity {
-        name = columns.name_of_header(column_header)
-    }
     var capacity = raw.read_long(column_header, 40)
     var index = 0
     while index < entities.count() {
@@ -226,7 +198,7 @@ func remove_all(column_header: Long, entities: List<Integer>, records: Removals,
         var row = row_below(column_header, capacity, entity)
         if row >= 0 {
             records.note(entity, tick)
-            remove_row(column_header, entity, row, name)
+            remove_row(column_header, entity, row)
         }
         index = index + 1
     }
@@ -244,14 +216,10 @@ func row_below(column_header: Long, capacity: Long, entity: Integer): Integer {
 func remove_entity(column_header: Long, entity: Integer) {
     var row = columns.row_of(column_header, entity)
     assert row >= 0
-    var name = ""
-    if $component_type == Entity {
-        name = columns.name_of_header(column_header)
-    }
-    remove_row(column_header, entity, row, name)
+    remove_row(column_header, entity, row)
 }
 
-func remove_row(column_header: Long, entity: Integer, row: Integer, name: String) {
+func remove_row(column_header: Long, entity: Integer, row: Integer) {
     var count = raw.read_long(column_header, 0)
     var last = count - 1
     var entities = raw.read_long(column_header, 24)
@@ -259,7 +227,7 @@ func remove_row(column_header: Long, entity: Integer, row: Integer, name: String
     if inline() {
         values.remove_swapping(row)
     } else {
-        remove_reference(name, row, last)
+        remove_reference(row, last)
     }
     if last != row {
         var moved_entity = raw.read_long(entities, last * 8)
@@ -273,15 +241,14 @@ func remove_row(column_header: Long, entity: Integer, row: Integer, name: String
     raw.write_long(column_header, 0, last)
 }
 
-func remove_reference(name: String, row: Integer, last: Integer) {
-    var stored = references_of(name)
-    crash stored[row]
-    buried.append(stored[row])
+func remove_reference(row: Integer, last: Integer) {
+    crash references[row]
+    buried.append(references[row])
     if row != last {
-        crash stored[last]
-        stored.set_at(row, stored[last])
+        crash references[last]
+        references.set_at(row, references[last])
     }
-    stored.remove_last()
+    references.remove_last()
 }
 
 func release_buried(budget: Integer): Integer {

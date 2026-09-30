@@ -1,8 +1,8 @@
-var parent = Ui.Component.Parent()
+var parent = Component.Parent()
 var text = Ui.Component.Text()
 var font = Ui.Component.Font()
 
-func FontLabel(screen: Integer) {
+func FontLabel(screen: Entity) {
     parent.entity = screen
     text.text = "Curse of Critical Hit"
     text.color = 16764006

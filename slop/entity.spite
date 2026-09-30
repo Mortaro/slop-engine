@@ -1,45 +1,38 @@
-var id = 0
+var id = -1
 var world = World()
 
-func Entity(new_id: Integer) {
-    id = new_id
+func set_id(value: Integer) {
+    var an_entity_id_is_zero_or_more = value >= 0
+    crash an_entity_id_is_zero_or_more
+    id = value
 }
 
 func add_component(component: Anything) {
-    var command = AddComponent(id, component, "")
+    var an_entity_is_set_before_it_is_used = id >= 0
+    crash an_entity_is_set_before_it_is_used
+    var command = AddComponent(id, component)
     world.queue(command)
 }
 
 func remove_component(component_class: Spite.Class) {
+    var an_entity_is_set_before_it_is_used = id >= 0
+    crash an_entity_is_set_before_it_is_used
     var command = RemoveComponent(id, component_class)
     world.queue(command)
 }
 
 func remove() {
+    var an_entity_is_set_before_it_is_used = id >= 0
+    crash an_entity_is_set_before_it_is_used
     world.despawn(id)
 }
 
-func add_parent_entity(parent: Entity) {
-    relate("parent", parent)
-    world.parent_linked()
-}
-
-func add_child_entity(child: Entity) {
-    var parent = Entity(id)
-    child.add_parent_entity(parent)
-}
-
-func remove_parent_entity() {
-    unrelate("parent")
-}
-
-func relate(name: String, target: Entity) {
-    var kept = Entity(target.id)
-    var command = AddComponent(id, kept, name)
-    world.queue(command)
-}
-
-func unrelate(name: String) {
-    var command = RemoveRelation(id, name)
-    world.queue(command)
+func spawn_entity(): Entity {
+    var an_entity_is_set_before_it_is_used = id >= 0
+    crash an_entity_is_set_before_it_is_used
+    var child = world.spawn_entity()
+    var parent = Component.Parent()
+    parent.entity = world.entity_of(id)
+    child.add_component(parent)
+    return child
 }

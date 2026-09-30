@@ -1,21 +1,14 @@
 var entity = 0
 var component: Anything? = null
-var relation = ""
 var copying = false
 var columns = Columns()
-var entity_column = Column<Entity>()
 
-func AddComponent(new_entity: Integer, new_component: Anything, new_relation: String) {
+func AddComponent(new_entity: Integer, new_component: Anything) {
     entity = new_entity
     component = new_component
-    relation = new_relation
 }
 
 func apply() {
     crash component
-    if component == Entity {
-        entity_column.insert_keyed(entity, component, "Entity.{relation}")
-        return
-    }
     columns.insert_object(entity, component, copying)
 }
