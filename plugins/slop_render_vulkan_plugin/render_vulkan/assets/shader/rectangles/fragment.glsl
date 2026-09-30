@@ -1,5 +1,5 @@
 #version 450
-// shader.rectangles.fragment -- the rectangle's 0x00RRGGBB colour times its texture's texel, picked with the
+// shader.rectangles.fragment: the rectangle's 0x00RRGGBB colour times its texture's texel, picked with the
 // software backend's integer arithmetic (texel = pixel inside the rectangle * texture size / rectangle size).
 // A solid rectangle is bound to a 1x1 white texture. Blending is straight alpha, done by the pipeline.
 // A pixel outside the rectangle's clip (left, top, right, bottom; right and bottom exclusive) is written fully

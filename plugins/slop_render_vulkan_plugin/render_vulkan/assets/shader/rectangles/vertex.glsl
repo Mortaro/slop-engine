@@ -1,5 +1,5 @@
 #version 450
-// shader.rectangles.vertex -- one instance per Render.Component.DrawList rectangle, in pixels from the top left,
+// shader.rectangles.vertex: one instance per Render.Component.DrawList rectangle, in pixels from the top left,
 // drawn as two triangles. Integer rectangles cover exactly the pixels the software backend fills.
 
 layout(location = 0) in vec4 rectangle;

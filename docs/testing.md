@@ -5,6 +5,11 @@
 Every behaviour the docs claim is checked by a program in `examples/`. Run them from `examples/` with
 `D:/Projects/SpiteLanguage/bin/spite`; each ends with its memory balance when given `--debug-memory`.
 
+Measure performance only with a production build (`--optimized`, no `--repl`, no `--repl-port`, no `--hot-reload`,
+no `--debug-memory`). REPL and hot-reload builds are slower on purpose: they exist to show more while the program
+runs (functions in swappable slots, breakpoints, live inspection), not to be fast, so a number measured on one
+describes the tooling, not the engine.
+
 | Program | Proves |
 |---|---|
 | `click_counter_test` | the whole game through real Win32 messages in a hidden window: 5 (or `-- --clicks=N`) presses and releases posted to the window, counted by `CountClicks`, shown on the label, and the button left on its hover plate by the style systems |
