@@ -231,8 +231,8 @@ one sparse-set entry per entity and nothing else.
 
 "The window was just created" is `Added<Window.Component.Window>`.
 
-When quit is requested, `App` runs one more tick so systems can react. `RenderVulkan.System.ReleaseRenderer` releases
-the GPU there.
+Once the world entity has `Component.Quit`, `App` runs one more tick so systems can react.
+`RenderVulkan.System.ReleaseRenderer` releases the GPU there.
 
 ## Rendering
 
@@ -308,7 +308,8 @@ slop/                     the core, loaded by every program
   column.spite, columns.spite, slot.spite    component storage: sparse sets in raw Memory
   spawn.spite, insert.spite, remove.spite, lookup.spite, entity.spite
   world.spite             World: entity ids, the world entity, queued changes
-  component/              Component.Quit, Component.Frame (on the world entity)
+  component/              Component.Quit, Component.Frame (on the world entity); Component.Timer, Rang, Repeating
+  component_rule.spite    ComponentRule<component>: the startup report of components that break the ECS rules
   system/                 System.CountFrames
   cook.spite, cooking.spite   Cook: runs every Recipe
   pack.spite, field.spite, list_field.spite   the derived asset codec

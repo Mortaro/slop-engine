@@ -47,7 +47,8 @@ queue, and whatever the render plugins add).
 
 | | |
 |---|---|
-| `Window.Component.Window` | `title`, `width` (640), `height` (400), `visible`, `closed`: plain data, any thread |
+| `Window.Component.Window` | `title`, `width` (640), `height` (400): plain data, any thread |
+| `Window.Component.Hidden` | marker: the window is created hidden (tests, benchmarks) |
 | `Window.Component.Handle` | `value`: the platform's native window handle, 0 until the platform has created it |
 | `Window.Component.Opening` | `slot`: the window's pending request to the platform |
 | `Window.Component.Requested` | marker: this window has not been opened yet |
@@ -67,8 +68,8 @@ memory behind an SRW lock; no system is tied to a thread.
 |---|---|
 | `Windows.System.OpenWindow` (`input`) | asks the window thread for every requested window, then swaps `Requested` for `Opening` |
 | `Windows.System.FinishOpening` (`after_input`) | takes the handle once the window exists and removes `Opening` |
-| `Windows.System.PumpMessages` (`input`) | translates the window thread's messages into `Input.Event`s on each window's `Events`, notices a closed window, removes it and sets the world's `Component.Quit` |
-| `Windows.System.StopWindows` (`last`) | stops the window thread once quit is requested |
+| `Windows.System.PumpMessages` (`input`) | translates the window thread's messages into `Input.Event`s on each window's `Events`, notices a closed window, removes its entity and adds `Component.Quit` to the world entity |
+| `Windows.System.StopWindows` (`last`) | stops the window thread once the world entity has `Component.Quit` |
 
 ## slop_xinput_plugin
 
@@ -92,7 +93,8 @@ system reads them.
 | `Input.Component.Events` | `pending`: the events a platform delivered this tick |
 | `Input.Component.Keyboard` | on a window: `held` and `pressed` keys, `typed` characters, and `strokes` (key presses and characters in order) for the current tick |
 | `Input.Key` | names for virtual keys (`backspace`, `left`, `delete`, ...) |
-| `Input.Component.Mouse` | on a window: `left`, `top` (pixels in the window); the left button's `down`, `pressed`, `released` and `double_clicked`; the same for `right_…` and `middle_…`; and `wheel` (notches), for the current tick |
+| `Input.Component.Mouse` | on a window: `left`, `top` (pixels in the window) and `wheel` (notches), for the current tick |
+| `Input.Component.LeftDown`, `LeftPressed`, `LeftReleased`, `DoubleClicked` | markers on a window: the left button is held, went down this tick, went up this tick, was double-clicked this tick; `Right…` and `Middle…` are the same for the other buttons |
 
 ## slop_ui_plugin
 
@@ -153,7 +155,8 @@ A draw target is any entity with the three components; `render_parity` makes an 
 | `RenderVulkan.Component.Swapchain` | a window's surface, swapchain, images and per-image semaphores |
 | `RenderVulkan.System.CreateRenderer` (`present`) | gives each new window a renderer and a swapchain |
 | `RenderVulkan.System.DrawFrame` (`present`) | draws the list offscreen, blits it to the swapchain, presents |
-| `RenderVulkan.System.ReleaseRenderer` (`last`) | releases each renderer once quit is requested |
+| `RenderVulkan.Component.CaptureRequested`, `Captured` | markers on a window: add `CaptureRequested` to read back the next presented frame; `DrawFrame` swaps it for `Captured` once the pixels are read |
+| `RenderVulkan.System.ReleaseRenderer` (`last`) | releases each renderer once the world entity has `Component.Quit` |
 | `RenderVulkan.Recipe.Shaders` | compiles the rectangle shaders |
 
 See [rendering.md](rendering.md).

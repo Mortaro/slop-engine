@@ -13,7 +13,7 @@ with `spite kal_character --kal_assets=<folder>`.
 | `slop_camera_plugin` | `Camera` | `Camera.Component.Camera` (eye, target, field of view, near, far) and `Camera.Component.Orbit` with the `AimOrbit` system |
 | `slop_scene_plugin` | `Scene` | `Scene.Component.Model` (a mesh id and a bone palette); `Scene.Component.View` and `Scene.Component.Meshes` on each window; `Gather` collects the camera, the models and the lighting every frame |
 | `slop_scene_vulkan_plugin` | `SceneVulkan` | the Vulkan passes: sun shadow map, lit scene into HDR, tone map into the frame, then the UI draws on top |
-| `slop_animation_plugin` | `Animation` | `Animation.Component.Animator` (skeleton, clip, time, speed, looping); `Animate` samples the clip into the model's palette |
+| `slop_animation_plugin` | `Animation` | `Animation.Component.Animator` (skeleton, clip, time, speed), looping unless the entity has the marker `Animation.Component.PlayOnce`; `Animate` samples the clip into the model's palette |
 | `slop_lighting_plugin` | `Lighting` | `Sun`, `Sky`, `HeightFog` and `Exposure` components and a `Daylight` bundle, written into each view; `PointLight` and `SpotLight` components gathered into `Scene.Lights` |
 | `slop_blend_plugin` | `Blend` | `MeshReader`, `SkeletonReader` and `ActionReader`: what a recipe needs from a `.blend` |
 | `slop_png_plugin` | `Png` | a PNG decoder, pixel-exact against Pillow, for the images packed in a `.blend` |
@@ -70,22 +70,19 @@ What the readers do:
 
 ## Animation
 
-`Animate` advances each animator by the tick's step (`Tick().step_milliseconds`) and samples its clip. The step is
-measured once per tick, so every part of a character advances by the same amount; measuring wall-clock time per row
-made the parts drift apart (the face slid off the head) whenever a tick's rows crossed a millisecond.
-- Position and scale are interpolated linearly.
-- Rotation uses a shortest-arc slerp, falling back to a normalised lerp for near-identical keys.
-- It writes `global · inverse_bind` for each bone into `Scene.Component.Model.palette`, and each bone's model-space
-  pose (`global`) into `Model.bones`.
-- It skips a model marked `Scene.Component.OffView`. Gather adds that marker when a skinned model leaves the view cone
-  and its shadow cannot reach the view (its sphere swept away from the sun), and removes it when either comes back,
-  so an off-screen character costs no sampling and the marker changes only on those crossings. A character coming
-  into view shows its last pose for one frame.
-- An animator on the same skeleton, clip, time and looping as the one sampled just before it copies that pose instead
-  of sampling. The parts of one character are spawned together and sit next to each other in the row, so a
-  seven-part archer samples once.
-- The palette and bones matrices are rewritten in place, and the inverse binds are multiplied straight from the
-  skeleton's floats, so a frame allocates nothing per bone.
+`Animate` advances each animator by the tick's step (the world entity's `Component.Frame.step_milliseconds`) and
+samples its clip. The step is measured once per tick, so every part of a character advances by the same amount;
+measuring wall-clock time per row made the parts drift apart (the face slid off the head) whenever a tick's rows
+crossed a millisecond. - Position and scale are interpolated linearly. - Rotation uses a shortest-arc slerp, falling
+back to a normalised lerp for near-identical keys. - It writes `global · inverse_bind` for each bone into
+`Scene.Component.Model.palette`, and each bone's model-space pose (`global`) into `Model.bones`. - It skips a model
+marked `Scene.Component.OffView`. Gather adds that marker when a skinned model leaves the view cone and its shadow
+cannot reach the view (its sphere swept away from the sun), and removes it when either comes back, so an off-screen
+character costs no sampling and the marker changes only on those crossings. A character coming into view shows its
+last pose for one frame. - An animator on the same skeleton, clip, time and `PlayOnce` as the one sampled just before
+it copies that pose instead of sampling. The parts of one character are spawned together and sit next to each other in
+the row, so a seven-part archer samples once. - The palette and bones matrices are rewritten in place, and the inverse
+binds are multiplied straight from the skeleton's floats, so a frame allocates nothing per bone.
 
 `examples/animate_bench` animates 400 seven-part archers (2,800 animators, 65 bones) in rings around the camera,
 each archer at its own time. Optimised, on an RTX 3090 machine: Animate went from 81 ms to 9 ms, GatherModels from

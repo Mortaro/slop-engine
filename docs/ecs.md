@@ -60,6 +60,21 @@ compile time (a plural template over the class finds nothing), and a marker is o
 
 `Hovered`, `Pressed`, `Clicked`, `Alive` and `Active` cost one sparse-set entry per entity.
 
+### Components hold data
+
+A component that is not in use is removed; a field never says "inactive" (Mortaro, 2026-09-28). So a component may
+not have:
+
+- a `Boolean` attribute: a state is a marker, added when it holds and removed when it does not (`Component.Quit`,
+  `Component.Rang`, `Window.Component.Hidden`, `Input.Component.LeftDown`);
+- an `Entity` attribute: a link between entities is a relation, `entity.relate(name, target)`;
+- an optional `T?` attribute: whether the value is there is another component;
+- a `stored_inline()` function: storage is inferred.
+
+At startup `App()` walks every registered component (`slop/component_rule.spite`) and prints each break as
+`ECS rule: <Component>.<attribute> ...`. For now it only reports; it becomes a crash once the engine's own components
+and Theseus's follow the rules.
+
 ## Bundles
 
 Spawning a bundle copies each of its components, so one bundle can be spawned any number of times. The fast way is
@@ -96,8 +111,10 @@ component on an entity, and a system reaches it through a row like any other dat
 
   | Component | Holds |
   |---|---|
-  | `Component.Quit` | `requested`: the app ends after the tick where it becomes true, plus one final tick |
-  | `Component.Frame` | `count`, the number of finished ticks (kept by `System.CountFrames`) |
+  | `Component.Frame` | `count`, the number of finished ticks (kept by `System.CountFrames`), and `step_milliseconds`, this tick's step |
+
+  Quitting is a marker: a system that ends the program adds `Component.Quit` to the world entity, and the app ends
+  after that tick, plus one final tick. A row that should stop once quitting asks for `Without<Component.Quit>`.
 
   A program adds its own with `world.as_entity().add_component(...)`: the tracking example's `Component.Tally`.
 - **Per-window state lives on the window entity**: `Input.Component.Mouse` (in the window bundle), and the draw
@@ -241,7 +258,7 @@ Ordering inside a phase is by name, not by data. The finer phase names carry the
 | Call | Does |
 |---|---|
 | `App()` | finds every system, builds the stages |
-| `app.run()` | ticks at a fixed rate, one tick every `frame_milliseconds` (16; a server sets 50 for 20 Hz), until the world's `Component.Quit.requested`, then ticks once more so systems can react to quitting. The pace is kept against the monotonic clock, so a tick's own time does not add up to drift; a tick that overruns is followed at once, and the next step is the time that really passed, so the game runs in real time whatever the frame rate |
+| `app.run()` | ticks at a fixed rate, one tick every `frame_milliseconds` (16; a server sets 50 for 20 Hz), until the world entity has `Component.Quit`, then ticks once more so systems can react to quitting. The pace is kept against the monotonic clock, so a tick's own time does not add up to drift; a tick that overruns is followed at once, and the next step is the time that really passed, so the game runs in real time whatever the frame rate |
 | `app.begin_pacing()`, `app.wait_for_next_tick()` | the two halves of that pacing, for a program that drives its own loop |
 | `app.tick()` | one tick: every stage in order, changes applied after each |
 | `app.parallel = false` | runs every stage's systems one after another |
@@ -249,30 +266,31 @@ Ordering inside a phase is by name, not by data. The finer phase names carry the
 
 ## Timers
 
-`Component.Timer` is a timer as a component (a proposal by Claude): `timer.start(milliseconds, repeating)`, then the
-engine's `RingTimers` system counts it down by the fixed step every tick, in `input`, and sets `timer.rang` on the tick
-it reaches zero. A repeating timer starts over, a one-shot one stops. A system reacts by asking for the timer in its
-row and checking `rang`:
+`Component.Timer` is a timer as a component (a proposal by Claude): `timer.start(milliseconds)`, then the engine's
+`RingTimers` system counts it down by the step every tick, in `input`, and adds the marker `Component.Rang` to the
+entity on the tick it reaches zero; the next tick removes it. A timer with the marker `Component.Repeating` starts
+over; a one-shot timer is removed once it rings. A system reacts by asking for `Rang` in its row, so it runs only on
+the ticks a timer rang:
 
 ```gdscript
 type Attacking {
-    timer: Component.Timer
+    rang: Component.Rang
     monster: Component.Monster
 }
 
 func update_each(attacking: Attacking) {
-    assert attacking.timer.rang
     attacking.monster.attacks = attacking.monster.attacks + 1
 }
 ```
 
-The step is `Tick().step_milliseconds`, set once at the start of each tick. Under `app.run()` it is the time that
-really passed since the last tick, carried to the nanosecond so fractions of a millisecond add up, and at most 100 ms,
-so a hitch doesn't teleport anything. A fixed step made everything move in slow motion whenever a frame took longer
-than `frame_milliseconds` (Theseus A87: half speed at 25 to 40 ms frames). A program that calls `app.tick()` itself, as
-tests and benchmarks do, gets `frame_milliseconds` every tick, so it stays repeatable. The timer is stored inline,
-so counting down 10,000 timers costs about 0.26 ms a tick. `timers_check` tests it: a 50 ms repeating timer rings 6
-times in 30 ticks of 10 ms and a 120 ms one-shot rings once, and 40 paced ticks of 25 ms take 1,012 ms.
+The step is the world entity's `Component.Frame.step_milliseconds`, set once at the start of each tick. Under
+`app.run()` it is the time that really passed since the last tick, carried to the nanosecond so fractions of a
+millisecond add up, and at most 100 ms, so a hitch doesn't teleport anything. A fixed step made everything move in
+slow motion whenever a frame took longer than `frame_milliseconds` (Theseus A87: half speed at 25 to 40 ms frames). A
+program that calls `app.tick()` itself, as tests and benchmarks do, gets `frame_milliseconds` every tick, so it stays
+repeatable. The timer is stored inline, so counting down 10,000 timers costs about 0.26 ms a tick. `timers_check`
+tests it: a 50 ms repeating timer rings 6 times in 30 ticks of 10 ms and a 120 ms one-shot rings once, and 40 paced
+ticks of 25 ms take 1,012 ms.
 
 ## Storage
 
