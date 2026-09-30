@@ -1,14 +1,18 @@
 type Hosting {
+    entity: Entity
     listen: Network.Component.Listen
 }
 
 var world = World()
+var listening = Lookup<Network.Component.Listening>()
 
 func input_each(hosting: Hosting) {
     var listen = hosting.listen
-    if not listen.open {
+    var owner = hosting.entity
+    if not listening.has(owner.id) {
         crash listen.socket.listen_at(listen.host, listen.port)
-        listen.open = true
+        var marker = Network.Component.Listening()
+        owner.add_component(marker)
     }
     var accepted = listen.socket.accept_client_now()
     while accepted {

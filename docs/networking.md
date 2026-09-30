@@ -202,15 +202,16 @@ Connections are entities. Settings and state are components on the world entity:
 | Component | On | Meaning |
 |---|---|---|
 | `Network.Component.Listen` | world | accept connections on `host` (default `127.0.0.1`; `0.0.0.0` for every address) and `port` |
+| `Network.Component.Listening` | world | marker: the listener is open |
 | `Network.Component.Connect` | world | keep a connection to `host` and `port`, redialling a second after a failure |
-| `Network.Component.Connection` | one entity per peer | its stream, and `fresh` until the first snapshot is sent |
+| `Network.Component.Connection` | one entity per peer | its stream, and what the peer has been sent |
 | `Network.Component.Sender` | an arrived message | the connection entity it came from |
 | `Network.Component.Arrived` | an arrived message | despawned once its request component is removed, or its connection closes |
 | `Network.Component.Mirrored` | a mirrored entity | the sender's entity id |
 
 | Phase | System | Does |
 |---|---|---|
-| `input` | `Accept` | opens the listener, accepts every waiting connection |
+| `input` | `Accept` | opens the listener and adds `Listening`, accepts every waiting connection |
 | `input` | `Dial` | starts a connect on the thread pool and polls it; a failed dial waits 60 ticks |
 | `after_input` | `Receive` | reads every socket, decodes each frame, mirrors state and spawns arrived messages |
 | `last` | `Send` | encodes mirrored state once, picks each peer's frames by its area of interest, writes to every peer |

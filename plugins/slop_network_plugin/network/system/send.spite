@@ -41,7 +41,6 @@ func find_everyone() {
 func deliver(peer: Peer) {
     var connection = peer.connection
     var stream = connection.stream
-    connection.fresh = false
     removals.clear()
     send_all(connection, everyone)
     send_all(connection, connection.visible)
