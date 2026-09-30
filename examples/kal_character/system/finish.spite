@@ -1,6 +1,5 @@
 type Checked {
     entity: Entity
-    renderer: RenderVulkan.Component.Renderer
     view: Scene.Component.View
     draw_list: Render.Component.DrawList
 }
@@ -10,6 +9,7 @@ type Quitting {
     running: Without<Component.Quit>
 }
 
+var renderer = RenderVulkan.Renderer()
 var draws = Scene.Draws()
 var console = Console()
 var world = World()
@@ -21,7 +21,6 @@ var captured_frames = Lookup<RenderVulkan.Component.Captured>()
 
 func last_each(checked: Checked, quitting: Quitting) {
     assert environment.frames > 0 and draws.of(checked.entity.id).draws.count() > 0
-    var renderer = checked.renderer
     rendered_frames = rendered_frames + 1
     if rendered_frames == environment.frames {
         var request = RenderVulkan.Component.CaptureRequested()
@@ -50,7 +49,7 @@ func last_each(checked: Checked, quitting: Quitting) {
     }
 }
 
-func keep_capture(renderer: RenderVulkan.Component.Renderer, width: Integer, height: Integer) {
+func keep_capture(renderer: RenderVulkan.Renderer, width: Integer, height: Integer) {
     var capture = Component.Capture()
     capture.width = width
     capture.height = height
@@ -63,7 +62,7 @@ func keep_capture(renderer: RenderVulkan.Component.Renderer, width: Integer, hei
     holder.add_component(capture)
 }
 
-func write_row(renderer: RenderVulkan.Component.Renderer, image: Asset.Bytes, row: Integer, width: Integer) {
+func write_row(renderer: RenderVulkan.Renderer, image: Asset.Bytes, row: Integer, width: Integer) {
     var column = 0
     while column < width {
         var texel = renderer.pixel_at(column, row)

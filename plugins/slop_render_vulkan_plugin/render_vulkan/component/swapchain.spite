@@ -3,5 +3,3 @@ var handle: Long = 0
 var width = 0
 var height = 0
 var acquired = -1
-var images = List<Long>()
-var frames_done = List<Long>()

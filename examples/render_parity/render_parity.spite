@@ -1,3 +1,4 @@
+var renderer = RenderVulkan.Renderer()
 var fonts = Ui.Fonts()
 var textures = Render.Textures()
 var cookbook = Recipes.Cookbook()
@@ -47,7 +48,6 @@ func RenderParity() {
     var canvas = Lookup<RenderSoftware.Component.Canvas>().of(target)
     crash draw_list
     crash canvas
-    var renderer = RenderVulkan.Component.Renderer()
     var device = RenderVulkan.Component.Device()
     renderer.ensure(device)
     renderer.draw_offscreen(draw_list, textures)
@@ -107,7 +107,7 @@ func spawn_target(): Integer {
 func compare(
     draw_list: Render.Component.DrawList,
     canvas: RenderSoftware.Component.Canvas,
-    renderer: RenderVulkan.Component.Renderer,
+    renderer: RenderVulkan.Renderer,
 ) {
     var different = 0
     var top = 0
@@ -122,7 +122,7 @@ func compare(
 
 func different_in_row(
     canvas: RenderSoftware.Component.Canvas,
-    renderer: RenderVulkan.Component.Renderer,
+    renderer: RenderVulkan.Renderer,
     width: Integer,
     top: Integer,
 ): Integer {

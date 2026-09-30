@@ -1,5 +1,7 @@
+singleton
+
 type Part {
-    release_part(RenderVulkan.Component.Renderer)
+    release_part(RenderVulkan.Renderer)
 }
 
 var instance: Long = 0
@@ -25,7 +27,6 @@ var stream_mips = 0
 var stream_row = 0
 var stream_pixels = Asset.Bytes()
 var stream_cursor = 0
-var presentation_semaphores = List<Long>()
 var shader_vertex: Long = 0
 var shader_fragment: Long = 0
 var pipeline_layout: Long = 0
@@ -33,11 +34,12 @@ var pipeline: Long = 0
 var descriptor_layout: Long = 0
 var descriptor_pool: Long = 0
 var sampler: Long = 0
-var texture_images = List<Long>()
-var texture_memories = List<Long>()
-var texture_views = List<Long>()
-var texture_sets = List<Long>()
-var texture_generations = List<Integer>()
+var white_image: Long = 0
+var white_memory: Long = 0
+var white_view: Long = 0
+var white_set: Long = 0
+var textures = Render.Textures()
+var gpu_textures = Column<RenderVulkan.Component.GpuTexture>()
 var created_memory: Long = 0
 var pending_images = List<Long>()
 var pending_stagings = List<Long>()
@@ -46,8 +48,7 @@ var pending_widths = List<Integer>()
 var pending_heights = List<Integer>()
 var pending_mips = List<Integer>()
 var scene_sampler: Long = 0
-var surfaces = List<Long>()
-var swapchains = List<Long>()
+var presentations = List<RenderVulkan.Presentation>()
 var parts = List<Part>()
 var raw = Raw()
 var shaders = Recipes.Blobs()
@@ -404,9 +405,7 @@ func create_pipeline() {
     )
     crash result == 0
     pipeline = created.read_long(0)
-    var white = Asset.Bytes()
-    white.write_integer(-1)
-    stage_pixels(0, 1, 1, white, 0)
+    stage_white()
 }
 
 func create_descriptors(chosen: RenderVulkan.Component.Device) {
@@ -508,19 +507,8 @@ func create_scene_sampler(chosen: RenderVulkan.Component.Device): Long {
     return created.read_long(0)
 }
 
-func ensure_slots(count: Integer) {
-    while texture_sets.count() < count {
-        texture_sets.append(0)
-        texture_images.append(0)
-        texture_memories.append(0)
-        texture_views.append(0)
-        texture_generations.append(-1)
-    }
-}
-
 func stream_textures(textures: Render.Textures) {
     var count = textures.count()
-    ensure_slots(count + 1)
     ensure_staging()
     frame_staged = 0
     var looked = 0
@@ -539,7 +527,6 @@ func uploads_pending(textures: Render.Textures): Boolean {
         return true
     }
     var count = textures.count()
-    ensure_slots(count + 1)
     var slot = 0
     while slot < count {
         if outdated(textures, slot) {
@@ -551,9 +538,46 @@ func uploads_pending(textures: Render.Textures): Boolean {
 }
 
 func outdated(textures: Render.Textures, slot: Integer): Boolean {
-    crash texture_generations[slot + 1]
+    if not textures.is_ready(slot) {
+        return false
+    }
+    var gpu = gpu_of(slot)
+    if not gpu {
+        return false
+    }
     var generation = textures.generation(slot)
-    return textures.is_ready(slot) and texture_generations[slot + 1] != generation
+    return gpu.generation != generation
+}
+
+func gpu_of(slot: Integer): RenderVulkan.Component.GpuTexture? {
+    var owner = textures.entity_of(slot)
+    var row = gpu_textures.row_of_entity(owner)
+    assert row >= 0
+    return gpu_textures.values[row]
+}
+
+func texture_set(slot: Integer): Long {
+    if slot < 0 {
+        return white_set
+    }
+    var gpu = gpu_of(slot)
+    if gpu {
+        return gpu.set
+    }
+    return 0
+}
+
+func texture_view(slot: Integer): Long {
+    if slot < 0 {
+        return white_view
+    }
+    var gpu = gpu_of(slot)
+    if gpu {
+        if gpu.set != 0 {
+            return gpu.view
+        }
+    }
+    return 0
 }
 
 func ensure_staging() {
@@ -628,18 +652,18 @@ func stream_band() {
 
 func finish_stream() {
     record_mips(stream_image, stream_width, stream_height, stream_mips)
-    var index = stream_index
-    crash texture_sets[index]
-    if texture_sets[index] != 0 {
-        retire_slot(index)
+    var gpu = gpu_of(stream_slot)
+    crash gpu
+    if gpu.set != 0 {
+        retire(gpu.set, gpu.image, gpu.image_memory, gpu.view)
     }
     var view = create_view_levels(stream_image, 37, stream_mips)
     var set = allocate_texture_set(view)
-    texture_images.set_at(index, stream_image)
-    texture_memories.set_at(index, stream_memory)
-    texture_views.set_at(index, view)
-    texture_sets.set_at(index, set)
-    texture_generations.set_at(index, stream_generation)
+    gpu.image = stream_image
+    gpu.image_memory = stream_memory
+    gpu.view = view
+    gpu.set = set
+    gpu.generation = stream_generation
     stream_index = -1
     stream_image = 0
     stream_memory = 0
@@ -647,11 +671,12 @@ func finish_stream() {
     stream_pixels = released
 }
 
-func stage_pixels(index: Integer, width: Integer, height: Integer, pixels: Asset.Bytes, generation: Integer) {
-    ensure_slots(index + 1)
-    retire_slot(index)
+func stage_white() {
+    var pixels = Asset.Bytes()
+    pixels.write_integer(-1)
+    var width = 1
+    var height = 1
     var bytes = width * height * 4
-    crash pixels.length == bytes
     var transfer_source = 1
     var staging = create_buffer(bytes, transfer_source)
     var staging_memory = host_memory_for(staging)
@@ -666,25 +691,17 @@ func stage_pixels(index: Integer, width: Integer, height: Integer, pixels: Asset
     pending_widths.append(width)
     pending_heights.append(height)
     var view = create_view_levels(image, 37, mips)
-    var set = allocate_texture_set(view)
-    texture_images.set_at(index, image)
-    texture_memories.set_at(index, created_memory)
-    texture_views.set_at(index, view)
-    texture_sets.set_at(index, set)
-    texture_generations.set_at(index, generation)
+    white_set = allocate_texture_set(view)
+    white_image = image
+    white_memory = created_memory
+    white_view = view
 }
 
-func retire_slot(index: Integer) {
-    crash texture_sets[index]
-    crash texture_images[index]
-    crash texture_memories[index]
-    crash texture_views[index]
-    assert texture_sets[index] != 0
-    frame.retired_sets.append(texture_sets[index])
-    frame.retired_images.append(texture_images[index])
-    frame.retired_memories.append(texture_memories[index])
-    frame.retired_views.append(texture_views[index])
-    texture_sets.set_at(index, 0)
+func retire(set: Long, image: Long, memory: Long, view: Long) {
+    frame.retired_sets.append(set)
+    frame.retired_images.append(image)
+    frame.retired_memories.append(memory)
+    frame.retired_views.append(view)
 }
 
 func record_uploads() {
@@ -1477,13 +1494,12 @@ func record_run(draw_list: Render.Component.DrawList, first: Integer): Integer {
     while last < draw_list.count and draw_list.texture_at(last) == texture {
         last = last + 1
     }
-    var set_index = texture + 1
-    crash texture_sets[set_index]
-    if texture_sets[set_index] == 0 {
+    var set = texture_set(texture)
+    if set == 0 {
         return last
     }
     var sets = Structure(8)
-    sets.append_long(texture_sets[set_index])
+    sets.append_long(set)
     var no_offsets: Long = 0
     vulkan.vkCmdBindDescriptorSets(frame.command_buffer, 0, pipeline_layout, 0, 1, sets.address, 0, no_offsets)
     var count = last - first
@@ -1638,7 +1654,9 @@ func create_swapchain(window: Window.Component.Window, handle: Long, swapchain: 
     )
     crash surface_result == 0
     swapchain.surface = created.read_long(0)
-    surfaces.append(swapchain.surface)
+    var presented = RenderVulkan.Presentation()
+    presented.surface = swapchain.surface
+    presentations.append(presented)
     var supported = Structure(8)
     vulkan.vkGetPhysicalDeviceSurfaceSupportKHR(physical_device, queue_family, swapchain.surface, supported.address)
     crash supported.read_integer(0) == 1
@@ -1679,8 +1697,9 @@ func build_swapchain(swapchain: RenderVulkan.Component.Swapchain, width: Integer
     var result = vulkan.vkCreateSwapchainKHR(device, creation.address, no_allocator, created.address)
     crash result == 0
     swapchain.handle = created.read_long(0)
-    swapchains.append(swapchain.handle)
-    read_swapchain_images(swapchain)
+    var presented = presentation_of(swapchain)
+    presented.swapchain = swapchain.handle
+    read_swapchain_images(swapchain, presented)
 }
 
 func present_mode(surface: Long): Integer {
@@ -1702,25 +1721,38 @@ func present_mode(surface: Long): Integer {
     return chosen
 }
 
-func read_swapchain_images(swapchain: RenderVulkan.Component.Swapchain) {
+func read_swapchain_images(swapchain: RenderVulkan.Component.Swapchain, presented: RenderVulkan.Presentation) {
     var count = Structure(8)
     var no_images: Long = 0
     vulkan.vkGetSwapchainImagesKHR(device, swapchain.handle, count.address, no_images)
     var image_count = count.read_integer(0)
     var images = Structure(image_count * 8)
     vulkan.vkGetSwapchainImagesKHR(device, swapchain.handle, count.address, images.address)
-    swapchain.images.clear()
+    presented.images.clear()
     var index = 0
     while index < image_count {
         var image = images.read_long(index * 8)
-        swapchain.images.append(image)
-        if index >= swapchain.frames_done.count() {
+        presented.images.append(image)
+        if index >= presented.frames_done.count() {
             var frame_done = create_semaphore()
-            swapchain.frames_done.append(frame_done)
-            presentation_semaphores.append(frame_done)
+            presented.frames_done.append(frame_done)
         }
         index = index + 1
     }
+}
+
+func presentation_of(swapchain: RenderVulkan.Component.Swapchain): RenderVulkan.Presentation {
+    var index = 0
+    while index < presentations.count() {
+        var presented = presentations[index]
+        if presented.surface == swapchain.surface {
+            return presented
+        }
+        index = index + 1
+    }
+    var a_swapchain_is_built_on_a_surface_this_renderer_made = false
+    crash a_swapchain_is_built_on_a_surface_this_renderer_made
+    return RenderVulkan.Presentation()
 }
 
 func refresh_swapchain(window: Window.Component.Window, swapchain: RenderVulkan.Component.Swapchain) {
@@ -1729,13 +1761,6 @@ func refresh_swapchain(window: Window.Component.Window, swapchain: RenderVulkan.
     build_swapchain(swapchain, window.width, window.height, old)
     var no_allocator: Long = 0
     vulkan.vkDestroySwapchainKHR(device, old, no_allocator)
-    var place = swapchains.count() - 1
-    while place >= 0 {
-        if swapchains[place] == old {
-            swapchains.remove_at(place)
-        }
-        place = place - 1
-    }
 }
 
 func signal_skipped_frame() {
@@ -1782,10 +1807,11 @@ func finish_window_frame(
 ): Boolean {
     var image_index = swapchain.acquired
     swapchain.acquired = -1
-    crash swapchain.images[image_index]
-    var image = swapchain.images[image_index]
-    crash swapchain.frames_done[image_index]
-    var frame_done = swapchain.frames_done[image_index]
+    var presented = presentation_of(swapchain)
+    crash presented.images[image_index]
+    var image = presented.images[image_index]
+    crash presented.frames_done[image_index]
+    var frame_done = presented.frames_done[image_index]
     record_rectangles(draw_list)
     if capture {
         record_capture()
@@ -1863,6 +1889,10 @@ func release_device() {
     vulkan.vkDestroyInstance(instance, no_allocator)
     device = 0
     instance = 0
+    frames.clear()
+    pipeline = 0
+    stream_index = -1
+    stream_cursor = 0
 }
 
 func release_parts() {
@@ -1922,17 +1952,16 @@ func release_unrecorded_uploads() {
 
 func release_textures() {
     var no_allocator: Long = 0
-    var index = 0
-    while index < texture_sets.count() {
-        crash texture_images[index]
-        crash texture_memories[index]
-        crash texture_views[index]
-        if texture_sets[index] != 0 {
-            vulkan.vkDestroyImageView(device, texture_views[index], no_allocator)
-            vulkan.vkDestroyImage(device, texture_images[index], no_allocator)
-            vulkan.vkFreeMemory(device, texture_memories[index], no_allocator)
-        }
-        index = index + 1
+    var slot = 0
+    while slot < textures.count() {
+        release_gpu_texture(slot)
+        slot = slot + 1
+    }
+    if white_set != 0 {
+        vulkan.vkDestroyImageView(device, white_view, no_allocator)
+        vulkan.vkDestroyImage(device, white_image, no_allocator)
+        vulkan.vkFreeMemory(device, white_memory, no_allocator)
+        white_set = 0
     }
     vulkan.vkDestroySampler(device, sampler, no_allocator)
     vulkan.vkDestroySampler(device, scene_sampler, no_allocator)
@@ -1940,24 +1969,35 @@ func release_textures() {
     vulkan.vkDestroyDescriptorSetLayout(device, descriptor_layout, no_allocator)
 }
 
+func release_gpu_texture(slot: Integer) {
+    var no_allocator: Long = 0
+    var gpu = gpu_of(slot)
+    assert gpu
+    if gpu.set != 0 {
+        vulkan.vkDestroyImageView(device, gpu.view, no_allocator)
+        vulkan.vkDestroyImage(device, gpu.image, no_allocator)
+        vulkan.vkFreeMemory(device, gpu.image_memory, no_allocator)
+    }
+    gpu.set = 0
+    gpu.image = 0
+    gpu.image_memory = 0
+    gpu.view = 0
+    gpu.generation = 0
+}
+
 func release_presentation() {
     var no_allocator: Long = 0
-    while swapchains.count() > 0 {
-        var swapchain = swapchains.last()
-        crash swapchain
-        swapchains.remove_last()
-        vulkan.vkDestroySwapchainKHR(device, swapchain, no_allocator)
+    var index = 0
+    while index < presentations.count() {
+        var presented = presentations[index]
+        vulkan.vkDestroySwapchainKHR(device, presented.swapchain, no_allocator)
+        var done = 0
+        while done < presented.frames_done.count() {
+            vulkan.vkDestroySemaphore(device, presented.frames_done[done], no_allocator)
+            done = done + 1
+        }
+        vulkan.vkDestroySurfaceKHR(instance, presented.surface, no_allocator)
+        index = index + 1
     }
-    while presentation_semaphores.count() > 0 {
-        var semaphore = presentation_semaphores.last()
-        crash semaphore
-        presentation_semaphores.remove_last()
-        vulkan.vkDestroySemaphore(device, semaphore, no_allocator)
-    }
-    while surfaces.count() > 0 {
-        var surface = surfaces.last()
-        crash surface
-        surfaces.remove_last()
-        vulkan.vkDestroySurfaceKHR(instance, surface, no_allocator)
-    }
+    presentations.clear()
 }

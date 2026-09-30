@@ -1,6 +1,5 @@
 type Checked {
     entity: Entity
-    renderer: RenderVulkan.Component.Renderer
     view: Scene.Component.View
     draw_list: Render.Component.DrawList
 }
@@ -10,6 +9,7 @@ type Quitting {
     running: Without<Component.Quit>
 }
 
+var renderer = RenderVulkan.Renderer()
 var draws = Scene.Draws()
 var console = Console()
 var rendered_frames = 0
@@ -20,7 +20,6 @@ var captured_frames = Lookup<RenderVulkan.Component.Captured>()
 
 func last_each(checked: Checked, quitting: Quitting) {
     assert draws.of(checked.entity.id).terrain_draws.count() > 0
-    var renderer = checked.renderer
     rendered_frames = rendered_frames + 1
     if rendered_frames == 30 {
         var request = RenderVulkan.Component.CaptureRequested()
@@ -51,7 +50,7 @@ func channel(pixel: Integer, shift: Integer): Integer {
     return pixel.shifted_right(shift).bits_and(255)
 }
 
-func keep(renderer: RenderVulkan.Component.Renderer, width: Integer, height: Integer) {
+func keep(renderer: RenderVulkan.Renderer, width: Integer, height: Integer) {
     capture.width = width
     capture.height = height
     var top = 0

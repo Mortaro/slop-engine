@@ -1,0 +1,9 @@
+type Loaded {
+    entity: Entity
+    texture: Added<Render.Component.Texture>
+}
+
+func last_each(loaded: Loaded) {
+    var gpu = Component.GpuTexture()
+    loaded.entity.add_component(gpu)
+}

@@ -1,0 +1,6 @@
+var vertex_buffer: Long = 0
+var vertex_memory: Long = 0
+var index_buffer: Long = 0
+var index_memory: Long = 0
+var index_count = 0
+var uploaded = 0

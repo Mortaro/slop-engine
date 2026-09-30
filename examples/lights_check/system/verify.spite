@@ -1,6 +1,5 @@
 type Checked {
     entity: Entity
-    renderer: RenderVulkan.Component.Renderer
     view: Scene.Component.View
     draw_list: Render.Component.DrawList
 }
@@ -10,6 +9,7 @@ type Quitting {
     running: Without<Component.Quit>
 }
 
+var renderer = RenderVulkan.Renderer()
 var draws = Scene.Draws()
 var lights = Scene.Lights()
 var console = Console()
@@ -24,7 +24,6 @@ var captured_frames = Lookup<RenderVulkan.Component.Captured>()
 
 func last_each(checked: Checked, quitting: Quitting) {
     assert draws.of(checked.entity.id).draws.count() > 0
-    var renderer = checked.renderer
     rendered_frames = rendered_frames + 1
     if rendered_frames == 20 {
         started = clock.elapsed_nanoseconds()
@@ -72,7 +71,7 @@ func last_each(checked: Checked, quitting: Quitting) {
     shelf.add_component(quit)
 }
 
-func keep(renderer: RenderVulkan.Component.Renderer, width: Integer, height: Integer) {
+func keep(renderer: RenderVulkan.Renderer, width: Integer, height: Integer) {
     capture.width = width
     capture.height = height
     var top = 0

@@ -1,3 +1,4 @@
+var renderer = RenderVulkan.Renderer()
 var textures = Render.Textures()
 var cookbook = Recipes.Cookbook()
 var console = Console()
@@ -69,7 +70,6 @@ func software_pixel(target: Integer): Integer {
 func vulkan_pixel(target: Integer): Integer {
     var draw_list = Lookup<Render.Component.DrawList>().of(target)
     crash draw_list
-    var renderer = RenderVulkan.Component.Renderer()
     var device = RenderVulkan.Component.Device()
     renderer.ensure(device)
     renderer.draw_offscreen(draw_list, textures)

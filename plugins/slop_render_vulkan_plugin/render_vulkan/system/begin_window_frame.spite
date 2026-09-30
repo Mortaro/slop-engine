@@ -2,16 +2,15 @@ type Target {
     entity: Entity
     window: Window.Component.Window
     swapchain: Component.Swapchain
-    renderer: Component.Renderer
     draw_list: Render.Component.DrawList
 }
 
 var textures = Render.Textures()
 
+var renderer = RenderVulkan.Renderer()
 var stale_swapchains = Lookup<Component.SwapchainOutOfDate>()
 
 func render_each(target: Target) {
-    var renderer = target.renderer
     var window = target.window
     var swapchain = target.swapchain
     assert renderer.device != 0 and renderer.pipeline_ready() and window.width > 0 and window.height > 0

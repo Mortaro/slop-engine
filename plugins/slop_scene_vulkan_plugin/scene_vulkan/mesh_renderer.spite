@@ -1,3 +1,5 @@
+singleton
+
 var pipeline: Long = 0
 var pipeline_layout: Long = 0
 var storage_layout: Long = 0
@@ -28,8 +30,6 @@ var run_counts = List<Integer>()
 var run_draws = List<Integer>()
 var key_first_draws = List<Integer>()
 var scene_pool: Long = 0
-var scene_sets = List<Long>()
-var scene_set_views = List<Long>()
 var retired_scene_sets = List<Long>()
 var retired_scene_at = List<Integer>()
 var light_buffers = List<Long>()
@@ -68,12 +68,10 @@ var palette_buffers = List<Long>()
 var palette_memories = List<Long>()
 var palette_mapped = List<Long>()
 var palette_capacities = List<Integer>()
-var vertex_buffers = List<Long>()
-var vertex_memories = List<Long>()
-var index_buffers = List<Long>()
-var index_memories = List<Long>()
-var index_counts = List<Integer>()
-var uploaded = List<Integer>()
+var meshes = Scene.Meshes()
+var textures = Render.Textures()
+var gpu_meshes = Column<SceneVulkan.Component.GpuMesh>()
+var scene_textures = Column<SceneVulkan.Component.SceneTexture>()
 var draw_stride = 80
 var palette_stride = 64
 var vertex_stride = 52
@@ -93,7 +91,7 @@ var job_index_count = 0
 var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
 
 func record(
-    renderer: RenderVulkan.Component.Renderer,
+    renderer: RenderVulkan.Renderer,
     view: Scene.Component.View,
     drawn: Scene.DrawSet,
     camera: Scene.Component.ViewCamera,
@@ -152,7 +150,7 @@ func aim_sun(view: Scene.Component.View, camera: Scene.Component.ViewCamera) {
     light_view_projection = light_projection.multiplied(light_view)
 }
 
-func record_shadows(renderer: RenderVulkan.Component.Renderer, drawn: Scene.DrawSet, storage: RenderVulkan.Structure) {
+func record_shadows(renderer: RenderVulkan.Renderer, drawn: Scene.DrawSet, storage: RenderVulkan.Structure) {
     var frame = renderer.frame
     image_barrier(renderer, shadow_image, 0, 1536, 0, 3, 1, 768, 2)
     var depth = RenderVulkan.Structure(72)
@@ -198,7 +196,7 @@ func record_shadows(renderer: RenderVulkan.Component.Renderer, drawn: Scene.Draw
             cell.mesh_slot,
             cell.first_index,
             cell.index_count,
-            0,
+            -1,
             first_terrain + index,
             light_view_projection,
         )
@@ -209,7 +207,7 @@ func record_shadows(renderer: RenderVulkan.Component.Renderer, drawn: Scene.Draw
 }
 
 func image_barrier(
-    renderer: RenderVulkan.Component.Renderer,
+    renderer: RenderVulkan.Renderer,
     image: Long,
     source_access: Integer,
     destination_access: Integer,
@@ -249,7 +247,7 @@ func image_barrier(
     )
 }
 
-func set_viewport(renderer: RenderVulkan.Component.Renderer, width: Integer, height: Integer) {
+func set_viewport(renderer: RenderVulkan.Renderer, width: Integer, height: Integer) {
     var command_buffer = renderer.frame.command_buffer
     var viewport = RenderVulkan.Structure(24)
     viewport.append_float(0.0)
@@ -267,7 +265,7 @@ func set_viewport(renderer: RenderVulkan.Component.Renderer, width: Integer, hei
     vulkan.vkCmdSetScissor(command_buffer, 0, 1, scissor.address)
 }
 
-func create_shadow_map(renderer: RenderVulkan.Component.Renderer) {
+func create_shadow_map(renderer: RenderVulkan.Renderer) {
     var no_allocator: Long = 0
     var creation = RenderVulkan.Structure(96)
     creation.append_integer(14)
@@ -338,7 +336,7 @@ func create_shadow_map(renderer: RenderVulkan.Component.Renderer) {
     shadow_sampler = made.read_long(0)
 }
 
-func create_shadow_pipeline(renderer: RenderVulkan.Component.Renderer): Long {
+func create_shadow_pipeline(renderer: RenderVulkan.Renderer): Long {
     var rendering = RenderVulkan.Structure(40)
     rendering.append_integer(1000044002)
     rendering.append_long(0)
@@ -458,7 +456,7 @@ func create_shadow_pipeline(renderer: RenderVulkan.Component.Renderer): Long {
     return made.read_long(0)
 }
 
-func record_tone_map(renderer: RenderVulkan.Component.Renderer) {
+func record_tone_map(renderer: RenderVulkan.Renderer) {
     var frame = renderer.frame
     renderer.barrier(frame.target_image, 0, 256, 0, 2, 1, 1024)
     var color = RenderVulkan.Structure(72)
@@ -527,7 +525,7 @@ func write_lighting(view: Scene.Component.View, camera: Scene.Component.ViewCame
 }
 
 func write_local_lights(
-    renderer: RenderVulkan.Component.Renderer,
+    renderer: RenderVulkan.Renderer,
     view: Scene.Component.View,
     lights: Scene.Lights,
     slot: Integer,
@@ -559,7 +557,7 @@ func write_local_lights(
 }
 
 func ensure_light_buffers(
-    renderer: RenderVulkan.Component.Renderer,
+    renderer: RenderVulkan.Renderer,
     slot: Integer,
     visible_count: Integer,
     index_count: Integer,
@@ -581,7 +579,7 @@ func ensure_light_buffers(
     }
 }
 
-func grow_lights(renderer: RenderVulkan.Component.Renderer, slot: Integer, wanted: Integer) {
+func grow_lights(renderer: RenderVulkan.Renderer, slot: Integer, wanted: Integer) {
     free_buffer(renderer, light_buffers, light_memories, slot)
     var capacity = wanted * 2 + 64
     var bytes = capacity * light_stride
@@ -595,7 +593,7 @@ func grow_lights(renderer: RenderVulkan.Component.Renderer, slot: Integer, wante
     light_capacities.set_at(slot, capacity)
 }
 
-func grow_light_indices(renderer: RenderVulkan.Component.Renderer, slot: Integer, wanted: Integer) {
+func grow_light_indices(renderer: RenderVulkan.Renderer, slot: Integer, wanted: Integer) {
     free_buffer(renderer, light_index_buffers, light_index_memories, slot)
     var capacity = wanted * 2 + 4096
     var bytes = capacity * 4
@@ -616,7 +614,7 @@ func put(at: Long, index: Integer, first: Float, second: Float, third: Float, fo
     floats.write_value(at, index + 3, fourth)
 }
 
-func record_runs(renderer: RenderVulkan.Component.Renderer, drawn: Scene.DrawSet, view_projection: Math.Matrix4) {
+func record_runs(renderer: RenderVulkan.Renderer, drawn: Scene.DrawSet, view_projection: Math.Matrix4) {
     var run = 0
     while run < run_starts.count() {
         crash run_draws[run]
@@ -624,16 +622,12 @@ func record_runs(renderer: RenderVulkan.Component.Renderer, drawn: Scene.DrawSet
         var first_draw = run_draws[run]
         crash drawn.draws[first_draw]
         var draw = drawn.draws[first_draw]
-        var set_index = draw.texture_slot + 1
-        if set_index >= renderer.texture_sets.count() {
-            set_index = 0
-        }
         record_instances(
             renderer,
             draw.mesh_slot,
             draw.first_index,
             draw.index_count,
-            set_index,
+            draw.texture_slot,
             run_starts[run],
             run_counts[run],
             view_projection,
@@ -643,7 +637,7 @@ func record_runs(renderer: RenderVulkan.Component.Renderer, drawn: Scene.DrawSet
 }
 
 func record_mesh(
-    renderer: RenderVulkan.Component.Renderer,
+    renderer: RenderVulkan.Renderer,
     mesh_slot: Integer,
     first_index: Integer,
     index_count: Integer,
@@ -655,7 +649,7 @@ func record_mesh(
 }
 
 func record_instances(
-    renderer: RenderVulkan.Component.Renderer,
+    renderer: RenderVulkan.Renderer,
     mesh_slot: Integer,
     first_index: Integer,
     index_count: Integer,
@@ -665,7 +659,7 @@ func record_instances(
     view_projection: Math.Matrix4,
 ) {
     var command_buffer = renderer.frame.command_buffer
-    assert vertex_buffers[mesh_slot] != 0
+    assert mesh_uploaded(mesh_slot)
     var texture_set = scene_set(renderer, set_index)
     var sets = RenderVulkan.Structure(8)
     sets.append_long(texture_set)
@@ -675,7 +669,7 @@ func record_instances(
 }
 
 func push_and_draw(
-    renderer: RenderVulkan.Component.Renderer,
+    renderer: RenderVulkan.Renderer,
     mesh_slot: Integer,
     first_index: Integer,
     index_count: Integer,
@@ -690,21 +684,21 @@ func push_and_draw(
     raw.write_integer(push.address, 64, index)
     vulkan.vkCmdPushConstants(command_buffer, layout, 1, 0, 68, push.address)
     var buffers = RenderVulkan.Structure(8)
-    crash vertex_buffers[mesh_slot]
-    var vertex_buffer = vertex_buffers[mesh_slot]
+    var gpu = gpu_mesh_of(mesh_slot)
+    crash gpu
+    var vertex_buffer = gpu.vertex_buffer
+    var index_buffer = gpu.index_buffer
     buffers.append_long(vertex_buffer)
     var offsets = RenderVulkan.Structure(8)
     offsets.append_long(0)
     vulkan.vkCmdBindVertexBuffers(command_buffer, 0, 1, buffers.address, offsets.address)
     var no_offset: Long = 0
-    crash index_buffers[mesh_slot]
-    var index_buffer = index_buffers[mesh_slot]
     vulkan.vkCmdBindIndexBuffer(command_buffer, index_buffer, no_offset, 1)
     vulkan.vkCmdDrawIndexed(command_buffer, index_count, instances, first_index, 0, 0)
 }
 
 func record_terrain(
-    renderer: RenderVulkan.Component.Renderer,
+    renderer: RenderVulkan.Renderer,
     drawn: Scene.DrawSet,
     terrain_materials: Scene.TerrainMaterials,
     storage: RenderVulkan.Structure,
@@ -720,7 +714,7 @@ func record_terrain(
     while index < drawn.terrain_draws.count() {
         var cell = drawn.terrain_draws[index]
         var set = terrain.set_for(renderer, terrain_materials, cell.material_slot)
-        if set != 0 and vertex_buffers[cell.mesh_slot] != 0 {
+        if set != 0 and mesh_uploaded(cell.mesh_slot) {
             var sets = RenderVulkan.Structure(8)
             sets.append_long(set)
             vulkan.vkCmdBindDescriptorSets(
@@ -748,7 +742,7 @@ func record_terrain(
     }
 }
 
-func shaders_ready(renderer: RenderVulkan.Component.Renderer): Boolean {
+func shaders_ready(renderer: RenderVulkan.Renderer): Boolean {
     var scene_vertex = renderer.shader_ready("shader.scene.vertex")
     var scene_fragment = renderer.shader_ready("shader.scene.fragment")
     var terrain_fragment = renderer.shader_ready("shader.scene.terrain")
@@ -758,7 +752,7 @@ func shaders_ready(renderer: RenderVulkan.Component.Renderer): Boolean {
     return scene_vertex and scene_fragment and terrain_fragment and shadow_fragment and tone_vertex and tone_fragment
 }
 
-func create(renderer: RenderVulkan.Component.Renderer, chosen: RenderVulkan.Component.Device) {
+func create(renderer: RenderVulkan.Renderer, chosen: RenderVulkan.Component.Device) {
     shader_vertex = renderer.create_shader("shader.scene.vertex")
     shader_fragment = renderer.create_shader("shader.scene.fragment")
     shader_shadow_fragment = renderer.create_shader("shader.shadow.fragment")
@@ -776,7 +770,7 @@ func create(renderer: RenderVulkan.Component.Renderer, chosen: RenderVulkan.Comp
     renderer.parts.append(this)
 }
 
-func create_storage(renderer: RenderVulkan.Component.Renderer) {
+func create_storage(renderer: RenderVulkan.Renderer) {
     var no_allocator: Long = 0
     var bindings = RenderVulkan.Structure(168)
     var binding = 0
@@ -840,7 +834,7 @@ func create_storage(renderer: RenderVulkan.Component.Renderer) {
     }
 }
 
-func allocate_frame_slot(renderer: RenderVulkan.Component.Renderer) {
+func allocate_frame_slot(renderer: RenderVulkan.Renderer) {
     var layouts = RenderVulkan.Structure(8)
     layouts.append_long(storage_layout)
     var allocation = RenderVulkan.Structure(40)
@@ -889,7 +883,7 @@ func allocate_frame_slot(renderer: RenderVulkan.Component.Renderer) {
     cluster_mapped.append(cluster_at)
 }
 
-func create_layout(renderer: RenderVulkan.Component.Renderer) {
+func create_layout(renderer: RenderVulkan.Renderer) {
     var no_allocator: Long = 0
     var set_layouts = RenderVulkan.Structure(16)
     set_layouts.append_long(renderer.descriptor_layout)
@@ -912,11 +906,11 @@ func create_layout(renderer: RenderVulkan.Component.Renderer) {
     pipeline_layout = made.read_long(0)
 }
 
-func create_pipeline(renderer: RenderVulkan.Component.Renderer) {
+func create_pipeline(renderer: RenderVulkan.Renderer) {
     pipeline = build_pipeline(renderer, pipeline_layout, shader_fragment)
 }
 
-func build_pipeline(renderer: RenderVulkan.Component.Renderer, layout: Long, fragment: Long): Long {
+func build_pipeline(renderer: RenderVulkan.Renderer, layout: Long, fragment: Long): Long {
     var formats = RenderVulkan.Structure(4)
     formats.append_integer(97)
     var rendering = RenderVulkan.Structure(40)
@@ -1093,7 +1087,7 @@ func blend_state(): RenderVulkan.Structure {
     return state
 }
 
-func ensure_depth(renderer: RenderVulkan.Component.Renderer) {
+func ensure_depth(renderer: RenderVulkan.Renderer) {
     var frame = renderer.frame
     assert frame.target_width != depth_width or frame.target_height != depth_height
     release_depth(renderer)
@@ -1133,7 +1127,7 @@ func ensure_depth(renderer: RenderVulkan.Component.Renderer) {
     create_hdr(renderer)
 }
 
-func create_hdr(renderer: RenderVulkan.Component.Renderer) {
+func create_hdr(renderer: RenderVulkan.Renderer) {
     var no_allocator: Long = 0
     var creation = RenderVulkan.Structure(96)
     creation.append_integer(14)
@@ -1168,7 +1162,7 @@ func create_hdr(renderer: RenderVulkan.Component.Renderer) {
     write_tone_set(renderer)
 }
 
-func write_tone_set(renderer: RenderVulkan.Component.Renderer) {
+func write_tone_set(renderer: RenderVulkan.Renderer) {
     var image_information = RenderVulkan.Structure(24)
     image_information.append_long(renderer.sampler)
     image_information.append_long(hdr_view)
@@ -1188,7 +1182,7 @@ func write_tone_set(renderer: RenderVulkan.Component.Renderer) {
     vulkan.vkUpdateDescriptorSets(renderer.device, 1, write.address, 0, no_copies)
 }
 
-func create_tone_map(renderer: RenderVulkan.Component.Renderer) {
+func create_tone_map(renderer: RenderVulkan.Renderer) {
     var no_allocator: Long = 0
     var binding = RenderVulkan.Structure(24)
     binding.append_integer(0)
@@ -1257,7 +1251,7 @@ func create_tone_map(renderer: RenderVulkan.Component.Renderer) {
 }
 
 func full_screen_pipeline(
-    renderer: RenderVulkan.Component.Renderer,
+    renderer: RenderVulkan.Renderer,
     vertex_shader: Long,
     fragment_shader: Long,
     format: Integer,
@@ -1366,7 +1360,7 @@ func full_screen_pipeline(
     return made.read_long(0)
 }
 
-func create_depth_view(renderer: RenderVulkan.Component.Renderer) {
+func create_depth_view(renderer: RenderVulkan.Renderer) {
     var no_allocator: Long = 0
     var creation = RenderVulkan.Structure(80)
     creation.append_integer(15)
@@ -1395,7 +1389,7 @@ func append_depth_range(structure: RenderVulkan.Structure) {
     structure.append_integer(1)
 }
 
-func depth_barrier(renderer: RenderVulkan.Component.Renderer) {
+func depth_barrier(renderer: RenderVulkan.Renderer) {
     var description = RenderVulkan.Structure(72)
     description.append_integer(45)
     description.append_long(0)
@@ -1422,7 +1416,7 @@ func depth_barrier(renderer: RenderVulkan.Component.Renderer) {
     )
 }
 
-func begin_rendering(renderer: RenderVulkan.Component.Renderer, view: Scene.Component.View) {
+func begin_rendering(renderer: RenderVulkan.Renderer, view: Scene.Component.View) {
     var frame = renderer.frame
     var exposure = exposure_of(view)
     var sky = view.sky_luminance * exposure
@@ -1471,7 +1465,7 @@ func begin_rendering(renderer: RenderVulkan.Component.Renderer, view: Scene.Comp
     vulkan.vkCmdBeginRendering(frame.command_buffer, rendering.address)
 }
 
-func record_viewport(renderer: RenderVulkan.Component.Renderer) {
+func record_viewport(renderer: RenderVulkan.Renderer) {
     var frame = renderer.frame
     var viewport = RenderVulkan.Structure(24)
     viewport.append_float(0.0)
@@ -1489,7 +1483,7 @@ func record_viewport(renderer: RenderVulkan.Component.Renderer) {
     vulkan.vkCmdSetScissor(frame.command_buffer, 0, 1, scissor.address)
 }
 
-func write_frame_data(renderer: RenderVulkan.Component.Renderer, drawn: Scene.DrawSet, slot: Integer) {
+func write_frame_data(renderer: RenderVulkan.Renderer, drawn: Scene.DrawSet, slot: Integer) {
     var draw_count = drawn.draws.count()
     var terrain_count = drawn.terrain_draws.count()
     var palette_count = drawn.palettes.count()
@@ -1590,12 +1584,7 @@ func group_draws(drawn: Scene.DrawSet) {
     }
 }
 
-func ensure_frame_buffers(
-    renderer: RenderVulkan.Component.Renderer,
-    slot: Integer,
-    draw_count: Integer,
-    palette_count: Integer,
-) {
+func ensure_frame_buffers(renderer: RenderVulkan.Renderer, slot: Integer, draw_count: Integer, palette_count: Integer) {
     crash draw_capacities[slot]
     crash palette_capacities[slot]
     var changed = false
@@ -1612,7 +1601,7 @@ func ensure_frame_buffers(
     }
 }
 
-func grow_draws(renderer: RenderVulkan.Component.Renderer, slot: Integer, wanted: Integer) {
+func grow_draws(renderer: RenderVulkan.Renderer, slot: Integer, wanted: Integer) {
     free_buffer(renderer, draw_buffers, draw_memories, slot)
     var capacity = wanted * 2 + 16
     var bytes = capacity * draw_stride
@@ -1626,7 +1615,7 @@ func grow_draws(renderer: RenderVulkan.Component.Renderer, slot: Integer, wanted
     draw_capacities.set_at(slot, capacity)
 }
 
-func grow_palettes(renderer: RenderVulkan.Component.Renderer, slot: Integer, wanted: Integer) {
+func grow_palettes(renderer: RenderVulkan.Renderer, slot: Integer, wanted: Integer) {
     free_buffer(renderer, palette_buffers, palette_memories, slot)
     var capacity = wanted * 2 + 64
     var bytes = capacity * palette_stride
@@ -1640,7 +1629,7 @@ func grow_palettes(renderer: RenderVulkan.Component.Renderer, slot: Integer, wan
     palette_capacities.set_at(slot, capacity)
 }
 
-func free_buffer(renderer: RenderVulkan.Component.Renderer, buffers: List<Long>, memories: List<Long>, slot: Integer) {
+func free_buffer(renderer: RenderVulkan.Renderer, buffers: List<Long>, memories: List<Long>, slot: Integer) {
     crash buffers[slot]
     crash memories[slot]
     assert buffers[slot] != 0
@@ -1651,7 +1640,7 @@ func free_buffer(renderer: RenderVulkan.Component.Renderer, buffers: List<Long>,
     memories.set_at(slot, 0)
 }
 
-func write_storage_set(renderer: RenderVulkan.Component.Renderer, slot: Integer) {
+func write_storage_set(renderer: RenderVulkan.Renderer, slot: Integer) {
     crash storage_sets[slot]
     crash draw_buffers[slot]
     crash palette_buffers[slot]
@@ -1722,16 +1711,8 @@ func append_write(writes: RenderVulkan.Structure, set: Long, binding: Integer, i
     writes.append_long(0)
 }
 
-func upload_meshes(renderer: RenderVulkan.Component.Renderer, meshes: Scene.Meshes) {
+func upload_meshes(renderer: RenderVulkan.Renderer, meshes: Scene.Meshes) {
     var count = meshes.count()
-    while vertex_buffers.count() < count {
-        vertex_buffers.append(0)
-        vertex_memories.append(0)
-        index_buffers.append(0)
-        index_memories.append(0)
-        index_counts.append(0)
-        uploaded.append(0)
-    }
     var copied = 0
     var looked = 0
     while renderer.staging_room() > 0 and (mesh_job >= 0 or looked < count) {
@@ -1745,14 +1726,15 @@ func upload_meshes(renderer: RenderVulkan.Component.Renderer, meshes: Scene.Mesh
     make_copies_visible(renderer, copied)
 }
 
-func try_start_mesh(renderer: RenderVulkan.Component.Renderer, meshes: Scene.Meshes, count: Integer) {
+func try_start_mesh(renderer: RenderVulkan.Renderer, meshes: Scene.Meshes, count: Integer) {
     assert count > 0
     var slot = mesh_cursor % count
     mesh_cursor = slot + 1
     assert meshes.is_ready(slot)
-    crash uploaded[slot]
+    var gpu = gpu_mesh_of(slot)
+    assert gpu
     var generation = meshes.generation(slot)
-    assert uploaded[slot] != generation
+    assert gpu.uploaded != generation
     var loaded = meshes.mesh_at(slot)
     var transfer_target = 2
     var vertex_usage = 128 + transfer_target
@@ -1779,7 +1761,7 @@ func larger_of(first: Integer, second: Integer): Integer {
     return second
 }
 
-func stream_mesh(renderer: RenderVulkan.Component.Renderer): Integer {
+func stream_mesh(renderer: RenderVulkan.Renderer): Integer {
     if job_vertex_done < job_vertices.length {
         var vertex_part = copy_part(renderer, job_vertices, job_vertex_done, job_vertex_buffer)
         job_vertex_done = job_vertex_done + vertex_part
@@ -1794,7 +1776,7 @@ func stream_mesh(renderer: RenderVulkan.Component.Renderer): Integer {
     return 0
 }
 
-func copy_part(renderer: RenderVulkan.Component.Renderer, bytes: Asset.Bytes, done: Integer, target: Long): Integer {
+func copy_part(renderer: RenderVulkan.Renderer, bytes: Asset.Bytes, done: Integer, target: Long): Integer {
     var part = bytes.length - done
     var room = renderer.staging_room()
     if part > room {
@@ -1814,22 +1796,19 @@ func copy_part(renderer: RenderVulkan.Component.Renderer, bytes: Asset.Bytes, do
     return part
 }
 
-func finish_mesh(renderer: RenderVulkan.Component.Renderer) {
-    var slot = mesh_job
-    crash vertex_buffers[slot]
-    crash vertex_memories[slot]
-    crash index_buffers[slot]
-    crash index_memories[slot]
-    if vertex_buffers[slot] != 0 {
-        renderer.release_later(vertex_buffers[slot], vertex_memories[slot])
-        renderer.release_later(index_buffers[slot], index_memories[slot])
+func finish_mesh(renderer: RenderVulkan.Renderer) {
+    var gpu = gpu_mesh_of(mesh_job)
+    crash gpu
+    if gpu.vertex_buffer != 0 {
+        renderer.release_later(gpu.vertex_buffer, gpu.vertex_memory)
+        renderer.release_later(gpu.index_buffer, gpu.index_memory)
     }
-    vertex_buffers.set_at(slot, job_vertex_buffer)
-    vertex_memories.set_at(slot, job_vertex_memory)
-    index_buffers.set_at(slot, job_index_buffer)
-    index_memories.set_at(slot, job_index_memory)
-    index_counts.set_at(slot, job_index_count)
-    uploaded.set_at(slot, job_generation)
+    gpu.vertex_buffer = job_vertex_buffer
+    gpu.vertex_memory = job_vertex_memory
+    gpu.index_buffer = job_index_buffer
+    gpu.index_memory = job_index_memory
+    gpu.index_count = job_index_count
+    gpu.uploaded = job_generation
     mesh_job = -1
     job_vertex_buffer = 0
     job_index_buffer = 0
@@ -1839,7 +1818,61 @@ func finish_mesh(renderer: RenderVulkan.Component.Renderer) {
     job_indices = released_indices
 }
 
-func make_copies_visible(renderer: RenderVulkan.Component.Renderer, copied: Integer) {
+func gpu_mesh_of(slot: Integer): SceneVulkan.Component.GpuMesh? {
+    var owner = meshes.entity_of(slot)
+    var row = gpu_meshes.row_of_entity(owner)
+    assert row >= 0
+    return gpu_meshes.values[row]
+}
+
+func mesh_uploaded(slot: Integer): Boolean {
+    var gpu = gpu_mesh_of(slot)
+    if gpu {
+        return gpu.vertex_buffer != 0
+    }
+    return false
+}
+
+func release_meshes(renderer: RenderVulkan.Renderer) {
+    var no_allocator: Long = 0
+    var slot = 0
+    while slot < meshes.count() {
+        var gpu = gpu_mesh_of(slot)
+        if gpu {
+            if gpu.vertex_buffer != 0 {
+                vulkan.vkDestroyBuffer(renderer.device, gpu.vertex_buffer, no_allocator)
+                vulkan.vkFreeMemory(renderer.device, gpu.vertex_memory, no_allocator)
+                vulkan.vkDestroyBuffer(renderer.device, gpu.index_buffer, no_allocator)
+                vulkan.vkFreeMemory(renderer.device, gpu.index_memory, no_allocator)
+            }
+            gpu.vertex_buffer = 0
+            gpu.index_buffer = 0
+            gpu.uploaded = 0
+        }
+        slot = slot + 1
+    }
+}
+
+func scene_texture_of(slot: Integer): SceneVulkan.Component.SceneTexture? {
+    var owner = textures.entity_of(slot)
+    var row = scene_textures.row_of_entity(owner)
+    assert row >= 0
+    return scene_textures.values[row]
+}
+
+func release_scene_textures() {
+    var slot = 0
+    while slot < textures.count() {
+        var scene = scene_texture_of(slot)
+        if scene {
+            scene.set = 0
+            scene.view = 0
+        }
+        slot = slot + 1
+    }
+}
+
+func make_copies_visible(renderer: RenderVulkan.Renderer, copied: Integer) {
     assert copied > 0
     var memory_barrier = RenderVulkan.Structure(24)
     memory_barrier.append_integer(46)
@@ -1866,7 +1899,7 @@ func make_copies_visible(renderer: RenderVulkan.Component.Renderer, copied: Inte
     )
 }
 
-func release_job(renderer: RenderVulkan.Component.Renderer) {
+func release_job(renderer: RenderVulkan.Renderer) {
     assert job_vertex_buffer != 0
     var no_allocator: Long = 0
     vulkan.vkDestroyBuffer(renderer.device, job_vertex_buffer, no_allocator)
@@ -1876,7 +1909,7 @@ func release_job(renderer: RenderVulkan.Component.Renderer) {
     job_vertex_buffer = 0
 }
 
-func release_depth(renderer: RenderVulkan.Component.Renderer) {
+func release_depth(renderer: RenderVulkan.Renderer) {
     assert depth_image != 0
     var no_allocator: Long = 0
     vulkan.vkDestroyImageView(renderer.device, depth_view, no_allocator)
@@ -1889,13 +1922,13 @@ func release_depth(renderer: RenderVulkan.Component.Renderer) {
     hdr_image = 0
 }
 
-func release_part(renderer: RenderVulkan.Component.Renderer) {
+func release_part(renderer: RenderVulkan.Renderer) {
     var no_allocator: Long = 0
     release_depth(renderer)
     release_all(renderer, draw_buffers, draw_memories)
     release_all(renderer, palette_buffers, palette_memories)
-    release_all(renderer, vertex_buffers, vertex_memories)
-    release_all(renderer, index_buffers, index_memories)
+    release_meshes(renderer)
+    release_scene_textures()
     release_job(renderer)
     release_all(renderer, lighting_buffers, lighting_memories)
     release_all(renderer, light_buffers, light_memories)
@@ -1924,7 +1957,7 @@ func release_part(renderer: RenderVulkan.Component.Renderer) {
     vulkan.vkDestroyShaderModule(renderer.device, shader_fragment, no_allocator)
 }
 
-func release_all(renderer: RenderVulkan.Component.Renderer, buffers: List<Long>, memories: List<Long>) {
+func release_all(renderer: RenderVulkan.Renderer, buffers: List<Long>, memories: List<Long>) {
     var slot = 0
     while slot < buffers.count() {
         if buffers[slot] != 0 {
@@ -1934,7 +1967,7 @@ func release_all(renderer: RenderVulkan.Component.Renderer, buffers: List<Long>,
     }
 }
 
-func create_scene_pool(renderer: RenderVulkan.Component.Renderer) {
+func create_scene_pool(renderer: RenderVulkan.Renderer) {
     var no_allocator: Long = 0
     var sizes = RenderVulkan.Structure(8)
     sizes.append_integer(1)
@@ -1953,31 +1986,30 @@ func create_scene_pool(renderer: RenderVulkan.Component.Renderer) {
     scene_pool = made.read_long(0)
 }
 
-func scene_set(renderer: RenderVulkan.Component.Renderer, set_index: Integer): Long {
-    crash renderer.texture_sets[0]
-    var fallback = renderer.texture_sets[0]
-    if set_index <= 0 or set_index >= renderer.texture_views.count() {
+func scene_set(renderer: RenderVulkan.Renderer, slot: Integer): Long {
+    var fallback = renderer.white_set
+    if slot < 0 {
         return fallback
     }
-    var view = renderer.texture_views[set_index]
-    if view == 0 or renderer.texture_sets[set_index] == 0 {
+    var view = renderer.texture_view(slot)
+    if view == 0 {
         return fallback
     }
-    while scene_sets.count() <= set_index {
-        scene_sets.append(0)
-        scene_set_views.append(0)
+    var scene = scene_texture_of(slot)
+    if not scene {
+        return fallback
     }
-    if scene_set_views[set_index] != view {
-        retire_scene_set(renderer, set_index)
-        var made = allocate_scene_set(renderer, view)
-        scene_sets.set_at(set_index, made)
-        scene_set_views.set_at(set_index, view)
+    if scene.view != view {
+        if scene.set != 0 {
+            retire_scene_set(renderer, scene.set)
+        }
+        scene.set = allocate_scene_set(renderer, view)
+        scene.view = view
     }
-    crash scene_sets[set_index]
-    return scene_sets[set_index]
+    return scene.set
 }
 
-func allocate_scene_set(renderer: RenderVulkan.Component.Renderer, view: Long): Long {
+func allocate_scene_set(renderer: RenderVulkan.Renderer, view: Long): Long {
     var layouts = RenderVulkan.Structure(8)
     layouts.append_long(renderer.descriptor_layout)
     var allocation = RenderVulkan.Structure(40)
@@ -2011,16 +2043,12 @@ func allocate_scene_set(renderer: RenderVulkan.Component.Renderer, view: Long): 
     return set
 }
 
-func retire_scene_set(renderer: RenderVulkan.Component.Renderer, set_index: Integer) {
-    crash scene_sets[set_index]
-    var old = scene_sets[set_index]
-    assert old != 0
+func retire_scene_set(renderer: RenderVulkan.Renderer, old: Long) {
     retired_scene_sets.append(old)
     retired_scene_at.append(renderer.frame_number)
-    scene_sets.set_at(set_index, 0)
 }
 
-func release_retired_scene_sets(renderer: RenderVulkan.Component.Renderer) {
+func release_retired_scene_sets(renderer: RenderVulkan.Renderer) {
     var index = retired_scene_sets.count() - 1
     while index >= 0 {
         crash retired_scene_at[index]

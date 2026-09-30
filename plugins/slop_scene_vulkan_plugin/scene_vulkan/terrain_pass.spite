@@ -26,7 +26,7 @@ var retired_at = List<Integer>()
 var textures_per_material = 7
 var parameter_bytes = 80
 
-func create(renderer: RenderVulkan.Component.Renderer, chosen: RenderVulkan.Component.Device, storage_layout: Long) {
+func create(renderer: RenderVulkan.Renderer, chosen: RenderVulkan.Component.Device, storage_layout: Long) {
     assert not created
     created = true
     shader_terrain = renderer.create_shader("shader.scene.terrain")
@@ -56,7 +56,7 @@ func create(renderer: RenderVulkan.Component.Renderer, chosen: RenderVulkan.Comp
     pipeline_layout = made.read_long(0)
 }
 
-func create_set_layout(renderer: RenderVulkan.Component.Renderer) {
+func create_set_layout(renderer: RenderVulkan.Renderer) {
     var no_allocator: Long = 0
     var bindings = RenderVulkan.Structure(312)
     var binding = 0
@@ -85,7 +85,7 @@ func create_set_layout(renderer: RenderVulkan.Component.Renderer) {
     set_layout = made.read_long(0)
 }
 
-func create_pool(renderer: RenderVulkan.Component.Renderer) {
+func create_pool(renderer: RenderVulkan.Renderer) {
     var no_allocator: Long = 0
     var sizes = RenderVulkan.Structure(16)
     sizes.append_integer(1)
@@ -107,7 +107,7 @@ func create_pool(renderer: RenderVulkan.Component.Renderer) {
 }
 
 func create_sampler(
-    renderer: RenderVulkan.Component.Renderer,
+    renderer: RenderVulkan.Renderer,
     chosen: RenderVulkan.Component.Device,
     address_mode: Integer,
 ): Long {
@@ -165,7 +165,7 @@ func ensure_slot(material: Integer) {
     }
 }
 
-func upload_step(renderer: RenderVulkan.Component.Renderer, materials: Scene.TerrainMaterials) {
+func upload_step(renderer: RenderVulkan.Renderer, materials: Scene.TerrainMaterials) {
     release_retired(renderer)
     var material = 0
     var uploading = true
@@ -178,11 +178,7 @@ func upload_step(renderer: RenderVulkan.Component.Renderer, materials: Scene.Ter
     }
 }
 
-func upload_one_layer(
-    renderer: RenderVulkan.Component.Renderer,
-    materials: Scene.TerrainMaterials,
-    material: Integer,
-): Boolean {
+func upload_one_layer(renderer: RenderVulkan.Renderer, materials: Scene.TerrainMaterials, material: Integer): Boolean {
     var generation = materials.generation(material)
     if uploaded_generations[material] != generation {
         start_material(renderer, materials, material)
@@ -202,7 +198,7 @@ func upload_one_layer(
     return false
 }
 
-func start_material(renderer: RenderVulkan.Component.Renderer, materials: Scene.TerrainMaterials, material: Integer) {
+func start_material(renderer: RenderVulkan.Renderer, materials: Scene.TerrainMaterials, material: Integer) {
     retire_set(renderer, material)
     var which = 0
     while which < arrays_per_material {
@@ -232,12 +228,7 @@ func mip_count_of(width: Integer, height: Integer): Integer {
     return count
 }
 
-func create_array_image(
-    renderer: RenderVulkan.Component.Renderer,
-    array: Scene.LoadedArray,
-    place: Integer,
-    format: Integer,
-) {
+func create_array_image(renderer: RenderVulkan.Renderer, array: Scene.LoadedArray, place: Integer, format: Integer) {
     var no_allocator: Long = 0
     var mips = mip_count_of(array.width, array.height)
     var creation = RenderVulkan.Structure(96)
@@ -297,7 +288,7 @@ func create_array_image(
     uploaded_layers.set_at(place, 0)
 }
 
-func upload_layer(renderer: RenderVulkan.Component.Renderer, array: Scene.LoadedArray, place: Integer) {
+func upload_layer(renderer: RenderVulkan.Renderer, array: Scene.LoadedArray, place: Integer) {
     crash uploaded_layers[place]
     var layer = uploaded_layers[place]
     crash images[place]
@@ -433,7 +424,7 @@ func layer_barrier(
     )
 }
 
-func write_parameters(renderer: RenderVulkan.Component.Renderer, materials: Scene.TerrainMaterials, material: Integer) {
+func write_parameters(renderer: RenderVulkan.Renderer, materials: Scene.TerrainMaterials, material: Integer) {
     if parameter_buffers[material] == 0 {
         var storage_usage = 32
         var buffer = renderer.create_buffer(parameter_bytes, storage_usage)
@@ -474,7 +465,7 @@ func put(at: Long, index: Integer, first: Float, second: Float, third: Float, fo
     floats.write_value(at, index + 3, fourth)
 }
 
-func set_for(renderer: RenderVulkan.Component.Renderer, materials: Scene.TerrainMaterials, material: Integer): Long {
+func set_for(renderer: RenderVulkan.Renderer, materials: Scene.TerrainMaterials, material: Integer): Long {
     if material >= sets.count() or not materials.is_ready(material) {
         return 0
     }
@@ -492,13 +483,13 @@ func set_for(renderer: RenderVulkan.Component.Renderer, materials: Scene.Terrain
     var texture = 0
     while texture < textures_per_material {
         var slot = materials.texture_slot(material, texture)
-        if slot < 0 or slot + 1 >= renderer.texture_sets.count() {
+        if slot < 0 {
             return 0
         }
-        if renderer.texture_sets[slot + 1] == 0 {
+        var current_view = renderer.texture_view(slot)
+        if current_view == 0 {
             return 0
         }
-        var current_view = renderer.texture_views[slot + 1]
         if set_views[material * textures_per_material + texture] != current_view {
             changed = true
         }
@@ -511,7 +502,7 @@ func set_for(renderer: RenderVulkan.Component.Renderer, materials: Scene.Terrain
     return sets[material]
 }
 
-func write_set(renderer: RenderVulkan.Component.Renderer, materials: Scene.TerrainMaterials, material: Integer) {
+func write_set(renderer: RenderVulkan.Renderer, materials: Scene.TerrainMaterials, material: Integer) {
     var layouts = RenderVulkan.Structure(8)
     layouts.append_long(set_layout)
     var allocation = RenderVulkan.Structure(40)
@@ -542,8 +533,7 @@ func write_set(renderer: RenderVulkan.Component.Renderer, materials: Scene.Terra
     var texture = 0
     while texture < textures_per_material {
         var slot = materials.texture_slot(material, texture)
-        crash renderer.texture_views[slot + 1]
-        var view = renderer.texture_views[slot + 1]
+        var view = renderer.texture_view(slot)
         set_views.set_at(material * textures_per_material + texture, view)
         images_information.append_long(clamp_sampler)
         images_information.append_long(view)
@@ -583,7 +573,7 @@ func write_set(renderer: RenderVulkan.Component.Renderer, materials: Scene.Terra
     sets.set_at(material, set)
 }
 
-func retire_set(renderer: RenderVulkan.Component.Renderer, material: Integer) {
+func retire_set(renderer: RenderVulkan.Renderer, material: Integer) {
     assert material < sets.count() and sets[material] != 0
     var retired = sets[material]
     retired_sets.append(retired)
@@ -591,7 +581,7 @@ func retire_set(renderer: RenderVulkan.Component.Renderer, material: Integer) {
     sets.set_at(material, 0)
 }
 
-func retire_image(renderer: RenderVulkan.Component.Renderer, place: Integer) {
+func retire_image(renderer: RenderVulkan.Renderer, place: Integer) {
     assert images[place] != 0
     crash images[place]
     var image = images[place]
@@ -606,7 +596,7 @@ func retire_image(renderer: RenderVulkan.Component.Renderer, place: Integer) {
     images.set_at(place, 0)
 }
 
-func release_retired(renderer: RenderVulkan.Component.Renderer) {
+func release_retired(renderer: RenderVulkan.Renderer) {
     var index = retired_sets.count() - 1
     while index >= 0 {
         crash retired_at[index]
@@ -623,7 +613,7 @@ func release_retired(renderer: RenderVulkan.Component.Renderer) {
     }
 }
 
-func release(renderer: RenderVulkan.Component.Renderer) {
+func release(renderer: RenderVulkan.Renderer) {
     assert created
     var no_allocator: Long = 0
     var place = 0

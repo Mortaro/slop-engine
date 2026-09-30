@@ -161,14 +161,15 @@ A draw target is any entity with the three components; `render_parity` makes an 
 
 | | |
 |---|---|
-| `RenderVulkan.Component.Renderer` | on a window: the device, pipeline, frames in flight, textures and swapchains |
+| `RenderVulkan.Renderer` | a resource (singleton): the one Vulkan device, pipeline, frames in flight, upload stream, and each surface's swapchain images and per-image semaphores (`RenderVulkan.Presentation`, so it can release them); a proposal by Claude: one device is shared by every window, where each window made its own before |
+| `RenderVulkan.Component.GpuTexture` | on a texture's entity: its uploaded image, memory, view, descriptor set and the generation uploaded; added by `AttachGpuTextures` (`last`) to every new texture |
 | `RenderVulkan.Component.Device` | on a window: what the chosen GPU offers, its `name` and `maximum_anisotropy` (1 when it has no anisotropic filtering) |
-| `RenderVulkan.Component.Swapchain` | a window's surface, swapchain, images and per-image semaphores |
+| `RenderVulkan.Component.Swapchain` | a window's surface, swapchain, size, and the image acquired this frame |
 | `RenderVulkan.Component.SwapchainOutOfDate` | marker: the last acquire or present found the swapchain stale, so the next frame rebuilds it |
-| `RenderVulkan.System.CreateRenderer` (`present`) | gives each new window a device, a renderer and a swapchain |
+| `RenderVulkan.System.CreateRenderer` (`present`) | makes the device on the first window, and gives each new window a `Device` and a swapchain |
 | `RenderVulkan.System.DrawFrame` (`present`) | draws the list offscreen, blits it to the swapchain, presents |
 | `RenderVulkan.Component.CaptureRequested`, `Captured` | markers on a window: add `CaptureRequested` to read back the next presented frame; `DrawFrame` swaps it for `Captured` once the pixels are read |
-| `RenderVulkan.System.ReleaseRenderer` (`last`) | releases each renderer once the world entity has `Component.Quit` |
+| `RenderVulkan.System.ReleaseRenderer` (`last`) | releases the renderer once the world entity has `Component.Quit` |
 | `RenderVulkan.Recipe.Shaders` | compiles the rectangle shaders |
 
 See [rendering.md](rendering.md).

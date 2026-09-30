@@ -1,0 +1,9 @@
+type Loaded {
+    entity: Entity
+    mesh: Added<Scene.Component.Mesh>
+}
+
+func last_each(loaded: Loaded) {
+    var gpu = Component.GpuMesh()
+    loaded.entity.add_component(gpu)
+}

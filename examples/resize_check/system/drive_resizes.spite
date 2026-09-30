@@ -2,7 +2,6 @@ type Watched {
     window: Window.Component.Window
     handle: Window.Component.Handle
     swapchain: RenderVulkan.Component.Swapchain
-    renderer: RenderVulkan.Component.Renderer
 }
 
 type Quitting {
@@ -10,6 +9,7 @@ type Quitting {
     running: Without<Component.Quit>
 }
 
+var renderer = RenderVulkan.Renderer()
 var user = DynamicLibrary("user32.dll", 'identity', "")
 var console = Console()
 var step = 0
@@ -17,12 +17,12 @@ var presented_at = 0
 
 var world = World()
 
-func last_each(watched: Watched, quitting: Quitting) {
+func last_each(watched: Watched, _quitting: Quitting) {
     var window = watched.window
     var swapchain = watched.swapchain
     var handle = watched.handle.value
-    var presented_new_frame = watched.renderer.frame_number > presented_at
-    presented_at = watched.renderer.frame_number
+    var presented_new_frame = renderer.frame_number > presented_at
+    presented_at = renderer.frame_number
     if step == 0 and presented_new_frame {
         var no_after: Long = 0
         user.SetWindowPos(handle, no_after, 0, 0, 800, 500, 22)
