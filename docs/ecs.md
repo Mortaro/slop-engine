@@ -138,7 +138,9 @@ hunter.add_component(chase)
 
 - **Adding a link whose entity is not set, or is already despawned, crashes** when the command applies
   (`a_link_is_added_only_once_its_entity_is_set`, `a_link_names_a_living_entity`), whether it came from
-  `add_component`, a bundle or the network. `examples/dead_link_refused/test.sh` checks both.
+  `add_component` or a bundle. `examples/dead_link_refused/test.sh` checks both. A component arriving from the
+  network is not local code: one naming an entity that is dead or unknown on the receiver is dropped instead
+  ([networking.md](networking.md#entity-fields-travel-as-the-receivers-entities)).
 - **A link's entity is always alive.** When an entity is despawned, every link naming it goes in the same flush:
   a `Parent`'s holder is despawned with it (and its children, and theirs); any other link component is removed
   from its holder, which stays. The removal is an ordinary one, so `Removed<Component.Target>` sees it and a

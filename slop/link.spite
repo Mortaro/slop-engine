@@ -6,6 +6,8 @@ var column = Column<$component_type>()
 var columns = Columns()
 var target = -1
 var holders = List<Integer>()
+var living = true
+var made_below = 0
 
 func target_of(value: $component_type): Integer {
     target = -1
@@ -16,6 +18,22 @@ func target_of(value: $component_type): Integer {
 func find_link(link: Symbol<$component_type>, value: $component_type) {
     if link.class == Entity {
         target = value.attributes[link].id
+    }
+}
+
+func names_living(value: $component_type, next_entity: Integer): Boolean {
+    living = true
+    made_below = next_entity
+    check_links(value)
+    return living
+}
+
+func check_link(link: Symbol<$component_type>, value: $component_type) {
+    if link.class == Entity {
+        var linked = value.attributes[link].id
+        if linked < 0 or linked >= made_below or columns.is_dead(linked) {
+            living = false
+        }
     }
 }
 

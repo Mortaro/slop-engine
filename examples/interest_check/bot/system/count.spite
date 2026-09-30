@@ -32,6 +32,10 @@ var pointed = false
 var saw_near = false
 var world = World()
 var verdicts = Lookup<Component.Verdict>()
+var mirrors = Mirrors()
+var remote_of_52 = -1
+var stale_sent = false
+var fresh_number = -1
 
 func update_all(
     runs: List<Running>,
@@ -62,13 +66,18 @@ func update_all(
         console.print("bot sees a sealed stash")
     }
     var near_gone = nears.count() == 0
+    remember_beacon(beacons)
     var expected = counts.count() == 4 and counts[0] == 6 and counts[1] == 11 and counts[2] == 10 and counts[3] == 9 and stashed == 3 and saw_seal and sealed == 0 and saw_near and near_gone and verdict_correct
-    if expected {
+    if expected and not stale_sent {
         console.print(
             "bot sees",
             stashed,
             "stashes of its own, the seal is gone, and so is each Near of the despawned beacon",
         )
+        send_stale_then_fresh(beacons)
+    }
+    if stale_sent and server_judged(fresh_number) {
+        console.print("server ignored a Target naming its despawned beacon and judged beacon", fresh_number, "after it")
         console.print("passed true")
         var quit = Component.Quit()
         var shelf = world.as_entity()
@@ -117,6 +126,35 @@ func send_point(target: Integer) {
     var pointing = Component.Target()
     pointing.entity = world.entity_of(target)
     message.add_component(pointing)
+}
+
+func remember_beacon(beacons: List<Seen>) {
+    var index = 0
+    while index < beacons.count() {
+        if beacons[index].beacon.number == 52 {
+            var remote = beacons[index].mirrored.remote.to_integer()
+            crash remote
+            remote_of_52 = remote
+        }
+        index = index + 1
+    }
+}
+
+func send_stale_then_fresh(beacons: List<Seen>) {
+    assert remote_of_52 >= 0 and beacons.count() > 0
+    stale_sent = true
+    var stale = mirrors.local_of(remote_of_52)
+    send_point(stale)
+    fresh_number = beacons[0].beacon.number
+    send_point(beacons[0].entity.id)
+}
+
+func server_judged(number: Integer): Boolean {
+    var verdict = verdicts.of(world.entity)
+    if verdict {
+        return verdict.number == number
+    }
+    return false
 }
 
 func server_agrees(): Boolean {

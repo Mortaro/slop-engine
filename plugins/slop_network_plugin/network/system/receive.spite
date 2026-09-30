@@ -35,6 +35,8 @@ func decode_component(component: Symbol<Component>, message: Integer, remote: In
         var value = codec.read(frame)
         if value {
             understood = true
+            var link = Link<component.class>()
+            assert link.names_living(value, world.next_entity)
             var target = target_entity(remote, connection, message)
             target.add_component(value)
         }

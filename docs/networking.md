@@ -123,10 +123,17 @@ A link whose entity is despawned on the sender is removed there in the same flus
 other and the receiver drops its copy; the receiver also removes it itself when the mirror of that entity goes.
 Either way a link never names a gone entity on any side.
 
+The receiver checks every arriving component's links before adding it. A link naming an entity that is dead or was
+never made there (a client's `Target` naming a monster the server despawned while the message was in flight, or a
+peer sending made-up ids) drops that component, and for a message, the whole message: nothing is added, nothing is
+logged, and the connection stays open, since the race is not a bug in either side. Local code adding such a link
+still crashes (see [ecs.md](ecs.md#links-between-entities)).
+
 `Mirrors()` (a core singleton) holds the table; `mirrors.local_of(remote)` answers the local entity for a remote id.
 A field typed `Integer` is sent as it is. `interest_check` tests both directions: a server-side `Near` arrives naming the
 bot's mirror, a bot's `Target` message naming a beacon through its mirror reaches the server as the server's own
-beacon, and once the server despawns that beacon, every stash's `Near` is gone on the bot too. `wire_probe` checks the
+beacon, and once the server despawns that beacon, every stash's `Near` is gone on the bot too; the bot then sends a
+`Target` naming that despawned beacon, which the server drops, and a valid one after it, which it judges. `wire_probe` checks the
 same translation through a link component's codec.
 
 ### Who observes what
