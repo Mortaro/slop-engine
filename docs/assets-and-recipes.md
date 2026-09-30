@@ -144,8 +144,9 @@ app runs, and checks both the software canvas and Vulkan follow; the worst tick 
 **Every store follows the catalog.** `Recipes.Catalog`, which textures, meshes, skeletons, clips, blobs and terrain read
 through, watches the cache folder and the program's folder (where its index lives). `System.RefreshCatalog`
 (`input`) re-reads the index on a worker when they change, compares each id's fingerprint with the index it had,
-and bumps its `revision`, remembering the revision each changed id moved at (`revision_of(id)`). `Scene.Component.Meshes`
-and `Recipes.AssetSlots` (skeletons and clips) note the revision each slot was loaded at; a slot whose id moved since
+and bumps its `revision`, remembering the revision each changed id moved at (`revision_of(id)`). The `Scene.Meshes`
+resource (each mesh an entity holding `Scene.Component.Mesh`) and `Recipes.AssetSlots` (skeletons and clips) note
+the revision each slot was loaded at; a slot whose id moved since
 is loaded again in the background and swapped in, its `generation` moves, and the renderer re-uploads a mesh
 whose generation moved. A slot still loading waits for the next pass, so an older load never lands over a newer one.
 

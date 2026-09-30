@@ -96,8 +96,8 @@ func record(
     renderer: RenderVulkan.Component.Renderer,
     view: Scene.Component.View,
     camera: Scene.Component.ViewCamera,
-    meshes: Scene.Component.Meshes,
-    terrain_materials: Scene.Component.TerrainMaterials,
+    meshes: Scene.Meshes,
+    terrain_materials: Scene.TerrainMaterials,
     lights: Scene.Component.Lights,
 ) {
     ensure_depth(renderer)
@@ -709,7 +709,7 @@ func push_and_draw(
 func record_terrain(
     renderer: RenderVulkan.Component.Renderer,
     view: Scene.Component.View,
-    terrain_materials: Scene.Component.TerrainMaterials,
+    terrain_materials: Scene.TerrainMaterials,
     storage: RenderVulkan.Structure,
     view_projection: Math.Matrix4,
 ) {
@@ -1725,8 +1725,8 @@ func append_write(writes: RenderVulkan.Structure, set: Long, binding: Integer, i
     writes.append_long(0)
 }
 
-func upload_meshes(renderer: RenderVulkan.Component.Renderer, meshes: Scene.Component.Meshes) {
-    var count = meshes.ids.count()
+func upload_meshes(renderer: RenderVulkan.Component.Renderer, meshes: Scene.Meshes) {
+    var count = meshes.count()
     while vertex_buffers.count() < count {
         vertex_buffers.append(0)
         vertex_memories.append(0)
@@ -1748,7 +1748,7 @@ func upload_meshes(renderer: RenderVulkan.Component.Renderer, meshes: Scene.Comp
     make_copies_visible(renderer, copied)
 }
 
-func try_start_mesh(renderer: RenderVulkan.Component.Renderer, meshes: Scene.Component.Meshes, count: Integer) {
+func try_start_mesh(renderer: RenderVulkan.Component.Renderer, meshes: Scene.Meshes, count: Integer) {
     assert count > 0
     var slot = mesh_cursor % count
     mesh_cursor = slot + 1

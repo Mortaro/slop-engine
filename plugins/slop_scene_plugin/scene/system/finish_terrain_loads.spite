@@ -1,7 +1,5 @@
-type Loading {
-    terrain_materials: Component.TerrainMaterials
-}
+var terrain_materials = Scene.TerrainMaterials()
 
-func last_each(loading: Loading) {
-    loading.terrain_materials.finish_loads()
+func last_each() {
+    terrain_materials.finish_loads()
 }

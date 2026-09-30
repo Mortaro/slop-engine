@@ -1,8 +1,6 @@
 type Target {
     view: Component.View
     camera: Component.ViewCamera
-    meshes: Component.Meshes
-    terrain_materials: Component.TerrainMaterials
 }
 
 type Modeled {
@@ -12,6 +10,7 @@ type Modeled {
 }
 
 var textures = Render.Textures()
+var meshes = Scene.Meshes()
 
 var off_views = Lookup<Component.OffView>()
 
@@ -20,9 +19,9 @@ func render_each(target: Target, modeled: Modeled) {
 }
 
 func add_draw(target: Target, modeled: Modeled) {
-    var slot = target.meshes.request(modeled.model.mesh)
-    assert target.meshes.is_ready(slot)
-    var loaded = target.meshes.mesh_at(slot)
+    var slot = meshes.request(modeled.model.mesh)
+    var loaded = meshes.loaded_of(slot)
+    assert loaded
     var model = modeled.transform.matrix()
     var skinned = modeled.model.palette.count() > 0
     var palette = modeled.model.palette

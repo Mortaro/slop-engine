@@ -1,0 +1,266 @@
+singleton
+
+var report_console = Console()
+var world = World()
+var known_slots = Dictionary<Integer>()
+var entities = List<Integer>()
+var unstarted = List<Integer>()
+var material_loads = List<Parallel<Asset.TerrainMaterial>>()
+var material_load_slots = List<Integer>()
+var array_loads = List<Parallel<Scene.LoadedArray>>()
+var array_load_slots = List<Integer>()
+var array_load_kinds = List<Integer>()
+var catalog = Recipes.Catalog()
+var arrays_per_material = 5
+var textures_per_material = 7
+var records = Lookup<Scene.Component.TerrainMaterial>()
+var requested = Lookup<Scene.Component.TerrainTexturesRequested>()
+
+func request(id: String): Integer {
+    var found = known_slots.get(id)
+    if found {
+        return found
+    }
+    var slot = entities.count()
+    known_slots.set(id, slot)
+    var created = Scene.Component.TerrainMaterial()
+    created.id = id
+    created.slot = slot
+    created.layers = neutral_array(0)
+    created.normals = neutral_array(1)
+    created.detail = neutral_array(2)
+    created.far_color = neutral_array(3)
+    created.grass_overlay = neutral_array(4)
+    var owner = world.spawn_entity()
+    owner.add_component(created)
+    entities.append(owner.id)
+    unstarted.append(slot)
+    return slot
+}
+
+func count(): Integer {
+    return entities.count()
+}
+
+func entity_of(slot: Integer): Integer {
+    crash entities[slot]
+    return entities[slot]
+}
+
+func record_of(slot: Integer): Scene.Component.TerrainMaterial? {
+    var owner = entity_of(slot)
+    return records.of(owner)
+}
+
+func is_ready(slot: Integer): Boolean {
+    var record = record_of(slot)
+    if record {
+        return record.generation > 0
+    }
+    return false
+}
+
+func material_at(slot: Integer): Asset.TerrainMaterial {
+    var record = record_of(slot)
+    crash record
+    return record.material
+}
+
+func array_at(slot: Integer, which: Integer): Scene.LoadedArray {
+    var record = record_of(slot)
+    crash record
+    switch which {
+        0: return record.layers
+        1: return record.normals
+        2: return record.detail
+        3: return record.far_color
+        _: return record.grass_overlay
+    }
+}
+
+func generation(slot: Integer): Integer {
+    var record = record_of(slot)
+    if record {
+        return record.generation
+    }
+    return 0
+}
+
+func neutral_array(which: Integer): Scene.LoadedArray {
+    var neutral = Scene.LoadedArray()
+    var color = -1
+    if which == 1 {
+        color = 255 * 65536 + 128 * 256 + 128 - 16777216
+    } else if which == 2 {
+        color = 128 * 65536 + 128 * 256 + 128 - 16777216
+    }
+    neutral.raw.write_integer(color)
+    return neutral
+}
+
+func finish_loads() {
+    start_waiting_materials()
+    var index = material_loads.count() - 1
+    while index >= 0 {
+        finish_material_if_done(index)
+        index = index - 1
+    }
+    index = array_loads.count() - 1
+    while index >= 0 {
+        finish_array_if_done(index)
+        index = index - 1
+    }
+}
+
+func start_waiting_materials() {
+    assert unstarted.count() > 0 and catalog.ready()
+    var reader = catalog.current()
+    var index = 0
+    while index < unstarted.count() {
+        start_material(reader, unstarted[index])
+        index = index + 1
+    }
+    unstarted.clear()
+}
+
+func start_material(reader: Recipes.CacheReader, slot: Integer) {
+    var record = record_of(slot)
+    crash record
+    var never_cooked_id = record.id
+    var located = reader.locate(never_cooked_id)
+    if not located {
+        report_console.print("asset never cooked:", never_cooked_id)
+    }
+    crash located
+    var job = Scene.MaterialLoad(located)
+    var loading = Parallel(job.run)
+    material_loads.append(loading)
+    material_load_slots.append(slot)
+    var marker = Component.Loading()
+    var owner = entity_of(slot)
+    world.entity_of(owner).add_component(marker)
+}
+
+func finish_material_if_done(index: Integer) {
+    crash material_load_slots[index]
+    var slot = material_load_slots[index]
+    crash material_loads[index]
+    var loading = material_loads[index]
+    var loaded = loading.finished_value()
+    assert loaded
+    material_loads.remove_at(index)
+    material_load_slots.remove_at(index)
+    var record = record_of(slot)
+    crash record
+    record.material = loaded
+    var material_id = record.id
+    var material_names_its_layers = loaded.layers != ""
+    crash material_names_its_layers or material_id == ""
+    var reader = catalog.current()
+    record.pending_arrays = 0
+    start_array(reader, record, 0, loaded.layers)
+    start_array(reader, record, 1, loaded.normals)
+    start_array(reader, record, 2, loaded.detail)
+    start_array(reader, record, 3, loaded.far_color)
+    start_array(reader, record, 4, loaded.grass_overlay)
+    finish_if_complete(record)
+}
+
+func start_array(reader: Recipes.CacheReader, record: Scene.Component.TerrainMaterial, which: Integer, id: String) {
+    assert id != ""
+    var never_cooked_id = id
+    var located = reader.locate(never_cooked_id)
+    if not located {
+        report_console.print("asset never cooked:", never_cooked_id)
+    }
+    crash located
+    var job = Scene.ArrayLoad(located, never_cooked_id)
+    var loading = Parallel(job.run)
+    array_loads.append(loading)
+    array_load_slots.append(record.slot)
+    array_load_kinds.append(which)
+    record.pending_arrays = record.pending_arrays + 1
+}
+
+func finish_array_if_done(index: Integer) {
+    crash array_load_slots[index]
+    var slot = array_load_slots[index]
+    crash array_load_kinds[index]
+    var which = array_load_kinds[index]
+    crash array_loads[index]
+    var loading = array_loads[index]
+    var loaded = loading.finished_value()
+    assert loaded
+    array_loads.remove_at(index)
+    array_load_slots.remove_at(index)
+    array_load_kinds.remove_at(index)
+    var record = record_of(slot)
+    crash record
+    if which == 0 {
+        record.layers = loaded
+    } else if which == 1 {
+        record.normals = loaded
+    } else if which == 2 {
+        record.detail = loaded
+    } else if which == 3 {
+        record.far_color = loaded
+    } else {
+        record.grass_overlay = loaded
+    }
+    record.pending_arrays = record.pending_arrays - 1
+    finish_if_complete(record)
+}
+
+func finish_if_complete(record: Scene.Component.TerrainMaterial) {
+    assert record.pending_arrays == 0
+    record.generation = record.generation + 1
+    var owner = entity_of(record.slot)
+    world.entity_of(owner).remove_component(Component.Loading)
+}
+
+func request_textures(slot: Integer, textures: Render.Textures) {
+    assert is_ready(slot)
+    var owner = entity_of(slot)
+    assert not requested.has(owner)
+    var record = record_of(slot)
+    crash record
+    var material = record.material
+    record.control_a = request_texture(record, material.ctrl_a, textures)
+    record.control_b = request_texture(record, material.ctrl_b, textures)
+    record.scale_a = request_texture(record, material.scale_a, textures)
+    record.scale_b = request_texture(record, material.scale_b, textures)
+    record.splat_0 = request_texture(record, material.splat_0, textures)
+    record.splat_1 = request_texture(record, material.splat_1, textures)
+    var mask = material.grass_mask
+    if mask == "" {
+        mask = material.splat_1
+    }
+    record.grass_mask = request_texture(record, mask, textures)
+    var marker = Scene.Component.TerrainTexturesRequested()
+    world.entity_of(owner).add_component(marker)
+}
+
+func request_texture(record: Scene.Component.TerrainMaterial, id: String, textures: Render.Textures): Integer {
+    var material_id = record.id
+    var material_names_every_control_texture = id != ""
+    crash material_names_every_control_texture or material_id == ""
+    return textures.request(id)
+}
+
+func texture_slot(slot: Integer, which: Integer): Integer {
+    var owner = entity_of(slot)
+    if not requested.has(owner) {
+        return -1
+    }
+    var record = record_of(slot)
+    crash record
+    switch which {
+        0: return record.control_a
+        1: return record.control_b
+        2: return record.scale_a
+        3: return record.scale_b
+        4: return record.splat_0
+        5: return record.splat_1
+        _: return record.grass_mask
+    }
+}

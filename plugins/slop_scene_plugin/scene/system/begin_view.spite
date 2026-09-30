@@ -1,8 +1,6 @@
 type Target {
     entity: Entity
     view: Component.View
-    meshes: Component.Meshes
-    terrain_materials: Component.TerrainMaterials
 }
 
 type Viewing {

@@ -7,11 +7,11 @@ type Target {
     mesh_renderer: Component.MeshRenderer
     view: Scene.Component.View
     camera: Scene.Component.ViewCamera
-    meshes: Scene.Component.Meshes
-    terrain_materials: Scene.Component.TerrainMaterials
     lights: Scene.Component.Lights
 }
 
+var meshes = Scene.Meshes()
+var terrain_materials = Scene.TerrainMaterials()
 var created = Lookup<Component.MeshRendererCreated>()
 
 func after_render_each(target: Target) {
@@ -26,5 +26,5 @@ func after_render_each(target: Target) {
         var marker = Component.MeshRendererCreated()
         owner.add_component(marker)
     }
-    mesh_renderer.record(renderer, target.view, target.camera, target.meshes, target.terrain_materials, target.lights)
+    mesh_renderer.record(renderer, target.view, target.camera, meshes, terrain_materials, target.lights)
 }
