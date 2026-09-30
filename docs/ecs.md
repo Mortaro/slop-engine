@@ -172,7 +172,7 @@ component on an entity, and a system reaches it through a row like any other dat
 
   A program adds its own with `world.as_entity().add_component(...)`: the tracking example's `Component.Tally`.
 - **Per-window state lives on the window entity**: `Input.Component.Mouse` (in the window bundle), and the draw
-  list, clear colour, texture cache, software canvas and Vulkan renderer, which the render plugins add when
+  list, clear colour, software canvas and Vulkan swapchain, which the render plugins add when
   `Added<Window.Component.Window>` matches. So several windows each get their own.
 - **Services that are not world state are plain classes**: `Render.Font`, `Recipes.Cache`.
 

@@ -135,7 +135,8 @@ See [ui.md](ui.md).
 | | |
 |---|---|
 | `Render.Component.DrawList` | on a draw target: this frame's rectangles, solid or textured, in raw memory |
-| `Render.Component.Textures` | on a draw target: asset id to slot, each slot's texture entity, and the background loads in flight |
+| `Render.Textures` | a resource (singleton): asset id to slot, each slot's texture entity, and the background loads in flight, keyed by entity |
+| `Component.Loading` | core marker on any entity whose asset job is in flight (a texture's, a mesh's, a terrain material's), added when the job starts and removed when its result lands, so a loading screen can ask for `Texture` + `Loading` |
 | `Render.Component.Texture` | on a texture's own entity: its `id`, `slot`, decoded `image`, `raw` texels for the GPU, `generation` (bumped on every load) and the catalog revision it was loaded at |
 | `Render.Component.TextureReady` | marker on a texture's entity: its texels are loaded |
 | `Render.Component.ClearColor` | on a draw target: the clear colour |

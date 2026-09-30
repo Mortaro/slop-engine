@@ -132,8 +132,8 @@ reports a change once they have been quiet for 100 ms, so a burst of writes is o
 (`input`) then compares stamps and submits the stale recipes to the thread pool as a `Recipes.CookTask`; the frame
 thread only submits it and, once `finished`, drops the handle. The recipes append their new outputs to the cache binary and rewrite the program's index.
 
-**Textures follow the catalog.** A `Render.Component.Textures` records the catalog revision each texture was loaded
-at, on the texture's own entity. When `Recipes.Catalog` sees the cache change (below), `FinishTextureLoads` starts
+**Textures follow the catalog.** Each texture's `Render.Component.Texture` records the catalog revision it was
+loaded at, on the texture's own entity. When `Recipes.Catalog` sees the cache change (below), `FinishTextureLoads` starts
 ordinary background loads for the textures whose record changed since. The Vulkan backend re-uploads a slot whose
 generation moved and retires the old image, view, memory and descriptor set once the frames using them have finished.
 
@@ -165,8 +165,9 @@ Known gaps:
 
 ## Background loading
 
-A game names an asset; the engine loads it without stalling a frame. `Render.Component.Textures.request(id)` answers a
-slot at once, and gives the texture an entity of its own holding a `Render.Component.Texture`. The first request
+A game names an asset; the engine loads it without stalling a frame. `Render.Textures().request(id)` (a resource) answers a
+slot at once, and gives the texture an entity of its own holding a `Render.Component.Texture`, marked
+`Component.Loading` while its job runs. The first request
 for an id looks up where its record sits in the cache binary
 (an in-memory index, no disk access) and starts a `Parallel` job on its own thread: the job reads the record,
 decodes it with `Pack`, and lays the pixels out as raw bytes for the GPU. The frame thread never waits for it:

@@ -182,7 +182,7 @@ func finish_if_complete(slot: Integer) {
     generations.set_at(slot, loaded_before + 1)
 }
 
-func request_textures(slot: Integer, textures: Render.Component.Textures) {
+func request_textures(slot: Integer, textures: Render.Textures) {
     crash texture_slots[slot * textures_per_material]
     assert is_ready(slot) and texture_slots[slot * textures_per_material] < 0
     crash materials[slot]
@@ -200,7 +200,7 @@ func request_textures(slot: Integer, textures: Render.Component.Textures) {
     request_texture(slot, 6, mask, textures)
 }
 
-func request_texture(slot: Integer, which: Integer, id: String, textures: Render.Component.Textures) {
+func request_texture(slot: Integer, which: Integer, id: String, textures: Render.Textures) {
     var material_id = ids[slot]
     var material_names_every_control_texture = id != ""
     crash material_names_every_control_texture or material_id == ""

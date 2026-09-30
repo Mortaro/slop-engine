@@ -2,7 +2,6 @@ type Target {
     view: Component.View
     camera: Component.ViewCamera
     meshes: Component.Meshes
-    textures: Render.Component.Textures
     terrain_materials: Component.TerrainMaterials
 }
 
@@ -11,6 +10,8 @@ type Modeled {
     model: Component.Model
     transform: Transform.Component.Transform
 }
+
+var textures = Render.Textures()
 
 var off_views = Lookup<Component.OffView>()
 
@@ -72,7 +73,7 @@ func add_section(target: Target, loaded: Scene.LoadedMesh, draw: Scene.Draw, sec
     if material < loaded.textures.count() {
         var texture = loaded.textures[material]
         if not texture.is_empty() {
-            draw.texture_slot = target.textures.request(texture)
+            draw.texture_slot = textures.request(texture)
         }
     }
     target.view.draws.append(draw)

@@ -12,13 +12,13 @@ type Bars {
 
 type Target {
     draw_list: Component.DrawList
-    textures: Component.Textures
 }
 
 type Cache {
     fonts: Ui.Component.Fonts
 }
 
+var textures = Render.Textures()
 var no_fonts = Ui.Component.Fonts()
 
 func render_all(targets: List<Target>, elements: List<Element>, bars: List<Bars>, caches: List<Cache>) {
@@ -123,7 +123,7 @@ func paint_font_text(
     var size = fonts.size_slot(font.name, font.face, font.size)
     assert size >= 0
     var atlas_name = fonts.atlas_id(size)
-    var atlas = target.textures.slot_of(atlas_name)
+    var atlas = textures.slot_of(atlas_name)
     var codes = List<Integer>()
     fonts.codepoints(text.text, codes)
     var pen: Float = layout.content_left
@@ -183,7 +183,6 @@ func place_glyph(
 
 func paint_image(target: Target, layout: Ui.Component.ComputedLayout, texture_name: String) {
     assert texture_name != ""
-    var textures = target.textures
     var texture = textures.request(texture_name)
     assert textures.is_ready(texture)
     target.draw_list.append_image(layout.left, layout.top, layout.width, layout.height, texture)

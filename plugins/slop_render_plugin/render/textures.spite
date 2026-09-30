@@ -1,3 +1,5 @@
+singleton
+
 var report_console = Console()
 var world = World()
 var known_slots = Dictionary<Integer>()
@@ -68,6 +70,9 @@ func start_load(reader: Recipes.CacheReader, id: String) {
     loads.append(loading)
     load_slots.append(slot)
     load_revisions.append(catalog.revision)
+    var marker = Component.Loading()
+    var owner = entity_of(slot)
+    world.entity_of(owner).add_component(marker)
 }
 
 func publish(id: String, image: Asset.Texture, raw_texels: Asset.Bytes): Integer {
@@ -120,6 +125,7 @@ func finish_if_done(index: Integer) {
     record.raw = loaded.raw
     record.generation = record.generation + 1
     record.loaded_revision = load_revisions[index]
+    world.entity_of(owner).remove_component(Component.Loading)
     if not Lookup<Render.Component.TextureReady>().has(owner) {
         var ready = Render.Component.TextureReady()
         world.entity_of(owner).add_component(ready)

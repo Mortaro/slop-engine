@@ -1,3 +1,4 @@
+var textures = Render.Textures()
 var cookbook = Recipes.Cookbook()
 var console = Console()
 var world = World()
@@ -33,8 +34,6 @@ func RenderParity() {
     world.spawn_entity_from_bundle(panel_text)
     add_wall_of_text(screen.id)
     world.flush()
-    var textures = Lookup<Render.Component.Textures>().of(target)
-    crash textures
     var settled = false
     while not settled {
         var drawn_before = rectangles_of(target)
@@ -105,8 +104,6 @@ func spawn_target(): Integer {
     world.entity_of(target).add_component(draw_list)
     var clear_color = Render.Component.ClearColor()
     world.entity_of(target).add_component(clear_color)
-    var textures = Render.Component.Textures()
-    world.entity_of(target).add_component(textures)
     return target
 }
 

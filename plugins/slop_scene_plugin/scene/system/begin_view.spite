@@ -2,7 +2,6 @@ type Target {
     entity: Entity
     view: Component.View
     meshes: Component.Meshes
-    textures: Render.Component.Textures
     terrain_materials: Component.TerrainMaterials
 }
 

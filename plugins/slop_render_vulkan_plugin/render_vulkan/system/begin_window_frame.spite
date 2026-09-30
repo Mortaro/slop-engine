@@ -4,8 +4,9 @@ type Target {
     swapchain: Component.Swapchain
     renderer: Component.Renderer
     draw_list: Render.Component.DrawList
-    textures: Render.Component.Textures
 }
+
+var textures = Render.Textures()
 
 var stale_swapchains = Lookup<Component.SwapchainOutOfDate>()
 
@@ -20,7 +21,7 @@ func render_each(target: Target) {
     if stale or resized {
         renderer.refresh_swapchain(window, swapchain)
     }
-    var acquired = renderer.begin_window_frame(target.draw_list, target.textures, swapchain)
+    var acquired = renderer.begin_window_frame(target.draw_list, textures, swapchain)
     mark_stale(owner, stale, not acquired)
 }
 

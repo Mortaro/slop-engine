@@ -3,17 +3,14 @@ type Cache {
     changed: Ui.Component.AtlasChanged
 }
 
-type Target {
-    textures: Component.Textures
-}
-
 var world = World()
+var textures = Render.Textures()
 
-func render_each(cache: Cache, target: Target) {
+func render_each(cache: Cache) {
     var fonts = cache.fonts
     var index = 0
     while index < fonts.changed_sizes.count() {
-        publish(fonts, target.textures, fonts.changed_sizes[index])
+        publish(fonts, fonts.changed_sizes[index])
         index = index + 1
     }
     fonts.changed_sizes.clear()
@@ -21,7 +18,7 @@ func render_each(cache: Cache, target: Target) {
     shelf.remove_component(Ui.Component.AtlasChanged)
 }
 
-func publish(fonts: Ui.Component.Fonts, textures: Component.Textures, size: Integer) {
+func publish(fonts: Ui.Component.Fonts, size: Integer) {
     var id = fonts.atlas_id(size)
     crash fonts.atlases[size]
     var atlas = fonts.atlases[size]

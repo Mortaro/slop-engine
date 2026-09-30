@@ -219,7 +219,7 @@ checks the button ends on its hover plate.
 
 ### Textures are named, the engine loads them
 
-A game only names an asset id. `Render.Component.Textures.request(id)` answers a slot at once and starts a
+A game only names an asset id. `Render.Textures().request(id)` answers a slot at once and starts a
 `Parallel` job that reads its record from the cache binary and decodes it on its own thread; the frame only polls
 it. `DrawUi` skips an image until its slot is ready, and the Vulkan backend stages at most 8 MiB of new textures per
 frame and records their copies into the frame's own command buffer. Nothing blocks a frame, and nothing in the game

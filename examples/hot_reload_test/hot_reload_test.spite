@@ -1,3 +1,4 @@
+var textures = Render.Textures()
 var cookbook = Recipes.Cookbook()
 var console = Console()
 var world = World()
@@ -67,9 +68,7 @@ func software_pixel(target: Integer): Integer {
 
 func vulkan_pixel(target: Integer): Integer {
     var draw_list = Lookup<Render.Component.DrawList>().of(target)
-    var textures = Lookup<Render.Component.Textures>().of(target)
     crash draw_list
-    crash textures
     var renderer = RenderVulkan.Component.Renderer()
     var device = RenderVulkan.Component.Device()
     renderer.ensure(device)
@@ -87,8 +86,6 @@ func spawn_target(): Integer {
     target.add_component(draw_list)
     var clear_color = Render.Component.ClearColor()
     target.add_component(clear_color)
-    var textures = Render.Component.Textures()
-    target.add_component(textures)
     return target.id
 }
 

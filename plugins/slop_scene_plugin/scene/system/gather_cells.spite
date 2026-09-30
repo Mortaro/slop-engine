@@ -2,7 +2,6 @@ type Target {
     view: Component.View
     camera: Component.ViewCamera
     meshes: Component.Meshes
-    textures: Render.Component.Textures
     terrain_materials: Component.TerrainMaterials
 }
 
@@ -10,6 +9,8 @@ type Cell {
     cell: Component.TerrainCell
     transform: Transform.Component.Transform
 }
+
+var textures = Render.Textures()
 
 func render_each(target: Target, placed: Cell) {
     add_cell(target, placed)
@@ -20,7 +21,7 @@ func add_cell(target: Target, placed: Cell) {
     var slot = target.meshes.request(cell.mesh)
     var material_slot = target.terrain_materials.request(cell.material)
     assert target.meshes.is_ready(slot) and target.terrain_materials.is_ready(material_slot)
-    target.terrain_materials.request_textures(material_slot, target.textures)
+    target.terrain_materials.request_textures(material_slot, textures)
     var loaded = target.meshes.mesh_at(slot)
     var model = placed.transform.matrix()
     target.view.cone.place(model, loaded)

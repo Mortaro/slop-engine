@@ -518,7 +518,7 @@ func ensure_slots(count: Integer) {
     }
 }
 
-func stream_textures(textures: Render.Component.Textures) {
+func stream_textures(textures: Render.Textures) {
     var count = textures.count()
     ensure_slots(count + 1)
     ensure_staging()
@@ -534,7 +534,7 @@ func stream_textures(textures: Render.Component.Textures) {
     }
 }
 
-func uploads_pending(textures: Render.Component.Textures): Boolean {
+func uploads_pending(textures: Render.Textures): Boolean {
     if stream_index >= 0 {
         return true
     }
@@ -550,7 +550,7 @@ func uploads_pending(textures: Render.Component.Textures): Boolean {
     return false
 }
 
-func outdated(textures: Render.Component.Textures, slot: Integer): Boolean {
+func outdated(textures: Render.Textures, slot: Integer): Boolean {
     crash texture_generations[slot + 1]
     var generation = textures.generation(slot)
     return textures.is_ready(slot) and texture_generations[slot + 1] != generation
@@ -564,7 +564,7 @@ func ensure_staging() {
     frame.staging_mapped = map(frame.staging_memory, upload_budget_bytes)
 }
 
-func try_start(textures: Render.Component.Textures, count: Integer) {
+func try_start(textures: Render.Textures, count: Integer) {
     assert count > 0
     var slot = stream_cursor % count
     stream_cursor = slot + 1
@@ -1562,7 +1562,7 @@ func submit(wait_for_image: Boolean, frame_done: Long) {
     crash result == 0
 }
 
-func draw_offscreen(draw_list: Render.Component.DrawList, textures: Render.Component.Textures) {
+func draw_offscreen(draw_list: Render.Component.DrawList, textures: Render.Textures) {
     while not pipeline_ready() {
         offscreen_program.sleep(1)
     }
@@ -1579,7 +1579,7 @@ func draw_offscreen(draw_list: Render.Component.DrawList, textures: Render.Compo
     wait_frame()
 }
 
-func upload_only_frame(textures: Render.Component.Textures) {
+func upload_only_frame(textures: Render.Textures) {
     begin_frame()
     begin_commands()
     record_uploads()
@@ -1746,7 +1746,7 @@ func signal_skipped_frame() {
 
 func begin_window_frame(
     draw_list: Render.Component.DrawList,
-    textures: Render.Component.Textures,
+    textures: Render.Textures,
     swapchain: RenderVulkan.Component.Swapchain,
 ): Boolean {
     begin_frame()
