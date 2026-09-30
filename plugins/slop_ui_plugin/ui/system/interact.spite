@@ -11,6 +11,7 @@ type Pointer {
 }
 
 type Bars {
+    entity: Entity
     bars: Component.ComputedScrollbars
     clip: Component.ComputedClip
 }
@@ -68,7 +69,7 @@ func interact_pointer(
     var index = 0
     while index < bars.count() {
         var bar = bars[index]
-        on_bar = on_bar or bar.bars.covers(mouse_left, mouse_top) and bar.clip.contains(mouse_left, mouse_top)
+        on_bar = on_bar or covers(bar, mouse_left, mouse_top) and bar.clip.contains(mouse_left, mouse_top)
         index = index + 1
     }
     read_buttons(pointer.entity.id)
@@ -296,4 +297,19 @@ func read_buttons(entity: Integer) {
     right_pressed = Lookup<Input.Component.RightPressed>().has(entity)
     right_released = Lookup<Input.Component.RightReleased>().has(entity)
     double_clicked = Lookup<Input.Component.DoubleClicked>().has(entity)
+}
+
+func covers(bar: Bars, across: Float, down: Float): Boolean {
+    var thickness = bar.bars.thickness
+    var vertical = Lookup<Component.VerticalScrollbar>().of(bar.entity.id)
+    if vertical {
+        if vertical.on_track(across, down, thickness) {
+            return true
+        }
+    }
+    var horizontal = Lookup<Component.HorizontalScrollbar>().of(bar.entity.id)
+    if horizontal {
+        return horizontal.on_track(across, down, thickness)
+    }
+    return false
 }

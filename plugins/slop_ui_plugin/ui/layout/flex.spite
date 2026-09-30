@@ -1409,30 +1409,95 @@ func fill_scrollbars(
     bars.thickness = bar_thickness(entity)
     var horizontal = Lookup<Ui.Component.OverflowX>().of(entity)
     var vertical = Lookup<Ui.Component.OverflowY>().of(entity)
-    bars.vertical_shown = false
-    bars.horizontal_shown = false
+    var vertical_shown = false
+    var horizontal_shown = false
     if vertical {
-        bars.vertical_shown = bars.thickness > 0.0 and vertical_bar(vertical, range.vertical > 0.0)
+        vertical_shown = bars.thickness > 0.0 and vertical_bar(vertical, range.vertical > 0.0)
     }
     if horizontal {
-        bars.horizontal_shown = bars.thickness > 0.0 and horizontal_bar(horizontal, range.horizontal > 0.0)
+        horizontal_shown = bars.thickness > 0.0 and horizontal_bar(horizontal, range.horizontal > 0.0)
     }
     var corner: Float = 0.0
-    if bars.vertical_shown and bars.horizontal_shown {
+    if vertical_shown and horizontal_shown {
         corner = bars.thickness
     }
-    bars.vertical_track_left = padding_left + padding_width - bars.thickness
-    bars.vertical_track_top = padding_top
-    bars.vertical_track_height = padding_height - corner
-    var vertical_thumb = thumb_length(bars.vertical_track_height, padding_height, range.vertical)
-    bars.vertical_thumb_height = vertical_thumb
-    bars.vertical_thumb_top = padding_top + thumb_offset(bars.vertical_track_height, vertical_thumb, scroll_top, range.vertical)
-    bars.horizontal_track_left = padding_left
-    bars.horizontal_track_top = padding_top + padding_height - bars.thickness
-    bars.horizontal_track_width = padding_width - corner
-    var horizontal_thumb = thumb_length(bars.horizontal_track_width, padding_width, range.horizontal)
-    bars.horizontal_thumb_width = horizontal_thumb
-    bars.horizontal_thumb_left = padding_left + thumb_offset(bars.horizontal_track_width, horizontal_thumb, scroll_left, range.horizontal)
+    var owner = Entity(entity)
+    remove_hidden_bars(owner, vertical_shown, horizontal_shown)
+    if vertical_shown {
+        var vertical_track = padding_height - corner
+        var vertical_thumb = thumb_length(vertical_track, padding_height, range.vertical)
+        var vertical_offset = thumb_offset(vertical_track, vertical_thumb, scroll_top, range.vertical)
+        var vertical_left = padding_left + padding_width - bars.thickness
+        write_vertical(owner, vertical_left, padding_top, vertical_track, vertical_thumb, vertical_offset)
+    }
+    if horizontal_shown {
+        var horizontal_track = padding_width - corner
+        var horizontal_thumb = thumb_length(horizontal_track, padding_width, range.horizontal)
+        var horizontal_offset = thumb_offset(horizontal_track, horizontal_thumb, scroll_left, range.horizontal)
+        var horizontal_top = padding_top + padding_height - bars.thickness
+        write_horizontal(owner, padding_left, horizontal_top, horizontal_track, horizontal_thumb, horizontal_offset)
+    }
+}
+
+func remove_hidden_bars(owner: Entity, vertical_shown: Boolean, horizontal_shown: Boolean) {
+    if not vertical_shown and Lookup<Ui.Component.VerticalScrollbar>().has(owner.id) {
+        owner.remove_component(Ui.Component.VerticalScrollbar)
+    }
+    if not horizontal_shown and Lookup<Ui.Component.HorizontalScrollbar>().has(owner.id) {
+        owner.remove_component(Ui.Component.HorizontalScrollbar)
+    }
+}
+
+func write_vertical(owner: Entity, left: Float, top: Float, track: Float, thumb: Float, offset: Float) {
+    var existing = Lookup<Ui.Component.VerticalScrollbar>().of(owner.id)
+    if existing {
+        place_vertical(existing, left, top, track, thumb, offset)
+        return
+    }
+    var created = Ui.Component.VerticalScrollbar()
+    place_vertical(created, left, top, track, thumb, offset)
+    owner.add_component(created)
+}
+
+func write_horizontal(owner: Entity, left: Float, top: Float, track: Float, thumb: Float, offset: Float) {
+    var existing = Lookup<Ui.Component.HorizontalScrollbar>().of(owner.id)
+    if existing {
+        place_horizontal(existing, left, top, track, thumb, offset)
+        return
+    }
+    var created = Ui.Component.HorizontalScrollbar()
+    place_horizontal(created, left, top, track, thumb, offset)
+    owner.add_component(created)
+}
+
+func place_vertical(
+    bar: Ui.Component.VerticalScrollbar,
+    left: Float,
+    top: Float,
+    track: Float,
+    thumb: Float,
+    offset: Float,
+) {
+    bar.track_left = left
+    bar.track_top = top
+    bar.track_height = track
+    bar.thumb_height = thumb
+    bar.thumb_top = top + offset
+}
+
+func place_horizontal(
+    bar: Ui.Component.HorizontalScrollbar,
+    left: Float,
+    top: Float,
+    track: Float,
+    thumb: Float,
+    offset: Float,
+) {
+    bar.track_left = left
+    bar.track_top = top
+    bar.track_width = track
+    bar.thumb_width = thumb
+    bar.thumb_left = left + offset
 }
 
 func vertical_bar(overflow: Ui.Component.OverflowY, needed: Boolean): Boolean {

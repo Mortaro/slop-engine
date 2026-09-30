@@ -168,9 +168,11 @@ absolute descendants' containing block moves with them, as on the web. Clips int
 - **Scrollbars.** Overlay bars (they take no layout space, like macOS and mobile), inside the padding box's right
   and bottom edges. `'scroll'` always shows one, and `'automatic'` shows one when there is somewhere to scroll.
   `ScrollbarWidth` (`'automatic'` 8 px, `'thin'` 4 px, `'none'`) and `ScrollbarColor` (`thumb`, `track`) are the CSS
-  properties of the same names. The layout writes `ComputedScrollbars` (the track and thumb geometry). Dragging a
-  thumb (`Ui.Component.ScrollDrag` while the button is held) scrolls proportionally, and a press on a scrollbar never
-  reaches the element under it.
+  properties of the same names. The layout writes `ComputedScrollbars` (the bars' thickness and paint order) and,
+  for each bar that is shown, a `VerticalScrollbar` or `HorizontalScrollbar` holding its track and thumb geometry; a
+  bar that is not shown has no component. Dragging a thumb (`Ui.Component.ScrollDrag` while the button is held, with
+  the marker `DraggingVertical` for the vertical bar) scrolls proportionally, and a press on a scrollbar never reaches
+  the element under it.
 
 Not built yet: clicking the track to page, and a clip that an absolute element escapes when its containing block lies outside the
 scroller (here, an absolute element is clipped by every clipping ancestor).

@@ -12,7 +12,6 @@ type Dragging {
     drag: Component.ScrollDrag
     range: Component.ScrollRange
     position: Component.ScrollPosition
-    bars: Component.ComputedScrollbars
 }
 
 type Pointer {
@@ -24,6 +23,9 @@ var step: Float = 40.0
 
 var left_down = false
 var left_pressed = false
+var vertical_drags = Lookup<Component.DraggingVertical>()
+var vertical_bars = Lookup<Component.VerticalScrollbar>()
+var horizontal_bars = Lookup<Component.HorizontalScrollbar>()
 
 func after_input_all(scrollables: List<Scrollable>, draggings: List<Dragging>, pointers: List<Pointer>) {
     var index = 0
@@ -83,24 +85,38 @@ func start_drag(scrollables: List<Scrollable>, mouse: Input.Component.Mouse) {
     var index = 0
     while index < scrollables.count() {
         var candidate = scrollables[index]
-        var bars = candidate.bars
-        var visible = candidate.clip.contains(mouse_left, mouse_top)
-        var on_vertical_thumb = bars.on_vertical_track(mouse_left, mouse_top) and mouse_top >= bars.vertical_thumb_top and mouse_top < bars.vertical_thumb_top + bars.vertical_thumb_height
-        var on_horizontal_thumb = bars.on_horizontal_track(mouse_left, mouse_top) and mouse_left >= bars.horizontal_thumb_left and mouse_left < bars.horizontal_thumb_left + bars.horizontal_thumb_width
-        if visible and on_vertical_thumb {
-            begin_drag(candidate.entity.id, true, mouse_top - bars.vertical_thumb_top)
-        } else if visible and on_horizontal_thumb {
-            begin_drag(candidate.entity.id, false, mouse_left - bars.horizontal_thumb_left)
+        if candidate.clip.contains(mouse_left, mouse_top) {
+            grab_thumb(candidate, mouse_left, mouse_top)
         }
         index = index + 1
     }
 }
 
+func grab_thumb(candidate: Scrollable, mouse_left: Float, mouse_top: Float) {
+    var entity = candidate.entity.id
+    var thickness = candidate.bars.thickness
+    var vertical = vertical_bars.of(entity)
+    if vertical {
+        if vertical.on_thumb(mouse_left, mouse_top, thickness) {
+            begin_drag(entity, true, mouse_top - vertical.thumb_top)
+            return
+        }
+    }
+    var horizontal = horizontal_bars.of(entity)
+    assert horizontal
+    assert horizontal.on_thumb(mouse_left, mouse_top, thickness)
+    begin_drag(entity, false, mouse_left - horizontal.thumb_left)
+}
+
 func begin_drag(entity: Integer, vertical: Boolean, grab: Float) {
     var started = Component.ScrollDrag()
-    started.vertical = vertical
     started.grab = grab
-    Entity(entity).add_component(started)
+    var owner = Entity(entity)
+    owner.add_component(started)
+    if vertical {
+        var marker = Component.DraggingVertical()
+        owner.add_component(marker)
+    }
 }
 
 func drag_every(draggings: List<Dragging>, mouse: Input.Component.Mouse) {
@@ -112,24 +128,32 @@ func drag_every(draggings: List<Dragging>, mouse: Input.Component.Mouse) {
 }
 
 func drag(dragging: Dragging, mouse: Input.Component.Mouse) {
+    var owner = dragging.entity
+    var vertical = vertical_drags.has(owner.id)
     if not left_down {
-        dragging.entity.remove_component(Component.ScrollDrag)
+        owner.remove_component(Component.ScrollDrag)
+        if vertical {
+            owner.remove_component(Component.DraggingVertical)
+        }
         return
     }
-    var bars = dragging.bars
     var mouse_left: Float = mouse.left
     var mouse_top: Float = mouse.top
-    if dragging.drag.vertical {
-        var travel = bars.vertical_track_height - bars.vertical_thumb_height
+    if vertical {
+        var bar = vertical_bars.of(owner.id)
+        assert bar
+        var travel = bar.track_height - bar.thumb_height
         assert travel > 0.0
-        var thumb_offset = mouse_top - dragging.drag.grab - bars.vertical_track_top
+        var thumb_offset = mouse_top - dragging.drag.grab - bar.track_top
         dragging.position.top = limited(thumb_offset / travel * dragging.range.vertical, dragging.range.vertical)
-    } else {
-        var travel = bars.horizontal_track_width - bars.horizontal_thumb_width
-        assert travel > 0.0
-        var thumb_offset = mouse_left - dragging.drag.grab - bars.horizontal_track_left
-        dragging.position.left = limited(thumb_offset / travel * dragging.range.horizontal, dragging.range.horizontal)
+        return
     }
+    var bar = horizontal_bars.of(owner.id)
+    assert bar
+    var travel = bar.track_width - bar.thumb_width
+    assert travel > 0.0
+    var thumb_offset = mouse_left - dragging.drag.grab - bar.track_left
+    dragging.position.left = limited(thumb_offset / travel * dragging.range.horizontal, dragging.range.horizontal)
 }
 
 func limited(value: Float, maximum: Float): Float {

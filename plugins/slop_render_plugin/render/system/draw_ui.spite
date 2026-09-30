@@ -202,36 +202,13 @@ func paint_bars(target: Target, painted: Bars) {
         track = colors.track
     }
     var thickness = bars.thickness
-    if bars.vertical_shown {
-        draw_list.append_rectangle(
-            bars.vertical_track_left,
-            bars.vertical_track_top,
-            thickness,
-            bars.vertical_track_height,
-            track,
-        )
-        draw_list.append_rectangle(
-            bars.vertical_track_left,
-            bars.vertical_thumb_top,
-            thickness,
-            bars.vertical_thumb_height,
-            thumb,
-        )
+    var vertical = Lookup<Ui.Component.VerticalScrollbar>().of(painted.entity.id)
+    if vertical {
+        draw_list.append_rectangle(vertical.track_left, vertical.track_top, thickness, vertical.track_height, track)
+        draw_list.append_rectangle(vertical.track_left, vertical.thumb_top, thickness, vertical.thumb_height, thumb)
     }
-    if bars.horizontal_shown {
-        draw_list.append_rectangle(
-            bars.horizontal_track_left,
-            bars.horizontal_track_top,
-            bars.horizontal_track_width,
-            thickness,
-            track,
-        )
-        draw_list.append_rectangle(
-            bars.horizontal_thumb_left,
-            bars.horizontal_track_top,
-            bars.horizontal_thumb_width,
-            thickness,
-            thumb,
-        )
-    }
+    var horizontal = Lookup<Ui.Component.HorizontalScrollbar>().of(painted.entity.id)
+    assert horizontal
+    draw_list.append_rectangle(horizontal.track_left, horizontal.track_top, horizontal.track_width, thickness, track)
+    draw_list.append_rectangle(horizontal.thumb_left, horizontal.track_top, horizontal.thumb_width, thickness, thumb)
 }
