@@ -19,3 +19,4 @@ store.bin.index
 *.log
 .test/
 round_trip.texture.bin
+.spite/

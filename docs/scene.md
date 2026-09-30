@@ -70,9 +70,9 @@ What the readers do:
 
 ## Animation
 
-`Animate` advances each animator by the tick's fixed step (`Tick().step_milliseconds`) and samples its clip. Measuring
-wall-clock time per row made the parts of one character drift apart (the face slid off the head) whenever a tick's
-rows crossed a millisecond; the fixed step keeps every part of a character in lockstep and makes captures repeatable.
+`Animate` advances each animator by the tick's step (`Tick().step_milliseconds`) and samples its clip. The step is
+measured once per tick, so every part of a character advances by the same amount; measuring wall-clock time per row
+made the parts drift apart (the face slid off the head) whenever a tick's rows crossed a millisecond.
 - Position and scale are interpolated linearly.
 - Rotation uses a shortest-arc slerp, falling back to a normalised lerp for near-identical keys.
 - It writes `global · inverse_bind` for each bone into `Scene.Component.Model.palette`, and each bone's model-space

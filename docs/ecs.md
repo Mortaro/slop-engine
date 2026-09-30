@@ -241,7 +241,7 @@ Ordering inside a phase is by name, not by data. The finer phase names carry the
 | Call | Does |
 |---|---|
 | `App()` | finds every system, builds the stages |
-| `app.run()` | ticks at a fixed rate, one tick every `frame_milliseconds` (16; a server sets 50 for 20 Hz), until the world's `Component.Quit.requested`, then ticks once more so systems can react to quitting. The pace is kept against the monotonic clock, so a tick's own time does not add up to drift; a tick that overruns is followed at once, without trying to catch up |
+| `app.run()` | ticks at a fixed rate, one tick every `frame_milliseconds` (16; a server sets 50 for 20 Hz), until the world's `Component.Quit.requested`, then ticks once more so systems can react to quitting. The pace is kept against the monotonic clock, so a tick's own time does not add up to drift; a tick that overruns is followed at once, and the next step is the time that really passed, so the game runs in real time whatever the frame rate |
 | `app.begin_pacing()`, `app.wait_for_next_tick()` | the two halves of that pacing, for a program that drives its own loop |
 | `app.tick()` | one tick: every stage in order, changes applied after each |
 | `app.parallel = false` | runs every stage's systems one after another |
@@ -266,7 +266,11 @@ func update_each(attacking: Attacking) {
 }
 ```
 
-The step is `Tick().step_milliseconds`, which the app sets from `frame_milliseconds`. The timer is stored inline,
+The step is `Tick().step_milliseconds`, set once at the start of each tick. Under `app.run()` it is the time that
+really passed since the last tick, carried to the nanosecond so fractions of a millisecond add up, and at most 100 ms,
+so a hitch doesn't teleport anything. A fixed step made everything move in slow motion whenever a frame took longer
+than `frame_milliseconds` (Theseus A87: half speed at 25 to 40 ms frames). A program that calls `app.tick()` itself, as
+tests and benchmarks do, gets `frame_milliseconds` every tick, so it stays repeatable. The timer is stored inline,
 so counting down 10,000 timers costs about 0.26 ms a tick. `timers_check` tests it: a 50 ms repeating timer rings 6
 times in 30 ticks of 10 ms and a 120 ms one-shot rings once, and 40 paced ticks of 25 ms take 1,012 ms.
 
