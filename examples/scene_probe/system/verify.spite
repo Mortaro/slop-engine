@@ -15,6 +15,7 @@ var rendered_frames = 0
 
 var world = World()
 var captured_frames = Lookup<RenderVulkan.Component.Captured>()
+
 func last_each(checked: Checked, _quitting: Quitting) {
     assert checked.view.draws.count() > 0
     var renderer = checked.renderer

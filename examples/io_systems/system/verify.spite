@@ -10,6 +10,7 @@ type Quitting {
 var console = Console()
 
 var world = World()
+
 func last_all(replies: List<Replied>, quitting: List<Quitting>) {
     var state = quitting.first()
     crash state
