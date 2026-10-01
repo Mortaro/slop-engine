@@ -3,7 +3,7 @@
 A game engine written in the Spite language: Bevy, with metaprogramming in place of Bevy's type machinery. A
 multithreaded ECS, meant to build "the good kind of AI slop" and eventually Theseus (the MMO, client and server). The
 main goal right now is to find out whether Spite is ready. What it is missing is in
-[INSIGHTS.md](INSIGHTS.md). This file is the overview; [docs/](docs/README.md) documents every part in depth.
+[design/INSIGHTS.md](design/INSIGHTS.md). This file is the overview; [docs/](docs/README.md) documents every part in depth.
 
 Everything runs on Windows with the compiler in `D:\Projects\SpiteLanguage` (`bin/spite`).
 
@@ -357,5 +357,5 @@ examples/
 | headers cached per system | 128 ms parallel, 133 ms sequential |
 | generic singletons real, singletons not reference counted, `type` rows | 65 ms parallel, 81 ms sequential |
 
-About 200 ns per entity per system: better, and still two orders of magnitude from a native ECS. INSIGHTS.md says
+About 200 ns per entity per system: better, and still two orders of magnitude from a native ECS. design/INSIGHTS.md says
 where the rest goes.

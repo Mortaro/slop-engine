@@ -5,7 +5,7 @@
 [`mortaros_notes.md`](mortaros_notes.md) is Mortaro's inbox. Read it at the start of every session and again before
 starting a new piece of work. Every note in it is a request or a decision from Mortaro:
 
-1. Act on it, or record it where it belongs (the docs in `docs/`, `INSIGHTS.md`, or a report to the Spite language
+1. Act on it, or record it where it belongs (the docs in `docs/`, `design/INSIGHTS.md`, or a report to the Spite language
    session when it is about the language).
 2. Then delete it from the inbox. Leave only the header and notes that are not handled yet.
 
@@ -16,7 +16,7 @@ empties the same way.
 
 - [`README.md`](README.md) and [`docs/`](docs/README.md): what exists and how to use it.
 - [`docs/conventions.md`](docs/conventions.md): folders, naming, and the rules Spite's compiler enforces.
-- [`INSIGHTS.md`](INSIGHTS.md): what building the engine taught us about Spite, and every bug reported upstream.
+- [`design/INSIGHTS.md`](design/INSIGHTS.md): what building the engine taught us about Spite, and every bug reported upstream.
 
 ## How to work
 
