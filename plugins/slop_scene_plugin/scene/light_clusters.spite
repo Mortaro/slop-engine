@@ -34,7 +34,7 @@ func assign(camera: Scene.Component.ViewCamera, lights: Scene.Lights, aspect: Fl
     index_count = 0
     var cluster = 0
     while cluster < cluster_count {
-        cursors.set_at(cluster, index_count)
+        cursors[cluster] = index_count
         crash counts[cluster]
         index_count = index_count + counts[cluster]
         cluster = cluster + 1
@@ -70,7 +70,7 @@ func write(ranges_at: Memory.Address, indices_at: Memory.Address) {
                 crash cursors[cluster_at]
                 var cursor = cursors[cluster_at]
                 ints.write_value(indices_at, cursor, slot)
-                cursors.set_at(cluster_at, cursor + 1)
+                cursors[cluster_at] = cursor + 1
                 cluster_at = cluster_at + 1
                 column = column + 1
             }
@@ -102,7 +102,7 @@ func prepare(camera: Scene.Component.ViewCamera, aspect: Float) {
     }
     var cluster = 0
     while cluster < cluster_count {
-        counts.set_at(cluster, 0)
+        counts[cluster] = 0
         cluster = cluster + 1
     }
     boundaries.clear()
@@ -113,7 +113,7 @@ func prepare(camera: Scene.Component.ViewCamera, aspect: Float) {
         boundaries.append(near * growth)
         slice = slice + 1
     }
-    boundaries.set_at(0, 0.001)
+    boundaries[0] = 0.001
 }
 
 func slice_of(depth: Float): Integer {
@@ -193,7 +193,7 @@ func place_slice(slot: Integer, slice: Integer, depth: Float, range: Float): Boo
         var column = first_column
         while column <= last_column {
             crash counts[cluster]
-            counts.set_at(cluster, counts[cluster] + 1)
+            counts[cluster] = counts[cluster] + 1
             cluster = cluster + 1
             column = column + 1
         }

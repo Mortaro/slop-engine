@@ -163,7 +163,7 @@ func read_palette_alpha(bytes: Asset.Bytes, body: Integer, length: Integer) {
         var color = entry.bits_and(16777215)
         var alpha_part = alpha.shifted_left(24)
         var texel = color.bits_or(alpha_part)
-        palette.set_at(index, texel)
+        palette[index] = texel
         index = index + 1
     }
 }
@@ -429,7 +429,7 @@ func place_row(
     var column = 0
     while column < columns {
         var texel = texel_at(pixels, column)
-        texture.pixels.set_at(first + column * column_step, texel)
+        texture.pixels[first + column * column_step] = texel
         column = column + 1
     }
 }

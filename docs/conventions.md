@@ -20,6 +20,10 @@ An engine plugin lives in `plugins/slop_<feature>_plugin/<feature>/`, so loading
 ## Names
 
 - Spite's rules apply: `snake_case` names, `PascalCase` classes, no abbreviations, no single letters.
+- Spite refuses an operator's function called by name, so engine code writes the operator: `slots[id]` and
+  `slots[id] = slot` for a `Dictionary` or a `List`, `matrix.pose = pose` for `set_pose`. A lookup whose answer may
+  be missing is kept in a local and narrowed (`var found = known[remote]`, then `assert found`), so the key is read
+  once.
 - A row type is named after what it describes: `HoveredButton`, `ClickedCounter`, `PendingWindow`.
 - A component that exists in more than one dimension carries the dimension in its name, matching the library's
   `Vector2`/`Vector3`: `Position2D` and `Position3D`, not two `Position` classes told apart by namespace. A

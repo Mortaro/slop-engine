@@ -308,7 +308,7 @@ func read_dynamic_tables() {
         crash code_length_order[index]
         var slot = code_length_order[index]
         var length = read_bits(3)
-        code_lengths.set_at(slot, length)
+        code_lengths[slot] = length
         index = index + 1
     }
     var code_lengths_built = code_length_table.build(code_lengths, 0, 19)

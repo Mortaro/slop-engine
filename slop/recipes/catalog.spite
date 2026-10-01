@@ -79,7 +79,7 @@ func take_refresh() {
         var fresh_print = fresh.fingerprint_of(id)
         var old_print = old.fingerprint_of(id)
         if fresh_print != old_print {
-            changed_at.set(id, next)
+            changed_at[id] = next
             changed = changed + 1
         }
         index = index + 1
@@ -91,7 +91,7 @@ func take_refresh() {
 }
 
 func revision_of(id: String): Integer {
-    var at = changed_at.get(id)
+    var at = changed_at[id]
     if at {
         return at
     }

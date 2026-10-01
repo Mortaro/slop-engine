@@ -98,7 +98,7 @@ func restamp(paths: List<String>, known: List<String>) {
     var index = 0
     while index < paths.count() {
         var stamp = stamp_of(paths[index])
-        known.set_at(index, stamp)
+        known[index] = stamp
         index = index + 1
     }
 }

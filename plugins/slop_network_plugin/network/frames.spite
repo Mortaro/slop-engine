@@ -24,7 +24,7 @@ func buffer_for(entity: Integer): Asset.Bytes {
     ensure(entity)
     crash current[entity]
     if stamped[entity] != tick {
-        stamped.set_at(entity, tick)
+        stamped[entity] = tick
         current[entity].clear()
         touched.append(entity)
     }
@@ -67,8 +67,8 @@ func settle(entity: Integer) {
     var differences = delta[entity]
     differences.clear()
     collect_changes(fresh, stored, differences)
-    previous.set_at(entity, fresh)
-    current.set_at(entity, stored)
+    previous[entity] = fresh
+    current[entity] = stored
 }
 
 func forget(entity: Integer) {

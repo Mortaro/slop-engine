@@ -587,10 +587,10 @@ func grow_lights(renderer: RenderVulkan.Renderer, slot: Integer, wanted: Integer
     var buffer = renderer.create_buffer(bytes, storage_usage)
     var memory = renderer.host_memory_for(buffer)
     var mapped = renderer.map(memory, bytes)
-    light_buffers.set_at(slot, buffer)
-    light_memories.set_at(slot, memory)
-    light_mapped.set_at(slot, mapped)
-    light_capacities.set_at(slot, capacity)
+    light_buffers[slot] = buffer
+    light_memories[slot] = memory
+    light_mapped[slot] = mapped
+    light_capacities[slot] = capacity
 }
 
 func grow_light_indices(renderer: RenderVulkan.Renderer, slot: Integer, wanted: Integer) {
@@ -601,10 +601,10 @@ func grow_light_indices(renderer: RenderVulkan.Renderer, slot: Integer, wanted: 
     var buffer = renderer.create_buffer(bytes, storage_usage)
     var memory = renderer.host_memory_for(buffer)
     var mapped = renderer.map(memory, bytes)
-    light_index_buffers.set_at(slot, buffer)
-    light_index_memories.set_at(slot, memory)
-    light_index_mapped.set_at(slot, mapped)
-    light_index_capacities.set_at(slot, capacity)
+    light_index_buffers[slot] = buffer
+    light_index_memories[slot] = memory
+    light_index_mapped[slot] = mapped
+    light_index_capacities[slot] = capacity
 }
 
 func put(at: Long, index: Integer, first: Float, second: Float, third: Float, fourth: Float) {
@@ -1499,7 +1499,7 @@ func write_frame_data(renderer: RenderVulkan.Renderer, drawn: Scene.DrawSet, slo
         var key = key_of(draw)
         crash key_counts[key]
         var position = key_counts[key]
-        key_counts.set_at(key, position + 1)
+        key_counts[key] = position + 1
         var record_at = draws_at + position * draw_stride
         draw.model.write_to(record_at)
         raw.write_integer(record_at, 64, draw.palette_first)
@@ -1513,7 +1513,7 @@ func write_frame_data(renderer: RenderVulkan.Renderer, drawn: Scene.DrawSet, slo
     index = 0
     while index < used_keys.count() {
         var used = used_keys[index]
-        key_counts.set_at(used, 0)
+        key_counts[used] = 0
         index = index + 1
     }
     index = 0
@@ -1557,7 +1557,7 @@ func group_draws(drawn: Scene.DrawSet) {
         if seen == 0 {
             used_keys.append(key)
             run_draws.append(index)
-            key_first_draws.set_at(key, index)
+            key_first_draws[key] = index
         } else {
             crash key_first_draws[key]
             var first_index = key_first_draws[key]
@@ -1567,7 +1567,7 @@ func group_draws(drawn: Scene.DrawSet) {
             var same_look = first.texture_slot == draw.texture_slot and first.masked == draw.masked
             crash same_section and same_look
         }
-        key_counts.set_at(key, seen + 1)
+        key_counts[key] = seen + 1
         index = index + 1
     }
     var start = 0
@@ -1578,7 +1578,7 @@ func group_draws(drawn: Scene.DrawSet) {
         var count = key_counts[used]
         run_starts.append(start)
         run_counts.append(count)
-        key_counts.set_at(used, start)
+        key_counts[used] = start
         start = start + count
         index = index + 1
     }
@@ -1609,10 +1609,10 @@ func grow_draws(renderer: RenderVulkan.Renderer, slot: Integer, wanted: Integer)
     var buffer = renderer.create_buffer(bytes, storage_usage)
     var memory = renderer.host_memory_for(buffer)
     var mapped = renderer.map(memory, bytes)
-    draw_buffers.set_at(slot, buffer)
-    draw_memories.set_at(slot, memory)
-    draw_mapped.set_at(slot, mapped)
-    draw_capacities.set_at(slot, capacity)
+    draw_buffers[slot] = buffer
+    draw_memories[slot] = memory
+    draw_mapped[slot] = mapped
+    draw_capacities[slot] = capacity
 }
 
 func grow_palettes(renderer: RenderVulkan.Renderer, slot: Integer, wanted: Integer) {
@@ -1623,10 +1623,10 @@ func grow_palettes(renderer: RenderVulkan.Renderer, slot: Integer, wanted: Integ
     var buffer = renderer.create_buffer(bytes, storage_usage)
     var memory = renderer.host_memory_for(buffer)
     var mapped = renderer.map(memory, bytes)
-    palette_buffers.set_at(slot, buffer)
-    palette_memories.set_at(slot, memory)
-    palette_mapped.set_at(slot, mapped)
-    palette_capacities.set_at(slot, capacity)
+    palette_buffers[slot] = buffer
+    palette_memories[slot] = memory
+    palette_mapped[slot] = mapped
+    palette_capacities[slot] = capacity
 }
 
 func free_buffer(renderer: RenderVulkan.Renderer, buffers: List<Long>, memories: List<Long>, slot: Integer) {
@@ -1636,8 +1636,8 @@ func free_buffer(renderer: RenderVulkan.Renderer, buffers: List<Long>, memories:
     var no_allocator: Long = 0
     vulkan.vkDestroyBuffer(renderer.device, buffers[slot], no_allocator)
     vulkan.vkFreeMemory(renderer.device, memories[slot], no_allocator)
-    buffers.set_at(slot, 0)
-    memories.set_at(slot, 0)
+    buffers[slot] = 0
+    memories[slot] = 0
 }
 
 func write_storage_set(renderer: RenderVulkan.Renderer, slot: Integer) {

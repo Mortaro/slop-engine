@@ -117,10 +117,10 @@ func insert_in_order(events: List<Arrived>, index: Integer) {
     var at = device_events.count() - 1
     while at > 0 and earlier(events, entity, at - 1) {
         crash device_events[at - 1]
-        device_events.set_at(at, device_events[at - 1])
+        device_events[at] = device_events[at - 1]
         at = at - 1
     }
-    device_events.set_at(at, index)
+    device_events[at] = index
 }
 
 func earlier(events: List<Arrived>, entity: Integer, at: Integer): Boolean {

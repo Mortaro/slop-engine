@@ -169,7 +169,8 @@ func sample_frame(
         crash curve_channels[curve]
         crash curve_counts[curve]
         var value = evaluate(curve_offsets[curve], curve_counts[curve], frame)
-        channels.set_at(curve_bones[curve] * 10 + curve_channels[curve], value)
+        var channel = curve_bones[curve] * 10 + curve_channels[curve]
+        channels[channel] = value
         curve = curve + 1
     }
     var posed = List<Math.Matrix4>()
@@ -221,7 +222,7 @@ func pose_bone(
     basis_pose.scale_z = channel(bone, 9)
     normalize_rotation(basis_pose)
     var basis = Math.Matrix4()
-    basis.set_pose(basis_pose)
+    basis.pose = basis_pose
     crash rests[bone]
     crash skeleton.parents[bone]
     var rest = rests[bone]

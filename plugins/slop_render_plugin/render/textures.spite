@@ -12,12 +12,12 @@ var unstarted = List<String>()
 var seen_revision = 0
 
 func request(id: String): Integer {
-    var found = known_slots.get(id)
+    var found = known_slots[id]
     if found {
         return found
     }
     var slot = entities.count()
-    known_slots.set(id, slot)
+    known_slots[id] = slot
     var created = Render.Component.Texture()
     created.id = id
     created.slot = slot
@@ -34,7 +34,7 @@ func count(): Integer {
 }
 
 func slot_of(id: String): Integer {
-    var found = known_slots.get(id)
+    var found = known_slots[id]
     if found {
         return found
     }
@@ -58,7 +58,7 @@ func start_waiting_loads() {
 }
 
 func start_load(reader: Recipes.CacheReader, id: String) {
-    var slot = known_slots.get(id)
+    var slot = known_slots[id]
     crash slot
     var record = reader.locate(id)
     if not record {
@@ -76,7 +76,7 @@ func start_load(reader: Recipes.CacheReader, id: String) {
 }
 
 func publish(id: String, image: Asset.Texture, raw_texels: Asset.Bytes): Integer {
-    var found = known_slots.get(id)
+    var found = known_slots[id]
     if found {
         var owner = entity_of(found)
         var record = Lookup<Render.Component.Texture>().of(owner)
@@ -87,7 +87,7 @@ func publish(id: String, image: Asset.Texture, raw_texels: Asset.Bytes): Integer
         return found
     }
     var slot = entities.count()
-    known_slots.set(id, slot)
+    known_slots[id] = slot
     var created = Render.Component.Texture()
     created.id = id
     created.slot = slot

@@ -22,15 +22,17 @@ func read_index() {
 }
 
 func fingerprint_of(id: String): String {
-    if fingerprints[id] {
-        return fingerprints[id]
+    var fingerprint = fingerprints[id]
+    if fingerprint {
+        return fingerprint
     }
     return ""
 }
 
 func locate(id: String): Recipes.Record? {
-    assert fingerprints[id]
+    var fingerprint = fingerprints[id]
+    assert fingerprint
     assert store
-    var key = "{id}#{fingerprints[id]}"
+    var key = "{id}#{fingerprint}"
     return store.find(key)
 }

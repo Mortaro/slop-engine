@@ -60,7 +60,7 @@ func count_pending(connection: Integer, message: Integer) {
         if pending_connections[index] == connection {
             crash pending_counts[index]
             var counted = pending_counts[index]
-            pending_counts.set_at(index, counted + 1)
+            pending_counts[index] = counted + 1
             return
         }
         index = index + 1

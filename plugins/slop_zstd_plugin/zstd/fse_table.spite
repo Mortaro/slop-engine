@@ -90,7 +90,7 @@ func finish_state(state: Integer, next_state: List<Integer>) {
     var symbol = symbol_at(state)
     crash next_state[symbol]
     var next = next_state[symbol]
-    next_state.set_at(symbol, next + 1)
+    next_state[symbol] = next + 1
     var number_of_bits = accuracy - powers.highest_bit(next)
     var baseline = powers.of(number_of_bits) * next - size
     raw.write_integer(bits, state * 4, number_of_bits)

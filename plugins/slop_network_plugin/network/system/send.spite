@@ -71,7 +71,7 @@ func group_visible(peers: List<Peer>, observations: List<Observation>) {
         while peer_of.count() <= connection {
             peer_of.append(0)
         }
-        peer_of.set_at(connection, index + 1)
+        peer_of[connection] = index + 1
         visible_counts.append(0)
         visible_starts.append(0)
         index = index + 1
@@ -84,10 +84,10 @@ func group_visible(peers: List<Peer>, observations: List<Observation>) {
     var start = 0
     index = 0
     while index < peers.count() {
-        visible_starts.set_at(index, start)
+        visible_starts[index] = start
         crash visible_counts[index]
         start = start + visible_counts[index]
-        visible_counts.set_at(index, 0)
+        visible_counts[index] = 0
         index = index + 1
     }
     visible.clear()
@@ -113,7 +113,7 @@ func count_visible(observation: Observation) {
     var peer = peer_index(observation)
     assert peer >= 0
     crash visible_counts[peer]
-    visible_counts.set_at(peer, visible_counts[peer] + 1)
+    visible_counts[peer] = visible_counts[peer] + 1
 }
 
 func place_visible(observation: Observation) {
@@ -122,26 +122,26 @@ func place_visible(observation: Observation) {
     crash visible_starts[peer]
     crash visible_counts[peer]
     var at = visible_starts[peer] + visible_counts[peer]
-    visible.set_at(at, observation.parent.entity.id)
-    visible_counts.set_at(peer, visible_counts[peer] + 1)
+    visible[at] = observation.parent.entity.id
+    visible_counts[peer] = visible_counts[peer] + 1
 }
 
 func forget_peers(peers: List<Peer>) {
     var index = 0
     while index < peers.count() {
-        peer_of.set_at(peers[index].entity.id, 0)
+        peer_of[peers[index].entity.id] = 0
         index = index + 1
     }
 }
 
 func known_of(peer: Entity): Network.Known {
     var key: String = peer.id
-    var found = knowledge.get(key)
+    var found = knowledge[key]
     if found {
         return found
     }
     var made = Network.Known()
-    knowledge.set(key, made)
+    knowledge[key] = made
     return made
 }
 
@@ -192,7 +192,7 @@ func send_entity(stream: Network.Stream, known: Network.Known, entity: Integer) 
         stream.queue(full)
         known.entities.append(entity)
     }
-    ticks.set_at(entity, frames.tick)
+    ticks[entity] = frames.tick
 }
 
 func forget_hidden(known: Network.Known) {
@@ -205,7 +205,7 @@ func forget_hidden(known: Network.Known) {
         if ticks[entity] == frames.tick {
             still.append(entity)
         } else {
-            ticks.set_at(entity, -1)
+            ticks[entity] = -1
             write_removal(entity)
         }
         index = index + 1

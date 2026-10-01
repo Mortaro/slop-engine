@@ -75,9 +75,9 @@ func letter_entity(key: Integer, connection: Integer, message: Integer): Entity 
     var marker = Network.Component.Arrived()
     marker.message = message
     arrived.add_component(marker)
-    letter_keys.set_at(connection, key)
-    letter_entities.set_at(connection, arrived.id)
-    letter_dropped.set_at(connection, false)
+    letter_keys[connection] = key
+    letter_entities[connection] = arrived.id
+    letter_dropped[connection] = false
     return arrived
 }
 
@@ -87,7 +87,7 @@ func letter_open(connection: Integer): Boolean {
 }
 
 func drop_letter(connection: Integer) {
-    letter_dropped.set_at(connection, true)
+    letter_dropped[connection] = true
     crash letter_entities[connection]
     world.despawn(letter_entities[connection])
 }
