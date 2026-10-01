@@ -94,7 +94,7 @@ func run() {
 Mortaro decided on 2026-09-24 that a system is a class with `run_each(potion: Potion, target: Target)` or
 `run_all(potions: List<Potion>, targets: List<Target>)`, and that the gap is closed in the language with
 compile-time function reflection: `if $system_type.has('run_each')` folds at compile time, and the function's
-arguments become a compile-time list whose `.class` works as a type. Recorded as D114 in the language's docs/decisions.md.
+arguments become a compile-time list whose `.class` works as a type. Recorded as D114 in the language's design/decisions.md.
 The syntax is Claude's proposal, and it's in mortaros_missing_decisions.md with the `*_system` discovery question;
 the mechanism is the decision. Rejected: variadic generics (fixes arity
 only), and one engine class per arity (works sooner, reads worse).
@@ -189,7 +189,7 @@ All sent to the "Language implementation review" session, which is fixing them o
 | 37 | reported | a `type` row naming a class that doesn't exist (`Server.Component.Eye` for a component in an environment folder) crashes the compiler (`Generator.shape_default`) instead of reporting the field | the right name, `Component.Eye` |
 | 38 | reported | a template instance can silently share a name with an ordinary function (`store_attribute` for an attribute `row` makes `store_row`), and the error points at line 0 with a wrong argument count | rename the helper |
 | 39 | D230 | a function can't return a borrowed `Items` item, so `Lookup.of` on an inline component returns a copy and writes to it are silently lost | fixed: `Lookup.of` lends the item (D230, D257), and inline storage is inferred |
-| 40 | fixed (D227, D228) | a program can't override a package's `Build` default, and a package can't find its own files, so shader recipes only worked two folders below the repository | junctions in Theseus |
+| 40 | fixed (D227, D228) | a program can't override a package's `Build` default, and a package can't find its own files, so shader recipes only worked two folders below the repository | junctions in a game repository |
 | 41 | reported | comparing a value with a walked symbol's class (`given == bundle.class`) leaks the class object and its two lists, once per class | none: the leak is bounded; `debug-memory` counts are off by three per bundle class spawned |
 | 42 | reported | `var bundle: T = null` constructs a default `T`, and everything it holds, which is then thrown away; `= null` reads as "nothing yet" | `T?` |
 | 43 | reported | singletons that bind each other in a circle (`World` → `Column<Entity>` → `Columns` → …) hang at startup with no output instead of failing to compile; hit twice | a non-singleton helper holds the binding (`ChildFinder`) |
@@ -198,9 +198,9 @@ All sent to the "Language implementation review" session, which is fixing them o
 | 8 | decided (D278), queued | a `_name` attribute is private even to a `Symbol<Class>` template reading it, so a walk skips it silently: a `_frozen` field left a column layout short and crashed far away | filters are named normally. D278: walks will include private attributes, readable and writable through the walked symbol |
 | 46 | decided (D205), queued | no codepoint iteration on `String`; every text renderer decodes UTF-8 by hand | `Fonts.codepoints` decodes by hand. Coming: `text.codepoints()` answering `List<Integer>?`, null for malformed UTF-8 |
 | 47 | decided (D205), queued | a doc-link comment resolves against the entry file's folder, so a shared engine file can't link its docs | no doc links in `slop/` or `plugins/` |
-| 48 | decided (D205), queued | `function_writes_parameter` counts `row.entity.remove_component(...)` as a write to the row, so IO handlers are refused a structural change | Theseus writes `world.entity_of(row.entity.id).remove_component(...)`. Coming: `function_writes_parameter_attribute`, so the engine refuses writes to component attributes only |
-| 49 | found, to report (Theseus A100) | a local `var` in one folded branch of an attribute walk (`if attribute.class == Entity { var own = Entity() ... }`) makes the borrowed `Column<attribute.class>().values[row]` read in the sibling branch an error ("cannot be put in a list"); without the local it compiles | `Stream` fills the entity with `world.entity_of(entity)` |
-| 50 | found, to report (Theseus A101) | a setter (`set_id(value)`) intercepts `x.id = ...` only when the class has an attribute `id`; the docs describe getters and setters without one | `Entity` keeps `var id = -1` beside its `set_id`, which refuses a negative id |
+| 48 | decided (D205), queued | `function_writes_parameter` counts `row.entity.remove_component(...)` as a write to the row, so IO handlers are refused a structural change | a game writes `world.entity_of(row.entity.id).remove_component(...)`. Coming: `function_writes_parameter_attribute`, so the engine refuses writes to component attributes only |
+| 49 | found, to report (a game's alert A100) | a local `var` in one folded branch of an attribute walk (`if attribute.class == Entity { var own = Entity() ... }`) makes the borrowed `Column<attribute.class>().values[row]` read in the sibling branch an error ("cannot be put in a list"); without the local it compiles | `Stream` fills the entity with `world.entity_of(entity)` |
+| 50 | found, to report (a game's alert A101) | a setter (`set_id(value)`) intercepts `x.id = ...` only when the class has an attribute `id`; the docs describe getters and setters without one | `Entity` keeps `var id = -1` beside its `set_id`, which refuses a negative id |
 | - | design | a class reopened from the program root gets new attributes, but its constructor loses to the loaded folder's version | the test sets window settings in its entry function; sent to Mortaro's decisions file |
 
 ## Gaps that aren't bugs
@@ -381,10 +381,10 @@ state clearly. The ones the docs caused were sent to the language session:
 - failure.md doesn't say that `crash a and b` narrows neither path (bug 12);
 - packages.md doesn't say which side wins when a program root and a loaded folder both define the same function.
 
-## Update, 2026-09-27: what the Theseus port taught
+## Update, 2026-09-27: what porting a game taught
 
 Mortaro set the goals: Spite first, as the best language for AI (fastest, fewest ways to get things wrong), then
-Theseus beating its Unreal version while being simpler to maintain. The traps found while building for Theseus, and
+the first game beating its Unreal version while being simpler to maintain. The traps found while building for it, and
 what each became:
 
 - **Silent copies are the worst class of bug.** An inline component read through a function returns a copy, and a
@@ -411,4 +411,4 @@ what each became:
    makes `Parallel` safe.
 3. Systems found by name, called with arguments from reflected types. This completes `use_potion.spite`'s form.
 4. Callbacks from C. Needed for a real window: keyboard, resizing, IME.
-5. Environments on declarations. Needed before Theseus's server exists.
+5. Environments on declarations. Needed before a game's server exists.

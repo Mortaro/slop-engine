@@ -28,8 +28,7 @@ size / rectangle size, in integers) and blended with straight alpha,
   same texture are one instanced draw and draw order is kept;
 - an offscreen B8G8R8A8 target, blitted to the swapchain (mailbox when the driver has it, FIFO otherwise), with a
   semaphore per swapchain image;
-- readback: `draw_offscreen` copies the frame into host memory, which is how the parity test reads it.
-
+- readback: `draw_offscreen` copies the frame into host memory, which is how the parity test reads it;
 - two frames in flight (`RenderVulkan.Frame`): each has its own command buffer, fence, acquire semaphore, vertex
   buffer, offscreen target and in-flight staging buffers, and a frame waits only for the fence of the frame two
   before it.
@@ -46,12 +45,16 @@ natural alignment, so a struct reads like its C definition.
 ## Parity
 
 `examples/render_parity` renders the click counter's screen, including the PSD button plate and its alpha edges,
-through both backends and compares every pixel. Today: 0 of 256,000 differ.
+through both backends and compares every pixel: 0 of 256,000 differ.
 
 ## The window without callbacks
 
-Spite can't pass a function to C yet, so there is no window procedure written in Spite. `OpenWindow` registers a
-window class whose procedure is `DefWindowProcA` itself, found with `GetProcAddress`. `PumpMessages` reads mouse
-and keyboard messages (`WM_KEYDOWN`, `WM_KEYUP`, `WM_CHAR`) out of the queue with `PeekMessageA` before dispatching
-them, and notices a closed window when `IsWindow` turns false. Resizing, fullscreen and IME need a real callback;
-they wait on the language.
+There is no window procedure written in Spite. `OpenWindow` registers a window class whose procedure is
+`DefWindowProcA` itself, found with `GetProcAddress`. `PumpMessages` reads mouse and keyboard messages
+(`WM_KEYDOWN`, `WM_KEYUP`, `WM_CHAR`) out of the queue with `PeekMessageA` before dispatching them, and notices a
+closed window when `IsWindow` turns false. When the window's client size changes, the swapchain is rebuilt to it,
+and a minimised window presents nothing until it is restored (`resize_check`).
+
+---
+
+Next: [Assets and recipes](assets-and-recipes.md), how source files become the assets a game names.

@@ -56,9 +56,8 @@ What the readers do:
     wrong in silence. `MeshReader.images` has the image's name per slot,
     `image_bytes` its packed file, and `image_paths` the file path when the image is not packed (an external
     `.psd`, for example), so the recipe can cook it. The path is Blender's own form, the SDNA field `name`:
-    relative to the `.blend` with a leading `//`, and backslashes on Windows. Normal, roughness and metallic maps
-    are not read yet. A hand-built mesh adds a section with
-    `mesh.add_section(first, count, texture)` (a proposal by Claude).
+    relative to the `.blend` with a leading `//`, and backslashes on Windows. Only the Base Color image is read. A
+    hand-built mesh adds a section with `mesh.add_section(first, count, texture)`.
   - The renderer draws each section on its own, with its own texture.
 - **Skeletons.** Bones are ordered so parents come first. The inverse bind is
   `(to_target · armature_world · arm_mat · to_source)⁻¹`.
@@ -71,27 +70,30 @@ What the readers do:
 ## Animation
 
 `Animate` advances each animator by the tick's step (the world entity's `Component.Frame.step_milliseconds`) and
-samples its clip. The step is measured once per tick, so every part of a character advances by the same amount;
-measuring wall-clock time per row made the parts drift apart (the face slid off the head) whenever a tick's rows
-crossed a millisecond. - Position and scale are interpolated linearly. - Rotation uses a shortest-arc slerp, falling
-back to a normalised lerp for near-identical keys. - It writes `global · inverse_bind` for each bone into
-the `Skin`'s `pose.palette`, and each bone's model-space pose (`global`) into `pose.bones`. - It skips a model
-marked `Scene.Component.OffView`. Gather adds that marker when a skinned model leaves the view cone and its shadow
-cannot reach the view (its sphere swept away from the sun), and removes it when either comes back, so an off-screen
-character costs no sampling and the marker changes only on those crossings. A character coming into view shows its
-last pose for one frame. - An animator on the same skeleton, clip, time and `PlayOnce` as the one sampled just before
-it copies that pose instead of sampling. The parts of one character are spawned together and sit next to each other in
-the row, so a seven-part archer samples once. - The palette and bones matrices are rewritten in place, and the inverse
-binds are multiplied straight from the skeleton's floats, so a frame allocates nothing per bone.
+samples its clip. The step is measured once per tick, so every part of a character advances by the same amount.
+
+- Position and scale are interpolated linearly.
+- Rotation uses a shortest-arc slerp, falling back to a normalised lerp for near-identical keys.
+- It writes `global · inverse_bind` for each bone into the `Skin`'s `pose.palette`, and each bone's model-space pose
+  (`global`) into `pose.bones`.
+- It skips a model marked `Scene.Component.OffView`. Gather adds that marker when a skinned model leaves the view
+  cone and its shadow cannot reach the view (its sphere swept away from the sun), and removes it when either comes
+  back, so an off-screen character costs no sampling and the marker changes only on those crossings. A character
+  coming into view shows its last pose for one frame.
+- An animator on the same skeleton, clip, time and `PlayOnce` as the one sampled just before it copies that pose
+  instead of sampling. The parts of one character are spawned together and sit next to each other in the row, so a
+  seven-part archer samples once.
+- The palette and bones matrices are rewritten in place, and the inverse binds are multiplied straight from the
+  skeleton's floats, so a frame allocates nothing per bone.
 
 `examples/animate_bench` animates 400 seven-part archers (2,800 animators, 65 bones) in rings around the camera,
-each archer at its own time. Optimised, on an RTX 3090 machine: Animate went from 81 ms to 9 ms, GatherModels from
-11.4 to 6.6 ms and DrawScene from 22 to 5.7 ms (727 of 2,800 models drawn), so the frame went from 122 to 26 ms.
+each archer at its own time. Optimised, on an RTX 3090 machine: Animate takes 9 ms, GatherModels 6.6 ms and
+DrawScene 5.7 ms (727 of 2,800 models drawn), a 26 ms frame.
 
 ### Bone attachments
 
-A weapon, a shield or an effect rides a bone of another entity's animated skeleton (proposal by Claude, for Mortaro
-to decide). Give it a `Transform`, an `Animation.Component.BoneAttachment`, and make it a child of the carrier:
+A weapon, a shield or an effect rides a bone of another entity's animated skeleton. Give it a `Transform`, an
+`Animation.Component.BoneAttachment`, and make it a child of the carrier:
 
 ```gdscript
 var sword = carrier.create_entity()
@@ -144,7 +146,7 @@ A material is masked when its Principled BSDF's Alpha is linked; the reader list
 `Asset.Mesh.masked_materials`. A masked section's texels with alpha below 0.3333 are discarded in every pass, as
 Unreal's masked materials clip; every other section is opaque and never discards, whatever its texture's alpha.
 Mipmapping averages a cut-out's alpha, so at a distance chain mail and straps read as solid, as they do in Unreal.
-Nothing dithers: dithered fades (Unreal's OccluderDither at a non-zero fade) are not built yet.
+Nothing dithers.
 
 **Texture filtering.** Every texture is uploaded with a full mip chain, made on the GPU by blitting each level from the
 one above. Scene textures sample trilinearly with 16× anisotropic filtering (when the device has it) and repeat
@@ -163,14 +165,13 @@ drawn once the cell is `far_distance` metres away.
 **Instancing.** Draws of the same mesh section share a texture, so the renderer counting-sorts them by (mesh, section)
 into contiguous runs of the draw buffer and issues one instanced draw per run; the vertex shader reads
 `draws[push.draw + gl_InstanceIndex]`, and skinned instances keep their own palettes. `examples/props_bench` draws
-17,000 cubes (11,192 in view): a frame went from 60.6 ms to 13.9 ms with instancing and the ECS gather, with
-`DrawScene` from 26.8 ms to 2.2 ms (optimized, RTX 3090).
+17,000 cubes (11,192 in view) in a 13.9 ms frame, `DrawScene` taking 2.2 ms (optimized, RTX 3090).
 
 ### Terrain
 
 A terrain cell is an entity with a `Transform` and a `Scene.Component.TerrainCell { mesh, material }`, with no
 `Model`: it is drawn by the terrain pipeline, which shares the scene's vertex shader, lighting, shadows and fog
-(`lit.glsl`). The shader is a one-to-one port of Theseus's Unreal `M_Terrain`:
+(`lit.glsl`). The shader ports a splat-index Unreal terrain material formula for formula:
 
 - **Control textures:** control UV = world x/z ÷ (`control_width`, `control_depth`). The tile's eight layer slots come
   from `ctrl_a` (slots 0–3) and `ctrl_b` (4–7), read unfiltered (slice = texel × 255). Their tiling comes from
@@ -181,7 +182,7 @@ A terrain cell is an entity with a `Transform` and a `Scene.Component.TerrainCel
 - **Grass tint:** `grass_overlay` × luminance × `grass_overlay_brightness`, mixed in by `grass_mask` ×
   `grass_mask_strength` × a smoothstep of the normal's world-up between `grass_slope_low` and `grass_slope_high`.
 - **Far colour:** optional, faded in from `far_fade_start` to `far_fade_end`. Roughness and specular are per
-  material (1 and 0 for Theseus).
+  material.
 
 `Asset.TerrainMaterial` names its textures by id:
 - the layer, normal, detail, overlay and far-colour images are `Asset.TextureArray`s (RGBA8, layer-major), which
@@ -220,7 +221,7 @@ Each frame:
 2. `GatherPointLights` and `GatherSpotLights` (`render`) stream every light into it, 16 floats each.
 
 Only the position is read, so a light that is a child of a moving entity needs its own transform kept in world
-space (proposal: follow the parent once transforms have a world pass).
+space.
 
 **Clustered forward shading.** `Scene.LightClusters` cuts each view into 16×9 tiles and 24 exponential depth slices
 from 0.5 m to the camera's far plane, on the CPU:
@@ -239,26 +240,13 @@ lights for timing.
 
 With 3,000 lights (79 on screen, 12,853 cluster entries), on an RTX 3090 with validation on:
 - the clusters and their upload cost about 0.22 ms of the scene system;
-- gathering cost 0.9 to 1.1 ms at first, the ECS's per-row streaming cost rather than the lights. With cheaper
-  singleton locks in Spite and inline storage it is 0.33 ms (optimized; docs/performance.md).
+- gathering costs 0.33 ms (optimized).
 
-Not built yet:
-- shadows for point and spot lights (a budgeted atlas, a proposal);
-- tighter sphere-against-cluster tests, which only cost shading a light that adds zero;
-- moving the cluster pass to a compute shader, if the CPU cost matters once many lights are on screen.
+Point and spot lights cast no shadows.
 
 Lighting data lives on the neutral `Scene.View` with daylight defaults. The lighting plugin only overwrites it from
 components, so a scene without that plugin is still lit.
 
-## Not built yet
+---
 
-These are what the previous Kal renderer had:
-- the ray-marched atmosphere and sky;
-- shadow cascades and contact shadows;
-- GTAO;
-- image-based sky lighting;
-- bloom;
-- 4× MSAA;
-- automatic exposure from a histogram;
-- Blender's custom split normals (`custom_normal` is ignored and normals are recomputed);
-- blending between clips.
+Next: [Environments and networking](networking.md), one program built as a client, a server and a bot.

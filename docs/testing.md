@@ -1,14 +1,8 @@
 # Testing
 
-
-
 Every behaviour the docs claim is checked by a program in `examples/`. Run them from `examples/` with
-`D:/Projects/SpiteLanguage/bin/spite`; each ends with its memory balance when given `--debug-memory`.
-
-Measure performance only with a production build (`--optimized`, no `--repl`, no `--repl-port`, no `--hot-reload`,
-no `--debug-memory`). REPL and hot-reload builds are slower on purpose: they exist to show more while the program
-runs (functions in swappable slots, breakpoints, live inspection), not to be fast, so a number measured on one
-describes the tooling, not the engine.
+`D:/Projects/SpiteLanguage/bin/spite`; each ends with its memory balance when given `--debug-memory`. Measure
+timings only on a production build ([performance.md](performance.md#measure-a-production-build)).
 
 | Program | Proves |
 |---|---|
@@ -56,10 +50,9 @@ describes the tooling, not the engine.
 A test decides it is done from a condition that proves it, never from a frame count, a sleep or a timeout: those pass
 on a quiet machine and fail on a busy one. `render_parity` shows why. Textures become ready in the `last` phase,
 after that tick's `DrawUi`, so "textures are all ready" after a tick can still describe a draw list recorded without
-them. It captured two rectangles short whenever a load finished one tick late. It now ticks until a tick *started*
-with every texture resident and drew the same rectangles as the one before; with no fixed warm-up ticks, every run
-takes that path. The tests that still capture at a frame number (`scene_probe`, `lights_check`, `terrain_check`,
-`kal_character`'s `--frames`) are to move to the same kind of trigger.
+them, two rectangles short whenever a load finishes one tick late. So it ticks until a tick *started* with every
+texture resident and drew the same rectangles as the one before; with no fixed warm-up ticks, every run takes that
+path.
 
 ## The click test is its own program
 
@@ -80,3 +73,7 @@ So the test runs exactly the composition the game ships. It shares the game's co
 
 The visible game can be driven from outside for screenshots: post `WM_MOUSEMOVE`, `WM_LBUTTONDOWN` and
 `WM_LBUTTONUP` to its window, then capture its client area.
+
+---
+
+Next: back to [the documentation index](README.md), which lists every page in reading order.

@@ -1,8 +1,7 @@
 # UI
 
 Godot's UI is the checklist of what must be possible, the web is the model for how each piece behaves, and the ECS is
-the shape. Today it has an element tree, flexbox layout with every option Godot's containers need, text, the three
-pointer markers and two background styles.
+the shape.
 
 ## Elements are entities
 
@@ -51,7 +50,7 @@ without touching the others.
 | Component | Values | Initial (absent) |
 |---|---|---|
 | `Display` | `'block'`, `'flex'`, `'grid'`, `'none'` | `'block'` |
-| `GridTemplateColumns`, `GridTemplateRows` | `value`: the tracks as CSS writes them, `"100px 1fr 2fr"` (`px`, `%`, `em`, `rem`, `vw`, `vh`, `fr` or `auto`, separated by spaces; a proposal by Claude, since a component holds no list) | one automatic column, implicit rows |
+| `GridTemplateColumns`, `GridTemplateRows` | `value`: the tracks as CSS writes them, `"100px 1fr 2fr"` (`px`, `%`, `em`, `rem`, `vw`, `vh`, `fr` or `auto`, separated by spaces, since a component holds no list) | one automatic column, implicit rows |
 | `FlexDirection` | `'row'`, `'row_reverse'`, `'column'`, `'column_reverse'` | `'row'` |
 | `FlexWrap` | `'no_wrap'`, `'wrap'`, `'wrap_reverse'` | `'no_wrap'` |
 | `JustifyContent` | `'flex_start'`, `'flex_end'`, `'center'`, `'space_between'`, `'space_around'`, `'space_evenly'` | `'flex_start'` |
@@ -73,8 +72,7 @@ without touching the others.
 | `FontSize` | a length, the base of `em` | 16 pixels |
 
 Enum values are renamed where the CSS word is reserved or abbreviated: `auto` is `'automatic'`, `static` is
-`'normal_flow'`, `min-width` is `MinimumWidth`. `baseline` is accepted but behaves as `flex_start` until text has
-baselines.
+`'normal_flow'`, `min-width` is `MinimumWidth`. `baseline` is accepted and behaves as `flex_start`.
 
 ### Lengths
 
@@ -139,8 +137,7 @@ needed (`GridTemplateRows` sizes the first ones, the rest are automatic). `Colum
 - A grid with an automatic width is as wide as its tracks' max-content widths plus gaps.
 
 `flex_layout` checks fixed and fractional columns with gaps, automatic tracks sharing free space, and a grid's
-max-content width. Not built yet: explicit placement (`grid-column`, `grid-row`, spans), `grid-template-areas`,
-`auto-fill`/`auto-fit`, `minmax()`, and the item alignment properties (`justify-items`, `justify-self`).
+max-content width. Items are auto-placed only: there is no `grid-column`, `grid-row` or `grid-template-areas`.
 
 ## Scrolling and clipping
 
@@ -173,10 +170,7 @@ absolute descendants' containing block moves with them, as on the web. Clips int
   for each bar that is shown, a `VerticalScrollbar` or `HorizontalScrollbar` holding its track and thumb geometry; a
   bar that is not shown has no component. Dragging a thumb (`Ui.Component.ScrollDrag` while the button is held, with
   the marker `DraggingVertical` for the vertical bar) scrolls proportionally, and a press on a scrollbar never reaches
-  the element under it.
-
-Not built yet: clicking the track to page, and a clip that an absolute element escapes when its containing block lies outside the
-scroller (here, an absolute element is clipped by every clipping ancestor).
+  the element under it. An absolute element is clipped by every clipping ancestor.
 
 `examples/scroll_list` is a 200 × 200 list of 20 clickable rows; `examples/scroll_list_test` scrolls it two notches
 with real `WM_MOUSEWHEEL` messages, clicks a row, then drags the thumb, and checks the offset, the rows' new
@@ -204,11 +198,6 @@ focused element's caret after its text. Keyboard state is key entities, children
 `examples/text_field` is a form with two fields. `examples/text_field_test` clicks the first, types "HELLO",
 presses Backspace and Left twice, types "X", presses Tab, types "Y", and checks "HEXLL" (caret 3) in the first and
 "Y" in the second, which now has focus.
-
-Known gap: Tab (handled by `Focus`) and characters typed in the same tick are handled by two systems, so a letter
-typed within the same frame as a Tab can land in the previous field. Not built yet: selection, the clipboard, caret
-blinking, and IME composition (which needs a
-real window procedure).
 
 ## Paint order
 
@@ -241,7 +230,7 @@ once.
 
 ## Drag and drop
 
-**Proposal** (Claude's; Mortaro decides the API). Add `Ui.Component.Draggable` to an element that can be picked
+Add `Ui.Component.Draggable` to an element that can be picked
 up and `Ui.Component.DropTarget` to one that accepts drops. `Ui.System.Interact` owns the rest:
 
 | Component | On | Meaning |
@@ -254,7 +243,7 @@ up and `Ui.Component.DropTarget` to one that accepts drops. `Ui.System.Interact`
 
 - The topmost target is the one painted last (highest `ComputedLayout.order`); a draggable is never its own target.
 - A drag is never a click: the tick a drag ends gives no element a `Clicked`, neither the element it started on
-  nor a `Button` around it (Theseus A79: a skill book row learned its skill when a drag ended inside it), so an
+  nor a `Button` around it, so an
   element can be both a `Button` and `Draggable`, as an inventory slot is.
 - `Dropped` and `DropMissed` are removed on Interact's next run, as `Clicked` is.
 - The dragged element stays where it is. A game shows what it carries by spawning its own element, positioned from
@@ -278,7 +267,7 @@ element, driving the real window with posted mouse messages, each step waiting f
 
 ## Combo box
 
-**Proposal** (Claude's). A combo box is four bundles and one system, `Ui.System.Choose` (`update`):
+A combo box is four bundles and one system, `Ui.System.Choose` (`update`):
 
 ```gdscript
 var box = world.create_entity_from_bundle(Ui.Bundle.ComboBox(panel))
@@ -390,17 +379,12 @@ label.add_component(font)
 - **Waiting for text in a test:** `fonts.settled()` is true once no face is loading, no glyph is queued and no atlas
   waits for upload.
 
-Not built yet: kerning, outline and shadow, fake bold, hinting (Unreal renders Gulim with FreeType's default
-hinting), and embedded bitmap strikes.
-
 ## Images are asset ids
 
 A `BackgroundImage` names an asset id that a recipe produced, never a file path or a rectangle, so repainting the
 PSD changes the game and moving a layer changes nothing. Loading is the engine's job; see
 [assets-and-recipes.md](assets-and-recipes.md#background-loading).
 
-## Not built yet
+---
 
-From Godot's coverage: grid placement beyond auto-placement, text from font assets (the built-in 5×7 font is
-all there is) and text baselines, selection and the clipboard, and every control past the button, the
-scroll container and the text field.
+Next: [Rendering](rendering.md), how the draw list becomes a frame.

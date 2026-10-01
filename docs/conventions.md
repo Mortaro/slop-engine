@@ -44,7 +44,7 @@ An engine plugin lives in `plugins/slop_<feature>_plugin/<feature>/`, so loading
 
 ## Memory
 
-Program code never reads raw addresses (D178: only the standard library may). SlopEngine's raw-memory structures
+Program code never reads raw addresses (only the standard library may). SlopEngine's raw-memory structures
 (columns, the draw list, Vulkan structs, the cache files) go through `Raw` (`raw.read_long(address, offset)` and
 friends, built on `TypedMemory<T>`), and allocate with `var heap = Memory.Heap()` (`allocate`, `resize`, `free`).
 A class that allocates frees in its `drop()`, and never reads a byte it didn't write: `resize` doesn't clear.
@@ -57,3 +57,7 @@ A class that allocates frees in its `drop()`, and never reads a byte it didn't w
   (`Added<T>`, `Removed<T>`) says "just happened".
 - A game names assets by id; loading them is the engine's job.
 - Nothing is registered: folders, `load` and templates find everything.
+
+---
+
+Next: [Plugins](plugins.md), everything beyond the core and how a program opts into it.

@@ -1,0 +1,7 @@
+#!/bin/bash
+# The writing rules of CLAUDE.md, checked on what is about to be committed.
+if ! bash "$(git rev-parse --show-toplevel)/scripts/check_writing.sh" --staged; then
+    echo >&2
+    echo "  commit rejected: see scripts/check_writing.sh" >&2
+    exit 1
+fi

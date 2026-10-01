@@ -87,3 +87,7 @@ A program runs in the folder `spite` was called from. The engine resolves its ow
 entry folder, absolute) joined with `Build().slop_folder` (`../../slop`) or `Build().plugins_folder`
 (`../../plugins`), which mirror the `load(...)` literals. Asset sources are found by id and cooked assets live
 in one cache binary; see [assets-and-recipes.md](assets-and-recipes.md).
+
+---
+
+Next: [The ECS](ecs.md), entities, components and the systems that query them.
