@@ -36,6 +36,12 @@ func release() {
     crash unlocked != 0
 }
 
+func drop() {
+    assert handle != 0
+    kernel.CloseHandle(handle)
+    heap.free(overlapped)
+}
+
 func clear_overlapped() {
     var offset: Long = 0
     while offset < 32 {
