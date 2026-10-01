@@ -1,7 +1,7 @@
 #version 450
 #extension GL_GOOGLE_include_directive : require
 
-// A port of Theseus's Unreal M_Terrain, formula for formula (docs/scene.md#terrain).
+// A port of a splat-index Unreal terrain material, formula for formula (docs/scene.md#terrain).
 
 layout(set = 0, binding = 0) uniform sampler2DArray layer_colors;
 layout(set = 0, binding = 1) uniform sampler2DArray layer_normals;
