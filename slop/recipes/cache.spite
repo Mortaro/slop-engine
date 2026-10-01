@@ -20,11 +20,11 @@ func key(id: String, input_fingerprint: String): String {
 
 func is_current(id: String, input_fingerprint: String): Boolean {
     load_index()
-    var fingerprint = fingerprints[id]
-    if not fingerprint {
+    var known_fingerprint = fingerprints[id]
+    if not known_fingerprint {
         return false
     }
-    var parts = fingerprint.split("#")
+    var parts = known_fingerprint.split("#")
     if parts.count() != 3 {
         return false
     }
@@ -96,17 +96,17 @@ func point_index(id: String, input_fingerprint: String) {
 
 func read(id: String): Asset.Bytes? {
     load_index()
-    var fingerprint = fingerprints[id]
-    assert fingerprint
-    var entry = key(id, fingerprint)
+    var known_fingerprint = fingerprints[id]
+    assert known_fingerprint
+    var entry = key(id, known_fingerprint)
     return opened_store().read(entry)
 }
 
 func locate(id: String): Recipes.Record? {
     load_index()
-    var fingerprint = fingerprints[id]
-    assert fingerprint
-    var entry = key(id, fingerprint)
+    var known_fingerprint = fingerprints[id]
+    assert known_fingerprint
+    var entry = key(id, known_fingerprint)
     return opened_store().locate(entry)
 }
 

@@ -169,8 +169,8 @@ func sample_frame(
         crash curve_channels[curve]
         crash curve_counts[curve]
         var value = evaluate(curve_offsets[curve], curve_counts[curve], frame)
-        var channel = curve_bones[curve] * 10 + curve_channels[curve]
-        channels[channel] = value
+        var channel_slot = curve_bones[curve] * 10 + curve_channels[curve]
+        channels[channel_slot] = value
         curve = curve + 1
     }
     var posed = List<Math.Matrix4>()
