@@ -1,7 +1,7 @@
 # Environments and networking
 
-**Proposal** (Claude's, unconfirmed; Mortaro decides the API). Built and tested: `examples/click_counter_online` runs
-a server-authoritative counter with a GUI client and headless bots, and `slop_network_plugin` replicates its state.
+`examples/click_counter_online` runs a server-authoritative counter with a GUI client and headless bots, and
+`slop_network_plugin` replicates its state.
 
 A game with several processes (a client, a game server, an auth server, a headless bot) is one program. Each process
 is that program compiled for one **environment**, and contains only the code that environment runs.
@@ -16,7 +16,7 @@ var environment = "client"
 ```
 
 and its entry file says, once, which folders each environment gets. A `load` under an `if` on a `Build` field is
-decided while compiling (D186), so a folder another environment loads is never read, compiled or linked:
+decided while compiling, so a folder another environment loads is never read, compiled or linked:
 
 ```gdscript
 # examples/click_counter_online/click_counter_online.spite
@@ -139,7 +139,7 @@ same translation through a link component's codec.
 
 ### Who observes what
 
-There are no players in the engine, only observers (Mortaro, 2026-09-27). An entity marked
+There are no players in the engine, only observers. An entity marked
 `Network.Component.Observed` is sent only to the connections that observe it; an unmarked entity (world state, a
 counter) is sent to every connection. An observation is its own entity, a child of the observed one (its
 `Component.Parent`), holding the link `Network.Component.Observer`, which names the connection. An entity has as many
@@ -245,15 +245,14 @@ Connections are entities. Settings and state are components on the world entity:
 | `last` | `ForgetObservations` | despawns an observation whose connection closed (its `Observer` went with it) |
 
 Nothing blocks a frame: sockets are non-blocking and are polled once per tick, and the one call that can take
-seconds (a TCP connect to a port nobody listens on) runs on the pool (D191).
+seconds (a TCP connect to a port nobody listens on) runs on the thread pool.
 
 ### A message lives until a handler consumes it
 
 A handler consumes an arrived message by removing its request component
 (`routed.entity.remove_component(Component.ChatRequest)`). `ForgetArrived` despawns only messages whose request
 component is gone, so a handler whose condition is not met yet (a request that arrives before the join that makes
-its player) simply sees it again next tick. Before, every message was despawned after one tick, and Theseus (A75)
-lost a scripted client's first `/give` that way, silently.
+its player) simply sees it again next tick, and no message is lost.
 
 - A connection holding more than 256 unhandled messages is closed, with an error naming the oldest one's
   component, so a missing handler or a flooding client shows at once. There is no timer.
@@ -263,8 +262,7 @@ lost a scripted client's first `/give` that way, silently.
 ### A message is an entity
 
 Since a link holds only its entity (ecs.md), a request naming two entities (a cast naming its skill and its target,
-a sale naming the merchant and the item) is one entity holding the request and a link for each (Theseus A109,
-Claude's proposal):
+a sale naming the merchant and the item) is one entity holding the request and a link for each:
 
 ```gdscript
 var request = world.create_entity()
@@ -312,18 +310,9 @@ crashing, and a list's count must fit in what is left. A connection is closed on
 64 KiB, a message id no component has, a payload that fails to decode, or one with bytes left over. The inbound
 buffer stops reading at 1 MiB, so a peer that floods is slowed by TCP.
 
-## Not built yet
+**Transport.** TCP through the library's `Socket` and its non-blocking calls (`accept_client_now`,
+`read_bytes_now`, `write_bytes_now`, `closed`), so the plugin has no code of its own for any operating system.
 
-In rough order of need:
+---
 
-- **Values inline in columns.** Components are heap objects today (see [performance.md](performance.md)). D204's
-  `Vector<T>` with in-place borrows is the path, and it will let the codec copy a component's bytes instead of
-  walking its fields. Short strings stored inline (D203, being built) remove the allocation per decoded name.
-- **Change detection by write, not by comparing.** Encoding every mirrored value every tick to compare bytes is
-  fine for a counter and wrong for a world. It needs `Changed<T>`, which needs the compiler to say what a system
-  writes (item 109).
-- **A handshake** carrying the environment and a hash of every replicated component, so mismatched builds refuse
-  each other instead of misreading, and a compile-time check that no two components hash to the same message id.
-- **Unreliable delivery** (UDP) for state that is superseded every tick, prediction, and rates.
-- **Transport.** TCP through the library's `Socket` and its non-blocking calls (`accept_client_now`,
-  `read_bytes_now`, `write_bytes_now`, `closed`), so the plugin has no code of its own for any operating system.
+Next: [Performance](performance.md), measuring a build and keeping frames free of stutters.

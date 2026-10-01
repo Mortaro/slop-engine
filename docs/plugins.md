@@ -6,14 +6,14 @@ one is one `load` line.
 
 ## Naming and layout
 
-- **Engine plugins** live in `plugins/slop_<feature>_plugin/` (the snake_case Spite requires for folders,
-  D181). Inside, a folder named like the feature is the namespace:
+- **Engine plugins** live in `plugins/slop_<feature>_plugin/` (the snake_case Spite requires for folders).
+  Inside, a folder named like the feature is the namespace:
   `plugins/slop_window_plugin/window/component/window.spite` is `Window.Component.Window`. The inner folder keeps
   each plugin's `Component`, `System` and `Bundle` apart from every other plugin's.
 - **A plugin keeps its assets inside its namespace folder**, next to the recipes that cook them:
   `slop_render_vulkan_plugin/render_vulkan/assets/shader/rectangles/vertex.glsl`.
 - **A game's own plugins** (things a project can replace, like its theme) live beside the program, never inside
-  it, because a program's subfolders always load (D182): `examples/click_counter_theme_plugin/theme/` holds the
+  it, because a program's subfolders always load: `examples/click_counter_theme_plugin/theme/` holds the
   theme's `assets/`, `recipe/` and `system/`. The game loads it with `load "../click_counter_theme_plugin"`.
 
 ## Platforms and devices
@@ -25,7 +25,7 @@ producing the same events; a controller family (XInput, a console pad) is a plug
 components.
 
 `slop_platform_plugin` picks the platform from `Build` (`if build.target_operating_system == "windows"
-{ load "../../slop_windows_plugin" }`, folded at compile time, D186), which is how a program loads it.
+{ load "../../slop_windows_plugin" }`, folded at compile time), which is how a program loads it.
 
 A source format is a plugin too. `slop/` knows only the assets it contributes; `slop_psd_plugin`,
 `slop_blend_plugin` and `slop_zstd_plugin` are loaded by whoever has a recipe that reads that format, usually a theme
@@ -86,9 +86,8 @@ Platform-neutral input. A platform spawns one entity per input event (pointer mo
 wheel turned, key pressed or released, character typed), a child of its window holding `Input.Component.Event`, in
 the order they happened, so their ids are their order; `Input.System.ApplyEvents` (`after_input`) resets the
 per-tick state and applies them to the window's `Mouse` and key entities, before any UI system reads them, and
-`Input.System.ForgetEvents` (`last`) despawns them. Held keys are entities too (a proposal by Claude: a key is a
-child of its window holding `Input.Component.Key`, so a system asks for keys held or pressed with a row, and nothing
-is a list of codes).
+`Input.System.ForgetEvents` (`last`) despawns them. Held keys are entities too: a key is a child of its window
+holding `Input.Component.Key`, so a system asks for keys held or pressed with a row, and nothing is a list of codes.
 
 | | |
 |---|---|
@@ -161,7 +160,7 @@ A draw target is any entity with the three components; `render_parity` makes an 
 
 | | |
 |---|---|
-| `RenderVulkan.Renderer` | a resource (singleton): the one Vulkan device, pipeline, frames in flight, upload stream, and each surface's swapchain images and per-image semaphores (`RenderVulkan.Presentation`, so it can release them); one device is shared by every window, where each window made its own before |
+| `RenderVulkan.Renderer` | a resource (singleton): the one Vulkan device, pipeline, frames in flight, upload stream, and each surface's swapchain images and per-image semaphores (`RenderVulkan.Presentation`, so it can release them); one device is shared by every window |
 | `RenderVulkan.Component.GpuTexture` | on a texture's entity: its uploaded image, memory, view, descriptor set and the generation uploaded; added by `AttachGpuTextures` (`last`) to every new texture |
 | `RenderVulkan.Component.Device` | on a window: what the chosen GPU offers, its `name` and `maximum_anisotropy` (1 when it has no anisotropic filtering) |
 | `RenderVulkan.Component.Swapchain` | a window's surface, swapchain, size, and the image acquired this frame |
@@ -184,7 +183,7 @@ encoded by the engine's derived codec. TCP through the library's non-blocking `S
 
 ## slop_spatial_plugin
 
-A uniform grid over the ground plane, for area of interest, sight and aggro (a proposal by Claude).
+A uniform grid over the ground plane, for area of interest, sight and aggro.
 `Spatial.Grid()` is a singleton holding one grid per **space**, so maps that share coordinates (dungeons, instances)
 never see each other. `Spatial.Component.Indexed { space }` puts an entity in a space (0 by default, or a map
 entity's id). `grid.configure(space, left, top, width, depth, cell_size)` sizes a space's cells; a space never
@@ -213,5 +212,9 @@ The engine side of MongoDB. The driver itself (BSON, OP_MSG, `Mongo.Client`, `Mo
 this repository, so programs that are not games use it too. The plugin loads it
 (`load "../../../../spite_mongodb_driver@ea1a143/mongodb"`, a pinned commit) and adds `Mongo.Component.Database` (host, port, database
 name) and `Mongo.Component.Client` (a connection pool and the database it names), which `database.connect()` makes;
-`Mongo.System.ConnectDatabases` (`input`) adds one beside every database that has none. Running queries as IO systems between frames comes with the compiler's
-"does this function wait" (D209).
+`Mongo.System.ConnectDatabases` (`input`) adds one beside every database that has none. Queries run in
+[IO systems](ecs.md#io-systems), between frames.
+
+---
+
+Next: [UI](ui.md), elements as entities and layout as one component per CSS property.

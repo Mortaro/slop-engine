@@ -1,9 +1,9 @@
 # SlopEngine
 
 A game engine written in the Spite language: Bevy, with metaprogramming in place of Bevy's type machinery. A
-multithreaded ECS, meant to build "the good kind of AI slop" and eventually Theseus (the MMO, client and server). The
-main goal right now is to find out whether Spite is ready. What it is missing is in
-[design/INSIGHTS.md](design/INSIGHTS.md). This file is the overview; [docs/](docs/README.md) documents every part in depth.
+multithreaded ECS, meant to build "the good kind of AI slop", from a single window to an MMO's client and server.
+This file is the overview; [docs/](docs/README.md) documents every part in depth, in the
+[reading order](#documentation) below.
 
 Everything runs on Windows with the compiler in `D:\Projects\SpiteLanguage` (`bin/spite`).
 
@@ -16,7 +16,7 @@ spite click_counter                          # a Vulkan window with a button tha
 spite click_counter_test                     # the game, loaded by its test: hidden window, 5 real clicks
 spite click_counter_test -- --clicks=12 --show_window=true
 spite render_parity --debug-memory           # Vulkan against the software rasteriser, every pixel
-spite use_potion --debug-memory              # the potion example from Mortaro's notes
+spite use_potion --debug-memory              # two linked query rows: a potion heals the hero it names
 spite healing --debug-memory                 # headless: a parallel stage, entity ids, a report
 spite tracking --debug-memory                # Added and Removed, each seen exactly once before and after the change
 spite stress --optimized                     # 200k entities, two systems, timings
@@ -26,8 +26,7 @@ spite zstd_probe -- --source=<file.blend> --output=<file>   # zstd in pure Spite
 spite blend_probe -- --source=<file.blend>   # Blender 5.2 datablocks, SDNA structs, mesh attributes
 ```
 
-Verified on 2026-09-24: all of them run, every `--debug-memory` run is balanced, and the click test passes for 5 and
-12 clicks.
+Every `--debug-memory` run ends with its allocations balanced.
 
 ## A program is its entry file
 
@@ -59,7 +58,7 @@ There is no plugin list, no composition and no registration:
 
 - **A plugin is opted into by loading its folder.** Swap `render_vulkan` for `render_software` and the game draws
   on the CPU.
-- **Every class in a `System` namespace is a system** (D115). `App()` finds them all at compile time with
+- **Every class in a `System` namespace is a system.** `App()` finds them all at compile time with
   `add_system(system: Symbol<System>)`.
 - **Every class in a `Recipe` namespace is a recipe.** `cookbook.cook()` finds them the same way, runs their `build()`, and then watches their sources.
 
@@ -77,7 +76,7 @@ Every package, plugin or game has the same folders:
 
 ## Systems are query functions
 
-A system's function name says when it runs (D116), and its parameter types are its query (D114):
+A system's function name says when it runs, and its parameter types are its query:
 
 ```gdscript
 # examples/use_potion/system/consume_potion.spite
@@ -223,7 +222,7 @@ A game only names an asset id. `Render.Textures().request(id)` answers a slot at
 `Parallel` job that reads its record from the cache binary and decodes it on its own thread; the frame only polls
 it. `DrawUi` skips an image until its slot is ready, and the Vulkan backend stages at most 8 MiB of new textures per
 frame and records their copies into the frame's own command buffer. Nothing blocks a frame, and nothing in the game
-has to know (see docs/performance.md, "No stutters").
+has to know (see [docs/performance.md](docs/performance.md#no-stutters)).
 
 **A component with no attributes is a marker, and a marker is only ever a filter.** The engine decides that at
 compile time (a plural template over the class finds no attributes). Its column stores membership and ticks but no
@@ -250,9 +249,9 @@ and compares every pixel: 0 of 256,000 differ.
 Vulkan is called through `DynamicLibrary("vulkan-1.dll", ...)` alone. Its structs are written by
 `RenderVulkan.Structure`, which appends fields in declaration order and pads to natural alignment.
 
-The window has no window procedure, because Spite can't pass a callback to C yet. `OpenWindow` registers
+The window has no window procedure written in Spite. `OpenWindow` registers
 `DefWindowProcA` itself, and `PumpMessages` reads mouse and keyboard messages out of the queue before dispatching
-them. Resizing waits on callbacks.
+them.
 
 ## Recipes and assets
 
@@ -291,12 +290,12 @@ var pixels = List<Integer>()
 No installed software is needed to read a source file. Each loader is a plugin; `slop/` itself knows only the assets
 it contributes ([docs/loaders.md](docs/loaders.md)):
 
-| Loader | State |
+| Loader | Reads |
 |---|---|
 | `Psd.Document`, `Psd.Layers` | 8- and 16-bit RGB; raw, PackBits, ZIP and ZIP with prediction; transparency, groups, masks. **Bit-exact** with a reference decoder on `buttons.psd` |
 | `Zstd.Decoder` | RFC 8878. **Byte-identical** with Zig's std decoder on a 261 MB `.blend`, in 0.86 s |
 | `Blend.File`, `Blend.View` | Blender 5.2 (`BLENDER17-01`): blocks, SDNA, any field by name, pointers, `AttributeStorage` |
-| meshes, normals, skeletons, skins, animations, packed PNG textures from `.blend` | built for the Kal archer ([docs/scene.md](docs/scene.md)); fan triangulation, one UV set, no custom normals |
+| meshes, normals, skeletons, skins, animations, packed PNG textures from `.blend` | read for the Kal archer ([docs/scene.md](docs/scene.md)); fan triangulation, one UV set |
 | GLSL to SPIR-V | still `glslangValidator` from the Vulkan SDK: the one tool dependency left |
 
 ## Layout
@@ -332,30 +331,22 @@ examples/
   render_parity/, use_potion/, healing/, stress/, asset_round_trip/, psd_probe/, zstd_probe/, blend_probe/
 ```
 
-## Status
+## Documentation
 
-| | |
-|---|---|
-| Systems as phase functions over `type` rows, found by folder, no registration | built |
-| Links between entities as components (`Parent`, `Owner`), followed by a two-row system, removed with their entity | built |
-| Stages by class conflicts, `Parallel` per system | built; 1.2x on two systems |
-| Window, mouse, button interaction, bitmap text | built, Windows only |
-| Vulkan and software backends with pixel parity | built |
-| Recipes as code, assets as declared classes, PSD, zstd, `.blend` structure | built |
-| Read-only and filter-only access, per-environment builds | not built: need compile-time reads and writes |
-| Blender meshes, skeletons, skins, animations, textures | built ([docs/scene.md](docs/scene.md)) |
-| Thread pool (`Parallel`, `Concurrent`, IO systems) | built |
-| Parallel iteration inside one system | not built |
+The pages in [docs/](docs/README.md), in reading order; each ends with a link to the next:
 
-## Numbers
+1. [Getting started](docs/getting-started.md)
+2. [The ECS](docs/ecs.md)
+3. [Conventions](docs/conventions.md)
+4. [Plugins](docs/plugins.md)
+5. [UI](docs/ui.md)
+6. [Rendering](docs/rendering.md)
+7. [Assets and recipes](docs/assets-and-recipes.md)
+8. [Loaders](docs/loaders.md)
+9. [3D: scenes, characters and lighting](docs/scene.md)
+10. [Environments and networking](docs/networking.md)
+11. [Performance](docs/performance.md)
+12. [Testing](docs/testing.md)
 
-`spite stress --optimized`: 200,000 entities, `Move` and `Regenerate` in one stage.
-
-| | average tick |
-|---|---|
-| first version | 302 ms parallel, 422 ms sequential |
-| headers cached per system | 128 ms parallel, 133 ms sequential |
-| generic singletons real, singletons not reference counted, `type` rows | 65 ms parallel, 81 ms sequential |
-
-About 200 ns per entity per system: better, and still two orders of magnitude from a native ECS. design/INSIGHTS.md says
-where the rest goes.
+The people and agents who build the engine keep their material in [design/](design/): what is not built yet, where
+each decision came from, the roadmap, and what building the engine taught about Spite.

@@ -25,25 +25,24 @@ never added, looked up or used.
 | `Lookup<Component.Health>().has(id)` | whether it has one | now |
 
 A row's `entity: Entity` field is an `Entity`, so a system writes `row.entity.add_component(marker)`; with only an id,
-`world.entity_of(id)` makes one, replacing `Entity(id)` (Spite has neither overloading nor visibility narrower than a
-class, so there is no constructor taking an id that only the engine may call; `Entity`'s `set_id` refuses a negative
-id instead, and every entity call crashes on an `Entity()` not set yet, `an_entity_is_set_before_it_is_used`). There
-are no generics in this API (D123): `add_component` takes `Anything` (an empty
+`world.entity_of(id)` makes one. `Entity` refuses a negative id, and every entity call crashes on an `Entity()` not
+set yet (`an_entity_is_set_before_it_is_used`). There are no generics in this API: `add_component` takes `Anything`
+(an empty
 `type`, which any class fits), and the class test `if value == $component_type` inside each column narrows it back.
 Every class in a `Component` namespace gets its column when `App()` starts, found at compile time the way systems
 are. A component built in place goes into a named `var` first, since Spite allows a constructor as an argument only
 one level deep.
 
 A negative id is no entity, so `of` and `has` crash on one (`looked_up_a_real_entity_not_a_negative_id`) instead of
-reading outside the column, which once segfaulted Theseus. An optional link is a component that is present or
+reading outside the column. An optional link is a component that is present or
 absent, never an id of −1.
 
 Changes are applied between stages, like Bevy's `Commands`, so a column never changes while a system is iterating
 it. **Each runner has its own command buffer**: before a system runs, its thread is marked with the runner's buffer (a
 `ThreadLocal<Integer>`), so `add_component` from systems running in parallel
 never contends, and the buffers are applied in runner order at the stage boundary, so the result is the same
-whichever thread finished first. New ids come from one counter behind a `Lock`. A system that changes the world
-no longer needs a stage of its own.
+whichever thread finished first. New ids come from one counter behind a `Lock`. So a system that changes the world
+needs no stage of its own.
 
 ## Components
 
@@ -69,12 +68,12 @@ compile time (a plural template over the class finds nothing), and a marker is o
 
 ### Components hold data
 
-Information goes into components, implementation into systems (Mortaro, 2026-09-30). State is a marker because a
+Information goes into components, implementation into systems. State is a marker because a
 marker is a public fact other code can query and combine: a specialised library can ask for `Render.Component.Texture`
 and `Component.Loading` to drive its own loading screen without touching the texture system. So the markers a system
 adds are plain, reusable ones (`Loading`, `JustPressed`), never something private to that system.
 
-A component that is not in use is removed; a field never says "inactive" (Mortaro, 2026-09-28). So a component may
+A component that is not in use is removed; a field never says "inactive". So a component may
 not have:
 
 - a `Boolean` attribute: a state is a marker, added when it holds and removed when it does not (`Component.Quit`,
@@ -82,14 +81,14 @@ not have:
 - an `Entity` attribute beside other attributes: a component holding an `Entity` is a
   [link component](#links-between-entities), which holds only `var entity = Entity()`;
 - an optional `T?` attribute: whether the value is there is another component;
-- a `List` or a `Dictionary` (Mortaro, 2026-09-30), **a compile error**: parallel lists indexed by an id become one
+- a `List` or a `Dictionary`, **a compile error**: parallel lists indexed by an id become one
   entity per item with its own components (each texture, mesh, terrain material and font size is an entity), a list
   of entity ids becomes a link component on each item's entity (an observation names its connection with
   `Network.Component.Observer`), a list of states becomes a marker on each item (`Input.Component.JustPressed` on a
   held key's entity), and the entity's own variable data is either entities (input events, held keys, gamepad
   buttons) or asset data held by an object (a model's `Scene.Pose`, an atlas's `Ui.GlyphTable`, a grid template's
   CSS text). Lists live only in [resources](#resources);
-- a `Parallel` (Mortaro, 2026-09-30, resolving Theseus A99), **a compile error**: an entity with a job in flight has
+- a `Parallel`, **a compile error**: an entity with a job in flight has
   the marker `Component.Loading` (or another public marker, such as `Network.Component.Dialing`), added when the job
   starts and removed when its result lands, and the `Parallel` itself lives with whoever started it, in a resource
   keyed by the entity (`Render.Textures`, `Scene.Meshes`, `Network.Dials`);
@@ -106,16 +105,14 @@ The other rules are checked at startup: `App()` walks every registered component
 prints each break as `ECS rule: <Component>.<attribute> ...`, then crashes on `components_follow_the_ecs_rules` if
 there was any. For an `Entity` attribute it also reports one not named `entity`, and a default naming a real entity
 instead of `Entity()`. An `Integer` holding an entity id cannot be told from any other number, so no rule catches
-one: an entity a component keeps is a link, never an `Integer` field (the last ones, `Viewer.entity`,
-`Observer.subject`/`observer`, `Sender.connection` and `Connect.connection`, are links now).
+one: an entity a component keeps is a link, never an `Integer` field.
 
-A component marks only what an entity has, never what it lacks (Mortaro, 2026-09-30): no field, marker or value
+A component marks only what an entity has, never what it lacks: no field, marker or value
 says "none", "not yet" or "no target". An entity with nothing to chase has no `Target`.
 
 ### Links between entities
 
-A link is an ordinary component whose one attribute is the entity it names, in a file of its own (Mortaro,
-2026-09-30):
+A link is an ordinary component whose one attribute is the entity it names, in a file of its own:
 
 ```gdscript
 # slop/component/parent.spite
@@ -147,9 +144,8 @@ hunter.add_component(chase)
   mirrored link vanishes on every peer. So a system never checks whether its target still exists.
 - The links are found at compile time: `App()` registers every component class holding an `Entity`, and the despawn
   flush walks only those columns, reading each row's entity where it is stored. It costs one pass over the link
-  rows for each flush that despawns something, plus one more pass over `Parent` per level of children (chosen
-  over a reverse index from entity to holders, which a system writing a link's entity in place
-  would silently leave stale).
+  rows for each flush that despawns something, plus one more pass over `Parent` per level of children. There is
+  no reverse index from entity to holders, which a system writing a link's entity in place would leave stale.
 
 Changing a link is adding it again (`add_component` replaces), and removing it is `remove_component`. Links are
 networked like any component: `mirrored_from` or `sent_from` on the link's class, and its entity travels as the
@@ -157,16 +153,9 @@ receiver's own ([networking.md](networking.md#entity-fields-travel-as-the-receiv
 
 ## Bundles
 
-Spawning a bundle copies each of its components, so one bundle can be spawned any number of times. The fast way is
-one typed command per entity, with the attribute walk written at compile time for each class in a `bundle/` folder:
-`stress` spawned 200,000 bodies of four components in about 190 ms that way, against about 650 ms through run-time
-reflection. Which bundle class a value is cannot yet be asked reliably at run time (both forms are language bugs,
-D237), so a bundle the typed path does not recognise takes the reflective path, which is correct, and slower.
-
-
 A bundle is a class in a `bundle/` folder whose attributes are components, with a constructor that sets them up.
-`world.create_entity_from_bundle(bundle)` adds each attribute, walked at run time through `attribute.value`, so a
-bundle has no code for spawning itself.
+`world.create_entity_from_bundle(bundle)` adds a copy of each attribute, so a bundle has no code for spawning itself
+and can be spawned any number of times.
 
 ```gdscript
 # examples/click_counter/bundle/count_label.spite
@@ -181,11 +170,13 @@ func CountLabel(button: Entity) {
 }
 ```
 
+Spawning is one typed command per entity, with the attribute walk written at compile time for each class in a
+`bundle/` folder: `stress` spawns 200,000 bodies of four components in about 190 ms.
+
 ## State is components
 
-State that another engine keeps in a resource is a component on an entity (Mortaro, 2026-09-25: "Resources
-shouldnt exist, its just a entity that is only used once instead, if we want to use it we query for that entity"),
-and a system reaches it through a row like any other data.
+State that another engine keeps in a resource is a component on an entity, used once, and a system reaches it
+through a row like any other data.
 
 - **Program-wide state lives on the world entity.** `App()` puts the core's two there:
 
@@ -228,19 +219,19 @@ runs once per button, with the window's mouse in `pointer`.
 ## Systems
 
 A system is a class in a `system/` folder. `App()` finds every class in a namespace ending in `System` at compile
-time (D115) and wraps each in a `Runner<TheSystem>` generated for it.
+time and wraps each in a `Runner<TheSystem>` generated for it.
 
-A system has one function, and its name says when it runs and how (D116):
+A system has one function, and its name says when it runs and how:
 
 - `<phase>_each(row: Row, ...)` runs once for every matching combination of rows;
 - `<phase>_each()`, with no parameters, runs once per tick;
 - `<phase>_all(rows: List<Row>, ...)` runs once with every match, **unless its first list is empty**: then it does
-  not run and none of its lists is built (Mortaro, 2026-09-27: the fastest way to skip idle work). The first list is
+  not run and none of its lists is built, which is the fastest way to skip idle work. The first list is
   the system's subject and the rest are context, so a system that must run on every tick puts something always
   present first (render targets, tallies), and a system that acts only now and then puts its trigger first, for
   example a marker added on the ticks it should act.
 
-A row is a `type` declared in the system's file; its fields are what the system queries (D114). The runner walks the
+A row is a `type` declared in the system's file; its fields are what the system queries. The runner walks the
 fields with a plural template, so nothing is declared twice.
 
 ```gdscript
@@ -271,7 +262,7 @@ func update_each(potion: Potion, target: Target) {
 |---|---|
 | a component class | the entity must have it; the field is the stored component, and changing its fields changes it |
 | a marker component | the entity must have it; nothing is fetched |
-| `entity: Entity` (named `entity`) | the entity's own id; not a filter. Each row gets an `Entity` of its own, so storing it in a link (`chase.entity = prey.entity`) keeps naming that entity after the runner moves on (it once named whichever entity the runner filled next). An `Entity` field with any other name is a startup crash, `a_row_field_of_class_entity_is_named_entity` |
+| `entity: Entity` (named `entity`) | the entity's own id; not a filter. Each row gets an `Entity` of its own, so storing it in a link (`chase.entity = prey.entity`) keeps naming that entity after the runner moves on. An `Entity` field with any other name is a startup crash, `a_row_field_of_class_entity_is_named_entity` |
 | a link component, e.g. `parent: Component.Parent` | the entity must have it, like any component; in a system's first row it also says the next row is the entity it names ([below](#following-a-link)) |
 | `Added<T>` | `T` was added since this system last ran; `.value` is the component |
 | `Removed<T>` | `T` was removed (or its entity despawned) since this system last ran; the component itself is gone, so there is no `.value` to read |
@@ -367,8 +358,7 @@ Ordering inside a phase is by name, not by data. The finer phase names carry the
 
 ## Timers
 
-A timer is components, and its state is which of them an entity has (Mortaro, 2026-09-30: "just make sure it's
-always ECS"). Names follow Bevy's `Timer` where they fit (a proposal by Claude, accepted).
+A timer is components, and its state is which of them an entity has. Names follow Bevy's `Timer` where they fit.
 
 | Component | Holds | Means |
 |---|---|---|
@@ -430,31 +420,27 @@ func update_each(attacking: Attacking) {
 ```
 
 A reaction that starts a one-shot again on its ring tick (adds a new `Ticking`) keeps it: `SilenceTimers` removes
-only a timer that is still ended. There is no world pause or time scale yet (the server never pauses).
+only a timer that is still ended.
 
 The step is the world entity's `Component.Frame.step_milliseconds`, set once at the start of each tick. Under
 `app.run()` it is the time that really passed since the last tick, carried to the nanosecond so fractions of a
-millisecond add up, and at most 100 ms, so a hitch doesn't teleport anything. A fixed step made everything move in
-slow motion whenever a frame took longer than `frame_milliseconds` (Theseus A87: half speed at 25 to 40 ms frames). A
-program that calls `app.tick()` itself, as tests and benchmarks do, gets `frame_milliseconds` every tick, so it stays
+millisecond add up, and at most 100 ms, so a hitch doesn't teleport anything, and a slow frame never puts the game
+in slow motion. A program that calls `app.tick()` itself, as tests and benchmarks do, gets `frame_milliseconds` every tick, so it stays
 repeatable.
 
 `TickTimers` is `input_each(clock: GameClock, running: Running)`: the runner fills the clock once and streams the
 running timers in place (the [clock row](#storage)); the timer row is only `entity` and `Ticking`, and `Timer` and
-`Repeating` are looked up on a ring. Ticking 10,000 timers costs about 0.27 ms a tick (`server_bench`, optimized;
-1.25 ms through the pair path, which copies each row, and 0.34 ms for the one-row system before it, which looked the
-`Frame` up for every timer and wrote every timer every tick). `timers_check` tests it: a 50 ms repeating timer rings 6 times in 30 ticks of 10 ms and a 120 ms one-shot
+`Repeating` are looked up on a ring. Ticking 10,000 timers costs about 0.27 ms a tick (`server_bench`, optimized).
+`timers_check` tests it: a 50 ms repeating timer rings 6 times in 30 ticks of 10 ms and a 120 ms one-shot
 rings once, seen with its `Timer` on the ring tick; a paused timer stays paused, then rings three ticks after it
 resumes and is removed; a cooldown child with `Expires` is despawned and the link naming it goes; and 40 paced ticks
 of 25 ms take about 1,000 ms.
 
 ### Timers on the network
 
-A running timer's data changes only when it starts, pauses, resumes or rings, so a mirrored timer would cost no
-traffic while it runs. Two things are missing for that (Theseus alert A108): the game clock is each process's own,
-so a server's `ends_at` means nothing to a client, and the engine's components have no `mirrored_from`, so a game
-cannot mirror a `Timer` or a `Ticking`. Until then a game mirrors a component of its own (a duration, or what
-remains) and the receiver starts a local timer from it.
+The engine's timer components are not replicated, and the game clock is each process's own, so a server's `ends_at`
+means nothing to a client. A game mirrors a component of its own (a duration, or what remains) and the receiver
+starts a local timer from it.
 
 ### Timer patterns
 
@@ -540,32 +526,32 @@ lookup by name on the hot path.
 Values are stored one of two ways:
 
 - **Inline**: every component that fits a `Vector` (its fields are numbers, `Boolean`, enums or `String`) is kept
-  in an `Items<T>` (D218), contiguous in memory. Nothing is declared; `Column.inline()` works it out at compile
+  in an `Items<T>`, contiguous in memory. Nothing is declared; `Column.inline()` works it out at compile
   time, and `Row` and `Stream` test the same thing.
 - **By reference**: any other component (one holding a list, another object, a nullable field) is a `List<T>`. A
   system's row holds the stored object, so writing a field changes the component.
 
-`Lookup<T>().of(entity)` lends the stored item either way (D230), so writing a field of what it returns changes the
+`Lookup<T>().of(entity)` lends the stored item either way, so writing a field of what it returns changes the
 component. A borrowed result can't be replaced: `var layout = lookup.of(entity)` followed by `layout = made` is a
 compile error, so pass the found and the new item to a small writer function instead.
 
 A system with one row and no `Added` or `Removed` field runs on the fast path, `Stream<System, Row>`. It
-walks the driver column and fills each row straight from the columns (D217): inline items are borrowed and written
+walks the driver column and fills each row straight from the columns: inline items are borrowed and written
 in place, with no copy and no reference counting, and references are handed over as they are. The runner picks
-it with `phase.argument_count() == 1` (D219), so systems with several rows still compile and use the combination
+it with `phase.argument_count() == 1`, so systems with several rows still compile and use the combination
 path. Other rows get a copy of inline items, which is written back after the system runs.
 
 A system with two rows (and no link in the first) takes the smaller row as the outer loop and streams the larger one
 inside it: `render_each(target: Target, modeled: Modeled)` fills the one window's row once and walks every model,
 instead of pairing them through the general combination path. Scene Gather is written this way (`BeginView`,
-`GatherModels`, `GatherCells`): 17,000 models went from 30 ms as a list system to 8 ms.
+`GatherModels`, `GatherCells`): it gathers 17,000 models in 8 ms, against 30 ms as a list system.
 
 **The clock row** is the fast path for a system that needs the game clock beside one other row: a row of the
 engine's class `GameClock` (`frame: Component.Frame`, the world entity's) is filled once per run, the other row is
 streamed through `Stream` exactly like a one-row system (inline items borrowed in place, no copy and no write-back
 per row), and the clock is written back after the walk. `TickTimers` is written this way: 10,000 timers in 0.27 ms,
-against 1.25 ms through the pair path. It is opted into by the row's class, not chosen for every two-row system
-(a proposal by Claude): streaming a row borrows its columns for each call, which Spite refuses for a system that
+against 1.25 ms through the pair path. It is opted into by the row's class, not chosen for every two-row system:
+streaming a row borrows its columns for each call, which Spite refuses for a system that
 may add to them, as `Animate` and `FollowBones` may, so the runner builds the stream only where it is asked for.
 The other row may not have `Added` or `Removed` fields; with them, the pair path runs.
 
@@ -576,7 +562,7 @@ while the list is built, so a list system allocates its list and nothing per row
 ## IO systems
 
 A system whose phase function can reach a wait (a socket or file read, a sleep, a database call) is an **IO system**,
-found at compile time (`$system_type.function_waits`, D209). Nothing marks it; writing straight-line code is enough:
+found at compile time (`$system_type.function_waits`). Nothing marks it; writing straight-line code is enough:
 
 ```gdscript
 func update_each(pending: Pending, store: Store) {
@@ -594,7 +580,7 @@ func update_each(pending: Pending, store: Store) {
   world through commands (`entity.add_component(...)`, `world.despawn(...)`), which apply at the next flush.
   A reference-stored component in the row is the stored object itself, so a write to it lands (after the frame).
   An inline component (any that fits a `Vector`, such as `Transform` or `Timer`) would be a copy, so **writing one is
-  a compile error** naming the line (D261): the runner asks `function_writes_parameter` for every row that holds an
+  a compile error** naming the line: the runner asks `function_writes_parameter` for every row that holds an
   inline component. A file or socket call added for debugging turns a system into an IO system, so it can surface
   this error too.
 - A system with several rows queues each matching combination.
@@ -603,3 +589,7 @@ Because the compiler finds every function that can wait, it also catches file re
 no-stutter rule forbids: asset lookups go through `Recipes.Catalog`, which loads the cache index on the pool, and
 shaders through `Recipes.Blobs`. `examples/io_systems` runs three MongoDB lookups with a 200 ms wait each while
 frames keep ticking.
+
+---
+
+Next: [Conventions](conventions.md), the folders, names and rules every package follows.

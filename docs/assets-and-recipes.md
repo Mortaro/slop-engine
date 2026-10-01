@@ -28,7 +28,7 @@ own formats the same way. `examples/asset_round_trip` checks one with every kind
 
 ## Recipes are code
 
-A recipe is a class in a `recipe/` folder with a `build()`. `cookbook.cook()` (`var cookbook = Recipes.Cookbook()`) finds every one (D115) and runs it when the
+A recipe is a class in a `recipe/` folder with a `build()`. `cookbook.cook()` (`var cookbook = Recipes.Cookbook()`) finds every one and runs it when the
 program starts, so nobody has to remember a separate step.
 
 ```gdscript
@@ -80,21 +80,18 @@ scan; if it is missing or disagrees with the store's size, the store is rescanne
 
 Each executable keeps a small `.slop-index-<executable>.json` beside its program: which fingerprint each id
 currently means for it. A second run builds nothing, and a program whose inputs another program already cooked builds
-nothing either. The index is per executable, not per program folder, because several builds of one program
-(Theseus's agents' test clients beside the player's) run from the same folder with different code: with one shared
-index, the player's running client followed the others' re-cooks and its models switched materials mid-session.
+nothing either. The index is per executable, not per program folder, because several builds of one program (a
+player's client beside test clients) can run from the same folder with different code, and each keeps the assets
+it was cooked with.
 
 **Several processes share one store safely.** Every write, and every rescan with its index rewrite, holds an
-exclusive lock on `store.bin.lock` (`Recipes.StoreLock`, `LockFileEx`), so appends never interleave. Before, a
-writer took the end of the file as its record's offset and then wrote, and a second process appending in between
-made that offset point into the other's record: a reader then decoded another asset of the same kind, silently.
-Each read also checks that the header at its offset names the key it asked for and the same length, and crashes
-naming both if not (`store_entry_at_its_offset_is_the_key_asked_for`), so a store damaged by an older build is
-loud. `examples/store_race_test` has four processes write 2,000 records each at once and reads all 8,000 back:
-without the lock 5,965 came back wrong or missing, with it none.
+exclusive lock on `store.bin.lock` (`Recipes.StoreLock`, `LockFileEx`), so appends never interleave. Each read also
+checks that the header at its offset names the key it asked for and the same length, and crashes
+naming both if not (`store_entry_at_its_offset_is_the_key_asked_for`), so a damaged store is loud.
+`examples/store_race_test` has four processes write 2,000 records each at once and reads all 8,000 back.
 
-**A format change re-cooks by itself** (a proposal by Claude, asked for by Theseus). `Pack<T>` writes the asset's
-kind and its schema, the hash `BinaryWriter<T>.schema()` works out from the class's attributes (D215), after the
+**A format change re-cooks by itself.** `Pack<T>` writes the asset's kind and its schema, the hash
+`BinaryWriter<T>.schema()` works out from the class's attributes, after the
 `SLOP` header, and `decode` refuses bytes whose schema differs instead of misreading them. `put` stamps each
 record as `id#fingerprint#kind#schema`, and `is_current` compares that stamp with the schema of the kind as the
 program is compiled now; the cache knows every schema by walking the classes in `asset/` folders. So adding a field
@@ -104,19 +101,18 @@ in the append-only store.
 
 ## Worktrees and shared cooking
 
-Mortaro's requirement: a worktree must be nearly free. Godot and Unreal copy every asset and all the code into a
-new worktree. A SlopEngine worktree holds only the files it changes: everything else loads from the original.
+A worktree is nearly free. Godot and Unreal copy every asset and all the code into a new worktree; a SlopEngine
+worktree holds only the files it changes, and everything else loads from the original.
 
-- **Assets.** A program names its base by declaring `func base_folder(): String` in its `build.spite` (D155: a
-  package asks the program through a method it declares; slop falls back to "no base" with `has_function`). `Sources` looks in the
+- **Assets.** A program names its base by declaring `func base_folder(): String` in its `build.spite`; a program
+  that declares none has no base. `Sources` looks in the
   program first and the base second, so a changed PSD in the worktree wins and the rest are the base's. Cooking goes
   into the base's store: unchanged inputs have the same fingerprint and are already there; a changed one appends a
   new record beside the old, so the base and every worktree stay valid at once.
 - **Code.** A worktree is a folder whose entry loads its base (`load "../click_counter"`) and reopens only the
-  classes it changes (D156). Mortaro's workflow: agents make cheap worktrees like this for him to test, and approved
-  changes are merged into the real code.
+  classes it changes.
 
-`click_counter_test` and `render_parity` already work this way over `click_counter`: both declare it as their `base_folder()`,
+`click_counter_test` and `render_parity` work this way over `click_counter`: both declare it as their `base_folder()`,
 and neither cooks anything once the game has.
 
 ## Hot reload: change a source, see it in the game
@@ -157,12 +153,8 @@ time in nanoseconds and its size: a stamp to the second missed a same-size edit 
 `examples/live_asset_test` cooks a mesh and a skeleton from one-line text files, rewrites both while the app runs,
 and checks both are swapped in; the worst tick is 1 to 2 ms.
 
-Known gaps:
-- a recipe whose *code* changes through `--hot-reload` is not re-run yet: it waits on the language's
-  `Reload().rebuilt_since(generation)` (D280), which `System.Recook` will poll;
-- fonts (`Recipes.Blobs`) and terrain materials don't follow the catalog yet;
-- the watcher is Windows-only and interim (a standard-library file watcher that Spite's own hot reload would share
-  is Mortaro's decision).
+What follows the catalog is textures, meshes, skeletons and clips. A change to a source file re-cooks; a change to a
+recipe's own code does not, and fonts and terrain materials are read once.
 
 ## Background loading
 
@@ -177,3 +169,7 @@ result. The Vulkan backend stages each new texture with one `memcpy` and records
 command buffer, so no upload waits on its own fence. Until
 the texture's entity has `Render.Component.TextureReady`, `DrawUi` skips it; the Vulkan backend uploads each slot once it is ready;
 `FinishTextureLoads` forgets finished jobs.
+
+---
+
+Next: [Loaders](loaders.md), the source formats read in pure Spite.

@@ -3,8 +3,8 @@
 No installed software is needed to read a source file. Each format is Spite code, reverse-engineered where it had to
 be, and checked against a reference.
 
-`slop/` knows no source format. It knows only the assets it contributes (`Asset.Bytes`, `Asset.Texture`; a mesh asset
-is next), and each loader is a plugin a program or a theme loads when one of its recipes reads that format:
+`slop/` knows no source format. It knows only the assets it contributes (`Asset.Bytes`, `Asset.Texture`, and the 3D
+assets of [scene.md](scene.md)), and each loader is a plugin a program or a theme loads when one of its recipes reads that format:
 
 | Plugin | Namespace | Loads |
 |---|---|---|
@@ -34,9 +34,8 @@ Checked: the three primary button plates of `buttons.psd` match a reference deco
 `psd_zip_probe` decodes sixteen generated files (layered and flat, 8 and 16 bit, each of the four compressions) to the checksum
 `make_fixtures.py` works out for them.
 
-Speed: channels decode into `List<Integer>` one byte at a time. Theseus's `T_TSplat0.psd` (3328×3584, PackBits,
-10 MB) opens in 11 ms and decodes in 683 ms, about 57 ns a pixel (2026-09-26, optimized). That is paid once, when a
-recipe cooks; decoding straight into the texture's bytes would cut it several times over.
+Speed: channels decode into `List<Integer>` one byte at a time. A 3328×3584 terrain splat map (PackBits, 10 MB)
+opens in 11 ms and decodes in 683 ms, about 57 ns a pixel (optimized). That is paid once, when a recipe cooks.
 
 ## zstd (`slop_zstd_plugin`)
 
@@ -46,7 +45,7 @@ RFC 8878, because every `.blend` Blender 5 saves is zstd-compressed.
 - literals: raw, RLE, and Huffman in one or four streams, with FSE-compressed or direct weights;
 - sequences: predefined, RLE, FSE-described and repeated tables, and the three repeat offsets.
 
-`Zstd.BitReader` reads the backward bit streams with D117's bitwise functions. Checked: byte-identical with Zig's
+`Zstd.BitReader` reads the backward bit streams with the standard library's bitwise functions. Checked: byte-identical with Zig's
 standard-library decoder on a 261 MB archer file, in 0.86 s.
 
 ## .blend (`slop_blend_plugin`)
@@ -65,6 +64,10 @@ per vertex), `.corner_vert` and `.corner_edge` (int per corner), `UVMap` (float2
 `sharp_edge`, and `custom_normal` (int16 pairs per corner, Blender's encoded custom normals); face offsets are in
 `poly_offset_indices`.
 
-Meshes, skeletons, skins, animations and packed PNG textures are built; see [scene.md](scene.md). Not built yet:
-ear-clipping triangulation (faces are split as fans), custom split normals, more than one UV set, vertex colours,
-and cooking images that reference external files (the reader reports their paths).
+Meshes, skeletons, skins, animations and packed PNG textures are read by the readers in [scene.md](scene.md).
+Faces are split as fans, one UV set is read, custom split normals and vertex colours are ignored, and an image that
+references an external file is reported by its path for the recipe to cook.
+
+---
+
+Next: [3D](scene.md), characters cooked from `.blend`, animation, lighting and terrain.
