@@ -104,7 +104,8 @@ func viewer_index(observation: Observation): Integer {
 func forget_viewers(viewing: List<Viewing>) {
     var index = 0
     while index < viewing.count() {
-        viewer_of[viewing[index].entity.id] = 0
+        var gone_viewer = viewing[index].entity.id
+        viewer_of[gone_viewer] = 0
         index = index + 1
     }
 }

@@ -129,7 +129,8 @@ func place_visible(observation: Observation) {
 func forget_peers(peers: List<Peer>) {
     var index = 0
     while index < peers.count() {
-        peer_of[peers[index].entity.id] = 0
+        var gone_peer = peers[index].entity.id
+        peer_of[gone_peer] = 0
         index = index + 1
     }
 }
