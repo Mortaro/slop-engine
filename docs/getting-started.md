@@ -16,7 +16,7 @@ From `examples/`, where `spite` means `D:/Projects/SpiteLanguage/bin/spite`:
 ```bash
 spite click_counter                          # a Vulkan window with a textured button that counts clicks
 spite click_counter_test                     # the game, loaded by its test: hidden window, 5 real clicks
-spite click_counter_test -- --clicks=12 --show_window=true
+spite click_counter_test --clicks=12 --show-window=true
 spite scroll_list                            # a scrolling list of clickable rows
 spite scroll_list_test                       # scrolls it with the wheel and clicks a row, in a hidden window
 spite text_field                             # a form with one text field

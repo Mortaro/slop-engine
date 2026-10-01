@@ -6,7 +6,7 @@ timings only on a production build ([performance.md](performance.md#measure-a-pr
 
 | Program | Proves |
 |---|---|
-| `click_counter_test` | the whole game through real Win32 messages in a hidden window: 5 (or `-- --clicks=N`) presses and releases posted to the window, counted by `CountClicks`, shown on the label, and the button left on its hover plate by the style systems |
+| `click_counter_test` | the whole game through real Win32 messages in a hidden window: 5 (or `--clicks=N`) presses and releases posted to the window, counted by `CountClicks`, shown on the label, and the button left on its hover plate by the style systems |
 | `text_field_test` | the text_field game in a hidden window: a click focuses the first field, real `WM_CHAR` and `WM_KEYDOWN` messages edit it to "HEXLL" with the caret at 3, then Tab moves focus to the second field, which receives "Y" |
 | `drag_drop_test` | drag and drop on a real window: a drop onto a target (`Dropped` names the source), a drop onto nothing (`DropMissed`), a short drag inside a parent `Button` (no `Clicked` on the parent), a plain click, a right click (`RightClicked`) and a double click (`DoubleClicked`) on the same draggable button; each step waits for the marker it causes |
 | `negative_lookup_refused/test.sh` | `Lookup.has(-1)` crashes, naming `looked_up_a_real_entity_not_a_negative_id`, instead of reading out of bounds |
@@ -21,7 +21,7 @@ timings only on a production build ([performance.md](performance.md#measure-a-pr
 | `lights_check` | a red point light and a blue spot light on a dark floor through the clustered shader: the pixel under the point light is lit red and a far corner stays dark; `extra_lights` adds a grid of lights for timing |
 | `attachment_check` | a bone attachment follows a named bone with an offset, and another follows a bone index, on a synthetic skeleton turned a quarter: both land where the maths says and carry the turn |
 | `inline_string_probe` | inline components holding long text and an enum: `_each`, `_all` and two-row systems, bundle spawns and writes through `Lookup.of` stay balanced under `--debug-memory` |
-| `stream_bench` | nanoseconds per row of single-row systems by shape (one inline component, two, `Entity` plus one, inline plus reference) over 100,000 entities; run `--optimized`, and `-- --parallel=false` for sequential stages |
+| `stream_bench` | nanoseconds per row of single-row systems by shape (one inline component, two, `Entity` plus one, inline plus reference) over 100,000 entities; run `--optimized`, and `--parallel=false` for sequential stages |
 | `snapshot_write_refused/test.sh` | an IO system that writes an inline component of its row fails to compile, and the error names the writing line |
 | `terrain_check` | a cooked two-by-two-tile terrain: each tile's base layer and a painted splat circle land where the ported M_Terrain formula puts them |
 | `props_bench` | 17,000 cube props in a grid: prints the frame time and every system above 0.2 ms; run `--optimized` |
@@ -42,8 +42,8 @@ timings only on a production build ([performance.md](performance.md#measure-a-pr
 | `timers_check` | timers ring on the right ticks and a one-shot is seen with its `Timer` on its ring tick; a paused timer (a `Timer` without `Ticking`) holds, then rings three ticks after it resumes; an `Expires` cooldown child is despawned and the link naming it goes; a list system's writes to inline components stick, a list system whose first list is empty never runs, and `run`'s fixed-rate pacing holds 25 ms ticks |
 | `server_bench` | 5,000 players and 10,000 monsters moving on a 4 km square: spatial grid, aggro and area-of-interest queries, timers, and the profile; a grid query is checked against brute force. Run with `--optimized` |
 | `psd_zip_probe` | sixteen generated PSDs, layered and flat, 8 and 16 bit with raw, PackBits, ZIP and ZIP-with-prediction channels, decode to the expected checksum (`python make_fixtures.py` regenerates them) |
-| `zstd_probe` | decompresses a `.blend` (`-- --source=file.blend --output=plain.blend`); compared byte for byte with Zig's decoder when it was written |
-| `blend_probe` | a `.blend`'s datablocks, any SDNA struct, and a mesh's attributes (`-- --source=file.blend`) |
+| `zstd_probe` | decompresses a `.blend` (`--source=file.blend --output=plain.blend`); compared byte for byte with Zig's decoder when it was written |
+| `blend_probe` | a `.blend`'s datablocks, any SDNA struct, and a mesh's attributes (`--source=file.blend`) |
 
 ## A test ends on a trigger, never a count
 
@@ -61,7 +61,7 @@ game, its systems and recipes included) and adds its own:
 
 | System | Does |
 |---|---|
-| `TakeOverWindow` (`prepare`) | on `Added<Window.Component.Window>`: hides the window (unless `--show_window=true`) and adds `Component.Progress` |
+| `TakeOverWindow` (`prepare`) | on `Added<Window.Component.Window>`: hides the window (unless `--show-window=true`) and adds `Component.Progress` |
 | `DriveClicks` (`update`) | posts real `WM_LBUTTONDOWN`/`WM_LBUTTONUP` messages at the button, a few frames apart |
 | `Verify` (`last`) | once every click is settled: checks the count, the label, the button's layout and its hover plate, prints, crashes on any difference, and quits |
 

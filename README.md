@@ -14,7 +14,7 @@ From `examples/`, where `spite` means `D:/Projects/SpiteLanguage/bin/spite`:
 ```bash
 spite click_counter                          # a Vulkan window with a button that counts its clicks
 spite click_counter_test                     # the game, loaded by its test: hidden window, 5 real clicks
-spite click_counter_test -- --clicks=12 --show_window=true
+spite click_counter_test --clicks=12 --show-window=true
 spite render_parity --debug-memory           # Vulkan against the software rasteriser, every pixel
 spite use_potion --debug-memory              # two linked query rows: a potion heals the hero it names
 spite healing --debug-memory                 # headless: a parallel stage, entity ids, a report
@@ -22,8 +22,8 @@ spite tracking --debug-memory                # Added and Removed, each seen exac
 spite stress --optimized                     # 200k entities, two systems, timings
 spite asset_round_trip --debug-memory        # an asset class saved and read back through its derived codec
 spite psd_probe                              # buttons.psd read in pure Spite
-spite zstd_probe -- --source=<file.blend> --output=<file>   # zstd in pure Spite
-spite blend_probe -- --source=<file.blend>   # Blender 5.2 datablocks, SDNA structs, mesh attributes
+spite zstd_probe --source=<file.blend> --output=<file>   # zstd in pure Spite
+spite blend_probe --source=<file.blend>   # Blender 5.2 datablocks, SDNA structs, mesh attributes
 ```
 
 Every `--debug-memory` run ends with its allocations balanced.

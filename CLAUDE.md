@@ -50,7 +50,7 @@ docs page describes it only once it works; until then it lives in `design/`.
 ## Writing
 
 - **No em dashes, anywhere**: not the character, and not two hyphens between spaces standing in for one, in code,
-  comments, docs or commit messages (command-line separators such as `spite program -- --flag` are fine). End the
+  comments, docs or commit messages (command-line flags such as `--optimized` are fine). End the
   sentence, or use a colon, a comma or parentheses.
 - **The engine never names the games built on it**, in docs, examples, comments or design notes, the way Spite never
   names its packages. Write "a game", and record what a game needed as the engine need it is.

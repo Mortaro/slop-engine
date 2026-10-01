@@ -5,7 +5,7 @@ and animated, lit by the sun, sky and fog, casts a shadow and is tone mapped, wi
 exporter. Everything is split into plugins, so a game loads only what it uses and can replace any piece.
 
 The Kal assets are not in this repository. The example reads them from `D:/Projects/kal-assets`; point it elsewhere
-with `spite kal_character --kal_assets=<folder>`.
+with `spite kal_character --kal-assets=<folder>`.
 
 | Plugin | Namespace | What it brings |
 |---|---|---|
