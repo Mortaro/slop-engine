@@ -46,7 +46,7 @@ func group_observations(viewing: List<Viewing>, observations: List<Observation>)
         while viewer_of.count() <= connection {
             viewer_of.append(0)
         }
-        viewer_of.set_at(connection, index + 1)
+        viewer_of[connection] = index + 1
         observed_counts.append(0)
         observed_starts.append(0)
         index = index + 1
@@ -59,10 +59,10 @@ func group_observations(viewing: List<Viewing>, observations: List<Observation>)
     var start = 0
     index = 0
     while index < viewing.count() {
-        observed_starts.set_at(index, start)
+        observed_starts[index] = start
         crash observed_counts[index]
         start = start + observed_counts[index]
-        observed_counts.set_at(index, 0)
+        observed_counts[index] = 0
         index = index + 1
     }
     observed_order.clear()
@@ -80,7 +80,7 @@ func count_observation(observation: Observation) {
     var viewer = viewer_index(observation)
     assert viewer >= 0
     crash observed_counts[viewer]
-    observed_counts.set_at(viewer, observed_counts[viewer] + 1)
+    observed_counts[viewer] = observed_counts[viewer] + 1
 }
 
 func place_observation(observation: Observation, index: Integer) {
@@ -89,8 +89,8 @@ func place_observation(observation: Observation, index: Integer) {
     crash observed_starts[viewer]
     crash observed_counts[viewer]
     var at = observed_starts[viewer] + observed_counts[viewer]
-    observed_order.set_at(at, index)
-    observed_counts.set_at(viewer, observed_counts[viewer] + 1)
+    observed_order[at] = index
+    observed_counts[viewer] = observed_counts[viewer] + 1
 }
 
 func viewer_index(observation: Observation): Integer {
@@ -104,7 +104,8 @@ func viewer_index(observation: Observation): Integer {
 func forget_viewers(viewing: List<Viewing>) {
     var index = 0
     while index < viewing.count() {
-        viewer_of.set_at(viewing[index].entity.id, 0)
+        var gone_viewer = viewing[index].entity.id
+        viewer_of[gone_viewer] = 0
         index = index + 1
     }
 }
@@ -139,7 +140,7 @@ func stamp_found() {
         while stamps.count() <= entity {
             stamps.append(0)
         }
-        stamps.set_at(entity, pass)
+        stamps[entity] = pass
         index = index + 1
     }
 }
@@ -166,7 +167,7 @@ func keep_or_drop_one(observation: Observation) {
         while stamps.count() <= subject {
             stamps.append(0)
         }
-        stamps.set_at(subject, 0 - pass)
+        stamps[subject] = 0 - pass
     } else {
         world.despawn(observation.entity.id)
     }
@@ -177,7 +178,7 @@ func observe_new(connection: Integer) {
     while index < found.count() {
         var subject = found[index]
         if stamps[subject] == pass and positions.has(subject) {
-            stamps.set_at(subject, 0 - pass)
+            stamps[subject] = 0 - pass
             var observation = world.entity_of(subject).create_entity()
             var observer = Network.Component.Observer()
             observer.entity = world.entity_of(connection)

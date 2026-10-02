@@ -84,7 +84,7 @@ func cook_texture(reader: Blend.MeshReader, mesh: Asset.Mesh, material: Integer,
     var name = reader.images[material]
     assert not name.is_empty()
     var id = "archer.texture.{name}"
-    mesh.textures.set_at(material, id)
+    mesh.textures[material] = id
     assert not cooked_textures.contains(id)
     cooked_textures.append(id)
     var texture = decoder.decode(reader.image_bytes[material])

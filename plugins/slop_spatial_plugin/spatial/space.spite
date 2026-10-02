@@ -22,7 +22,8 @@ func clear() {
     ensure_heads()
     var index = 0
     while index < touched.count() {
-        heads.set_at(touched[index], -1)
+        var touched_cell = touched[index]
+        heads[touched_cell] = -1
         index = index + 1
     }
     touched.clear()

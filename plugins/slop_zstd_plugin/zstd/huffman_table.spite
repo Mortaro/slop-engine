@@ -74,7 +74,7 @@ func place_symbol(weights: List<Integer>, symbol: Integer, starts: List<Long>) {
         raw.write_integer(lengths, slot * 4, length)
         slot = slot + 1
     }
-    starts.set_at(weight, begin + span)
+    starts[weight] = begin + span
 }
 
 func release_table() {

@@ -50,7 +50,7 @@ func ensure_layout(flex: Ui.Layout.Flex, entity: Integer) {
     }
     assert not layouts.has(entity)
     var created = Component.ComputedLayout()
-    flex.created_layouts.set(entity, created)
+    flex.created_layouts[entity] = created
     world.entity_of(entity).add_component(created)
 }
 
@@ -58,7 +58,7 @@ func ensure_clip(flex: Ui.Layout.Flex, entity: Integer) {
     var clips = Lookup<Component.ComputedClip>()
     assert not clips.has(entity)
     var created = Component.ComputedClip()
-    flex.created_clips.set(entity, created)
+    flex.created_clips[entity] = created
     world.entity_of(entity).add_component(created)
 }
 
@@ -72,13 +72,13 @@ func ensure_scrolling(flex: Ui.Layout.Flex, entity: Integer) {
     }
     if not scrollbars.has(entity) {
         var created_bars = Component.ComputedScrollbars()
-        flex.created_scrollbars.set(entity, created_bars)
+        flex.created_scrollbars[entity] = created_bars
         world.entity_of(entity).add_component(created_bars)
     }
     var ranges = Lookup<Component.ScrollRange>()
     if not ranges.has(entity) {
         var created = Component.ScrollRange()
-        flex.created_ranges.set(entity, created)
+        flex.created_ranges[entity] = created
         world.entity_of(entity).add_component(created)
     }
     var positions = Lookup<Component.ScrollPosition>()
@@ -92,7 +92,7 @@ func add_child(flex: Ui.Layout.Flex, child: Child) {
     var key = child.parent.entity.id
     if not flex.children.has(key) {
         var children = List<Integer>()
-        flex.children.set(key, children)
+        flex.children[key] = children
     }
     crash flex.children[key]
     flex.children[key].append(child.entity.id)

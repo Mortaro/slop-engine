@@ -17,12 +17,12 @@ var records = Lookup<Scene.Component.TerrainMaterial>()
 var requested = Lookup<Scene.Component.TerrainTexturesRequested>()
 
 func request(id: String): Integer {
-    var found = known_slots.get(id)
+    var found = known_slots[id]
     if found {
         return found
     }
     var slot = entities.count()
-    known_slots.set(id, slot)
+    known_slots[id] = slot
     var created = Scene.Component.TerrainMaterial()
     created.id = id
     created.slot = slot

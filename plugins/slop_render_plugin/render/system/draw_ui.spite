@@ -36,7 +36,7 @@ func paint_slots(elements: List<Element>, bars: List<Bars>): List<Integer> {
     while index < elements.count() {
         var order = elements[index].layout.order
         if order >= 0 and order < count {
-            slots.set_at(order, index)
+            slots[order] = index
         }
         index = index + 1
     }
@@ -45,7 +45,7 @@ func paint_slots(elements: List<Element>, bars: List<Bars>): List<Integer> {
         var order = bars[index].bars.order
         if order >= 0 and order < count {
             var slot = elements.count() + index
-            slots.set_at(order, slot)
+            slots[order] = slot
         }
         index = index + 1
     }

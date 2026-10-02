@@ -61,7 +61,7 @@ func start(slot: Integer) {
     var loading = Parallel(task.run)
     loads.append(loading)
     load_slots.append(slot)
-    started.set_at(slot, true)
+    started[slot] = true
 }
 
 func finish_if_done(index: Integer) {
@@ -70,8 +70,8 @@ func finish_if_done(index: Integer) {
     var finished = loads[index].finished_value()
     assert finished
     var slot = load_slots[index]
-    loaded.set_at(slot, finished)
-    ready.set_at(slot, true)
+    loaded[slot] = finished
+    ready[slot] = true
     loads.remove_at(index)
     load_slots.remove_at(index)
 }

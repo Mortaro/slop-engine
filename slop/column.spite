@@ -176,11 +176,11 @@ func at(row: Integer): $component_type {
 
 func write_at(row: Integer, value: $component_type) {
     if inline() {
-        values.set_at(row, value)
+        values[row] = value
         return
     }
     crash row < references.count()
-    references.set_at(row, value)
+    references[row] = value
 }
 
 func get(entity: Integer): $component_type {
@@ -246,7 +246,7 @@ func remove_reference(row: Integer, last: Integer) {
     buried.append(references[row])
     if row != last {
         crash references[last]
-        references.set_at(row, references[last])
+        references[row] = references[last]
     }
     references.remove_last()
 }

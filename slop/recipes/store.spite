@@ -24,12 +24,14 @@ func locate(key: String): Recipes.Record? {
 }
 
 func find(key: String): Recipes.Record? {
-    assert offsets[key]
-    assert lengths[key]
+    var offset = offsets[key]
+    var length = lengths[key]
+    assert offset
+    assert length
     var record = Recipes.Record()
     record.path = path
-    record.offset = offsets[key]
-    record.length = lengths[key]
+    record.offset = offset
+    record.length = length
     record.key = key
     return record
 }
@@ -59,8 +61,8 @@ func write(key: String, data: Asset.Bytes) {
 }
 
 func note(key: String, data_offset: Long, data_length: Long) {
-    offsets.set(key, data_offset)
-    lengths.set(key, data_length)
+    offsets[key] = data_offset
+    lengths[key] = data_length
     var record_end = data_offset + data_length
     if record_end > end {
         end = record_end
@@ -68,11 +70,13 @@ func note(key: String, data_offset: Long, data_length: Long) {
 }
 
 func write_entry(entry: Asset.Bytes, key: String) {
-    assert offsets[key]
-    assert lengths[key]
+    var offset = offsets[key]
+    var length = lengths[key]
+    assert offset
+    assert length
     entry.write_text(key)
-    entry.write_long(offsets[key])
-    entry.write_long(lengths[key])
+    entry.write_long(offset)
+    entry.write_long(length)
 }
 
 func append_bytes(file_path: String, bytes: Asset.Bytes): Long {

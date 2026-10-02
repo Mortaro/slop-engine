@@ -284,7 +284,7 @@ func add_face_normal(face: Integer) {
 
 func accumulate(index: Integer, amount: Float) {
     crash vertex_normals[index]
-    vertex_normals.set_at(index, vertex_normals[index] + amount)
+    vertex_normals[index] = vertex_normals[index] + amount
 }
 
 func emit_face(face: Integer) {
@@ -325,13 +325,13 @@ func emit_corner(face: Integer, corner: Integer) {
         down = 1.0 - up
     }
     var key = weld_key(vertex, across, down)
-    var known = welded.get(key)
+    var known = welded[key]
     if known {
         mesh.indices.append(known)
         return
     }
     var index = mesh.vertices.count() / 8
-    welded.set(key, index)
+    welded[key] = index
     mesh.indices.append(index)
     var position_x = position(vertex, 0)
     var position_y = position(vertex, 1)
@@ -398,10 +398,10 @@ func reverse_last_weights() {
     crash mesh.weights[end - 1]
     var first = mesh.weights[end - 4]
     var second = mesh.weights[end - 3]
-    mesh.weights.set_at(end - 4, mesh.weights[end - 1])
-    mesh.weights.set_at(end - 3, mesh.weights[end - 2])
-    mesh.weights.set_at(end - 2, second)
-    mesh.weights.set_at(end - 1, first)
+    mesh.weights[end - 4] = mesh.weights[end - 1]
+    mesh.weights[end - 3] = mesh.weights[end - 2]
+    mesh.weights[end - 2] = second
+    mesh.weights[end - 1] = first
 }
 
 func collect_weights(vertex: Integer, bones: List<Integer>, weights: List<Float>) {
@@ -517,11 +517,11 @@ func read_image_node(node: Blend.View, material: Integer) {
     crash image
     file.enter(image)
     var name = file.id_name(image)
-    images.set_at(material, name)
+    images[material] = name
     var packed_address = image.pointer("packedfile")
     if packed_address == 0 {
         var external = image.text("name")
-        image_paths.set_at(material, external)
+        image_paths[material] = external
         return
     }
     var packed = file.view_at(packed_address)

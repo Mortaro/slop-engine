@@ -13,12 +13,12 @@ func configure(space: Integer, left: Float, top: Float, width: Float, depth: Flo
 }
 
 func space_of(space: Integer): Spatial.Space {
-    var found = spaces.get(space)
+    var found = spaces[space]
     if found {
         return found
     }
     var made = Spatial.Space()
-    spaces.set(space, made)
+    spaces[space] = made
     space_list.append(made)
     return made
 }
@@ -33,20 +33,20 @@ func insert(space: Integer, entity: Integer, position_x: Float, position_z: Floa
     target.ensure_heads()
     ensure_entity(entity)
     var cell = target.cell_at(position_x, position_z)
-    xs.set_at(entity, position_x)
-    zs.set_at(entity, position_z)
+    xs[entity] = position_x
+    zs[entity] = position_z
     crash target.heads[cell]
     var head = target.heads[cell]
     if head < 0 {
         target.touched.append(cell)
     }
-    next.set_at(entity, head)
-    target.heads.set_at(cell, entity)
+    next[entity] = head
+    target.heads[cell] = entity
     indexed = indexed + 1
 }
 
 func within(space: Integer, position_x: Float, position_z: Float, radius: Float, found: List<Integer>) {
-    var target = spaces.get(space)
+    var target = spaces[space]
     assert target
     target.ensure_heads()
     var first_column = target.column_of(position_x - radius)
