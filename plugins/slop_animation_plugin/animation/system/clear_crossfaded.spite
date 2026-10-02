@@ -1,0 +1,8 @@
+type Finished {
+    entity: Entity
+    finished: Animation.Component.Crossfaded
+}
+
+func after_input_each(finished: Finished) {
+    finished.entity.remove_component(Animation.Component.Crossfaded)
+}

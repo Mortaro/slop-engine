@@ -1,0 +1,74 @@
+var cache = Recipes.Cache()
+
+func build() {
+    var fingerprint = cache.fingerprint("clips 1")
+    assert not cache.is_current("anim.skeleton", fingerprint)
+    var skeleton = Asset.Skeleton()
+    skeleton.names.append("root")
+    skeleton.names.append("tip")
+    skeleton.parents.append(-1)
+    skeleton.parents.append(0)
+    identity(skeleton.inverse_binds)
+    identity(skeleton.inverse_binds)
+    var skeleton_bytes = Asset.Bytes()
+    var skeleton_pack = Pack<Asset.Skeleton>()
+    skeleton_pack.encode(skeleton, skeleton_bytes)
+    cache.put("anim.skeleton", fingerprint, skeleton_bytes)
+    var still_a = [0.0, 0.0]
+    put_clip("anim.still_a", still_a, 0.0, fingerprint)
+    var still_b = [2.0, 2.0]
+    put_clip("anim.still_b", still_b, 0.7071068, fingerprint)
+    var loop = [0.0, 1.0, 0.0]
+    put_clip("anim.loop", loop, 0.0, fingerprint)
+    var intro = [0.0, 1.0, 2.0, 3.0, 4.0]
+    put_clip("anim.intro", intro, 0.0, fingerprint)
+    var walk = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]
+    put_clip("anim.walk", walk, 0.0, fingerprint)
+}
+
+func put_clip(id: String, along: List<Float>, turn_y: Float, fingerprint: String) {
+    var clip = Asset.Animation()
+    clip.name = id
+    clip.frames_per_second = 10.0
+    clip.frame_count = along.count()
+    clip.bone_count = 2
+    var turn_w: Float = 1.0
+    if turn_y != 0.0 {
+        turn_w = turn_y
+    }
+    var frame = 0
+    while frame < along.count() {
+        key(clip.keys, along[frame], 0.0, turn_y, turn_w)
+        key(clip.keys, 0.0, 1.0, 0.0, 1.0)
+        frame = frame + 1
+    }
+    var bytes = Asset.Bytes()
+    var pack = Pack<Asset.Animation>()
+    pack.encode(clip, bytes)
+    cache.put(id, fingerprint, bytes)
+}
+
+func identity(values: List<Float>) {
+    var index = 0
+    while index < 16 {
+        if index % 5 == 0 {
+            values.append(1.0)
+        } else {
+            values.append(0.0)
+        }
+        index = index + 1
+    }
+}
+
+func key(keys: List<Float>, along_x: Float, along_y: Float, turn_y: Float, turn_w: Float) {
+    keys.append(along_x)
+    keys.append(along_y)
+    keys.append(0.0)
+    keys.append(0.0)
+    keys.append(turn_y)
+    keys.append(0.0)
+    keys.append(turn_w)
+    keys.append(1.0)
+    keys.append(1.0)
+    keys.append(1.0)
+}

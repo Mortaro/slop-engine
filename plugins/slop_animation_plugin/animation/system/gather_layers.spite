@@ -1,0 +1,21 @@
+type Shelf {
+    library: Animation.Component.Library
+}
+
+type Layered {
+    entity: Entity
+    layer: Animation.Component.Layer
+    parent: Component.Parent
+}
+
+var layers = Animation.Layers()
+
+func after_input_all(_shelves: List<Shelf>, layered: List<Layered>) {
+    layers.forget_every()
+    var index = 0
+    while index < layered.count() {
+        var row = layered[index]
+        layers.gather(row.parent.entity.id, row.entity.id)
+        index = index + 1
+    }
+}

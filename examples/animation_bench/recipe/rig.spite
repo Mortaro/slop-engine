@@ -1,0 +1,68 @@
+var cache = Recipes.Cache()
+var scalar = Math.Scalar()
+var bone_count = 65
+var frame_count = 31
+
+func build() {
+    var fingerprint = cache.fingerprint("bench rig 1")
+    assert not cache.is_current("bench.skeleton", fingerprint)
+    var skeleton = Asset.Skeleton()
+    var bone = 0
+    while bone < bone_count {
+        skeleton.names.append("bone {bone}")
+        if bone == 0 {
+            skeleton.parents.append(-1)
+        } else {
+            skeleton.parents.append((bone - 1) / 2)
+        }
+        identity(skeleton.inverse_binds)
+        bone = bone + 1
+    }
+    var skeleton_bytes = Asset.Bytes()
+    var skeleton_pack = Pack<Asset.Skeleton>()
+    skeleton_pack.encode(skeleton, skeleton_bytes)
+    cache.put("bench.skeleton", fingerprint, skeleton_bytes)
+    var clip = Asset.Animation()
+    clip.name = "bench.idle"
+    clip.frames_per_second = 30.0
+    clip.frame_count = frame_count
+    clip.bone_count = bone_count
+    var frame = 0
+    while frame < frame_count {
+        bone = 0
+        while bone < bone_count {
+            var phase: Float = 0.2 * frame + 0.1 * bone
+            var half_angle = scalar.sine(phase) * 0.3
+            clip.keys.append(0.0)
+            clip.keys.append(0.1)
+            clip.keys.append(0.0)
+            var sine = scalar.sine(half_angle)
+            var cosine = scalar.cosine(half_angle)
+            clip.keys.append(sine)
+            clip.keys.append(0.0)
+            clip.keys.append(0.0)
+            clip.keys.append(cosine)
+            clip.keys.append(1.0)
+            clip.keys.append(1.0)
+            clip.keys.append(1.0)
+            bone = bone + 1
+        }
+        frame = frame + 1
+    }
+    var clip_bytes = Asset.Bytes()
+    var clip_pack = Pack<Asset.Animation>()
+    clip_pack.encode(clip, clip_bytes)
+    cache.put("bench.idle", fingerprint, clip_bytes)
+}
+
+func identity(values: List<Float>) {
+    var index = 0
+    while index < 16 {
+        if index % 5 == 0 {
+            values.append(1.0)
+        } else {
+            values.append(0.0)
+        }
+        index = index + 1
+    }
+}

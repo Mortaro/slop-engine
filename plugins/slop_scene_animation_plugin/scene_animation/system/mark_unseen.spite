@@ -1,0 +1,9 @@
+type Hidden {
+    entity: Entity
+    off_view: Added<Scene.Component.OffView>
+}
+
+func after_input_each(hidden: Hidden) {
+    var unseen = Animation.Component.Unseen()
+    hidden.entity.add_component(unseen)
+}

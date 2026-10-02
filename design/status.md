@@ -128,8 +128,9 @@ and the click test passed for 5 and 12 clicks.
   - a recipe whose *code* changes through `--hot-reload` is not re-run yet: it waits on the language's
     `Reload().rebuilt_since(generation)` (D280), which `System.Recook` will poll;
   - fonts (`Recipes.Blobs`) and terrain materials don't follow the catalog yet;
-  - the watcher is Windows-only and interim (a standard-library file watcher that Spite's own hot reload would
-    share is Mortaro's decision).
+  - the watcher is interim (a standard-library file watcher that Spite's own hot reload would share is Mortaro's
+    decision): `FindFirstChangeNotification` on Windows, `inotify` on Linux (2026-10-02, checked with a probe that
+    writes a file into a watched folder; no example re-cooks on Linux yet).
 - `examples/store_race_test` without the store lock: 5,965 of 8,000 records came back wrong or missing.
 
 ## [loaders.md](../docs/loaders.md)
@@ -159,7 +160,43 @@ and the click test passed for 5 and 12 clicks.
   from 26.8 ms to 2.2 ms.
 - Not built yet, from the previous Kal renderer: the ray-marched atmosphere and sky; shadow cascades and contact
   shadows; GTAO; image-based sky lighting; bloom; 4× MSAA; automatic exposure from a histogram; Blender's custom
-  split normals (`custom_normal` is ignored and normals are recomputed); blending between clips.
+  split normals (`custom_normal` is ignored and normals are recomputed).
+- Animation (2026-10-02, Claude; built headless and checked by `animation_check` on Linux):
+  - **To look at on Windows** (needs the Kal assets and a GPU): `kal_character` and `animate_bench` now load
+    `slop_scene_animation_plugin`, which shares the pose with the `Skin` and maps `OffView` to `Unseen`; check that
+    the archer is skinned and animates as before (the joining plugin was run on Linux only against copies of the
+    scene's `Model`, `Skin`, `OffView` and `Pose`: the `Skin` shares the pose's lists, an `OffView` model holds its
+    pose and moves again once seen), that models leaving and re-entering the view still pose, and that
+    `animate_bench`'s Animate time is no worse than 9 ms. The loop now wraps at the last key instead of
+    interpolating from the last key back to the first over one more frame: the idle, walk and run loops should
+    have no hitch at the wrap; if an action does not end on its first pose, it now pops there instead of easing,
+    and the recipe should key its last frame equal to its first. Blending, crossfades and throttling have not been
+    seen on screen: a crossfade from idle to run in `kal_character`, and `animate_bench` with throttles, are worth a
+    look.
+  - **Question, loop start: on the animator or on the clip?** Built: `loop_start` is a field next to every clip name
+    (`Animator`, `Crossfade`, `Layer`), so a game sets it where it names the clip. Options: (a) keep it there; (b) a
+    field of `Asset.Animation`, cooked from a pose marker in the Blender action (for example one named `loop`), so
+    the clip carries its own loop wherever it plays; (c) both, the animator's overriding. Recommendation: (b), since
+    the loop is a property of the authored clip; it changes the asset format in `slop/` (a re-cook) and the action
+    reader.
+  - **Question, where the skin and the visibility marker live.** The scene plugin keeps `Scene.Component.Skin`,
+    `Scene.Pose` and `Scene.Component.OffView`, and `slop_scene_animation_plugin` joins them to the headless
+    animation plugin (the `Skin` shares the `Pose`'s lists; `OffView` adds `Unseen`, one tick later, as before).
+    Options: (a) keep the joining plugin; (b) move the skin pose and one visibility marker into `slop/`, which both
+    plugins then read, and drop the joining plugin and its tick of delay. Recommendation: (b) if more plugins come
+    to need visibility (particles, sound), else (a).
+  - Throttle phase: a game sets `Throttle.phase` per character (all parts the same) to spread far characters over
+    the ticks; left at 0, every far animator samples on the same ticks. A default derived from the entity (the
+    `Parent` of a character's parts, when they have one) is a possible next step.
+  - `ThrottleByDistance` costs throttled animators times viewpoints each tick; a server with many observers should
+    find the nearest one through the spatial grid (not built).
+  - Not built: bone masks (a layer that moves only some bones), additive layers, sync groups (a walk and a run
+    blended at the same phase), and root motion.
+  - `animation_bench` (optimized, Linux, 4 cores shared with four other builds, medians of 5 interleaved runs,
+    2,800 animators, 400 distinct samples a tick, 65 bones): the Animate system as it was, 45.4 ms a tick (62
+    animators per millisecond); the new one unthrottled, 42.0 ms (67 per millisecond); throttled in rings 4 to 94 m
+    from the camera, 19.7 ms (142 per millisecond). "As it was" ran the previous plugin against stand-ins for the
+    scene's `Model`, `Skin`, `OffView` and `Pose`.
 
 ## [physics.md](../docs/physics.md)
 
@@ -352,8 +389,7 @@ The benchmarks to race are ecs_bench_suite's: `add_remove` and `schedule` look w
 
 - On Linux (2026-10-02, Spite master): the headless core and its examples build and run, balanced under
   `--debug-memory`; the store lock goes through `flock` there (`os/linux/`). Still Windows-only: the window, input
-  and XInput plugins, the software presenter (GDI), Vulkan's `vulkan-1.dll`, and `Recipes.Watcher` (hot reload,
-  `kernel32`); those examples were compiled for Windows in check mode only. The UI plugin loads `spite_truetype`,
+  and XInput plugins, the software presenter (GDI) and Vulkan's `vulkan-1.dll`; those examples were compiled for Windows in check mode only. The UI plugin loads `spite_truetype`,
   which must sit beside the engine, and the pinned MongoDB driver commit `ea1a143` does not compile with current
   Spite (`map_key` must be `map_keys`, `map_to_string` `map_to_strings`): it needs a driver commit and a new pin.
 - On Windows (2026-10-02, Spite master `400b740`, with the operators migration merged in and `spite_truetype`

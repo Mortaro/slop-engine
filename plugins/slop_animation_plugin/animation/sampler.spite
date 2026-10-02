@@ -2,61 +2,140 @@ var scalar = Math.Scalar()
 var first = Math.Pose()
 var second = Math.Pose()
 var local = Math.Matrix4()
+var from_frame = 0
+var to_frame = 0
+var frame_blend: Float = 0.0
+
+func length_of(clip: Asset.Animation): Float {
+    var last: Float = clip.frame_count - 1
+    if last <= 0.0 {
+        return 0.0
+    }
+    return last / clip.frames_per_second
+}
+
+func clip_time(clip: Asset.Animation, time: Float, loop_start: Float, looping: Boolean): Float {
+    var end = length_of(clip)
+    if not looping {
+        return scalar.clamp(time, 0.0, end)
+    }
+    if time >= 0.0 and time < end {
+        return time
+    }
+    var start = scalar.clamp(loop_start, 0.0, end)
+    var period = end - start
+    if period <= 0.0 {
+        return start
+    }
+    var into = time - start
+    var wrapped = start + into - scalar.floor(into / period) * period
+    if wrapped >= end {
+        return start
+    }
+    return scalar.clamp(wrapped, start, end)
+}
 
 func sample(
     skeleton: Asset.Skeleton,
     clip: Asset.Animation,
-    animator: Animation.Component.Animator,
-    looping: Boolean,
+    time: Float,
     palette: List<Math.Matrix4>,
     globals: List<Math.Matrix4>,
 ) {
-    var frame_count: Float = clip.frame_count
-    assert clip.frame_count > 0
-    var clip_made_for_this_skeleton = clip.bone_count == skeleton.names.count()
-    crash clip_made_for_this_skeleton
-    var clip_holds_every_key = clip.keys.count() == clip.frame_count * clip.bone_count * 10
-    crash clip_holds_every_key
-    var position = animator.time * clip.frames_per_second
-    if looping {
-        position = position - scalar.floor(position / frame_count) * frame_count
-    } else {
-        position = scalar.clamp(position, 0.0, frame_count - 1.0)
-    }
-    var whole = scalar.floor(position)
-    var blend = position - whole
-    var from: Integer = whole
-    var to = from + 1
-    if to >= clip.frame_count {
-        to = 0
-        if not looping {
-            to = from
-        }
-    }
+    check(skeleton, clip)
+    locate(clip, time)
     var bone_count = skeleton.names.count()
     fit(palette, bone_count)
     fit(globals, bone_count)
     var bone = 0
     while bone < bone_count {
-        pose_bone(skeleton, clip, bone, from, to, blend, palette, globals)
+        read_key(clip, from_frame, bone, first)
+        read_key(clip, to_frame, bone, second)
+        interpolate(frame_blend)
+        local.pose = first
+        place_bone(skeleton, bone, palette, globals)
         bone = bone + 1
     }
 }
 
-func pose_bone(
+func accumulate(
     skeleton: Asset.Skeleton,
     clip: Asset.Animation,
-    bone: Integer,
-    from: Integer,
-    to: Integer,
-    blend: Float,
+    time: Float,
+    weight: Float,
+    locals: List<Float>,
+    first_source: Boolean,
+) {
+    check(skeleton, clip)
+    locate(clip, time)
+    var bone_count = skeleton.names.count()
+    fit_floats(locals, bone_count * 10)
+    var bone = 0
+    while bone < bone_count {
+        read_key(clip, from_frame, bone, first)
+        read_key(clip, to_frame, bone, second)
+        interpolate(frame_blend)
+        add_weighted(locals, bone * 10, weight, first_source)
+        bone = bone + 1
+    }
+}
+
+func compose(
+    skeleton: Asset.Skeleton,
+    locals: List<Float>,
+    total_weight: Float,
     palette: List<Math.Matrix4>,
     globals: List<Math.Matrix4>,
 ) {
-    read_key(clip, from, bone, first)
-    read_key(clip, to, bone, second)
-    interpolate(blend)
-    local.pose = first
+    var weights_add_up_to_more_than_zero = total_weight > 0.0
+    crash weights_add_up_to_more_than_zero
+    var bone_count = skeleton.names.count()
+    var locals_cover_the_skeleton = locals.count() >= bone_count * 10
+    crash locals_cover_the_skeleton
+    fit(palette, bone_count)
+    fit(globals, bone_count)
+    var bone = 0
+    while bone < bone_count {
+        var start = bone * 10
+        first.position_x = local_at(locals, start) / total_weight
+        first.position_y = local_at(locals, start + 1) / total_weight
+        first.position_z = local_at(locals, start + 2) / total_weight
+        first.rotation_x = local_at(locals, start + 3)
+        first.rotation_y = local_at(locals, start + 4)
+        first.rotation_z = local_at(locals, start + 5)
+        first.rotation_w = local_at(locals, start + 6)
+        first.scale_x = local_at(locals, start + 7) / total_weight
+        first.scale_y = local_at(locals, start + 8) / total_weight
+        first.scale_z = local_at(locals, start + 9) / total_weight
+        normalize_rotation()
+        local.pose = first
+        place_bone(skeleton, bone, palette, globals)
+        bone = bone + 1
+    }
+}
+
+func check(skeleton: Asset.Skeleton, clip: Asset.Animation) {
+    assert clip.frame_count > 0
+    var clip_made_for_this_skeleton = clip.bone_count == skeleton.names.count()
+    crash clip_made_for_this_skeleton
+    var clip_holds_every_key = clip.keys.count() == clip.frame_count * clip.bone_count * 10
+    crash clip_holds_every_key
+}
+
+func locate(clip: Asset.Animation, time: Float) {
+    var last: Float = clip.frame_count - 1
+    var position = scalar.clamp(time * clip.frames_per_second, 0.0, last)
+    var whole = scalar.floor(position)
+    frame_blend = position - whole
+    from_frame = whole
+    to_frame = from_frame + 1
+    if to_frame >= clip.frame_count {
+        to_frame = from_frame
+        frame_blend = 0.0
+    }
+}
+
+func place_bone(skeleton: Asset.Skeleton, bone: Integer, palette: List<Math.Matrix4>, globals: List<Math.Matrix4>) {
     crash skeleton.parents[bone]
     var parent = skeleton.parents[bone]
     crash globals[bone]
@@ -87,6 +166,46 @@ func fit(matrices: List<Math.Matrix4>, count: Integer) {
         var added = Math.Matrix4()
         matrices.append(added)
     }
+}
+
+func fit_floats(values: List<Float>, count: Integer) {
+    while values.count() > count {
+        values.remove_last()
+    }
+    while values.count() < count {
+        values.append(0.0)
+    }
+}
+
+func local_at(locals: List<Float>, index: Integer): Float {
+    crash locals[index]
+    return locals[index]
+}
+
+func add_weighted(locals: List<Float>, start: Integer, weight: Float, first_source: Boolean) {
+    var sign: Float = 1.0
+    if not first_source {
+        var dot = local_at(locals, start + 3) * first.rotation_x + local_at(locals, start + 4) * first.rotation_y
+        dot = dot + local_at(locals, start + 5) * first.rotation_z + local_at(locals, start + 6) * first.rotation_w
+        if dot < 0.0 {
+            sign = -1.0
+        }
+    }
+    var keep: Float = 1.0
+    if first_source {
+        keep = 0.0
+    }
+    var turned = weight * sign
+    locals[start] = local_at(locals, start) * keep + first.position_x * weight
+    locals[start + 1] = local_at(locals, start + 1) * keep + first.position_y * weight
+    locals[start + 2] = local_at(locals, start + 2) * keep + first.position_z * weight
+    locals[start + 3] = local_at(locals, start + 3) * keep + first.rotation_x * turned
+    locals[start + 4] = local_at(locals, start + 4) * keep + first.rotation_y * turned
+    locals[start + 5] = local_at(locals, start + 5) * keep + first.rotation_z * turned
+    locals[start + 6] = local_at(locals, start + 6) * keep + first.rotation_w * turned
+    locals[start + 7] = local_at(locals, start + 7) * keep + first.scale_x * weight
+    locals[start + 8] = local_at(locals, start + 8) * keep + first.scale_y * weight
+    locals[start + 9] = local_at(locals, start + 9) * keep + first.scale_z * weight
 }
 
 func read_key(clip: Asset.Animation, frame: Integer, bone: Integer, pose: Math.Pose) {
@@ -136,9 +255,20 @@ func interpolate(blend: Float) {
     first.rotation_y = first.rotation_y * from_weight + second.rotation_y * to_weight
     first.rotation_z = first.rotation_z * from_weight + second.rotation_z * to_weight
     first.rotation_w = first.rotation_w * from_weight + second.rotation_w * to_weight
+    normalize_rotation()
+}
+
+func normalize_rotation() {
     var length = scalar.square_root(
         first.rotation_x * first.rotation_x + first.rotation_y * first.rotation_y + first.rotation_z * first.rotation_z + first.rotation_w * first.rotation_w,
     )
+    if length < 0.000001 {
+        first.rotation_x = 0.0
+        first.rotation_y = 0.0
+        first.rotation_z = 0.0
+        first.rotation_w = 1.0
+        return
+    }
     first.rotation_x = first.rotation_x / length
     first.rotation_y = first.rotation_y / length
     first.rotation_z = first.rotation_z / length

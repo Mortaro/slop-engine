@@ -1,0 +1,82 @@
+type Throttled {
+    throttle: Animation.Component.Throttle
+    transform: Transform.Component.Transform
+}
+
+type Eye {
+    camera: Camera.Component.Camera
+}
+
+type Watcher {
+    viewpoint: Animation.Component.Viewpoint
+    transform: Transform.Component.Transform
+}
+
+type Bands {
+    bands: Animation.Component.ThrottleBands
+}
+
+var defaults = Animation.Component.ThrottleBands()
+
+func after_input_all(throttled: List<Throttled>, eyes: List<Eye>, watchers: List<Watcher>, bands: List<Bands>) {
+    var chosen = defaults
+    if bands.count() > 0 {
+        chosen = bands[0].bands
+    }
+    var every_tick = chosen.every_tick_within * chosen.every_tick_within
+    var every_second = chosen.every_second_tick_within * chosen.every_second_tick_within
+    var every_fourth = chosen.every_fourth_tick_within * chosen.every_fourth_tick_within
+    var anyone_looks = eyes.count() > 0 or watchers.count() > 0
+    var index = 0
+    while index < throttled.count() {
+        var row = throttled[index]
+        var interval = 1
+        if anyone_looks {
+            var nearest = nearest_square(row.transform, eyes, watchers)
+            interval = 8
+            if nearest <= every_fourth {
+                interval = 4
+            }
+            if nearest <= every_second {
+                interval = 2
+            }
+            if nearest <= every_tick {
+                interval = 1
+            }
+        }
+        if row.throttle.interval != interval {
+            row.throttle.interval = interval
+        }
+        index = index + 1
+    }
+}
+
+func nearest_square(transform: Transform.Component.Transform, eyes: List<Eye>, watchers: List<Watcher>): Float {
+    var nearest: Float = -1.0
+    var index = 0
+    while index < eyes.count() {
+        var camera = eyes[index].camera
+        var square = square_between(transform, camera.eye_x, camera.eye_y, camera.eye_z)
+        if nearest < 0.0 or square < nearest {
+            nearest = square
+        }
+        index = index + 1
+    }
+    index = 0
+    while index < watchers.count() {
+        var watcher = watchers[index].transform
+        var square = square_between(transform, watcher.position_x, watcher.position_y, watcher.position_z)
+        if nearest < 0.0 or square < nearest {
+            nearest = square
+        }
+        index = index + 1
+    }
+    return nearest
+}
+
+func square_between(transform: Transform.Component.Transform, along_x: Float, along_y: Float, along_z: Float): Float {
+    var apart_x = transform.position_x - along_x
+    var apart_y = transform.position_y - along_y
+    var apart_z = transform.position_z - along_z
+    return apart_x * apart_x + apart_y * apart_y + apart_z * apart_z
+}

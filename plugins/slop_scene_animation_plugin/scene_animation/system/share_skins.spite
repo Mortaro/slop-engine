@@ -1,0 +1,13 @@
+type Posed {
+    entity: Entity
+    pose: Animation.Component.Pose
+    model: Scene.Component.Model
+    unskinned: Without<Scene.Component.Skin>
+}
+
+func prepare_each(posed: Posed) {
+    var skin = Scene.Component.Skin()
+    skin.pose.palette = posed.pose.matrices.palette
+    skin.pose.bones = posed.pose.matrices.bones
+    posed.entity.add_component(skin)
+}
