@@ -71,7 +71,7 @@ Everything is in the game's repository:
   12 maps, the World 83 dry cells. UV0 spans the whole map. Raw uint16 heightfields are in
   `export/landscape/*` (one landscape file per map): world Z = SourceZ + (h − 32768) · scale_z / 128.
 - **Lights**: dungeons hold thousands of dynamic point and spot lights (RoyalTomb 3,053), so clustered lighting is
-  required. Built (A47): `PointLight` and `SpotLight`, clustered forward shading, unshadowed ([scene.md](../docs/scene.md)). Scenes are Spite records in `data/scene/<map>.spite`.
+  required. Built (A47): `PointLight` and `SpotLight`, clustered forward shading; shadows from a budgeted atlas and sun cascades (A28, [scene.md](../docs/scene.md#shadows)). Scenes are Spite records in `data/scene/<map>.spite`.
 - **Scale**: the World places 17,357 objects, dungeons 1,000 to 4,000, all as separate actors in Unreal with no
   instancing, so instancing identical meshes is where SlopEngine gains.
 - **Characters**: `assets/characters/<class>/<class>.blend` (rig, body, actions) and `sets/set_N.blend` (one

@@ -34,21 +34,22 @@ and are not in the report.
 timed by a begin and an end around its commands:
 
 ```gdscript
-var timing = renderer.gpu_timings.begin("shadows")
-record_shadows(renderer, drawn, storage)
+var timing = renderer.gpu_timings.begin("tone map")
+record_tone_map(renderer)
 renderer.gpu_timings.end(timing)
 ```
 
 A frame's results are read when its fence is waited on, two frames later, so timing never stalls the GPU. Each
 name's average accumulates until `renderer.gpu_timings.clear()`; `average_milliseconds(name)` reads one and
-`describe()` lists every pass in microseconds. The engine times `frame` (the whole command buffer), `shadows`,
-`scene`, `tone map` and `ui`. `examples/render_bench` prints them for a fixed scene (optimized, 1920x1080, RTX 3090):
+`describe()` lists every pass in microseconds. The engine times `frame` (the whole command buffer), `shadows` (the
+sun's cascades), `local shadows` (point and spot light tiles), `scene`, `tone map` and `ui`. `examples/render_bench` prints them for a fixed scene (optimized, 1920x1080, RTX 3090):
 
 ```
-frame 527 us
-shadows 75 us
-scene 417 us
-tone map 16 us
+frame 723 us
+shadows 148 us
+local shadows 0 us
+scene 539 us
+tone map 17 us
 ui 0 us
 ```
 

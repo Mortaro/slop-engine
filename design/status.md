@@ -121,7 +121,6 @@ and the click test passed for 5 and 12 clicks.
 - A light that is a child of a moving entity reads only its own position (proposal: follow the parent once
   transforms have a world pass).
 - Point and spot lights, not built yet:
-  - shadows (a budgeted atlas, a proposal);
   - tighter sphere-against-cluster tests, which only cost shading a light that adds zero;
   - moving the cluster pass to a compute shader, if the CPU cost matters once many lights are on screen.
 - Gathering 3,000 lights cost 0.9 to 1.1 ms at first, the ECS's per-row streaming cost rather than the lights; with
@@ -132,8 +131,22 @@ and the click test passed for 5 and 12 clicks.
   millisecond.
 - `props_bench` history: a frame went from 60.6 ms to 13.9 ms with instancing and the ECS gather, with `DrawScene`
   from 26.8 ms to 2.2 ms.
-- Not built yet, from the previous Kal renderer: the ray-marched atmosphere and sky; shadow cascades and contact
-  shadows; GTAO; image-based sky lighting; bloom; 4× MSAA; automatic exposure from a histogram; Blender's custom
+- Shadows, not built yet:
+  - contact shadows, and soft shadows that harden toward their caster (PCSS);
+  - a model that casts no shadow (Unreal's per-primitive Cast Shadow), and per-light bias settings (Unreal's Shadow
+    Bias and Shadow Slope Bias);
+  - sizing a light's tiles by its screen size, as Unreal does: every tile is 512²;
+  - caching static casters apart from movable ones: a light with a skinned model in reach redraws all its faces
+    every frame, within the face budget;
+  - terrain cells outside the view cast no shadow;
+  - more than one view a frame: each view replans the atlas, and the cached light tiles serve only the last one;
+  - the atlas is a fixed 8192×4096 at 32 bits (128 MB), whatever the settings use.
+- Shadow cost in `render_bench` (optimized, 1920x1080, RTX 3090, median of 3, 2026-10-02): before shadows covered
+  more than 6 m around the camera's target, frame 541 us, shadows 76 us, scene 429 us; with three cascades to
+  200 m, frame 723 us, shadows 148 us (the sun's cascades), scene 539 us (the 5x5 filter on every lit fragment).
+  `--shadowed-lights=8` adds local shadows 82 us (36 faces a frame) and scene to 615 us. A 7x7 filter cost 20 to
+  30 us more in the scene pass.
+- Not built yet, from the previous Kal renderer: the ray-marched atmosphere and sky; contact shadows; GTAO; image-based sky lighting; bloom; 4× MSAA; automatic exposure from a histogram; Blender's custom
   split normals (`custom_normal` is ignored and normals are recomputed); blending between clips.
 
 ## [networking.md](../docs/networking.md)

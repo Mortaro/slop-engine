@@ -96,6 +96,23 @@ parts are Claude's proposals. Mortaro decides the API; a proposal stays marked h
 - `mesh.add_section` (a proposal by Claude).
 - Bone attachments (a proposal by Claude, for Mortaro to decide).
 - The terrain shader is a port of the first game's Unreal `M_Terrain`, whose roughness and specular are 1 and 0.
+- Shadows (a proposal by Claude, 2026-10-02, unconfirmed; a game's alert A28: visual parity with Unreal needs real
+  shadows):
+  - Opting in with the marker `Lighting.Component.CastsShadows`. Unreal turns Cast Shadows on by default, but a
+    component may not hold a `Boolean` and may not mark what an entity lacks, so a light opts in, and `Daylight`
+    carries the marker so its sun casts shadows as Unreal's does.
+  - The sun's settings are Unreal's directional light's, with its defaults (Dynamic Shadow Distance MovableLight
+    200 m, 3 cascades, exponent 3, transition and fadeout fractions 0.1), on `Lighting.Component.Sun`; at most 4
+    cascades, each 2048² as at Unreal's Epic `r.Shadow.MaxCSMResolution`.
+  - Stable cascades the common way: a bounding sphere per cascade and texel snapping; the near plane fitted to the
+    casters instead of depth clamping, which needs the `depthClamp` device feature.
+  - One 8192×4096 32-bit depth atlas for every shadow, so the scene's descriptor layout is unchanged: 128 MB.
+  - Point and spot lights: 512² tiles, 16 lights, ranked by range over distance, a point light as six cube faces in
+    tiles, and a budget of 36 faces a frame with cached tiles in between; Unreal sizes each light's shadow by its
+    screen size instead, and caches static casters apart from movable ones.
+  - Castaño's optimized 5×5 PCF for every lookup (Unreal's filters differ by shadow quality; PCSS is not built).
+  - A cascade drops casters under a hundredth of their distance, as Unreal's `r.Shadow.RadiusThreshold` (0.01).
+  - Off-screen casters for local lights: within twice the largest shadowed light's range of the view.
 
 ## [networking.md](../docs/networking.md)
 
