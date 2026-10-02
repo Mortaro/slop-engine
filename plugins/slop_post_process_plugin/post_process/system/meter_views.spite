@@ -1,0 +1,26 @@
+type Metered {
+    exposure: PostProcess.Component.AutoExposure
+}
+
+type Target {
+    entity: Entity
+    view: Scene.Component.View
+}
+
+var exposed = Lookup<Scene.Component.AutoExposed>()
+
+func render_each(metered: Metered, target: Target) {
+    var view = target.view
+    var exposure = metered.exposure
+    view.exposure_minimum = exposure.minimum
+    view.exposure_maximum = exposure.maximum
+    view.exposure_speed_up = exposure.speed_up
+    view.exposure_speed_down = exposure.speed_down
+    view.exposure_low_percent = exposure.low_percent
+    view.exposure_high_percent = exposure.high_percent
+    view.exposure_compensation = exposure.compensation
+    var owner = target.entity
+    assert not exposed.has(owner.id)
+    var marker = Scene.Component.AutoExposed()
+    owner.add_component(marker)
+}

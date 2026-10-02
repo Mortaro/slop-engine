@@ -1,0 +1,11 @@
+type Darkened {
+    vignette: PostProcess.Component.Vignette
+}
+
+type Target {
+    view: Scene.Component.View
+}
+
+func render_each(darkened: Darkened, target: Target) {
+    target.view.vignette_intensity = darkened.vignette.intensity
+}

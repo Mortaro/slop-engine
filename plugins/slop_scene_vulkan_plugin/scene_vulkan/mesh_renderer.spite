@@ -6,13 +6,6 @@ var storage_layout: Long = 0
 var storage_pool: Long = 0
 var shader_vertex: Long = 0
 var shader_fragment: Long = 0
-var tone_pipeline: Long = 0
-var tone_layout: Long = 0
-var tone_set_layout: Long = 0
-var tone_pool: Long = 0
-var tone_set: Long = 0
-var shader_tone_vertex: Long = 0
-var shader_tone_fragment: Long = 0
 var high_dynamic_range_image: Long = 0
 var high_dynamic_range_memory: Long = 0
 var high_dynamic_range_view: Long = 0
@@ -22,6 +15,7 @@ var lighting_mapped = List<Long>()
 var lighting_bytes = 256
 var clusters = Scene.LightClusters()
 var terrain = SceneVulkan.TerrainPass()
+var post = SceneVulkan.PostProcess()
 var sections_per_mesh = 64
 var key_counts = List<Integer>()
 var used_keys = List<Integer>()
@@ -53,7 +47,6 @@ var shadow_sampler: Long = 0
 var shadow_size = 2048
 var light_view_projection = Math.Matrix4()
 var floats = TypedMemory<Float>()
-var scalar = Math.Scalar()
 var depth_image: Long = 0
 var depth_memory: Long = 0
 var depth_view: Long = 0
@@ -98,7 +91,9 @@ func record(
     meshes: Scene.Meshes,
     terrain_materials: Scene.TerrainMaterials,
     lights: Scene.Lights,
+    metered: Boolean,
 ) {
+    post.prepare(renderer, view, metered)
     ensure_depth(renderer)
     upload_meshes(renderer, meshes)
     var slot = (renderer.frame_number - 1) % renderer.frames_in_flight
@@ -109,7 +104,7 @@ func record(
     camera.aspect = aspect
     clusters.assign(camera, lights, aspect)
     write_frame_data(renderer, drawn, slot)
-    write_local_lights(renderer, view, lights, slot)
+    write_local_lights(renderer, lights, slot)
     terrain.upload_step(renderer, terrain_materials)
     release_retired_scene_sets(renderer)
     aim_sun(view, camera)
@@ -123,22 +118,23 @@ func record(
     record_shadows(renderer, drawn, storage)
     timings.end(shadow_timing)
     var scene_timing = timings.begin("scene")
-    renderer.barrier(high_dynamic_range_image, 0, 256, 0, 2, 1, 1024)
+    renderer.barrier(high_dynamic_range_image, 0, 256, 0, 2, 128, 1024)
+    post.before_scene(renderer)
     depth_barrier(renderer)
     begin_rendering(renderer, view)
     vulkan.vkCmdBindPipeline(frame.command_buffer, 0, pipeline)
     record_viewport(renderer)
     vulkan.vkCmdBindDescriptorSets(frame.command_buffer, 0, pipeline_layout, 1, 1, storage.address, 0, no_offsets)
     var projection = camera.projection(aspect)
-    var view_projection = projection.multiplied(camera.view)
+    var steady = projection.multiplied(camera.view)
+    var jittered = post.jittered(projection)
+    var view_projection = jittered.multiplied(camera.view)
     record_runs(renderer, drawn, view_projection)
     record_terrain(renderer, drawn, terrain_materials, storage, view_projection)
     vulkan.vkCmdEndRendering(frame.command_buffer)
     timings.end(scene_timing)
     renderer.barrier(high_dynamic_range_image, 256, 32, 2, 5, 1024, 128)
-    var tone_timing = timings.begin("tone map")
-    record_tone_map(renderer)
-    timings.end(tone_timing)
+    post.record(renderer, view, metered, projection, steady, depth_image)
     frame.scene_drawn = true
 }
 
@@ -463,57 +459,10 @@ func create_shadow_pipeline(renderer: RenderVulkan.Renderer): Long {
     return made.read_long(0)
 }
 
-func record_tone_map(renderer: RenderVulkan.Renderer) {
-    var frame = renderer.frame
-    renderer.barrier(frame.target_image, 0, 256, 0, 2, 1, 1024)
-    var color = RenderVulkan.Structure(72)
-    color.append_integer(1000044001)
-    color.append_long(0)
-    color.append_long(frame.target_view)
-    color.append_integer(2)
-    color.append_integer(0)
-    color.append_long(0)
-    color.append_integer(0)
-    color.append_integer(2)
-    color.append_integer(0)
-    color.append_float(0.0)
-    color.append_float(0.0)
-    color.append_float(0.0)
-    color.append_float(0.0)
-    var rendering = RenderVulkan.Structure(80)
-    rendering.append_integer(1000044000)
-    rendering.append_long(0)
-    rendering.append_integer(0)
-    rendering.append_integer(0)
-    rendering.append_integer(0)
-    rendering.append_integer(frame.target_width)
-    rendering.append_integer(frame.target_height)
-    rendering.append_integer(1)
-    rendering.append_integer(0)
-    rendering.append_integer(1)
-    rendering.append_pointer(color)
-    rendering.append_long(0)
-    rendering.append_long(0)
-    vulkan.vkCmdBeginRendering(frame.command_buffer, rendering.address)
-    vulkan.vkCmdBindPipeline(frame.command_buffer, 0, tone_pipeline)
-    record_viewport(renderer)
-    var sets = RenderVulkan.Structure(8)
-    sets.append_long(tone_set)
-    var no_offsets: Long = 0
-    vulkan.vkCmdBindDescriptorSets(frame.command_buffer, 0, tone_layout, 0, 1, sets.address, 0, no_offsets)
-    vulkan.vkCmdDraw(frame.command_buffer, 3, 1, 0, 0)
-    vulkan.vkCmdEndRendering(frame.command_buffer)
-}
-
-func exposure_of(view: Scene.Component.View): Float {
-    var power = scalar.power_of_two(view.exposure_value)
-    return 1.0 / (1.2 * power)
-}
-
 func write_lighting(view: Scene.Component.View, camera: Scene.Component.ViewCamera, slot: Integer) {
     crash lighting_mapped[slot]
     var at = lighting_mapped[slot]
-    var exposure = exposure_of(view)
+    var exposure = post.pre_exposure
     var sun = view.sun_illuminance * exposure
     var sky = view.sky_luminance * exposure
     var ground = view.ground_luminance * exposure
@@ -531,19 +480,14 @@ func write_lighting(view: Scene.Component.View, camera: Scene.Component.ViewCame
     put(at, 60, clusters.near, clusters.slice_scale, clusters.across_scale, clusters.down_scale)
 }
 
-func write_local_lights(
-    renderer: RenderVulkan.Renderer,
-    view: Scene.Component.View,
-    lights: Scene.Lights,
-    slot: Integer,
-) {
+func write_local_lights(renderer: RenderVulkan.Renderer, lights: Scene.Lights, slot: Integer) {
     var visible_count = clusters.visible.count()
     var index_count = clusters.index_count
     ensure_light_buffers(renderer, slot, visible_count, index_count)
     crash light_mapped[slot]
     crash cluster_mapped[slot]
     crash light_index_mapped[slot]
-    var exposure = exposure_of(view)
+    var exposure = post.pre_exposure
     var lights_at = light_mapped[slot]
     var source = lights.floats
     var visible = 0
@@ -754,9 +698,8 @@ func shaders_ready(renderer: RenderVulkan.Renderer): Boolean {
     var scene_fragment = renderer.shader_ready("shader.scene.fragment")
     var terrain_fragment = renderer.shader_ready("shader.scene.terrain")
     var shadow_fragment = renderer.shader_ready("shader.shadow.fragment")
-    var tone_vertex = renderer.shader_ready("shader.tone_map.vertex")
-    var tone_fragment = renderer.shader_ready("shader.tone_map.fragment")
-    return scene_vertex and scene_fragment and terrain_fragment and shadow_fragment and tone_vertex and tone_fragment
+    var post_ready = post.shaders_ready(renderer)
+    return scene_vertex and scene_fragment and terrain_fragment and shadow_fragment and post_ready
 }
 
 func create(renderer: RenderVulkan.Renderer, chosen: RenderVulkan.Component.Device) {
@@ -764,8 +707,6 @@ func create(renderer: RenderVulkan.Renderer, chosen: RenderVulkan.Component.Devi
     shader_fragment = renderer.create_shader("shader.scene.fragment")
     shader_shadow_fragment = renderer.create_shader("shader.shadow.fragment")
     create_shadow_map(renderer)
-    shader_tone_vertex = renderer.create_shader("shader.tone_map.vertex")
-    shader_tone_fragment = renderer.create_shader("shader.tone_map.fragment")
     create_storage(renderer)
     create_layout(renderer)
     create_pipeline(renderer)
@@ -773,7 +714,7 @@ func create(renderer: RenderVulkan.Renderer, chosen: RenderVulkan.Component.Devi
     create_scene_pool(renderer)
     terrain.pipeline = build_pipeline(renderer, terrain.pipeline_layout, terrain.shader_terrain)
     shadow_pipeline = create_shadow_pipeline(renderer)
-    create_tone_map(renderer)
+    post.create(renderer)
     renderer.parts.append(this)
 }
 
@@ -918,13 +859,14 @@ func create_pipeline(renderer: RenderVulkan.Renderer) {
 }
 
 func build_pipeline(renderer: RenderVulkan.Renderer, layout: Long, fragment: Long): Long {
-    var formats = RenderVulkan.Structure(4)
+    var formats = RenderVulkan.Structure(8)
     formats.append_integer(97)
+    formats.append_integer(post.ambient_format)
     var rendering = RenderVulkan.Structure(40)
     rendering.append_integer(1000044002)
     rendering.append_long(0)
     rendering.append_integer(0)
-    rendering.append_integer(1)
+    rendering.append_integer(2)
     rendering.append_pointer(formats)
     rendering.append_integer(126)
     rendering.append_integer(0)
@@ -1070,22 +1012,26 @@ func depth_state(compare: Integer): RenderVulkan.Structure {
 }
 
 func blend_state(): RenderVulkan.Structure {
-    var attachment = RenderVulkan.Structure(32)
-    attachment.append_integer(0)
-    attachment.append_integer(1)
-    attachment.append_integer(0)
-    attachment.append_integer(0)
-    attachment.append_integer(1)
-    attachment.append_integer(0)
-    attachment.append_integer(0)
-    attachment.append_integer(15)
+    var attachment = RenderVulkan.Structure(64)
+    var color_target = 0
+    while color_target < 2 {
+        attachment.append_integer(0)
+        attachment.append_integer(1)
+        attachment.append_integer(0)
+        attachment.append_integer(0)
+        attachment.append_integer(1)
+        attachment.append_integer(0)
+        attachment.append_integer(0)
+        attachment.append_integer(15)
+        color_target = color_target + 1
+    }
     var state = RenderVulkan.Structure(64)
     state.append_integer(26)
     state.append_long(0)
     state.append_integer(0)
     state.append_integer(0)
     state.append_integer(0)
-    state.append_integer(1)
+    state.append_integer(2)
     state.append_pointer(attachment)
     state.append_float(0.0)
     state.append_float(0.0)
@@ -1096,10 +1042,10 @@ func blend_state(): RenderVulkan.Structure {
 
 func ensure_depth(renderer: RenderVulkan.Renderer) {
     var frame = renderer.frame
-    assert frame.target_width != depth_width or frame.target_height != depth_height
+    assert post.render_width != depth_width or post.render_height != depth_height
     release_depth(renderer)
-    depth_width = frame.target_width
-    depth_height = frame.target_height
+    depth_width = post.render_width
+    depth_height = post.render_height
     var no_allocator: Long = 0
     var creation = RenderVulkan.Structure(96)
     creation.append_integer(14)
@@ -1114,7 +1060,7 @@ func ensure_depth(renderer: RenderVulkan.Renderer) {
     creation.append_integer(1)
     creation.append_integer(1)
     creation.append_integer(0)
-    creation.append_integer(32)
+    creation.append_integer(36)
     creation.append_integer(0)
     creation.append_integer(0)
     creation.append_long(0)
@@ -1171,205 +1117,7 @@ func create_high_dynamic_range(renderer: RenderVulkan.Renderer) {
     )
     crash bind_result == 0
     high_dynamic_range_view = renderer.create_view(high_dynamic_range_image, 97)
-    write_tone_set(renderer)
-}
-
-func write_tone_set(renderer: RenderVulkan.Renderer) {
-    var image_information = RenderVulkan.Structure(24)
-    image_information.append_long(renderer.sampler)
-    image_information.append_long(high_dynamic_range_view)
-    image_information.append_integer(5)
-    var write = RenderVulkan.Structure(64)
-    write.append_integer(35)
-    write.append_long(0)
-    write.append_long(tone_set)
-    write.append_integer(0)
-    write.append_integer(0)
-    write.append_integer(1)
-    write.append_integer(1)
-    write.append_pointer(image_information)
-    write.append_long(0)
-    write.append_long(0)
-    var no_copies: Long = 0
-    vulkan.vkUpdateDescriptorSets(renderer.device, 1, write.address, 0, no_copies)
-}
-
-func create_tone_map(renderer: RenderVulkan.Renderer) {
-    var no_allocator: Long = 0
-    var binding = RenderVulkan.Structure(24)
-    binding.append_integer(0)
-    binding.append_integer(1)
-    binding.append_integer(1)
-    binding.append_integer(16)
-    binding.append_long(0)
-    var layout_creation = RenderVulkan.Structure(32)
-    layout_creation.append_integer(32)
-    layout_creation.append_long(0)
-    layout_creation.append_integer(0)
-    layout_creation.append_integer(1)
-    layout_creation.append_pointer(binding)
-    var made = RenderVulkan.Structure(8)
-    var layout_result = vulkan.vkCreateDescriptorSetLayout(
-        renderer.device,
-        layout_creation.address,
-        no_allocator,
-        made.address,
-    )
-    crash layout_result == 0
-    tone_set_layout = made.read_long(0)
-    var pool_size = RenderVulkan.Structure(8)
-    pool_size.append_integer(1)
-    pool_size.append_integer(1)
-    var pool_creation = RenderVulkan.Structure(40)
-    pool_creation.append_integer(33)
-    pool_creation.append_long(0)
-    pool_creation.append_integer(0)
-    pool_creation.append_integer(1)
-    pool_creation.append_integer(1)
-    pool_creation.append_pointer(pool_size)
-    var pool_result = vulkan.vkCreateDescriptorPool(renderer.device, pool_creation.address, no_allocator, made.address)
-    crash pool_result == 0
-    tone_pool = made.read_long(0)
-    var layouts = RenderVulkan.Structure(8)
-    layouts.append_long(tone_set_layout)
-    var allocation = RenderVulkan.Structure(40)
-    allocation.append_integer(34)
-    allocation.append_long(0)
-    allocation.append_long(tone_pool)
-    allocation.append_integer(1)
-    allocation.append_pointer(layouts)
-    var set_result = vulkan.vkAllocateDescriptorSets(renderer.device, allocation.address, made.address)
-    crash set_result == 0
-    tone_set = made.read_long(0)
-    var set_layouts = RenderVulkan.Structure(8)
-    set_layouts.append_long(tone_set_layout)
-    var pipeline_layout_creation = RenderVulkan.Structure(48)
-    pipeline_layout_creation.append_integer(30)
-    pipeline_layout_creation.append_long(0)
-    pipeline_layout_creation.append_integer(0)
-    pipeline_layout_creation.append_integer(1)
-    pipeline_layout_creation.append_pointer(set_layouts)
-    pipeline_layout_creation.append_integer(0)
-    pipeline_layout_creation.append_long(0)
-    var layout_made = vulkan.vkCreatePipelineLayout(
-        renderer.device,
-        pipeline_layout_creation.address,
-        no_allocator,
-        made.address,
-    )
-    crash layout_made == 0
-    tone_layout = made.read_long(0)
-    tone_pipeline = full_screen_pipeline(renderer, shader_tone_vertex, shader_tone_fragment, 44, tone_layout)
-}
-
-func full_screen_pipeline(
-    renderer: RenderVulkan.Renderer,
-    vertex_shader: Long,
-    fragment_shader: Long,
-    format: Integer,
-    layout: Long,
-): Long {
-    var formats = RenderVulkan.Structure(4)
-    formats.append_integer(format)
-    var rendering = RenderVulkan.Structure(40)
-    rendering.append_integer(1000044002)
-    rendering.append_long(0)
-    rendering.append_integer(0)
-    rendering.append_integer(1)
-    rendering.append_pointer(formats)
-    rendering.append_integer(0)
-    rendering.append_integer(0)
-    var stages = RenderVulkan.Structure(96)
-    stages.append_integer(18)
-    stages.append_long(0)
-    stages.append_integer(0)
-    stages.append_integer(1)
-    stages.append_long(vertex_shader)
-    stages.append_text("main")
-    stages.append_long(0)
-    stages.append_integer(18)
-    stages.append_long(0)
-    stages.append_integer(0)
-    stages.append_integer(16)
-    stages.append_long(fragment_shader)
-    stages.append_text("main")
-    stages.append_long(0)
-    var vertex_input = RenderVulkan.Structure(48)
-    vertex_input.append_integer(19)
-    vertex_input.append_long(0)
-    vertex_input.append_integer(0)
-    vertex_input.append_integer(0)
-    vertex_input.append_long(0)
-    vertex_input.append_integer(0)
-    vertex_input.append_long(0)
-    var assembly = RenderVulkan.Structure(32)
-    assembly.append_integer(20)
-    assembly.append_long(0)
-    assembly.append_integer(0)
-    assembly.append_integer(3)
-    assembly.append_integer(0)
-    var viewport = RenderVulkan.Structure(48)
-    viewport.append_integer(22)
-    viewport.append_long(0)
-    viewport.append_integer(0)
-    viewport.append_integer(1)
-    viewport.append_long(0)
-    viewport.append_integer(1)
-    viewport.append_long(0)
-    var rasterization = renderer.rasterization_state()
-    var multisample = RenderVulkan.Structure(48)
-    multisample.append_integer(24)
-    multisample.append_long(0)
-    multisample.append_integer(0)
-    multisample.append_integer(1)
-    multisample.append_integer(0)
-    multisample.append_float(0.0)
-    multisample.append_long(0)
-    multisample.append_integer(0)
-    multisample.append_integer(0)
-    var blend = blend_state()
-    var dynamic_states = RenderVulkan.Structure(8)
-    dynamic_states.append_integer(0)
-    dynamic_states.append_integer(1)
-    var dynamic = RenderVulkan.Structure(32)
-    dynamic.append_integer(27)
-    dynamic.append_long(0)
-    dynamic.append_integer(0)
-    dynamic.append_integer(2)
-    dynamic.append_pointer(dynamic_states)
-    var description = RenderVulkan.Structure(160)
-    description.append_integer(28)
-    description.append_pointer(rendering)
-    description.append_integer(0)
-    description.append_integer(2)
-    description.append_pointer(stages)
-    description.append_pointer(vertex_input)
-    description.append_pointer(assembly)
-    description.append_long(0)
-    description.append_pointer(viewport)
-    description.append_pointer(rasterization)
-    description.append_pointer(multisample)
-    description.append_long(0)
-    description.append_pointer(blend)
-    description.append_pointer(dynamic)
-    description.append_long(layout)
-    description.append_long(0)
-    description.append_integer(0)
-    description.append_long(0)
-    description.append_integer(-1)
-    var no_cache: Long = 0
-    var no_allocator: Long = 0
-    var made = RenderVulkan.Structure(8)
-    var result = vulkan.vkCreateGraphicsPipelines(
-        renderer.device,
-        no_cache,
-        1,
-        description.address,
-        no_allocator,
-        made.address,
-    )
-    crash result == 0
-    return made.read_long(0)
+    post.use_scene_targets(high_dynamic_range_view, depth_view)
 }
 
 func create_depth_view(renderer: RenderVulkan.Renderer) {
@@ -1414,9 +1162,10 @@ func depth_barrier(renderer: RenderVulkan.Renderer) {
     description.append_long(depth_image)
     append_depth_range(description)
     var no_barriers: Long = 0
+    var post_reads = 128 + 2048
     vulkan.vkCmdPipelineBarrier(
         renderer.frame.command_buffer,
-        1,
+        post_reads,
         768,
         0,
         0,
@@ -1430,9 +1179,9 @@ func depth_barrier(renderer: RenderVulkan.Renderer) {
 
 func begin_rendering(renderer: RenderVulkan.Renderer, view: Scene.Component.View) {
     var frame = renderer.frame
-    var exposure = exposure_of(view)
+    var exposure = post.pre_exposure
     var sky = view.sky_luminance * exposure
-    var color = RenderVulkan.Structure(72)
+    var color = RenderVulkan.Structure(144)
     color.append_integer(1000044001)
     color.append_long(0)
     color.append_long(high_dynamic_range_view)
@@ -1446,6 +1195,20 @@ func begin_rendering(renderer: RenderVulkan.Renderer, view: Scene.Component.View
     color.append_float(view.sky_green * sky)
     color.append_float(view.sky_blue * sky)
     color.append_float(1.0)
+    color.align(8)
+    color.append_integer(1000044001)
+    color.append_long(0)
+    color.append_long(post.ambient_view)
+    color.append_integer(2)
+    color.append_integer(0)
+    color.append_long(0)
+    color.append_integer(0)
+    color.append_integer(1)
+    color.append_integer(0)
+    color.append_float(0.0)
+    color.append_float(0.0)
+    color.append_float(0.0)
+    color.append_float(0.0)
     var depth = RenderVulkan.Structure(72)
     depth.append_integer(1000044001)
     depth.append_long(0)
@@ -1466,11 +1229,11 @@ func begin_rendering(renderer: RenderVulkan.Renderer, view: Scene.Component.View
     rendering.append_integer(0)
     rendering.append_integer(0)
     rendering.append_integer(0)
-    rendering.append_integer(frame.target_width)
-    rendering.append_integer(frame.target_height)
+    rendering.append_integer(post.render_width)
+    rendering.append_integer(post.render_height)
     rendering.append_integer(1)
     rendering.append_integer(0)
-    rendering.append_integer(1)
+    rendering.append_integer(2)
     rendering.append_pointer(color)
     rendering.append_pointer(depth)
     rendering.append_long(0)
@@ -1482,16 +1245,16 @@ func record_viewport(renderer: RenderVulkan.Renderer) {
     var viewport = RenderVulkan.Structure(24)
     viewport.append_float(0.0)
     viewport.append_float(0.0)
-    viewport.append_float(frame.target_width)
-    viewport.append_float(frame.target_height)
+    viewport.append_float(post.render_width)
+    viewport.append_float(post.render_height)
     viewport.append_float(0.0)
     viewport.append_float(1.0)
     vulkan.vkCmdSetViewport(frame.command_buffer, 0, 1, viewport.address)
     var scissor = RenderVulkan.Structure(16)
     scissor.append_integer(0)
     scissor.append_integer(0)
-    scissor.append_integer(frame.target_width)
-    scissor.append_integer(frame.target_height)
+    scissor.append_integer(post.render_width)
+    scissor.append_integer(post.render_height)
     vulkan.vkCmdSetScissor(frame.command_buffer, 0, 1, scissor.address)
 }
 
@@ -1955,12 +1718,7 @@ func release_part(renderer: RenderVulkan.Renderer) {
     vulkan.vkDestroyImageView(renderer.device, shadow_view, no_allocator)
     vulkan.vkDestroyImage(renderer.device, shadow_image, no_allocator)
     vulkan.vkFreeMemory(renderer.device, shadow_memory, no_allocator)
-    vulkan.vkDestroyPipeline(renderer.device, tone_pipeline, no_allocator)
-    vulkan.vkDestroyPipelineLayout(renderer.device, tone_layout, no_allocator)
-    vulkan.vkDestroyDescriptorPool(renderer.device, tone_pool, no_allocator)
-    vulkan.vkDestroyDescriptorSetLayout(renderer.device, tone_set_layout, no_allocator)
-    vulkan.vkDestroyShaderModule(renderer.device, shader_tone_vertex, no_allocator)
-    vulkan.vkDestroyShaderModule(renderer.device, shader_tone_fragment, no_allocator)
+    post.release(renderer)
     vulkan.vkDestroyPipeline(renderer.device, pipeline, no_allocator)
     vulkan.vkDestroyPipelineLayout(renderer.device, pipeline_layout, no_allocator)
     vulkan.vkDestroyDescriptorPool(renderer.device, storage_pool, no_allocator)

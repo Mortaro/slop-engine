@@ -9,4 +9,10 @@ func build() {
     glsl.compile(root, "shader.shadow.fragment", "frag")
     glsl.compile(root, "shader.tone_map.vertex", "vert")
     glsl.compile(root, "shader.tone_map.fragment", "frag")
+    glsl.compile(root, "shader.post.ambient_occlusion", "frag")
+    glsl.compile(root, "shader.post.temporal", "frag")
+    glsl.compile(root, "shader.post.histogram", "comp")
+    glsl.compile(root, "shader.post.adapt", "comp")
+    glsl.compile(root, "shader.post.bloom_down", "frag")
+    glsl.compile(root, "shader.post.bloom_blur", "frag")
 }

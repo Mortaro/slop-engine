@@ -1,0 +1,3 @@
+var intensity: Float = 0.675
+var threshold: Float = -1.0
+var size_scale: Float = 4.0

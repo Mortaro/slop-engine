@@ -1,3 +1,8 @@
+enum ToneCurve {
+    'filmic'
+    'aces_fitted'
+}
+
 var cone = Scene.ViewCone()
 var sun_toward_x: Float = -0.5792
 var sun_toward_y: Float = 0.7071
@@ -22,3 +27,25 @@ var roughness: Float = 0.7
 var shadow_radius: Float = 6.0
 var specular: Float = 0.5
 var metallic: Float = 0.0
+var tone_curve: ToneCurve = 'filmic'
+var film_slope: Float = 0.88
+var film_toe: Float = 0.55
+var film_shoulder: Float = 0.26
+var film_black_clip: Float = 0.0
+var film_white_clip: Float = 0.04
+var exposure_minimum: Float = -10.0
+var exposure_maximum: Float = 20.0
+var exposure_speed_up: Float = 3.0
+var exposure_speed_down: Float = 1.0
+var exposure_low_percent: Float = 80.0
+var exposure_high_percent: Float = 98.3
+var exposure_compensation: Float = 1.0
+var bloom_intensity: Float = 0.675
+var bloom_threshold: Float = -1.0
+var bloom_size_scale: Float = 4.0
+var vignette_intensity: Float = 0.4
+var ambient_occlusion_intensity: Float = 0.5
+var ambient_occlusion_radius: Float = 2.0
+var ambient_occlusion_fade_distance: Float = 80.0
+var ambient_occlusion_fade_radius: Float = 50.0
+var screen_percentage: Float = 100.0

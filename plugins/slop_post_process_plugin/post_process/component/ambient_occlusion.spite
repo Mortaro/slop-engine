@@ -1,0 +1,4 @@
+var intensity: Float = 0.5
+var radius: Float = 2.0
+var fade_distance: Float = 80.0
+var fade_radius: Float = 50.0
