@@ -1,0 +1,18 @@
+type Mapped {
+    tone_mapper: PostProcess.Component.ToneMapper
+}
+
+type Target {
+    view: Scene.Component.View
+}
+
+func render_each(mapped: Mapped, target: Target) {
+    var view = target.view
+    var tone_mapper = mapped.tone_mapper
+    view.tone_curve = tone_mapper.curve
+    view.film_slope = tone_mapper.slope
+    view.film_toe = tone_mapper.toe
+    view.film_shoulder = tone_mapper.shoulder
+    view.film_black_clip = tone_mapper.black_clip
+    view.film_white_clip = tone_mapper.white_clip
+}

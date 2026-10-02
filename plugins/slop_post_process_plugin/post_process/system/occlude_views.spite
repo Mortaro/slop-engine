@@ -1,0 +1,16 @@
+type Occluding {
+    occlusion: PostProcess.Component.AmbientOcclusion
+}
+
+type Target {
+    view: Scene.Component.View
+}
+
+func render_each(occluding: Occluding, target: Target) {
+    var view = target.view
+    var occlusion = occluding.occlusion
+    view.ambient_occlusion_intensity = occlusion.intensity
+    view.ambient_occlusion_radius = occlusion.radius
+    view.ambient_occlusion_fade_distance = occlusion.fade_distance
+    view.ambient_occlusion_fade_radius = occlusion.fade_radius
+}

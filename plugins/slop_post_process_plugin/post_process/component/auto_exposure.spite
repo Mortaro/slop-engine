@@ -1,0 +1,7 @@
+var minimum: Float = -10.0
+var maximum: Float = 20.0
+var speed_up: Float = 3.0
+var speed_down: Float = 1.0
+var low_percent: Float = 80.0
+var high_percent: Float = 98.3
+var compensation: Float = 1.0

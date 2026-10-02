@@ -1,0 +1,6 @@
+var curve: Scene.Component.View.ToneCurve = 'filmic'
+var slope: Float = 0.88
+var toe: Float = 0.55
+var shoulder: Float = 0.26
+var black_clip: Float = 0.0
+var white_clip: Float = 0.04

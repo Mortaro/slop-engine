@@ -78,8 +78,8 @@ func record(
     release_retired(renderer)
     assert water.count > 0
     var frame = renderer.frame
-    ensure_copy(renderer, frame.target_width, frame.target_height)
-    var data = frame_data(renderer, camera, view_projection)
+    ensure_copy(renderer, mesh_renderer.post.render_width, mesh_renderer.post.render_height)
+    var data = frame_data(mesh_renderer, camera, view_projection)
     var waves = wave_data()
     var frame_wanted = frame_bytes + water.count * body_bytes
     if frame_wanted > frame_buffer.capacity {
@@ -123,7 +123,7 @@ func record(
     var color_layout = 2
     var color = builder.attachment(mesh_renderer.high_dynamic_range_view, color_layout, keep_contents, store_contents)
     var depth = builder.attachment(mesh_renderer.depth_view, depth_read_only_layout, keep_contents, dont_care)
-    builder.begin_rendering(renderer, frame.target_width, frame.target_height, color, depth)
+    builder.begin_rendering(renderer, mesh_renderer.post.render_width, mesh_renderer.post.render_height, color, depth)
     var command_buffer = frame.command_buffer
     vulkan.vkCmdBindPipeline(command_buffer, 0, pipeline)
     mesh_renderer.record_viewport(renderer)
@@ -144,6 +144,18 @@ func record(
         body = body + 1
     }
     vulkan.vkCmdEndRendering(command_buffer)
+    var depth_read_and_write = 1536
+    builder.image_barrier(
+        renderer,
+        mesh_renderer.depth_image,
+        depth_aspect,
+        depth_read_only_layout,
+        depth_attachment_layout,
+        tests_and_fragment,
+        depth_and_shader_read,
+        tests_and_fragment,
+        depth_read_and_write,
+    )
 }
 
 func copy_scene(renderer: RenderVulkan.Renderer, mesh_renderer: SceneVulkan.MeshRenderer) {
@@ -197,8 +209,8 @@ func copy_scene(renderer: RenderVulkan.Renderer, mesh_renderer: SceneVulkan.Mesh
     region.append_integer(0)
     region.append_integer(0)
     region.append_integer(0)
-    region.append_integer(frame.target_width)
-    region.append_integer(frame.target_height)
+    region.append_integer(mesh_renderer.post.render_width)
+    region.append_integer(mesh_renderer.post.render_height)
     region.append_integer(1)
     vulkan.vkCmdCopyImage(
         frame.command_buffer,
@@ -251,7 +263,7 @@ func ensure_copy(renderer: RenderVulkan.Renderer, width: Integer, height: Intege
 }
 
 func frame_data(
-    renderer: RenderVulkan.Renderer,
+    mesh_renderer: SceneVulkan.MeshRenderer,
     camera: Scene.Component.ViewCamera,
     view_projection: Math.Matrix4,
 ): RenderVulkan.Structure {
@@ -261,8 +273,8 @@ func frame_data(
     inverse.write_to(data.address + 64)
     var reach = scalar.minimum(camera.far, 4000.0)
     write_floats(data, 128, camera.eye_x, camera.eye_z, reach, water.time_seconds)
-    var width: Float = renderer.frame.target_width
-    var height: Float = renderer.frame.target_height
+    var width: Float = mesh_renderer.post.render_width
+    var height: Float = mesh_renderer.post.render_height
     write_floats(data, 144, width, height, 1.0 / width, 1.0 / height)
     var first_wave = 0
     var body = 0

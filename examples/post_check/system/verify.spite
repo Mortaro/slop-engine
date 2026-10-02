@@ -1,0 +1,216 @@
+type Checked {
+    entity: Entity
+    view: Scene.Component.View
+    draw_list: Render.Component.DrawList
+}
+
+type Quitting {
+    frame: Component.Frame
+    running: Without<Component.Quit>
+}
+
+type Lit {
+    entity: Entity
+    sun: Lighting.Component.Sun
+}
+
+var renderer = RenderVulkan.Renderer()
+var draws = Scene.Draws()
+var console = Console()
+var environment = Environment()
+var world = World()
+var snapshot = Snapshot()
+var captured_frames = Lookup<RenderVulkan.Component.Captured>()
+var requests = Lookup<RenderVulkan.Component.CaptureRequested>()
+var suns = Lookup<Lighting.Component.Sun>()
+var skies = Lookup<Lighting.Component.Sky>()
+var requested = false
+var phase = 0
+var steady_frames = 0
+var last_level: Float = -1.0
+var centre_bloomed: Float = 0.0
+var near_bloomed: Float = 0.0
+var far_bloomed: Float = 0.0
+var near_plain: Float = 0.0
+var bright_level: Float = 0.0
+var dropped_level: Float = -1.0
+var finished = false
+var width = 0
+var height = 0
+
+func last_each(checked: Checked, _quitting: Quitting, lit: Lit) {
+    assert not finished
+    assert draws.of(checked.entity.id).draws.count() > 0
+    var owner = checked.entity
+    width = checked.draw_list.width
+    height = checked.draw_list.height
+    var captured = requested and not requests.has(owner.id) and captured_frames.has(owner.id)
+    if not requests.has(owner.id) {
+        var request = RenderVulkan.Component.CaptureRequested()
+        owner.add_component(request)
+    }
+    requested = true
+    assert captured
+    if phase == 0 {
+        check_bloom(lit.entity)
+    } else if phase == 1 {
+        check_plain(lit.entity)
+    } else if phase == 2 {
+        check_bright(lit.entity)
+    } else {
+        check_adapted()
+    }
+}
+
+func check_bloom(lighting: Entity) {
+    var near = near_level()
+    assert steady(near)
+    centre_bloomed = level_at(width / 2, height / 2)
+    near_bloomed = near
+    far_bloomed = level_at(8, 8)
+    var plain = PostProcess.Component.Bloom()
+    plain.intensity = 0.0
+    lighting.add_component(plain)
+    next_phase()
+}
+
+func check_plain(lighting: Entity) {
+    var near = near_level()
+    assert steady(near)
+    near_plain = near
+    console.print(
+        "bloom centre",
+        centre_bloomed,
+        "near",
+        near_bloomed,
+        "far",
+        far_bloomed,
+        "near without bloom",
+        near_plain,
+    )
+    var spreads = centre_bloomed > 200.0 and near_bloomed > near_plain + 8.0 and near_bloomed > far_bloomed + 4.0
+    var contained = near_plain < 3.0
+    crash spreads and contained
+    var bloom = PostProcess.Component.Bloom()
+    lighting.add_component(bloom)
+    light(lighting, 1.0)
+    var metering = PostProcess.Component.AutoExposure()
+    metering.speed_up = 8.0
+    metering.speed_down = 8.0
+    lighting.add_component(metering)
+    add_floor()
+    next_phase()
+}
+
+func check_bright(lighting: Entity) {
+    var level = floor_level()
+    assert steady(level)
+    bright_level = level
+    save("bright")
+    light(lighting, 1.0 / 64.0)
+    next_phase()
+}
+
+func check_adapted() {
+    var level = floor_level()
+    if dropped_level < 0.0 and level < bright_level * 0.6 {
+        dropped_level = level
+        save("dropped")
+    }
+    assert dropped_level >= 0.0
+    assert steady(level)
+    save("adapted")
+    var difference = level - bright_level
+    if difference < 0.0 {
+        difference = 0.0 - difference
+    }
+    var tolerance = bright_level * 0.12
+    if tolerance < 10.0 {
+        tolerance = 10.0
+    }
+    console.print("exposure bright", bright_level, "dropped", dropped_level, "adapted", level)
+    var adapted = difference <= tolerance and dropped_level < bright_level * 0.6
+    crash adapted
+    console.print("passed true")
+    finished = true
+    var quit = Component.Quit()
+    world.as_entity().add_component(quit)
+}
+
+func light(lighting: Entity, scale: Float) {
+    var sun = suns.of(lighting.id)
+    var sky = skies.of(lighting.id)
+    crash sun
+    crash sky
+    sun.illuminance = 120000.0 * scale
+    sky.luminance = 9000.0 * scale
+    sky.ground_luminance = 2500.0 * scale
+}
+
+func next_phase() {
+    phase = phase + 1
+    steady_frames = 0
+    last_level = -1.0
+}
+
+func steady(level: Float): Boolean {
+    var change = level - last_level
+    if change < 0.0 {
+        change = 0.0 - change
+    }
+    last_level = level
+    if change <= 1.0 {
+        steady_frames = steady_frames + 1
+    } else {
+        steady_frames = 0
+    }
+    return steady_frames >= 20
+}
+
+func near_level(): Float {
+    var near_left = width / 2 + height / 8
+    return level_at(near_left, height / 2)
+}
+
+func floor_level(): Float {
+    var floor_top = height * 9 / 10
+    return level_at(width / 2, floor_top)
+}
+
+func level_at(left: Integer, top: Integer): Float {
+    var sum = 0
+    var row = -2
+    while row <= 2 {
+        var column = -2
+        while column <= 2 {
+            var texel = renderer.pixel_at(left + column, top + row)
+            var red = texel.shifted_right(16).bits_and(255)
+            var green = texel.shifted_right(8).bits_and(255)
+            var blue = texel.bits_and(255)
+            sum = sum + red + green + blue
+            column = column + 1
+        }
+        row = row + 1
+    }
+    var total: Float = sum
+    return total / 75.0
+}
+
+func save(name: String) {
+    assert not environment.save_images.is_empty()
+    var folder = environment.save_images
+    snapshot.save(width, height, "{folder}/exposure_{name}.bmp")
+}
+
+func add_floor() {
+    var floor = world.create_entity()
+    var model = Scene.Component.Model()
+    model.mesh = "mesh.post.cube"
+    floor.add_component(model)
+    var transform = Transform.Component.Transform()
+    transform.position_y = -0.1
+    transform.scale_x = 40.0
+    transform.scale_y = 0.2
+    transform.scale_z = 40.0
+    floor.add_component(transform)
+}

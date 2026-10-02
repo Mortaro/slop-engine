@@ -1,0 +1,66 @@
+var cache = Recipes.Cache()
+var mesh = Asset.Mesh()
+
+func build() {
+    var fingerprint = cache.fingerprint("post cube 1")
+    assert not cache.is_current("mesh.post.cube", fingerprint)
+    face(0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0)
+    face(0.0, 0.0, -1.0, -1.0, 0.0, 0.0, 0.0, 1.0, 0.0)
+    face(1.0, 0.0, 0.0, 0.0, 0.0, -1.0, 0.0, 1.0, 0.0)
+    face(-1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0)
+    face(0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, -1.0)
+    face(0.0, -1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0)
+    var index_count = mesh.indices.count()
+    mesh.add_section(0, index_count, "")
+    var pack = Pack<Asset.Mesh>()
+    var bytes = Asset.Bytes()
+    pack.encode(mesh, bytes)
+    cache.put("mesh.post.cube", fingerprint, bytes)
+}
+
+func face(
+    normal_x: Float,
+    normal_y: Float,
+    normal_z: Float,
+    side_x: Float,
+    side_y: Float,
+    side_z: Float,
+    up_x: Float,
+    up_y: Float,
+    up_z: Float,
+) {
+    var first = mesh.vertices.count() / 8
+    corner(normal_x, normal_y, normal_z, side_x, side_y, side_z, up_x, up_y, up_z, -0.5, -0.5)
+    corner(normal_x, normal_y, normal_z, side_x, side_y, side_z, up_x, up_y, up_z, 0.5, -0.5)
+    corner(normal_x, normal_y, normal_z, side_x, side_y, side_z, up_x, up_y, up_z, 0.5, 0.5)
+    corner(normal_x, normal_y, normal_z, side_x, side_y, side_z, up_x, up_y, up_z, -0.5, 0.5)
+    mesh.indices.append(first)
+    mesh.indices.append(first + 1)
+    mesh.indices.append(first + 2)
+    mesh.indices.append(first)
+    mesh.indices.append(first + 2)
+    mesh.indices.append(first + 3)
+}
+
+func corner(
+    normal_x: Float,
+    normal_y: Float,
+    normal_z: Float,
+    side_x: Float,
+    side_y: Float,
+    side_z: Float,
+    up_x: Float,
+    up_y: Float,
+    up_z: Float,
+    across: Float,
+    rise: Float,
+) {
+    mesh.vertices.append(normal_x * 0.5 + side_x * across + up_x * rise)
+    mesh.vertices.append(normal_y * 0.5 + side_y * across + up_y * rise)
+    mesh.vertices.append(normal_z * 0.5 + side_z * across + up_z * rise)
+    mesh.vertices.append(normal_x)
+    mesh.vertices.append(normal_y)
+    mesh.vertices.append(normal_z)
+    mesh.vertices.append(across + 0.5)
+    mesh.vertices.append(0.5 - rise)
+}

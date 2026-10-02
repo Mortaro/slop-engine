@@ -1,0 +1,13 @@
+type Unmetered {
+    exposure: Removed<PostProcess.Component.AutoExposure>
+}
+
+type Target {
+    entity: Entity
+    exposed: Scene.Component.AutoExposed
+}
+
+func render_each(_unmetered: Unmetered, target: Target) {
+    var owner = target.entity
+    owner.remove_component(Scene.Component.AutoExposed)
+}

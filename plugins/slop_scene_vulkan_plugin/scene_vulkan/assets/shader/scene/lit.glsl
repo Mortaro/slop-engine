@@ -81,6 +81,8 @@ layout(location = 2) in vec3 world_position;
 layout(location = 3) flat in uint surface_masked;
 
 layout(location = 0) out vec4 color;
+// The sky light's share of color, which ambient occlusion takes back from (docs/scene.md#post-processing).
+layout(location = 1) out vec4 ambient_color;
 
 vec3 linear_from_srgb(vec3 encoded) {
     vec3 low = encoded / 12.92;
@@ -211,9 +213,11 @@ vec4 lit_color(vec3 base, vec3 surface_normal, vec3 material_terms) {
     radiance += local_radiance(surface, world_position);
     float upness = normal.y * 0.5 + 0.5;
     vec3 ambient = mix(lighting.ground_radiance.rgb, lighting.sky_radiance.rgb, upness);
-    radiance += (diffuse_color + specular_color * 0.25) * ambient;
+    vec3 sky_light = (diffuse_color + specular_color * 0.25) * ambient;
+    radiance += sky_light;
     float depth = fog_optical_depth(lighting.eye.xyz, world_position);
     float transmittance = exp(-depth);
+    ambient_color = vec4(min(sky_light * transmittance, vec3(60000.0)), 1.0);
     radiance = radiance * transmittance + lighting.sky_radiance.rgb * (1.0 - transmittance);
     return vec4(min(radiance, vec3(60000.0)), 1.0);
 }

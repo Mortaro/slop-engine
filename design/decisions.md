@@ -206,6 +206,18 @@ Claude (2026-10-02), for Mortaro to confirm:
   - Castaño's optimized 5×5 PCF for every lookup (Unreal's filters differ by shadow quality; PCSS is not built).
   - A cascade drops casters under a hundredth of their distance, as Unreal's `r.Shadow.RadiusThreshold` (0.01).
   - Off-screen casters for local lights: within twice the largest shadowed light's range of the view.
+- Post-processing matches Unreal's defaults, for a game that must look like its Unreal original (game alerts A28
+  and A23). The choices below are proposals by Claude, unconfirmed:
+  - the settings components live in a new `slop_post_process_plugin` and are written into the view, as the
+    lighting is; a metered view is marked `Scene.Component.AutoExposed`, since a component may not hold a `Boolean`
+    (Mortaro, 2026-09-28);
+  - temporal anti-aliasing is always on, with no "none" setting, since a field never says "inactive"; the upscaler is
+    temporal upsampling in the same pass rather than FSR 1;
+  - ground-truth ambient occlusion (the previous Kal renderer's GTAO) at Unreal's SSAO intensity, radius and fade,
+    rather than Unreal's default SSAO;
+  - auto exposure meters EV100 with the reflected-light calibration K = 12.5 and Unreal 5's default compensation of
+    one stop; the scene is lit with the exposure read back from two frames before (Unreal's pre-exposure);
+  - the ACES fit stays selectable as `ToneMapper.curve = 'aces_fitted'`.
 
 ## [networking.md](../docs/networking.md)
 

@@ -1,0 +1,47 @@
+var renderer = RenderVulkan.Renderer()
+
+func save(width: Integer, height: Integer, path: String) {
+    var row_bytes = width * 3
+    var padding = (4 - row_bytes % 4) % 4
+    var data_bytes = (row_bytes + padding) * height
+    var image = Asset.Bytes()
+    image.write_byte(66)
+    image.write_byte(77)
+    image.write_integer(54 + data_bytes)
+    image.write_integer(0)
+    image.write_integer(54)
+    image.write_integer(40)
+    image.write_integer(width)
+    image.write_integer(height)
+    image.write_byte(1)
+    image.write_byte(0)
+    image.write_byte(24)
+    image.write_byte(0)
+    image.write_integer(0)
+    image.write_integer(data_bytes)
+    image.write_integer(2835)
+    image.write_integer(2835)
+    image.write_integer(0)
+    image.write_integer(0)
+    var row = height - 1
+    while row >= 0 {
+        var column = 0
+        while column < width {
+            var texel = renderer.pixel_at(column, row)
+            var blue = texel.bits_and(255)
+            var green = texel.shifted_right(8).bits_and(255)
+            var red = texel.shifted_right(16).bits_and(255)
+            image.write_byte(blue)
+            image.write_byte(green)
+            image.write_byte(red)
+            column = column + 1
+        }
+        var pad = 0
+        while pad < padding {
+            image.write_byte(0)
+            pad = pad + 1
+        }
+        row = row - 1
+    }
+    image.save(path)
+}

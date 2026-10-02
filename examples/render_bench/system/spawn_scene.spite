@@ -31,7 +31,12 @@ func update_each(_started: Started) {
     daylight.sun.direction_x = 0.62
     daylight.sun.direction_y = -0.45
     daylight.sun.direction_z = 0.64
-    world.create_entity_from_bundle(daylight)
+    var lighting = world.create_entity_from_bundle(daylight)
+    if environment.screen_percentage < 100 {
+        var scaled = PostProcess.Component.ScreenPercentage()
+        scaled.value = environment.screen_percentage
+        lighting.add_component(scaled)
+    }
     add_block(0.0, -0.1, 50.0, 200.0, 0.2, 200.0)
     var pillar = 0
     while pillar < environment.pillars {

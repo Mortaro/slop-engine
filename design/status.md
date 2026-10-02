@@ -222,8 +222,28 @@ and the click test passed for 5 and 12 clicks.
   200 m, frame 723 us, shadows 148 us (the sun's cascades), scene 539 us (the 5x5 filter on every lit fragment).
   `--shadowed-lights=8` adds local shadows 82 us (36 faces a frame) and scene to 615 us. A 7x7 filter cost 20 to
   30 us more in the scene pass.
-- Not built yet, from the previous Kal renderer: the ray-marched atmosphere and sky; contact shadows; GTAO;
-  image-based sky lighting; bloom; 4× MSAA; automatic exposure from a histogram.
+- Not built yet, from the previous Kal renderer: the ray-marched atmosphere and sky; contact shadows; image-based
+  sky lighting; 4× MSAA.
+- Post-processing, not built yet or not checked against Unreal:
+  - a velocity buffer: temporal anti-aliasing reprojects the camera's motion only, so a walking character leans on
+    the colour clip and can smear a little;
+  - a texture mip bias while upsampling (Unreal biases by the log2 of the screen fraction), so a screen percentage
+    below 100 also blurs textures by up to a level;
+  - Unreal's filmic path also has blue correction (0.6) and a gamut expansion (1.0) around the curve, and colour
+    grading, white balance, local exposure, lens flares, a bloom dirt mask, film grain and chromatic aberration:
+    none are built;
+  - the bloom Gaussian's sigma (half the radius), its reach (three sigma) and the tint scale (one sixth) follow
+    Unreal's code as remembered, and the vignette's circle (corners at distance 1) likewise: compare against a
+    capture of the game in Unreal;
+  - auto exposure weighs every pixel alike (no metering mask or centre weighting), over a fixed EV100 range of -10
+    to 20;
+  - image-based sky lighting: the sky and ground hemisphere is already the exact irradiance of the engine's
+    two-colour sky, so spherical harmonics or a prefiltered cubemap pay off only once there is a sky model (the
+    atmosphere); the sky's specular reflection is a flat 0.25 of the ambient;
+  - one post-processing state per renderer: several windows would share the history and the exposure;
+  - removing a settings component leaves its last values in the views instead of Unreal's defaults.
+- `render_bench` (optimized, 1920x1080, RTX 3090, median of three), 2026-10-02: before post-processing, frame 525 µs
+  (shadows 77, scene 412, ACES tone map 17); after, see [performance.md](../docs/performance.md#measuring-the-gpu).
 - Animation (2026-10-02, Claude; built headless and checked by `animation_check` on Linux):
   - **To look at on Windows** (needs the Kal assets and a GPU): `kal_character` and `animate_bench` now load
     `slop_scene_animation_plugin`, which shares the pose with the `Skin` and maps `OffView` to `Unseen`; check that

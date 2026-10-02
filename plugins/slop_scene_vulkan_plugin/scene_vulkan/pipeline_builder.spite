@@ -1,5 +1,6 @@
 var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
 var color_format = 97
+var second_color_format = 0
 var depth_format = 126
 var depth_compare = 4
 var depth_write = 1
@@ -13,13 +14,17 @@ func graphics(
     fragment: Long,
     pipeline_layout_handle: Long,
 ): Long {
-    var formats = RenderVulkan.Structure(4)
+    var formats = RenderVulkan.Structure(8)
     formats.append_integer(color_format)
+    var color_count = color_target_count()
+    if color_count == 2 {
+        formats.append_integer(second_color_format)
+    }
     var rendering = RenderVulkan.Structure(40)
     rendering.append_integer(1000044002)
     rendering.append_long(0)
     rendering.append_integer(0)
-    rendering.append_integer(1)
+    rendering.append_integer(color_count)
     rendering.append_pointer(formats)
     rendering.append_integer(depth_format)
     rendering.append_integer(0)
@@ -139,24 +144,36 @@ func graphics(
     return made.read_long(0)
 }
 
+func color_target_count(): Integer {
+    if second_color_format == 0 {
+        return 1
+    }
+    return 2
+}
+
 func blend_state(): RenderVulkan.Structure {
-    var blending = RenderVulkan.Structure(32)
-    blending.append_integer(0)
-    blending.append_integer(1)
-    blending.append_integer(0)
-    blending.append_integer(0)
-    blending.append_integer(1)
-    blending.append_integer(0)
-    blending.append_integer(0)
-    var all_channels = 15
-    blending.append_integer(all_channels)
+    var blending = RenderVulkan.Structure(64)
+    var color_count = color_target_count()
+    var color_target = 0
+    while color_target < color_count {
+        blending.append_integer(0)
+        blending.append_integer(1)
+        blending.append_integer(0)
+        blending.append_integer(0)
+        blending.append_integer(1)
+        blending.append_integer(0)
+        blending.append_integer(0)
+        var all_channels = 15
+        blending.append_integer(all_channels)
+        color_target = color_target + 1
+    }
     var state = RenderVulkan.Structure(64)
     state.append_integer(26)
     state.append_long(0)
     state.append_integer(0)
     state.append_integer(0)
     state.append_integer(0)
-    state.append_integer(1)
+    state.append_integer(color_count)
     state.append_pointer(blending)
     state.append_float(0.0)
     state.append_float(0.0)

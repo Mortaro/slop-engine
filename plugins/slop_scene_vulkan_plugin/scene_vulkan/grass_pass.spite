@@ -91,7 +91,9 @@ func create(renderer: RenderVulkan.Renderer, mesh_renderer: SceneVulkan.MeshRend
     builder.mesh_vertices = true
     builder.depth_compare = 4
     builder.depth_write = 1
+    builder.second_color_format = mesh_renderer.post.ambient_format
     draw_pipeline = builder.graphics(renderer, mesh_renderer, shader_vertex, mesh_renderer.shader_fragment, draw_layout)
+    builder.second_color_format = 0
     builder.color_format = ground_format
     builder.depth_compare = 1
     capture_pipeline = builder.graphics(

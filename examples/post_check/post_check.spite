@@ -1,7 +1,6 @@
 var cookbook = Recipes.Cookbook()
-var console = Console()
 
-func RenderBench() {
+func PostCheck() {
     load "../../slop"
     load "../../plugins/slop_window_plugin"
     load "../../plugins/slop_platform_plugin"
@@ -11,19 +10,11 @@ func RenderBench() {
     load "../../plugins/slop_render_vulkan_plugin"
     load "../../plugins/slop_transform_plugin"
     load "../../plugins/slop_camera_plugin"
+    load "../../plugins/slop_lighting_plugin"
     load "../../plugins/slop_scene_plugin"
     load "../../plugins/slop_scene_vulkan_plugin"
-    load "../../plugins/slop_animation_plugin"
-    load "../../plugins/slop_lighting_plugin"
     load "../../plugins/slop_post_process_plugin"
-    load "../../plugins/slop_blend_plugin"
-    load "../../plugins/slop_png_plugin"
-    load "../../plugins/slop_texture_compression_plugin"
     cookbook.cook()
     var app = App()
-    app.frame_milliseconds = 1
     app.run()
-    var report = app.profile()
-    crash report.frame
-    console.print("frame microseconds", report.frame.average_microseconds)
 }

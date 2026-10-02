@@ -1,0 +1,14 @@
+type Blooming {
+    bloom: PostProcess.Component.Bloom
+}
+
+type Target {
+    view: Scene.Component.View
+}
+
+func render_each(blooming: Blooming, target: Target) {
+    var view = target.view
+    view.bloom_intensity = blooming.bloom.intensity
+    view.bloom_threshold = blooming.bloom.threshold
+    view.bloom_size_scale = blooming.bloom.size_scale
+}

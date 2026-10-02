@@ -1,0 +1,1337 @@
+var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
+var floats = TypedMemory<Float>()
+var scalar = Math.Scalar()
+var clock = Clock()
+var set_layout: Long = 0
+var layout: Long = 0
+var pool: Long = 0
+var linear_sampler: Long = 0
+var nearest_sampler: Long = 0
+var modules = List<Long>()
+var pipelines = List<Long>()
+var occlusion_pipeline: Long = 0
+var temporal_pipeline: Long = 0
+var histogram_pipeline: Long = 0
+var adapt_pipeline: Long = 0
+var down_pipeline: Long = 0
+var blur_pipeline: Long = 0
+var tone_pipeline: Long = 0
+var render_width = 0
+var render_height = 0
+var display_width = 0
+var display_height = 0
+var images = List<Long>()
+var image_memories = List<Long>()
+var image_views = List<Long>()
+var ambient_image: Long = 0
+var ambient_view: Long = 0
+var lit_image: Long = 0
+var lit_view: Long = 0
+var history_images = List<Long>()
+var history_views = List<Long>()
+var chain_image: Long = 0
+var blur_image: Long = 0
+var bloom_image: Long = 0
+var chain_levels = List<Long>()
+var blur_levels = List<Long>()
+var bloom_levels = List<Long>()
+var level_widths = List<Integer>()
+var level_heights = List<Integer>()
+var stage_count = 6
+var stage_sizes = [0.3, 1.0, 2.0, 10.0, 30.0, 64.0]
+var stage_tints = [0.3465, 0.138, 0.1176, 0.066, 0.066, 0.061]
+var occlusion_set: Long = 0
+var adapt_set: Long = 0
+var temporal_sets = List<Long>()
+var histogram_sets = List<Long>()
+var tone_sets = List<Long>()
+var first_down_sets = List<Long>()
+var down_sets = List<Long>()
+var horizontal_sets = List<Long>()
+var vertical_sets = List<Long>()
+var histogram_buffer: Long = 0
+var histogram_memory: Long = 0
+var state_buffer: Long = 0
+var state_memory: Long = 0
+var readback_buffers = List<Long>()
+var readback_memories = List<Long>()
+var readback_mapped = List<Long>()
+var scene_view: Long = 0
+var depth_view: Long = 0
+var sets_stale = false
+var fresh = false
+var parity = 0
+var frame_index = 0
+var history_frames = 0
+var metered_frames = 0
+var jitter_x: Float = 0.0
+var jitter_y: Float = 0.0
+var previous_view_projection = Math.Matrix4()
+var pre_exposure: Float = 1.0
+var previous_pre_exposure: Float = 1.0
+var last_nanoseconds: Long = 0
+var seconds: Float = 0.0
+var histogram_lowest: Float = -10.0
+var histogram_highest: Float = 20.0
+var current_weight: Float = 0.04
+var jitter_count = 8
+var push_bytes = 128
+var radiance_format = 97
+var ambient_format = 122
+var bloom_format = 122
+var shader_ids = [
+    "shader.tone_map.vertex"
+    "shader.tone_map.fragment"
+    "shader.post.ambient_occlusion"
+    "shader.post.temporal"
+    "shader.post.histogram"
+    "shader.post.adapt"
+    "shader.post.bloom_down"
+    "shader.post.bloom_blur"
+]
+
+func shaders_ready(renderer: RenderVulkan.Renderer): Boolean {
+    var ready = true
+    var index = 0
+    while index < shader_ids.count() {
+        ready = ready and renderer.shader_ready(shader_ids[index])
+        index = index + 1
+    }
+    return ready
+}
+
+func create(renderer: RenderVulkan.Renderer) {
+    create_set_layout(renderer)
+    create_layout(renderer)
+    create_pool(renderer)
+    linear_sampler = create_sampler(renderer, 1)
+    nearest_sampler = create_sampler(renderer, 0)
+    var index = 0
+    while index < shader_ids.count() {
+        var module = renderer.create_shader(shader_ids[index])
+        modules.append(module)
+        index = index + 1
+    }
+    var vertex = module_at(0)
+    var tone = module_at(1)
+    var occlusion = module_at(2)
+    var temporal = module_at(3)
+    var histogram = module_at(4)
+    var adapt = module_at(5)
+    var down = module_at(6)
+    var blur = module_at(7)
+    tone_pipeline = graphics_pipeline(renderer, vertex, tone, 44)
+    occlusion_pipeline = graphics_pipeline(renderer, vertex, occlusion, radiance_format)
+    temporal_pipeline = graphics_pipeline(renderer, vertex, temporal, radiance_format)
+    histogram_pipeline = compute_pipeline(renderer, histogram)
+    adapt_pipeline = compute_pipeline(renderer, adapt)
+    down_pipeline = graphics_pipeline(renderer, vertex, down, bloom_format)
+    blur_pipeline = graphics_pipeline(renderer, vertex, blur, bloom_format)
+    allocate_sets(renderer)
+    create_buffers(renderer)
+}
+
+func module_at(index: Integer): Long {
+    var module = modules[index]
+    crash module
+    return module
+}
+
+func create_set_layout(renderer: RenderVulkan.Renderer) {
+    var no_allocator: Long = 0
+    var bindings = RenderVulkan.Structure(192)
+    var fragment_and_compute = 48
+    var binding = 0
+    while binding < 8 {
+        bindings.append_integer(binding)
+        var kind = 1
+        if binding >= 6 {
+            kind = 7
+        }
+        bindings.append_integer(kind)
+        bindings.append_integer(1)
+        bindings.append_integer(fragment_and_compute)
+        bindings.append_long(0)
+        binding = binding + 1
+    }
+    var creation = RenderVulkan.Structure(32)
+    creation.append_integer(32)
+    creation.append_long(0)
+    creation.append_integer(0)
+    creation.append_integer(8)
+    creation.append_pointer(bindings)
+    var made = RenderVulkan.Structure(8)
+    var result = vulkan.vkCreateDescriptorSetLayout(renderer.device, creation.address, no_allocator, made.address)
+    crash result == 0
+    set_layout = made.read_long(0)
+}
+
+func create_layout(renderer: RenderVulkan.Renderer) {
+    var no_allocator: Long = 0
+    var set_layouts = RenderVulkan.Structure(8)
+    set_layouts.append_long(set_layout)
+    var push_range = RenderVulkan.Structure(12)
+    push_range.append_integer(48)
+    push_range.append_integer(0)
+    push_range.append_integer(push_bytes)
+    var creation = RenderVulkan.Structure(48)
+    creation.append_integer(30)
+    creation.append_long(0)
+    creation.append_integer(0)
+    creation.append_integer(1)
+    creation.append_pointer(set_layouts)
+    creation.append_integer(1)
+    creation.append_pointer(push_range)
+    var made = RenderVulkan.Structure(8)
+    var result = vulkan.vkCreatePipelineLayout(renderer.device, creation.address, no_allocator, made.address)
+    crash result == 0
+    layout = made.read_long(0)
+}
+
+func create_pool(renderer: RenderVulkan.Renderer) {
+    var no_allocator: Long = 0
+    var set_count = 48
+    var sizes = RenderVulkan.Structure(16)
+    sizes.append_integer(1)
+    sizes.append_integer(set_count * 6)
+    sizes.append_integer(7)
+    sizes.append_integer(set_count * 2)
+    var creation = RenderVulkan.Structure(40)
+    creation.append_integer(33)
+    creation.append_long(0)
+    creation.append_integer(0)
+    creation.append_integer(set_count)
+    creation.append_integer(2)
+    creation.append_pointer(sizes)
+    var made = RenderVulkan.Structure(8)
+    var result = vulkan.vkCreateDescriptorPool(renderer.device, creation.address, no_allocator, made.address)
+    crash result == 0
+    pool = made.read_long(0)
+}
+
+func create_sampler(renderer: RenderVulkan.Renderer, filter: Integer): Long {
+    var no_allocator: Long = 0
+    var clamp_to_edge = 2
+    var creation = RenderVulkan.Structure(80)
+    creation.append_integer(31)
+    creation.append_long(0)
+    creation.append_integer(0)
+    creation.append_integer(filter)
+    creation.append_integer(filter)
+    creation.append_integer(0)
+    creation.append_integer(clamp_to_edge)
+    creation.append_integer(clamp_to_edge)
+    creation.append_integer(clamp_to_edge)
+    creation.append_float(0.0)
+    creation.append_integer(0)
+    creation.append_float(1.0)
+    creation.append_integer(0)
+    creation.append_integer(0)
+    creation.append_float(0.0)
+    creation.append_float(0.0)
+    creation.append_integer(0)
+    creation.append_integer(0)
+    var made = RenderVulkan.Structure(8)
+    var result = vulkan.vkCreateSampler(renderer.device, creation.address, no_allocator, made.address)
+    crash result == 0
+    return made.read_long(0)
+}
+
+func graphics_pipeline(
+    renderer: RenderVulkan.Renderer,
+    vertex_shader: Long,
+    fragment_shader: Long,
+    format: Integer,
+): Long {
+    var formats = RenderVulkan.Structure(4)
+    formats.append_integer(format)
+    var rendering = RenderVulkan.Structure(40)
+    rendering.append_integer(1000044002)
+    rendering.append_long(0)
+    rendering.append_integer(0)
+    rendering.append_integer(1)
+    rendering.append_pointer(formats)
+    rendering.append_integer(0)
+    rendering.append_integer(0)
+    var stages = RenderVulkan.Structure(96)
+    append_stage(stages, 1, vertex_shader)
+    append_stage(stages, 16, fragment_shader)
+    var vertex_input = RenderVulkan.Structure(48)
+    vertex_input.append_integer(19)
+    vertex_input.append_long(0)
+    vertex_input.append_integer(0)
+    vertex_input.append_integer(0)
+    vertex_input.append_long(0)
+    vertex_input.append_integer(0)
+    vertex_input.append_long(0)
+    var assembly = RenderVulkan.Structure(32)
+    assembly.append_integer(20)
+    assembly.append_long(0)
+    assembly.append_integer(0)
+    assembly.append_integer(3)
+    assembly.append_integer(0)
+    var viewport = RenderVulkan.Structure(48)
+    viewport.append_integer(22)
+    viewport.append_long(0)
+    viewport.append_integer(0)
+    viewport.append_integer(1)
+    viewport.append_long(0)
+    viewport.append_integer(1)
+    viewport.append_long(0)
+    var rasterization = renderer.rasterization_state()
+    var multisample = RenderVulkan.Structure(48)
+    multisample.append_integer(24)
+    multisample.append_long(0)
+    multisample.append_integer(0)
+    multisample.append_integer(1)
+    multisample.append_integer(0)
+    multisample.append_float(0.0)
+    multisample.append_long(0)
+    multisample.append_integer(0)
+    multisample.append_integer(0)
+    var attachment = RenderVulkan.Structure(32)
+    var field = 0
+    while field < 7 {
+        attachment.append_integer(0)
+        field = field + 1
+    }
+    attachment.append_integer(15)
+    var blend = RenderVulkan.Structure(64)
+    blend.append_integer(26)
+    blend.append_long(0)
+    blend.append_integer(0)
+    blend.append_integer(0)
+    blend.append_integer(0)
+    blend.append_integer(1)
+    blend.append_pointer(attachment)
+    blend.append_float(0.0)
+    blend.append_float(0.0)
+    blend.append_float(0.0)
+    blend.append_float(0.0)
+    var dynamic_states = RenderVulkan.Structure(8)
+    dynamic_states.append_integer(0)
+    dynamic_states.append_integer(1)
+    var dynamic = RenderVulkan.Structure(32)
+    dynamic.append_integer(27)
+    dynamic.append_long(0)
+    dynamic.append_integer(0)
+    dynamic.append_integer(2)
+    dynamic.append_pointer(dynamic_states)
+    var description = RenderVulkan.Structure(160)
+    description.append_integer(28)
+    description.append_pointer(rendering)
+    description.append_integer(0)
+    description.append_integer(2)
+    description.append_pointer(stages)
+    description.append_pointer(vertex_input)
+    description.append_pointer(assembly)
+    description.append_long(0)
+    description.append_pointer(viewport)
+    description.append_pointer(rasterization)
+    description.append_pointer(multisample)
+    description.append_long(0)
+    description.append_pointer(blend)
+    description.append_pointer(dynamic)
+    description.append_long(layout)
+    description.append_long(0)
+    description.append_integer(0)
+    description.append_long(0)
+    description.append_integer(-1)
+    var no_cache: Long = 0
+    var no_allocator: Long = 0
+    var made = RenderVulkan.Structure(8)
+    var result = vulkan.vkCreateGraphicsPipelines(
+        renderer.device,
+        no_cache,
+        1,
+        description.address,
+        no_allocator,
+        made.address,
+    )
+    crash result == 0
+    var pipeline = made.read_long(0)
+    pipelines.append(pipeline)
+    return pipeline
+}
+
+func append_stage(stages: RenderVulkan.Structure, stage: Integer, module: Long) {
+    stages.append_integer(18)
+    stages.append_long(0)
+    stages.append_integer(0)
+    stages.append_integer(stage)
+    stages.append_long(module)
+    stages.append_text("main")
+    stages.append_long(0)
+}
+
+func compute_pipeline(renderer: RenderVulkan.Renderer, module: Long): Long {
+    var description = RenderVulkan.Structure(96)
+    description.append_integer(29)
+    description.append_long(0)
+    description.append_integer(0)
+    description.align(8)
+    append_stage(description, 32, module)
+    description.append_long(layout)
+    description.append_long(0)
+    description.append_integer(-1)
+    var no_cache: Long = 0
+    var no_allocator: Long = 0
+    var made = RenderVulkan.Structure(8)
+    var result = vulkan.vkCreateComputePipelines(
+        renderer.device,
+        no_cache,
+        1,
+        description.address,
+        no_allocator,
+        made.address,
+    )
+    crash result == 0
+    var pipeline = made.read_long(0)
+    pipelines.append(pipeline)
+    return pipeline
+}
+
+func allocate_sets(renderer: RenderVulkan.Renderer) {
+    occlusion_set = allocate_set(renderer)
+    adapt_set = allocate_set(renderer)
+    var index = 0
+    while index < 2 {
+        var temporal = allocate_set(renderer)
+        temporal_sets.append(temporal)
+        var histogram = allocate_set(renderer)
+        histogram_sets.append(histogram)
+        var tone = allocate_set(renderer)
+        tone_sets.append(tone)
+        var first_down = allocate_set(renderer)
+        first_down_sets.append(first_down)
+        index = index + 1
+    }
+    index = 0
+    while index < stage_count {
+        var down = allocate_set(renderer)
+        down_sets.append(down)
+        var horizontal = allocate_set(renderer)
+        horizontal_sets.append(horizontal)
+        var vertical = allocate_set(renderer)
+        vertical_sets.append(vertical)
+        index = index + 1
+    }
+}
+
+func allocate_set(renderer: RenderVulkan.Renderer): Long {
+    var layouts = RenderVulkan.Structure(8)
+    layouts.append_long(set_layout)
+    var allocation = RenderVulkan.Structure(40)
+    allocation.append_integer(34)
+    allocation.append_long(0)
+    allocation.append_long(pool)
+    allocation.append_integer(1)
+    allocation.append_pointer(layouts)
+    var made = RenderVulkan.Structure(8)
+    var result = vulkan.vkAllocateDescriptorSets(renderer.device, allocation.address, made.address)
+    crash result == 0
+    return made.read_long(0)
+}
+
+func create_buffers(renderer: RenderVulkan.Renderer) {
+    var storage = 32
+    var transfer_source = 1
+    var transfer_destination = 2
+    histogram_buffer = renderer.create_buffer(256, storage + transfer_destination)
+    histogram_memory = renderer.device_memory_for(histogram_buffer)
+    state_buffer = renderer.create_buffer(16, storage + transfer_source + transfer_destination)
+    state_memory = renderer.device_memory_for(state_buffer)
+    var slot = 0
+    while slot < renderer.frames_in_flight {
+        var buffer = renderer.create_buffer(16, transfer_destination)
+        var memory = renderer.host_memory_for(buffer)
+        var mapped = renderer.map(memory, 16)
+        floats.write_value(mapped, 1, 0.0)
+        readback_buffers.append(buffer)
+        readback_memories.append(memory)
+        readback_mapped.append(mapped)
+        slot = slot + 1
+    }
+}
+
+func prepare(renderer: RenderVulkan.Renderer, view: Scene.Component.View, metered: Boolean) {
+    var frame = renderer.frame
+    var percent = scalar.clamp(view.screen_percentage, 10.0, 100.0)
+    var scale = percent / 100.0
+    var full_width: Float = frame.target_width
+    var full_height: Float = frame.target_height
+    var scaled_width = full_width * scale + 0.5
+    var scaled_height = full_height * scale + 0.5
+    var wanted_width = scaled_width.to_integer()
+    var wanted_height = scaled_height.to_integer()
+    if wanted_width < 1 {
+        wanted_width = 1
+    }
+    if wanted_height < 1 {
+        wanted_height = 1
+    }
+    var resized = frame.target_width != display_width or frame.target_height != display_height
+    var rescaled = wanted_width != render_width or wanted_height != render_height
+    if resized or rescaled {
+        display_width = frame.target_width
+        display_height = frame.target_height
+        render_width = wanted_width
+        render_height = wanted_height
+        resize(renderer)
+    }
+    measure_time()
+    read_exposure(renderer, view, metered)
+    advance_jitter()
+}
+
+func measure_time() {
+    var now = clock.elapsed_nanoseconds()
+    var passed = now - last_nanoseconds
+    last_nanoseconds = now
+    var nanoseconds: Float = passed
+    seconds = scalar.clamp(nanoseconds / 1000000000.0, 0.0, 0.25)
+}
+
+func read_exposure(renderer: RenderVulkan.Renderer, view: Scene.Component.View, metered: Boolean) {
+    previous_pre_exposure = pre_exposure
+    var manual_power = scalar.power_of_two(view.exposure_value)
+    pre_exposure = 1.0 / (1.2 * manual_power)
+    if metered {
+        metered_frames = metered_frames + 1
+    } else {
+        metered_frames = 0
+    }
+    assert metered_frames > renderer.frames_in_flight
+    var slot = (renderer.frame_number - 1) % renderer.frames_in_flight
+    crash readback_mapped[slot]
+    var at = readback_mapped[slot]
+    var valid = floats.read_value(at, 1)
+    assert valid > 0.5
+    var adapted = floats.read_value(at, 0)
+    var power = scalar.power_of_two(adapted)
+    pre_exposure = 1.0 / (1.2 * power)
+}
+
+func advance_jitter() {
+    frame_index = frame_index + 1
+    var index = frame_index % jitter_count + 1
+    jitter_x = halton(index, 2) - 0.5
+    jitter_y = halton(index, 3) - 0.5
+}
+
+func halton(index: Integer, base: Integer): Float {
+    var result = 0.0
+    var fraction = 1.0
+    var remaining = index
+    var base_value: Float = base
+    while remaining > 0 {
+        fraction = fraction / base_value
+        var digit: Float = remaining % base
+        result = result + fraction * digit
+        remaining = remaining / base
+    }
+    return result
+}
+
+func jittered(projection: Math.Matrix4): Math.Matrix4 {
+    var result = Math.Matrix4()
+    result.copy_from(projection)
+    var width: Float = render_width
+    var height: Float = render_height
+    result.m8 = result.m8 - 2.0 * jitter_x / width
+    result.m9 = result.m9 - 2.0 * jitter_y / height
+    return result
+}
+
+func resize(renderer: RenderVulkan.Renderer) {
+    vulkan.vkDeviceWaitIdle(renderer.device)
+    release_images(renderer)
+    ambient_image = create_image(renderer, render_width, render_height, 1, ambient_format)
+    ambient_view = level_view(renderer, ambient_image, ambient_format, 0)
+    lit_image = create_image(renderer, render_width, render_height, 1, radiance_format)
+    lit_view = level_view(renderer, lit_image, radiance_format, 0)
+    var index = 0
+    while index < 2 {
+        var history = create_image(renderer, display_width, display_height, 1, radiance_format)
+        history_images.append(history)
+        var history_view = level_view(renderer, history, radiance_format, 0)
+        history_views.append(history_view)
+        index = index + 1
+    }
+    var width = display_width
+    var height = display_height
+    index = 0
+    while index < stage_count {
+        width = half_of(width)
+        height = half_of(height)
+        level_widths.append(width)
+        level_heights.append(height)
+        index = index + 1
+    }
+    crash level_widths[0]
+    crash level_heights[0]
+    var top_width = level_widths[0]
+    var top_height = level_heights[0]
+    chain_image = create_image(renderer, top_width, top_height, stage_count, bloom_format)
+    blur_image = create_image(renderer, top_width, top_height, stage_count, bloom_format)
+    bloom_image = create_image(renderer, top_width, top_height, stage_count, bloom_format)
+    index = 0
+    while index < stage_count {
+        var chain_level = level_view(renderer, chain_image, bloom_format, index)
+        chain_levels.append(chain_level)
+        var blur_level = level_view(renderer, blur_image, bloom_format, index)
+        blur_levels.append(blur_level)
+        var bloom_level = level_view(renderer, bloom_image, bloom_format, index)
+        bloom_levels.append(bloom_level)
+        index = index + 1
+    }
+    sets_stale = true
+    fresh = true
+    history_frames = 0
+}
+
+func half_of(size: Integer): Integer {
+    var half = size / 2
+    if half < 1 {
+        return 1
+    }
+    return half
+}
+
+func create_image(
+    renderer: RenderVulkan.Renderer,
+    width: Integer,
+    height: Integer,
+    levels: Integer,
+    format: Integer,
+): Long {
+    var color_and_sampled = 20
+    var no_allocator: Long = 0
+    var creation = RenderVulkan.Structure(96)
+    creation.append_integer(14)
+    creation.append_long(0)
+    creation.append_integer(0)
+    creation.append_integer(1)
+    creation.append_integer(format)
+    creation.append_integer(width)
+    creation.append_integer(height)
+    creation.append_integer(1)
+    creation.append_integer(levels)
+    creation.append_integer(1)
+    creation.append_integer(1)
+    creation.append_integer(0)
+    creation.append_integer(color_and_sampled)
+    creation.append_integer(0)
+    creation.append_integer(0)
+    creation.append_long(0)
+    creation.append_integer(0)
+    var made = RenderVulkan.Structure(8)
+    var result = vulkan.vkCreateImage(renderer.device, creation.address, no_allocator, made.address)
+    crash result == 0
+    var image = made.read_long(0)
+    var requirements = RenderVulkan.Structure(24)
+    vulkan.vkGetImageMemoryRequirements(renderer.device, image, requirements.address)
+    var device_local = 1
+    var memory = renderer.allocate_memory(requirements, device_local)
+    var no_offset: Long = 0
+    var bind_result = vulkan.vkBindImageMemory(renderer.device, image, memory, no_offset)
+    crash bind_result == 0
+    images.append(image)
+    image_memories.append(memory)
+    return image
+}
+
+func level_view(renderer: RenderVulkan.Renderer, image: Long, format: Integer, first_level: Integer): Long {
+    var no_allocator: Long = 0
+    var creation = RenderVulkan.Structure(80)
+    creation.append_integer(15)
+    creation.append_long(0)
+    creation.append_integer(0)
+    creation.append_long(image)
+    creation.append_integer(1)
+    creation.append_integer(format)
+    var field = 0
+    while field < 4 {
+        creation.append_integer(0)
+        field = field + 1
+    }
+    creation.append_integer(1)
+    creation.append_integer(first_level)
+    creation.append_integer(1)
+    creation.append_integer(0)
+    creation.append_integer(1)
+    var made = RenderVulkan.Structure(8)
+    var result = vulkan.vkCreateImageView(renderer.device, creation.address, no_allocator, made.address)
+    crash result == 0
+    var view = made.read_long(0)
+    image_views.append(view)
+    return view
+}
+
+func use_scene_targets(scene: Long, depth: Long) {
+    scene_view = scene
+    depth_view = depth
+    sets_stale = true
+}
+
+func write_sets(renderer: RenderVulkan.Renderer) {
+    assert sets_stale
+    sets_stale = false
+    var read_only = 5
+    var depth_read_only = 4
+    write_image(renderer, occlusion_set, 0, depth_view, nearest_sampler, depth_read_only)
+    write_image(renderer, occlusion_set, 1, scene_view, nearest_sampler, read_only)
+    write_image(renderer, occlusion_set, 2, ambient_view, nearest_sampler, read_only)
+    write_buffer(renderer, adapt_set, 6, state_buffer)
+    write_buffer(renderer, adapt_set, 7, histogram_buffer)
+    crash bloom_levels[0]
+    var bloom_top = bloom_levels[0]
+    var index = 0
+    while index < 2 {
+        crash temporal_sets[index]
+        crash history_views[index]
+        crash history_views[1 - index]
+        crash histogram_sets[index]
+        crash tone_sets[index]
+        crash first_down_sets[index]
+        var resolved = history_views[index]
+        write_image(renderer, temporal_sets[index], 0, lit_view, nearest_sampler, read_only)
+        write_image(renderer, temporal_sets[index], 1, depth_view, nearest_sampler, depth_read_only)
+        write_image(renderer, temporal_sets[index], 2, history_views[1 - index], linear_sampler, read_only)
+        write_image(renderer, histogram_sets[index], 0, resolved, linear_sampler, read_only)
+        write_buffer(renderer, histogram_sets[index], 7, histogram_buffer)
+        write_image(renderer, tone_sets[index], 0, resolved, linear_sampler, read_only)
+        write_image(renderer, tone_sets[index], 1, bloom_top, linear_sampler, read_only)
+        write_buffer(renderer, tone_sets[index], 6, state_buffer)
+        write_image(renderer, first_down_sets[index], 0, resolved, linear_sampler, read_only)
+        index = index + 1
+    }
+    index = 0
+    while index < stage_count {
+        crash down_sets[index]
+        crash horizontal_sets[index]
+        crash vertical_sets[index]
+        crash chain_levels[index]
+        crash blur_levels[index]
+        if index > 0 {
+            crash chain_levels[index - 1]
+            write_image(renderer, down_sets[index], 0, chain_levels[index - 1], linear_sampler, read_only)
+        }
+        write_image(renderer, horizontal_sets[index], 0, chain_levels[index], linear_sampler, read_only)
+        write_image(renderer, horizontal_sets[index], 1, bloom_top, linear_sampler, read_only)
+        write_image(renderer, vertical_sets[index], 0, blur_levels[index], linear_sampler, read_only)
+        var coarser = bloom_top
+        if index + 1 < stage_count {
+            crash bloom_levels[index + 1]
+            coarser = bloom_levels[index + 1]
+        }
+        write_image(renderer, vertical_sets[index], 1, coarser, linear_sampler, read_only)
+        index = index + 1
+    }
+}
+
+func write_image(
+    renderer: RenderVulkan.Renderer,
+    set: Long,
+    binding: Integer,
+    view: Long,
+    sampler: Long,
+    layout_value: Integer,
+) {
+    var information = RenderVulkan.Structure(24)
+    information.append_long(sampler)
+    information.append_long(view)
+    information.append_integer(layout_value)
+    var write = RenderVulkan.Structure(64)
+    write.append_integer(35)
+    write.append_long(0)
+    write.append_long(set)
+    write.append_integer(binding)
+    write.append_integer(0)
+    write.append_integer(1)
+    write.append_integer(1)
+    write.append_pointer(information)
+    write.append_long(0)
+    write.append_long(0)
+    var no_copies: Long = 0
+    vulkan.vkUpdateDescriptorSets(renderer.device, 1, write.address, 0, no_copies)
+}
+
+func write_buffer(renderer: RenderVulkan.Renderer, set: Long, binding: Integer, buffer: Long) {
+    var whole: Long = -1
+    var information = RenderVulkan.Structure(24)
+    information.append_long(buffer)
+    information.append_long(0)
+    information.append_long(whole)
+    var write = RenderVulkan.Structure(64)
+    write.append_integer(35)
+    write.append_long(0)
+    write.append_long(set)
+    write.append_integer(binding)
+    write.append_integer(0)
+    write.append_integer(1)
+    write.append_integer(7)
+    write.append_long(0)
+    write.append_pointer(information)
+    write.append_long(0)
+    var no_copies: Long = 0
+    vulkan.vkUpdateDescriptorSets(renderer.device, 1, write.address, 0, no_copies)
+}
+
+func before_scene(renderer: RenderVulkan.Renderer) {
+    start_fresh(renderer)
+    var reads = 128 + 2048
+    var color_output = 1024
+    var color_write = 256
+    barrier(renderer, ambient_image, 0, color_write, 0, 2, reads, color_output, 0, 1)
+}
+
+func record(
+    renderer: RenderVulkan.Renderer,
+    view: Scene.Component.View,
+    metered: Boolean,
+    projection: Math.Matrix4,
+    view_projection: Math.Matrix4,
+    depth_image: Long,
+) {
+    write_sets(renderer)
+    var reads = 128 + 2048
+    var shader_read = 32
+    var tests = 256 + 512
+    var depth_write = 1024
+    barrier_aspect(renderer, depth_image, depth_write, shader_read, 3, 4, tests, reads, 2)
+    var color_output = 1024
+    var color_write = 256
+    barrier(renderer, ambient_image, color_write, shader_read, 2, 5, color_output, reads, 0, 1)
+    var timings = renderer.gpu_timings
+    var occlusion_timing = timings.begin("ambient occlusion")
+    record_occlusion(renderer, view, projection)
+    timings.end(occlusion_timing)
+    var temporal_timing = timings.begin("temporal aa")
+    record_temporal(renderer, view_projection)
+    timings.end(temporal_timing)
+    if metered {
+        var exposure_timing = timings.begin("exposure")
+        record_exposure(renderer, view)
+        timings.end(exposure_timing)
+    }
+    if view.bloom_intensity > 0.0 {
+        var bloom_timing = timings.begin("bloom")
+        record_bloom(renderer, view)
+        timings.end(bloom_timing)
+    }
+    var tone_timing = timings.begin("tone map")
+    record_tone_map(renderer, view, metered)
+    timings.end(tone_timing)
+    previous_view_projection.copy_from(view_projection)
+    history_frames = history_frames + 1
+    parity = 1 - parity
+}
+
+func start_fresh(renderer: RenderVulkan.Renderer) {
+    assert fresh
+    fresh = false
+    var reads = 128 + 2048
+    var top = 1
+    var every_level = -1
+    var index = 0
+    while index < images.count() {
+        var image = images[index]
+        barrier(renderer, image, 0, 32, 0, 5, top, reads, 0, every_level)
+        index = index + 1
+    }
+    var command_buffer = renderer.frame.command_buffer
+    var no_offset: Long = 0
+    var whole: Long = -1
+    vulkan.vkCmdFillBuffer(command_buffer, state_buffer, no_offset, whole, 0)
+    memory_barrier(renderer, 4096, 32 + 64, 4096, reads)
+}
+
+func record_occlusion(renderer: RenderVulkan.Renderer, view: Scene.Component.View, projection: Math.Matrix4) {
+    var push = RenderVulkan.Structure(48)
+    var fade_start = view.ambient_occlusion_fade_distance - view.ambient_occlusion_fade_radius
+    var width: Float = render_width
+    var height: Float = render_height
+    var noise: Float = frame_index % 64
+    put(push.address, 0, projection.m0, projection.m5, projection.m10, projection.m14)
+    put(
+        push.address,
+        4,
+        view.ambient_occlusion_intensity,
+        view.ambient_occlusion_radius,
+        fade_start,
+        view.ambient_occlusion_fade_radius,
+    )
+    put(push.address, 8, noise, width, height, 0.0)
+    render_pass(renderer, lit_image, lit_view, render_width, render_height, occlusion_pipeline, occlusion_set, push, 48)
+}
+
+func record_temporal(renderer: RenderVulkan.Renderer, view_projection: Math.Matrix4) {
+    crash history_images[parity]
+    crash history_views[parity]
+    crash temporal_sets[parity]
+    if history_frames == 0 {
+        previous_view_projection.copy_from(view_projection)
+    }
+    var inverse = view_projection.inverted()
+    var reprojection = previous_view_projection.multiplied(inverse)
+    var push = RenderVulkan.Structure(96)
+    reprojection.write_to(push.address)
+    var has_history = 0.0
+    if history_frames > 0 {
+        has_history = 1.0
+    }
+    var width: Float = render_width
+    var height: Float = render_height
+    var rescale = pre_exposure / previous_pre_exposure
+    put(push.address, 16, jitter_x, jitter_y, current_weight, has_history)
+    put(push.address, 20, width, height, rescale, 0.0)
+    var target = history_images[parity]
+    var target_view = history_views[parity]
+    render_pass(
+        renderer,
+        target,
+        target_view,
+        display_width,
+        display_height,
+        temporal_pipeline,
+        temporal_sets[parity],
+        push,
+        96,
+    )
+}
+
+func record_exposure(renderer: RenderVulkan.Renderer, view: Scene.Component.View) {
+    crash histogram_sets[parity]
+    var command_buffer = renderer.frame.command_buffer
+    var no_offset: Long = 0
+    var whole: Long = -1
+    var compute = 2048
+    var transfer = 4096
+    var shader_read = 32
+    var shader_write = 64
+    var transfer_write = 4096
+    memory_barrier(renderer, shader_read + shader_write, transfer_write, compute, transfer)
+    vulkan.vkCmdFillBuffer(command_buffer, histogram_buffer, no_offset, whole, 0)
+    memory_barrier(renderer, transfer_write, shader_read + shader_write, transfer, compute)
+    var grid_width = half_of(display_width)
+    var grid_height = half_of(display_height)
+    var grid_x: Float = grid_width
+    var grid_y: Float = grid_height
+    var push = RenderVulkan.Structure(32)
+    put(push.address, 0, histogram_lowest, histogram_highest, 1.0 / pre_exposure, 0.0)
+    put(push.address, 4, grid_x, grid_y, 0.0, 0.0)
+    var groups_across = (grid_width + 15) / 16
+    var groups_down = (grid_height + 15) / 16
+    dispatch(renderer, histogram_pipeline, histogram_sets[parity], push, 32, groups_across, groups_down)
+    memory_barrier(renderer, shader_write, shader_read + shader_write, compute, compute)
+    var adapt = RenderVulkan.Structure(48)
+    var reset = 0.0
+    if metered_frames == 1 {
+        reset = 1.0
+    }
+    var low = view.exposure_low_percent / 100.0
+    var high = view.exposure_high_percent / 100.0
+    put(adapt.address, 0, histogram_lowest, histogram_highest, low, high)
+    put(adapt.address, 4, view.exposure_minimum, view.exposure_maximum, view.exposure_compensation, seconds)
+    put(adapt.address, 8, view.exposure_speed_up, view.exposure_speed_down, reset, 0.0)
+    dispatch(renderer, adapt_pipeline, adapt_set, adapt, 48, 1, 1)
+    var fragment = 128
+    var transfer_read = 2048
+    memory_barrier(renderer, shader_write, shader_read + transfer_read, compute, fragment + transfer)
+    var slot = (renderer.frame_number - 1) % renderer.frames_in_flight
+    crash readback_buffers[slot]
+    var region = RenderVulkan.Structure(24)
+    var size: Long = 16
+    region.append_long(0)
+    region.append_long(0)
+    region.append_long(size)
+    vulkan.vkCmdCopyBuffer(command_buffer, state_buffer, readback_buffers[slot], 1, region.address)
+    var host = 16384
+    var host_read = 8192
+    memory_barrier(renderer, transfer_write, host_read, transfer, host)
+}
+
+func record_bloom(renderer: RenderVulkan.Renderer, view: Scene.Component.View) {
+    crash first_down_sets[parity]
+    var level = 0
+    while level < stage_count {
+        crash chain_levels[level]
+        crash level_widths[level]
+        crash level_heights[level]
+        crash down_sets[level]
+        var source_width: Float = display_width
+        var source_height: Float = display_height
+        var set = first_down_sets[parity]
+        if level > 0 {
+            crash level_widths[level - 1]
+            crash level_heights[level - 1]
+            source_width = level_widths[level - 1]
+            source_height = level_heights[level - 1]
+            set = down_sets[level]
+        }
+        var push = RenderVulkan.Structure(16)
+        var threshold = -1.0
+        if level == 0 {
+            threshold = view.bloom_threshold
+        }
+        put(push.address, 0, 1.0 / source_width, 1.0 / source_height, threshold, 1.0)
+        render_level(renderer, chain_image, chain_levels[level], level, down_pipeline, set, push, 16)
+        level = level + 1
+    }
+    level = stage_count - 1
+    while level >= 0 {
+        crash blur_levels[level]
+        crash bloom_levels[level]
+        crash horizontal_sets[level]
+        crash vertical_sets[level]
+        crash stage_sizes[level]
+        crash stage_tints[level]
+        crash level_widths[level]
+        crash level_heights[level]
+        var width: Float = level_widths[level]
+        var height: Float = level_heights[level]
+        var radius = width * stage_sizes[level] * view.bloom_size_scale * 0.005
+        radius = scalar.clamp(radius, 0.5, 128.0)
+        var sigma = radius * 0.5
+        var reach = scalar.clamp(sigma * 3.0, 1.0, 192.0)
+        var across = RenderVulkan.Structure(32)
+        put(across.address, 0, 1.0 / width, 0.0, reach, sigma)
+        put(across.address, 4, 1.0, 0.0, 0.0, 0.0)
+        render_level(renderer, blur_image, blur_levels[level], level, blur_pipeline, horizontal_sets[level], across, 32)
+        var coarser = 0.0
+        if level + 1 < stage_count {
+            coarser = 1.0
+        }
+        var tint = stage_tints[level] / 6.0
+        var down = RenderVulkan.Structure(32)
+        put(down.address, 0, 0.0, 1.0 / height, reach, sigma)
+        put(down.address, 4, tint, coarser, 0.0, 0.0)
+        render_level(renderer, bloom_image, bloom_levels[level], level, blur_pipeline, vertical_sets[level], down, 32)
+        level = level - 1
+    }
+}
+
+func record_tone_map(renderer: RenderVulkan.Renderer, view: Scene.Component.View, metered: Boolean) {
+    crash tone_sets[parity]
+    var frame = renderer.frame
+    renderer.barrier(frame.target_image, 0, 256, 0, 2, 1, 1024)
+    var push = RenderVulkan.Structure(48)
+    var curve = 0.0
+    if view.tone_curve == 'aces_fitted' {
+        curve = 1.0
+    }
+    var metering = 0.0
+    if metered {
+        metering = 1.0
+    }
+    var width: Float = display_width
+    var height: Float = display_height
+    put(push.address, 0, view.film_slope, view.film_toe, view.film_shoulder, view.film_black_clip)
+    put(push.address, 4, view.film_white_clip, curve, view.bloom_intensity, view.vignette_intensity)
+    put(push.address, 8, metering, 1.0 / pre_exposure, width, height)
+    draw(renderer, frame.target_view, display_width, display_height, tone_pipeline, tone_sets[parity], push, 48)
+}
+
+func render_pass(
+    renderer: RenderVulkan.Renderer,
+    image: Long,
+    view: Long,
+    width: Integer,
+    height: Integer,
+    pipeline: Long,
+    set: Long,
+    push: RenderVulkan.Structure,
+    push_size: Integer,
+) {
+    var reads = 128 + 2048
+    var color_output = 1024
+    var color_write = 256
+    var shader_read = 32
+    barrier(renderer, image, 0, color_write, 0, 2, reads, color_output, 0, 1)
+    draw(renderer, view, width, height, pipeline, set, push, push_size)
+    barrier(renderer, image, color_write, shader_read, 2, 5, color_output, reads, 0, 1)
+}
+
+func render_level(
+    renderer: RenderVulkan.Renderer,
+    image: Long,
+    view: Long,
+    level: Integer,
+    pipeline: Long,
+    set: Long,
+    push: RenderVulkan.Structure,
+    push_size: Integer,
+) {
+    crash level_widths[level]
+    crash level_heights[level]
+    var reads = 128 + 2048
+    var color_output = 1024
+    var color_write = 256
+    var shader_read = 32
+    barrier(renderer, image, 0, color_write, 0, 2, reads, color_output, level, 1)
+    draw(renderer, view, level_widths[level], level_heights[level], pipeline, set, push, push_size)
+    barrier(renderer, image, color_write, shader_read, 2, 5, color_output, reads, level, 1)
+}
+
+func draw(
+    renderer: RenderVulkan.Renderer,
+    view: Long,
+    width: Integer,
+    height: Integer,
+    pipeline: Long,
+    set: Long,
+    push: RenderVulkan.Structure,
+    push_size: Integer,
+) {
+    var command_buffer = renderer.frame.command_buffer
+    var color = RenderVulkan.Structure(72)
+    color.append_integer(1000044001)
+    color.append_long(0)
+    color.append_long(view)
+    color.append_integer(2)
+    color.append_integer(0)
+    color.append_long(0)
+    color.append_integer(0)
+    color.append_integer(2)
+    color.append_integer(0)
+    color.append_float(0.0)
+    color.append_float(0.0)
+    color.append_float(0.0)
+    color.append_float(0.0)
+    var rendering = RenderVulkan.Structure(80)
+    rendering.append_integer(1000044000)
+    rendering.append_long(0)
+    rendering.append_integer(0)
+    rendering.append_integer(0)
+    rendering.append_integer(0)
+    rendering.append_integer(width)
+    rendering.append_integer(height)
+    rendering.append_integer(1)
+    rendering.append_integer(0)
+    rendering.append_integer(1)
+    rendering.append_pointer(color)
+    rendering.append_long(0)
+    rendering.append_long(0)
+    vulkan.vkCmdBeginRendering(command_buffer, rendering.address)
+    vulkan.vkCmdBindPipeline(command_buffer, 0, pipeline)
+    set_viewport(command_buffer, width, height)
+    var sets = RenderVulkan.Structure(8)
+    sets.append_long(set)
+    var no_offsets: Long = 0
+    vulkan.vkCmdBindDescriptorSets(command_buffer, 0, layout, 0, 1, sets.address, 0, no_offsets)
+    vulkan.vkCmdPushConstants(command_buffer, layout, 48, 0, push_size, push.address)
+    vulkan.vkCmdDraw(command_buffer, 3, 1, 0, 0)
+    vulkan.vkCmdEndRendering(command_buffer)
+}
+
+func dispatch(
+    renderer: RenderVulkan.Renderer,
+    pipeline: Long,
+    set: Long,
+    push: RenderVulkan.Structure,
+    push_size: Integer,
+    groups_across: Integer,
+    groups_down: Integer,
+) {
+    var command_buffer = renderer.frame.command_buffer
+    var compute_point = 1
+    vulkan.vkCmdBindPipeline(command_buffer, compute_point, pipeline)
+    var sets = RenderVulkan.Structure(8)
+    sets.append_long(set)
+    var no_offsets: Long = 0
+    vulkan.vkCmdBindDescriptorSets(command_buffer, compute_point, layout, 0, 1, sets.address, 0, no_offsets)
+    vulkan.vkCmdPushConstants(command_buffer, layout, 48, 0, push_size, push.address)
+    vulkan.vkCmdDispatch(command_buffer, groups_across, groups_down, 1)
+}
+
+func set_viewport(command_buffer: Long, width: Integer, height: Integer) {
+    var viewport = RenderVulkan.Structure(24)
+    viewport.append_float(0.0)
+    viewport.append_float(0.0)
+    viewport.append_float(width)
+    viewport.append_float(height)
+    viewport.append_float(0.0)
+    viewport.append_float(1.0)
+    vulkan.vkCmdSetViewport(command_buffer, 0, 1, viewport.address)
+    var scissor = RenderVulkan.Structure(16)
+    scissor.append_integer(0)
+    scissor.append_integer(0)
+    scissor.append_integer(width)
+    scissor.append_integer(height)
+    vulkan.vkCmdSetScissor(command_buffer, 0, 1, scissor.address)
+}
+
+func barrier(
+    renderer: RenderVulkan.Renderer,
+    image: Long,
+    source_access: Integer,
+    destination_access: Integer,
+    old_layout: Integer,
+    new_layout: Integer,
+    source_stage: Integer,
+    destination_stage: Integer,
+    first_level: Integer,
+    level_count: Integer,
+) {
+    var description = RenderVulkan.Structure(72)
+    description.append_integer(45)
+    description.append_long(0)
+    description.append_integer(source_access)
+    description.append_integer(destination_access)
+    description.append_integer(old_layout)
+    description.append_integer(new_layout)
+    description.append_integer(-1)
+    description.append_integer(-1)
+    description.append_long(image)
+    description.append_integer(1)
+    description.append_integer(first_level)
+    description.append_integer(level_count)
+    description.append_integer(0)
+    description.append_integer(1)
+    var no_barriers: Long = 0
+    vulkan.vkCmdPipelineBarrier(
+        renderer.frame.command_buffer,
+        source_stage,
+        destination_stage,
+        0,
+        0,
+        no_barriers,
+        0,
+        no_barriers,
+        1,
+        description.address,
+    )
+}
+
+func barrier_aspect(
+    renderer: RenderVulkan.Renderer,
+    image: Long,
+    source_access: Integer,
+    destination_access: Integer,
+    old_layout: Integer,
+    new_layout: Integer,
+    source_stage: Integer,
+    destination_stage: Integer,
+    aspect: Integer,
+) {
+    var description = RenderVulkan.Structure(72)
+    description.append_integer(45)
+    description.append_long(0)
+    description.append_integer(source_access)
+    description.append_integer(destination_access)
+    description.append_integer(old_layout)
+    description.append_integer(new_layout)
+    description.append_integer(-1)
+    description.append_integer(-1)
+    description.append_long(image)
+    description.append_integer(aspect)
+    description.append_integer(0)
+    description.append_integer(1)
+    description.append_integer(0)
+    description.append_integer(1)
+    var no_barriers: Long = 0
+    vulkan.vkCmdPipelineBarrier(
+        renderer.frame.command_buffer,
+        source_stage,
+        destination_stage,
+        0,
+        0,
+        no_barriers,
+        0,
+        no_barriers,
+        1,
+        description.address,
+    )
+}
+
+func memory_barrier(
+    renderer: RenderVulkan.Renderer,
+    source_access: Integer,
+    destination_access: Integer,
+    source_stage: Integer,
+    destination_stage: Integer,
+) {
+    var description = RenderVulkan.Structure(24)
+    description.append_integer(46)
+    description.append_long(0)
+    description.append_integer(source_access)
+    description.append_integer(destination_access)
+    var no_barriers: Long = 0
+    vulkan.vkCmdPipelineBarrier(
+        renderer.frame.command_buffer,
+        source_stage,
+        destination_stage,
+        0,
+        1,
+        description.address,
+        0,
+        no_barriers,
+        0,
+        no_barriers,
+    )
+}
+
+func put(at: Long, index: Integer, first: Float, second: Float, third: Float, fourth: Float) {
+    floats.write_value(at, index, first)
+    floats.write_value(at, index + 1, second)
+    floats.write_value(at, index + 2, third)
+    floats.write_value(at, index + 3, fourth)
+}
+
+func release_images(renderer: RenderVulkan.Renderer) {
+    var no_allocator: Long = 0
+    var index = 0
+    while index < image_views.count() {
+        vulkan.vkDestroyImageView(renderer.device, image_views[index], no_allocator)
+        index = index + 1
+    }
+    index = 0
+    while index < images.count() {
+        crash image_memories[index]
+        vulkan.vkDestroyImage(renderer.device, images[index], no_allocator)
+        vulkan.vkFreeMemory(renderer.device, image_memories[index], no_allocator)
+        index = index + 1
+    }
+    image_views.clear()
+    images.clear()
+    image_memories.clear()
+    history_images.clear()
+    history_views.clear()
+    chain_levels.clear()
+    blur_levels.clear()
+    bloom_levels.clear()
+    level_widths.clear()
+    level_heights.clear()
+}
+
+func release(renderer: RenderVulkan.Renderer) {
+    var no_allocator: Long = 0
+    release_images(renderer)
+    var index = 0
+    while index < pipelines.count() {
+        vulkan.vkDestroyPipeline(renderer.device, pipelines[index], no_allocator)
+        index = index + 1
+    }
+    index = 0
+    while index < modules.count() {
+        vulkan.vkDestroyShaderModule(renderer.device, modules[index], no_allocator)
+        index = index + 1
+    }
+    index = 0
+    while index < readback_buffers.count() {
+        crash readback_memories[index]
+        vulkan.vkDestroyBuffer(renderer.device, readback_buffers[index], no_allocator)
+        vulkan.vkFreeMemory(renderer.device, readback_memories[index], no_allocator)
+        index = index + 1
+    }
+    vulkan.vkDestroyBuffer(renderer.device, histogram_buffer, no_allocator)
+    vulkan.vkFreeMemory(renderer.device, histogram_memory, no_allocator)
+    vulkan.vkDestroyBuffer(renderer.device, state_buffer, no_allocator)
+    vulkan.vkFreeMemory(renderer.device, state_memory, no_allocator)
+    vulkan.vkDestroySampler(renderer.device, linear_sampler, no_allocator)
+    vulkan.vkDestroySampler(renderer.device, nearest_sampler, no_allocator)
+    vulkan.vkDestroyDescriptorPool(renderer.device, pool, no_allocator)
+    vulkan.vkDestroyPipelineLayout(renderer.device, layout, no_allocator)
+    vulkan.vkDestroyDescriptorSetLayout(renderer.device, set_layout, no_allocator)
+}

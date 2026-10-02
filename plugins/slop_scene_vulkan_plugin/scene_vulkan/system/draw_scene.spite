@@ -15,6 +15,7 @@ var renderer = RenderVulkan.Renderer()
 var mesh_renderer = SceneVulkan.MeshRenderer()
 var world = World()
 var created = Lookup<Component.MeshRendererCreated>()
+var auto_exposed = Lookup<Scene.Component.AutoExposed>()
 
 func after_render_each(target: Target) {
     assert renderer.device != 0
@@ -27,5 +28,6 @@ func after_render_each(target: Target) {
         world.as_entity().add_component(marker)
     }
     var drawn = draws.of(owner.id)
-    mesh_renderer.record(renderer, target.view, drawn, target.camera, meshes, terrain_materials, lights)
+    var metered = auto_exposed.has(owner.id)
+    mesh_renderer.record(renderer, target.view, drawn, target.camera, meshes, terrain_materials, lights, metered)
 }

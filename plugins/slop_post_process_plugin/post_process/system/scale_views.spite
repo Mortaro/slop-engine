@@ -1,0 +1,11 @@
+type Scaled {
+    percentage: PostProcess.Component.ScreenPercentage
+}
+
+type Target {
+    view: Scene.Component.View
+}
+
+func render_each(scaled: Scaled, target: Target) {
+    target.view.screen_percentage = scaled.percentage.value
+}

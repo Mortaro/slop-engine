@@ -7,3 +7,4 @@ var lights = 64
 var shadowed_lights = 0
 var measured_frames = 200
 var capture = ""
+var screen_percentage = 100
