@@ -40,7 +40,20 @@ and the click test passed for 5 and 12 clicks.
     components, which commands apply in runner order) can differ between parallel runs.
   - A pinned system runs on the app's thread. A thread of its own per pinned class would need Spite's thread pool to
     take work for one chosen thread, which it does not offer.
-  - Measured on Linux (4 cores, `--optimized`, medians of interleaved runs): see the table in performance.md below.
+  - Measured on Linux (4-core cloud machine, `--optimized`, 9 interleaved runs of the binaries before and after,
+    medians, microseconds per tick):
+
+    | Benchmark | Before | After |
+    |---|---|---|
+    | `relations_check` | 9,042 | 7,734 |
+    | `server_bench` | 9,749 | 9,977 |
+    | `stress` | 17,386 | 18,244 |
+
+    `relations_check` gains from rows that are only read no longer being written back. `server_bench`'s stages are
+    unchanged (its rows are written whole). `stress`'s stages and systems take the same time; the difference is one
+    tick of each parallel run losing about 19 ms between stages, in `Columns.release_buried` with nothing buried, no
+    system call and no page fault (total CPU time is the same), which the build before never shows: to look into on
+    Windows before trusting either number.
 - Which bundle class a value is cannot yet be asked reliably at run time (both forms are language bugs, D237), so a
   bundle the typed spawn path does not recognise takes the reflective path (`attribute.value` walked at run time),
   which is correct and slower: 200,000 bodies of four components in about 650 ms, against about 190 ms typed.
