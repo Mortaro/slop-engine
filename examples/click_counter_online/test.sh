@@ -7,7 +7,7 @@ spite="${SPITE:-$here/../../../SpiteLanguage/bin/spite}"
 out="$here/.test"
 mkdir -p "$out"
 for environment in server bot; do
-    "$spite" "$here" --environment=$environment --executable --run=false --executable-path="$out/$environment.exe" $SPITE_FLAGS
+    "$spite" "$here" --environment=$environment --build --executable-path="$out/$environment.exe" $SPITE_FLAGS
 done
 
 "$out/server.exe" --port=7171 --lifetime-seconds=60 > "$out/server.log" 2>&1 &
@@ -16,7 +16,7 @@ trap 'kill $server 2>/dev/null || true' EXIT
 
 expect_line() {
     local got
-    got="$("$out/bot.exe" --port=7171 --clicks=$1 --expect=$2 | tail -1)"
+    got="$("$out/bot.exe" --port=7171 --clicks=$1 --expect=$2 | grep "^bot clicked" | tail -1)"
     echo "$got"
     [ "$got" = "$3" ] || { echo "FAILED: expected '$3'"; exit 1; }
 }

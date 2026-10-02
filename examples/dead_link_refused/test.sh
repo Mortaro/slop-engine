@@ -4,7 +4,7 @@
 here="$(cd "$(dirname "$0")" && pwd)"
 out="$here/.test"
 mkdir -p "$out"
-"$here/../../../SpiteLanguage/bin/spite" "$here" --executable --run=false --executable-path="$out/refused.exe" || exit 1
+"$here/../../../SpiteLanguage/bin/spite" "$here" --build --executable-path="$out/refused.exe" || exit 1
 passed=true
 dead=$("$out/refused.exe" --link=dead 2>&1)
 if ! echo "$dead" | grep -q "a_link_names_a_living_entity"; then
