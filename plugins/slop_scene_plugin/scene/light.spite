@@ -11,3 +11,5 @@ var blue: Float = 1.0
 var intensity: Float = 100.0
 var cone_scale: Float = 0.0
 var cone_offset: Float = 1.0
+var owner = 0
+var casts_shadows = true

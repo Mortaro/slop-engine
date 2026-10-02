@@ -11,8 +11,8 @@ with `spite kal_character --kal-assets=<folder>`.
 |---|---|---|
 | `slop_transform_plugin` | `Transform` | `Transform.Component.Transform`: position, a rotation quaternion and scale |
 | `slop_camera_plugin` | `Camera` | `Camera.Component.Camera` (eye, target, field of view, near, far) and `Camera.Component.Orbit` with the `AimOrbit` system |
-| `slop_scene_plugin` | `Scene` | `Scene.Component.Model` (a mesh id) and, on a skinned model, `Scene.Component.Skin` (its `Scene.Pose`: the bone palette it is drawn with, and each bone's pose); `Scene.Component.View` on each window, whose draws, terrain draws and palettes for the frame live in the `Scene.Draws` resource (`draws.of(view)`, a `Scene.DrawSet` per view); the `Scene.Meshes` and `Scene.TerrainMaterials` resources, which give each mesh and terrain material an entity (`Scene.Component.Mesh`, `Scene.Component.TerrainMaterial`, marked `Component.Loading` while a job runs and `TerrainTexturesRequested` once its control textures are asked for); and `Scene.Component.ViewCamera` (the view matrix, field of view, near, far, eye and shadow centre) while a camera exists; `Gather` collects the camera, the models and the lighting every frame |
-| `slop_scene_vulkan_plugin` | `SceneVulkan` | the Vulkan passes: grass scatter, sun shadow map, lit scene (grass included) into HDR, water, tone map into the frame, then the UI draws on top; `SceneVulkan.MeshRenderer` is a resource (singleton) holding the passes and the per-frame buffers; each mesh's entity gets `SceneVulkan.Component.GpuMesh` (its vertex and index buffers) and each texture's `SceneVulkan.Component.SceneTexture` (its scene-sampler descriptor set); `SceneVulkan.Component.MeshRendererCreated` marks the world entity once the passes are built |
+| `slop_scene_plugin` | `Scene` | `Scene.Component.Model` (a mesh id) and, on a skinned model, `Scene.Component.Skin` (its `Scene.Pose`: the bone palette it is drawn with, and each bone's pose); `Scene.Component.View` on each window, whose draws, terrain draws, off-screen shadow casters and palettes for the frame live in the `Scene.Draws` resource (`draws.of(view)`, a `Scene.DrawSet` per view); the `Scene.Meshes` and `Scene.TerrainMaterials` resources, which give each mesh and terrain material an entity (`Scene.Component.Mesh`, `Scene.Component.TerrainMaterial`, marked `Component.Loading` while a job runs and `TerrainTexturesRequested` once its control textures are asked for); and `Scene.Component.ViewCamera` (the view matrix, field of view, near, far and eye) while a camera exists; `Gather` collects the camera, the models and the lighting every frame |
+| `slop_scene_vulkan_plugin` | `SceneVulkan` | the Vulkan passes: grass scatter, the shadow atlas (`SceneVulkan.ShadowPass`: the sun's cascades and the point and spot light tiles), lit scene (grass included) into HDR, water, tone map into the frame, then the UI draws on top; `SceneVulkan.MeshRenderer` is a resource (singleton) holding the passes and the per-frame buffers; each mesh's entity gets `SceneVulkan.Component.GpuMesh` (its vertex and index buffers) and each texture's `SceneVulkan.Component.SceneTexture` (its scene-sampler descriptor set); `SceneVulkan.Component.MeshRendererCreated` marks the world entity once the passes are built |
 | `slop_animation_plugin` | `Animation` | headless, so a server loads it too: `Animation.Component.Animator` (skeleton, clip, loop start, time, speed, weight), looping unless the entity has the marker `Animation.Component.PlayOnce`; `Animate` samples it into `Animation.Component.Pose` (the bone palette and each bone's pose, asset data rewritten every frame), adding one the first time; blend layers, crossfades, throttling and bone attachments ([below](#animation)) |
 | `slop_scene_animation_plugin` | `SceneAnimation` | what joins the two: an animated model's `Scene.Component.Skin` shares its `Animation.Component.Pose`, and `Scene.Component.OffView` marks it `Animation.Component.Unseen` |
 | `slop_lighting_plugin` | `Lighting` | `Sun`, `Sky`, `HeightFog` and `Exposure` components and a `Daylight` bundle, written into each view; `PointLight` and `SpotLight` components gathered into `Scene.Lights` |
@@ -242,11 +242,69 @@ The scene pass writes pre-exposed radiance into an RGBA16F image. The maths:
 
 A full-screen pass tone maps with the ACES fit, encodes sRGB and dithers into the frame, under the UI.
 
-The sun casts a 2048² shadow map:
-- an orthographic view around the camera's target, with the depth-only pipeline sharing the skinning vertex
-  shader and keeping alpha cut-outs;
-- a slope-scaled depth bias against acne;
-- 3×3 PCF when sampling.
+### Shadows
+
+The sun and every point or spot light marked `Lighting.Component.CastsShadows` cast shadows. `Daylight` carries the
+marker, so its sun casts them, as an Unreal directional light does; a point or spot light opts in, as Unreal's Cast
+Shadows does:
+
+```gdscript
+var shadowing = Lighting.Component.CastsShadows()
+torch.add_component(shadowing)
+```
+
+All shadows share one 8192×4096 depth atlas, drawn by `SceneVulkan.ShadowPass` with a depth-only pipeline that
+shares the skinning vertex shader and keeps alpha cut-outs, and a slope-scaled depth bias.
+
+**The sun's cascades.** The sun's settings follow Unreal's directional light and its defaults:
+
+| `Lighting.Component.Sun` | Default | Unreal |
+|---|---|---|
+| `shadow_distance` | 200.0 m | Dynamic Shadow Distance MovableLight |
+| `cascade_count` | 3 (at most 4) | Num Dynamic Shadow Cascades |
+| `cascade_distribution_exponent` | 3.0 | Cascade Distribution Exponent |
+| `cascade_transition_fraction` | 0.1 | Cascade Transition Fraction |
+| `shadow_fadeout_fraction` | 0.1 | Shadow Distance Fadeout Fraction |
+
+`LightViews` copies them into each `Scene.Component.View` (with `cascade_count` 0 when the sun has no
+`CastsShadows`). Then:
+- The view from the camera's near plane to the shadow distance is split as Unreal splits it: cascade `i` ends at
+  `near + (distance − near) · (1 + e + … + e^i) / (1 + e + … + e^(n−1))`.
+- Each cascade is a 2048² quarter of the atlas's left half. It is an orthographic view from the sun around the
+  bounding sphere of its slice of the view, so its size never changes as the camera turns. Its centre is snapped
+  to whole texels, so shadows hold still while the camera moves.
+- Each cascade reaches past its split by the transition fraction, and a fragment there blends into the next
+  cascade. Shadows fade out over the last tenth of the shadow distance.
+- The near plane is pulled back to the farthest caster toward the sun, so a caster outside the view still shadows
+  it.
+- Each fragment is offset along its normal by one texel of its cascade, and compared one texel nearer.
+
+**Point and spot lights.** The right half of the atlas holds 64 tiles of 512². A spot light takes one tile, a point
+light six, one per cube face. Each frame:
+- The visible lights marked `CastsShadows` are ranked by range over distance to the eye. The best are given tiles
+  while they fit, up to 16 lights. A light keeps its tiles while it stays chosen.
+- A light's tiles are redrawn when its light or its casters (their bounds, transforms and meshes) changed, or when a
+  skinned model is among its casters. Lights never drawn before go first, then the rest by rank, up to
+  `face_budget` (36) faces a frame. A light over budget keeps last frame's tiles.
+- The light buffer's last float names each light's shadow, so the clustered loop looks up only the lights that
+  have one.
+- A face is a perspective view widened by four texels on each side, so filtering never reads past its tile.
+
+**Casters.** `Gather` puts every model in view in `draws`, and every model out of view that can still cast a shadow
+into it in `casters`:
+- for the sun, when its sphere swept away from the sun reaches the view;
+- for a light, when it is within twice the range of the largest shadowed light (last frame's) of the view.
+
+Each cascade and each light face draws only the casters whose bounding spheres reach it, sorted by mesh section
+into instanced runs. As Unreal's `r.Shadow.RadiusThreshold` does, a cascade drops a caster whose radius is under a
+hundredth of its distance from the eye.
+
+**Filtering.** Every lookup is Castaño's optimized PCF: a 5×5 tent filter from nine bilinear comparisons.
+
+`examples/shadows_check` proves where shadows land. With the sun, boxes 6 m, 32 m and 100 m away (one per cascade)
+are seen close and from far above. Each box's shadow behind it is dark, the floor 12 cm past its base is dark, and
+its sunny side is as bright as the open floor. A point on a shadow's edge keeps its brightness while the camera
+moves. At night, a point light and a spot light each cast a box's shadow onto the floor.
 
 ### Masked materials
 
@@ -446,8 +504,6 @@ lights for timing.
 With 3,000 lights (79 on screen, 12,853 cluster entries), on an RTX 3090 with validation on:
 - the clusters and their upload cost about 0.22 ms of the scene system;
 - gathering costs 0.33 ms (optimized).
-
-Point and spot lights cast no shadows.
 
 Lighting data lives on the neutral `Scene.View` with daylight defaults. The lighting plugin only overwrites it from
 components, so a scene without that plugin is still lit.

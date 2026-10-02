@@ -44,6 +44,10 @@ func included_text(source_path: String, id: String, text: String): String {
     var path_length = source_path.length()
     var folder_length = path_length - file_name.length() - 6
     var folder = source_path.slice(0, folder_length)
+    return included_in(folder, text)
+}
+
+func included_in(folder: String, text: String): String {
     var joined = ""
     var lines = text.split("\n")
     var index = 0
@@ -57,7 +61,8 @@ func included_text(source_path: String, id: String, text: String): String {
             var include_file = File(include_path)
             var include = include_file.read()
             crash include
-            joined = "{joined}{name}\n{include}\n"
+            var nested = included_in(folder, include)
+            joined = "{joined}{name}\n{include}\n{nested}"
         }
         index = index + 1
     }

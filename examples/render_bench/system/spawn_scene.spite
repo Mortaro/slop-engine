@@ -125,6 +125,10 @@ func add_light(light: Integer) {
     point.intensity = 40.0
     point.range = 8.0
     entity.add_component(point)
+    if light < environment.shadowed_lights {
+        var shadowing = Lighting.Component.CastsShadows()
+        entity.add_component(shadowing)
+    }
     var transform = Transform.Component.Transform()
     var column: Float = light % 8
     var row: Float = light / 8

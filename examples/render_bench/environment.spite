@@ -4,5 +4,6 @@ var height = 1080
 var archers = 48
 var pillars = 400
 var lights = 64
+var shadowed_lights = 0
 var measured_frames = 200
 var capture = ""
