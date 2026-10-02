@@ -91,9 +91,8 @@ and the click test passed for 5 and 12 clicks.
 ## [rendering.md](../docs/rendering.md)
 
 - Windows now pump their messages once a tick on the app's thread (D363), replacing the dedicated window thread
-  that kept pumping while a frame ran long. Not yet run on Windows: the click, text field, drag and drop, combo
-  box, scroll list and resize tests, `render_parity`, and the README's `app.describe()` example, which was written
-  before the runner changed.
+  that kept pumping while a frame ran long. Not yet run on Windows: the README's `app.describe()` example, which was
+  written before the runner changed.
 
 - Spite cannot pass a function to C yet, so there is no window procedure written in Spite. Fullscreen and IME need a
   real callback; they wait on the language.
@@ -212,15 +211,13 @@ The benchmarks to race are ecs_bench_suite's: `add_remove` and `schedule` look w
   `kernel32`); those examples were compiled for Windows in check mode only. The UI plugin loads `spite_truetype`,
   which must sit beside the engine, and the pinned MongoDB driver commit `ea1a143` does not compile with current
   Spite (`map_key` must be `map_keys`, `map_to_string` `map_to_strings`): it needs a driver commit and a new pin.
-- On Windows (2026-10-02, Spite master `400b740`, with the operators migration merged in): every headless example
-  builds and runs balanced under `--debug-memory` (`healing`, `tracking`, `use_potion`, `without_check`,
-  `relations_check`, `timers_check`, `wire_probe`, `asset_round_trip`, `inline_string_probe`, `psd_probe`,
-  `psd_zip_probe`, `scheduler_check`, `waits_check`, `template_wait_check`), and `parallel_check`,
-  `click_counter_online`, `interest_check`, `store_race_test` and the three refusal tests pass. Every example that
-  loads the UI plugin (the window, UI and render tests) fails to compile: the pinned `spite_truetype@014df72` calls
-  `accumulation.set_at(cell, ...)` in `true_type/rasterizer.spite:279`, which D396 refuses; it needs a truetype
-  commit writing `accumulation[cell] = ...` and a new pin in `plugins/slop_ui_plugin/ui/ui.spite`. `io_systems` and
-  `mongodb_check` fail on the MongoDB driver pin above. So the pinned window path (D363) is still not run on Windows.
+- On Windows (2026-10-02, Spite master `400b740`, with the operators migration merged in and `spite_truetype`
+  pinned at `4963d04`, its D396 fix): every example in testing.md passes balanced under `--debug-memory`, including
+  the pinned window path (the click, text field, drag and drop, combo box, scroll list and resize tests),
+  `render_parity` (0 of 256,000 pixels differ), `hot_reload_test`, `live_asset_test`, `flex_layout` (92 of 92),
+  `lights_check`, `terrain_check` and `attachment_check`. Only `io_systems` and `mongodb_check` fail, on the MongoDB
+  driver pin above. Two examples building at once can collide checking out the same pinned package
+  (`<package>.index.lock` exists); the second build fails and passes when run again.
 
 - The tests that still capture at a frame number (`scene_probe`, `lights_check`, `terrain_check`,
   `kal_character`'s `--frames`) are to move to a trigger, as `render_parity` did. `render_parity` used to capture two
