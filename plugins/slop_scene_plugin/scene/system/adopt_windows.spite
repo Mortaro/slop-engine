@@ -7,4 +7,6 @@ func after_input_each(created: NewWindow) {
     var window = created.entity
     var view = Component.View()
     window.add_component(view)
+    var occlusion = Component.OcclusionCulling()
+    window.add_component(occlusion)
 }

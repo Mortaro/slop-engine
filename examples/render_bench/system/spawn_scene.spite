@@ -51,11 +51,43 @@ func update_each(_started: Started) {
         spawn_archer(archer)
         archer = archer + 1
     }
+    add_field()
     var light = 0
     while light < environment.lights {
         add_light(light)
         light = light + 1
     }
+}
+
+func add_field() {
+    assert environment.field > 0
+    add_block(0.0, 3.0, 17.0, 20.0, 6.0, 0.5)
+    var count = environment.field * environment.field
+    var half: Float = environment.field
+    half = half * 0.75
+    var flower = 0
+    while flower < count {
+        var column: Float = flower % environment.field
+        var row: Float = flower / environment.field
+        var yaw: Float = flower % 9
+        yaw = yaw * 0.7
+        add_flower(column * 1.5 - half, row * 1.5 + 19.0, yaw)
+        flower = flower + 1
+    }
+}
+
+func add_flower(at_x: Float, at_z: Float, yaw: Float) {
+    var entity = world.create_entity()
+    var model = Scene.Component.Model()
+    model.mesh = "mesh.bench.flower"
+    entity.add_component(model)
+    var transform = Transform.Component.Transform()
+    transform.position_x = at_x
+    transform.position_z = at_z
+    var half = yaw * 0.5
+    transform.rotation_y = scalar.sine(half)
+    transform.rotation_w = scalar.cosine(half)
+    entity.add_component(transform)
 }
 
 func add_block(at_x: Float, at_y: Float, at_z: Float, size_x: Float, size_y: Float, size_z: Float) {

@@ -1,0 +1,9 @@
+var renderer = RenderVulkan.Renderer()
+var mesh_renderer = SceneVulkan.MeshRenderer()
+var world = World()
+var created = Lookup<Component.MeshRendererCreated>()
+
+func prepare_each() {
+    assert renderer.device != 0 and created.has(world.entity)
+    mesh_renderer.occlusion.publish_finished(renderer)
+}

@@ -5,6 +5,8 @@ var indices = List<Integer>()
 var sections = List<Integer>()
 var textures = List<String>()
 var masked_materials = List<Integer>()
+var detail_sections = List<Integer>()
+var detail_screen_sizes = List<Float>()
 
 func add_section(first: Integer, count: Integer, texture: String) {
     sections.append(first)
@@ -12,4 +14,8 @@ func add_section(first: Integer, count: Integer, texture: String) {
     var material = textures.count()
     sections.append(material)
     textures.append(texture)
+}
+
+func detail_level_count(): Integer {
+    return detail_screen_sizes.count() + 1
 }

@@ -218,6 +218,20 @@ Claude (2026-10-02), for Mortaro to confirm:
   - auto exposure meters EV100 with the reflected-light calibration K = 12.5 and Unreal 5's default compensation of
     one stop; the scene is lit with the exposure read back from two frames before (Unreal's pre-exposure);
   - the ACES fit stays selectable as `ToneMapper.curve = 'aces_fitted'`.
+- Levels of detail (a game's alert A3, a proposal by Claude, unconfirmed): generated at cook time by
+  `Recipes.DetailLevels.generate(mesh)`, an opt-in call in the recipe; quadric error metric half-edge collapse (as
+  meshoptimizer does), so levels share the vertex buffer and keep normals, UVs and skin weights exactly; halving per
+  level up to Unreal's eight; automatic screen sizes from a one-pixel error at 1080 lines; Unreal's screen size
+  definition; 10% hysteresis (Unreal has none for static meshes, the request asked for it); a forced level is a
+  `ForcedDetailLevel` component on the window (Unreal's `r.ForceLOD`). Names spell "detail level" because the
+  conventions forbid the abbreviation LOD.
+- Occlusion culling (a game's alert A55, a proposal by Claude, unconfirmed): the CPU tests bounding spheres in
+  `Gather` against a 16x16-pixel farthest-depth map read back from the newest finished frame, reprojected with that
+  frame's own camera. Chosen over GPU culling with indirect draws because the renderer is CPU driven (Gather culls,
+  the CPU sorts instanced runs), so a GPU visibility buffer would mean rewriting the draw path the other render work
+  edits; it is the approach of Unreal's non-Nanite occlusion (results read back a frame later, never waited on).
+  Testing in the old frame's camera makes camera turns exact; on by default as in Unreal, as a component on each
+  window (`OcclusionCulling`) so removing it turns it off; hidden models still cast shadows.
 
 ## [networking.md](../docs/networking.md)
 

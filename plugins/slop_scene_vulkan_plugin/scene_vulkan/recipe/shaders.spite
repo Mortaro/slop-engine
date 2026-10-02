@@ -20,4 +20,5 @@ func build() {
     glsl.compile(root, "shader.post.adapt", "comp")
     glsl.compile(root, "shader.post.bloom_down", "frag")
     glsl.compile(root, "shader.post.bloom_blur", "frag")
+    glsl.compile(root, "shader.occlusion.compute", "comp")
 }

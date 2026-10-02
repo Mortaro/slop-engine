@@ -25,6 +25,7 @@ var caster_radius_threshold: Float = 0.01
 var record_stride = 80
 var record_base = 0
 var sections_per_mesh = 64
+var detail_levels_per_section = 8
 var cascades = 0
 var fade_start: Float = 0.0
 var fade_end: Float = 0.0
@@ -302,6 +303,10 @@ func draw_of(drawn: Scene.DrawSet, index: Integer): Scene.Draw {
     return drawn.casters[index - in_view]
 }
 
+func key_of(draw: Scene.Draw): Integer {
+    return (draw.mesh_slot * sections_per_mesh + draw.section) * detail_levels_per_section + draw.detail_level
+}
+
 func add_view(drawn: Scene.DrawSet, matrix: Math.Matrix4, left: Integer, top: Integer, size: Integer) {
     view_matrices.append(matrix)
     view_lefts.append(left)
@@ -313,7 +318,7 @@ func add_view(drawn: Scene.DrawSet, matrix: Math.Matrix4, left: Integer, top: In
     var index = 0
     while index < picked.count() {
         var draw = draw_of(drawn, picked[index])
-        var key = draw.mesh_slot * sections_per_mesh + draw.section
+        var key = key_of(draw)
         while key_counts.count() <= key {
             key_counts.append(0)
             key_first.append(0)
@@ -348,7 +353,7 @@ func add_view(drawn: Scene.DrawSet, matrix: Math.Matrix4, left: Integer, top: In
     while index < picked.count() {
         var placed = picked[index]
         var draw = draw_of(drawn, placed)
-        var key = draw.mesh_slot * sections_per_mesh + draw.section
+        var key = key_of(draw)
         crash key_counts[key]
         var position = key_counts[key]
         record_draws[position] = placed
@@ -791,7 +796,7 @@ func note_caster(draw: Scene.Draw) {
     var model = draw.model
     signature = signature + draw.center_x + draw.center_y * 3.0 + draw.center_z * 7.0 + draw.radius * 11.0
     signature = signature + model.m0 * 13.0 + model.m2 * 17.0 + model.m8 * 19.0 + model.m10 * 23.0
-    signature = signature + draw.mesh_slot * 29 + draw.section * 31 + 1
+    signature = signature + draw.mesh_slot * 29 + draw.section * 31 + draw.detail_level * 37 + 1
     if draw.palette_first > 0 {
         moving = true
     }

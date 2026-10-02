@@ -1,0 +1,166 @@
+var cache = Recipes.Cache()
+var console = Console()
+var clock = Clock()
+var scalar = Math.Scalar()
+var details = Recipes.DetailLevels()
+var mesh = Asset.Mesh()
+var petals = 12
+var petal_steps = 40
+var stem_segments = 32
+var stem_rings = 64
+var head_segments = 48
+var head_rings = 24
+
+func build() {
+    var fingerprint = cache.fingerprint("bench flower 2")
+    assert not cache.is_current("mesh.bench.flower", fingerprint)
+    var started = clock.elapsed_milliseconds()
+    var petal = 0
+    while petal < petals {
+        add_petal(petal)
+        petal = petal + 1
+    }
+    var petal_indices = mesh.indices.count()
+    mesh.add_section(0, petal_indices, "")
+    add_stem()
+    add_head()
+    var rest = mesh.indices.count() - petal_indices
+    mesh.add_section(petal_indices, rest, "")
+    var cooked_triangles = mesh.indices.count() / 3
+    details.generate(mesh)
+    var took = clock.elapsed_milliseconds() - started
+    var levels = mesh.detail_level_count()
+    console.print("recipe: bench flower triangles", cooked_triangles, "levels", levels, "milliseconds", took)
+    var counts = details.triangle_counts.join(" ")
+    var sizes = mesh.detail_screen_sizes.join(" ")
+    console.print("recipe: bench flower level triangles", counts, "screen sizes", sizes)
+    var pack = Pack<Asset.Mesh>()
+    var bytes = Asset.Bytes()
+    pack.encode(mesh, bytes)
+    cache.put("mesh.bench.flower", fingerprint, bytes)
+}
+
+func add_petal(petal: Integer) {
+    var turn: Float = petal
+    turn = turn / petals * scalar.two_pi
+    var out_x = scalar.cosine(turn)
+    var out_z = scalar.sine(turn)
+    var first = mesh.vertices.count() / 8
+    var along = 0
+    while along <= petal_steps {
+        var across = 0
+        while across <= petal_steps {
+            add_petal_vertex(out_x, out_z, along, across)
+            across = across + 1
+        }
+        along = along + 1
+    }
+    add_grid(first, petal_steps, petal_steps)
+}
+
+func add_petal_vertex(out_x: Float, out_z: Float, along: Integer, across: Integer) {
+    var length: Float = along
+    length = length / petal_steps
+    var side: Float = across
+    side = side / petal_steps * 2.0 - 1.0
+    var width = 0.09 * scalar.sine(scalar.pi * (0.1 + 0.85 * length))
+    var reach = 0.06 + length * 0.25
+    var rise = 0.5 + 0.12 * length * length - 0.02 * side * side
+    var slope = 0.24 * length
+    var lift = 1.0 / scalar.square_root(1.0 + slope * slope)
+    mesh.vertices.append(out_x * reach - out_z * side * width)
+    mesh.vertices.append(rise)
+    mesh.vertices.append(out_z * reach + out_x * side * width)
+    mesh.vertices.append(0.0 - out_x * slope * lift)
+    mesh.vertices.append(lift)
+    mesh.vertices.append(0.0 - out_z * slope * lift)
+    mesh.vertices.append(length)
+    mesh.vertices.append(side * 0.5 + 0.5)
+}
+
+func add_grid(first: Integer, rows: Integer, columns: Integer) {
+    var row_length = columns + 1
+    var row = 0
+    while row < rows {
+        var column = 0
+        while column < columns {
+            var top_left = first + row * row_length + column
+            var bottom_left = top_left + row_length
+            mesh.indices.append(top_left)
+            mesh.indices.append(top_left + 1)
+            mesh.indices.append(bottom_left + 1)
+            mesh.indices.append(top_left)
+            mesh.indices.append(bottom_left + 1)
+            mesh.indices.append(bottom_left)
+            column = column + 1
+        }
+        row = row + 1
+    }
+}
+
+func add_stem() {
+    var first = mesh.vertices.count() / 8
+    var ring = 0
+    while ring <= stem_rings {
+        var segment = 0
+        while segment <= stem_segments {
+            add_stem_vertex(ring, segment)
+            segment = segment + 1
+        }
+        ring = ring + 1
+    }
+    add_grid(first, stem_rings, stem_segments)
+}
+
+func add_stem_vertex(ring: Integer, segment: Integer) {
+    var height: Float = ring
+    height = height / stem_rings
+    var around: Float = segment
+    around = around / stem_segments
+    var angle = around * scalar.two_pi
+    var normal_x = scalar.cosine(angle)
+    var normal_z = scalar.sine(angle)
+    mesh.vertices.append(normal_x * 0.015)
+    mesh.vertices.append(height * 0.5)
+    mesh.vertices.append(normal_z * 0.015)
+    mesh.vertices.append(normal_x)
+    mesh.vertices.append(0.0)
+    mesh.vertices.append(normal_z)
+    mesh.vertices.append(around)
+    mesh.vertices.append(height)
+}
+
+func add_head() {
+    var first = mesh.vertices.count() / 8
+    var ring = 0
+    while ring <= head_rings {
+        var segment = 0
+        while segment <= head_segments {
+            add_head_vertex(ring, segment)
+            segment = segment + 1
+        }
+        ring = ring + 1
+    }
+    add_grid(first, head_rings, head_segments)
+}
+
+func add_head_vertex(ring: Integer, segment: Integer) {
+    var down: Float = ring
+    down = down / head_rings
+    var around: Float = segment
+    around = around / head_segments
+    var polar = down * scalar.pi
+    var azimuth = around * scalar.two_pi
+    var ring_radius = scalar.sine(polar)
+    var normal_x = ring_radius * scalar.cosine(azimuth)
+    var normal_y = scalar.cosine(polar)
+    var normal_z = ring_radius * scalar.sine(azimuth)
+    mesh.vertices.append(normal_x * 0.07)
+    mesh.vertices.append(normal_y * 0.07 + 0.52)
+    mesh.vertices.append(normal_z * 0.07)
+    mesh.vertices.append(normal_x)
+    mesh.vertices.append(normal_y)
+    mesh.vertices.append(normal_z)
+    mesh.vertices.append(around)
+    mesh.vertices.append(down)
+}

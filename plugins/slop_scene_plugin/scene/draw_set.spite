@@ -2,6 +2,10 @@ var draws = List<Scene.Draw>()
 var casters = List<Scene.Draw>()
 var terrain_draws = List<Scene.TerrainDraw>()
 var palettes = List<Math.Matrix4>()
+var occlusion = Scene.OcclusionMap()
+var culls_occluded = false
+var camera_cut: Float = 1.0
+var forced_detail_level = -1
 
 func begin() {
     draws.clear()

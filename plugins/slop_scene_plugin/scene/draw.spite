@@ -10,3 +10,5 @@ var center_x: Float = 0.0
 var center_y: Float = 0.0
 var center_z: Float = 0.0
 var radius: Float = 0.0
+var detail_level = 0
+var occluded = false

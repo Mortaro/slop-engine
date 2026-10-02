@@ -1,0 +1,64 @@
+var hysteresis: Float = 0.1
+
+func level_for(
+    levels: Lookup<Scene.Component.DetailLevel>,
+    entity: Entity,
+    mesh: Scene.LoadedMesh,
+    cone: Scene.ViewCone,
+    radius: Float,
+    forced: Integer,
+): Integer {
+    var count = mesh.detail_screen_sizes.count()
+    if count == 0 {
+        return 0
+    }
+    if forced >= 0 {
+        if forced < count {
+            return forced
+        }
+        return count
+    }
+    var size = screen_size(cone, radius)
+    var held = levels.of(entity.id)
+    if not held {
+        var chosen = Scene.Component.DetailLevel()
+        chosen.level = level_at(mesh, size, 1.0)
+        entity.add_component(chosen)
+        return chosen.level
+    }
+    var coarsest = level_at(mesh, size, 1.0 + hysteresis)
+    var finest = level_at(mesh, size, 1.0 - hysteresis)
+    if held.level < finest {
+        held.level = finest
+    }
+    if held.level > coarsest {
+        held.level = coarsest
+    }
+    return held.level
+}
+
+func screen_size(cone: Scene.ViewCone, radius: Float): Float {
+    var distance = cone.distance_to_eye()
+    if distance <= radius {
+        return 1000.0
+    }
+    return radius / (distance * cone.down_tangent)
+}
+
+func level_at(mesh: Scene.LoadedMesh, size: Float, factor: Float): Integer {
+    var level = 0
+    var sizes = mesh.detail_screen_sizes
+    while level < sizes.count() and size < sizes[level] * factor {
+        level = level + 1
+    }
+    return level
+}
+
+func narrow(draw: Scene.Draw, mesh: Scene.LoadedMesh, section_count: Integer) {
+    assert draw.detail_level > 0
+    var at = ((draw.detail_level - 1) * section_count + draw.section) * 2
+    crash mesh.detail_sections[at]
+    crash mesh.detail_sections[at + 1]
+    draw.first_index = mesh.detail_sections[at]
+    draw.index_count = mesh.detail_sections[at + 1]
+}

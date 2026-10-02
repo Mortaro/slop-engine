@@ -1,0 +1,85 @@
+var cache = Recipes.Cache()
+var console = Console()
+var scalar = Math.Scalar()
+var details = Recipes.DetailLevels()
+var mesh = Asset.Mesh()
+var segments = 96
+var rings = 48
+
+func build() {
+    var fingerprint = cache.fingerprint("check sphere 1")
+    assert not cache.is_current("mesh.check.sphere", fingerprint)
+    var ring = 0
+    while ring <= rings {
+        var segment = 0
+        while segment <= segments {
+            add_vertex(ring, segment)
+            segment = segment + 1
+        }
+        ring = ring + 1
+    }
+    ring = 0
+    while ring < rings {
+        var segment = 0
+        while segment < segments {
+            add_quad(ring, segment)
+            segment = segment + 1
+        }
+        ring = ring + 1
+    }
+    var index_count = mesh.indices.count()
+    mesh.add_section(0, index_count, "")
+    details.generate(mesh)
+    var levels = mesh.detail_level_count()
+    console.print("recipe: check sphere levels", levels)
+    var level = 0
+    while level < details.triangle_counts.count() and level < details.errors.count() {
+        var triangles = details.triangle_counts[level]
+        var error = details.errors[level]
+        console.print("recipe: level", level, "triangles", triangles, "error", error)
+        level = level + 1
+    }
+    var pack = Pack<Asset.Mesh>()
+    var bytes = Asset.Bytes()
+    pack.encode(mesh, bytes)
+    cache.put("mesh.check.sphere", fingerprint, bytes)
+}
+
+func add_vertex(ring: Integer, segment: Integer) {
+    var down: Float = ring
+    down = down / rings
+    var around: Float = segment
+    around = around / segments
+    var polar = down * scalar.pi
+    var azimuth = around * scalar.two_pi
+    var ring_radius = scalar.sine(polar)
+    var normal_x = ring_radius * scalar.cosine(azimuth)
+    var normal_y = scalar.cosine(polar)
+    var normal_z = ring_radius * scalar.sine(azimuth)
+    mesh.vertices.append(normal_x * 0.5)
+    mesh.vertices.append(normal_y * 0.5)
+    mesh.vertices.append(normal_z * 0.5)
+    mesh.vertices.append(normal_x)
+    mesh.vertices.append(normal_y)
+    mesh.vertices.append(normal_z)
+    mesh.vertices.append(around)
+    mesh.vertices.append(down)
+}
+
+func add_quad(ring: Integer, segment: Integer) {
+    var row = segments + 1
+    var top_left = ring * row + segment
+    var top_right = top_left + 1
+    var bottom_left = top_left + row
+    var bottom_right = bottom_left + 1
+    if ring > 0 {
+        mesh.indices.append(top_left)
+        mesh.indices.append(top_right)
+        mesh.indices.append(bottom_right)
+    }
+    if ring < rings - 1 {
+        mesh.indices.append(top_left)
+        mesh.indices.append(bottom_right)
+        mesh.indices.append(bottom_left)
+    }
+}

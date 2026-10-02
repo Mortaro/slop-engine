@@ -1,0 +1,287 @@
+type Checked {
+    entity: Entity
+    camera: Scene.Component.ViewCamera
+    draw_list: Render.Component.DrawList
+}
+
+type Quitting {
+    frame: Component.Frame
+    running: Without<Component.Quit>
+}
+
+var placed = Placed()
+var meshes = Scene.Meshes()
+var draws = Scene.Draws()
+var details = Scene.DetailPicker()
+var renderer = RenderVulkan.Renderer()
+var cameras = Lookup<Camera.Component.Camera>()
+var transforms = Lookup<Transform.Component.Transform>()
+var captured_frames = Lookup<RenderVulkan.Component.Captured>()
+var console = Console()
+var world = World()
+var scalar = Math.Scalar()
+var phase = 0
+var ticks = 0
+var steady = 0
+var last_count = -1
+var distance: Float = 2.0
+var last_level = -1
+var last_distance: Float = 0.0
+var transitions_out = 0
+var transitions_in = 0
+var capture_asked = false
+
+func last_each(checked: Checked, _quitting: Quitting) {
+    var drawn = draws.of(checked.entity.id)
+    ticks = ticks + 1
+    switch phase {
+        0: settle(drawn)
+        1: wait_for_occlusion(drawn)
+        2: turn(drawn, 1.2490458, 1)
+        3: turn(drawn, 0.0, -1)
+        4: wait_for_reveal(drawn)
+        5: check_capture(checked)
+        6: walk(drawn, checked.camera, 1.02)
+        _: walk(drawn, checked.camera, 0.98)
+    }
+}
+
+func next_phase() {
+    phase = phase + 1
+    ticks = 0
+}
+
+func sphere_slot(): Integer {
+    return meshes.request("mesh.check.sphere")
+}
+
+func settle(drawn: Scene.DrawSet) {
+    var sphere = sphere_slot()
+    var cube = meshes.request("mesh.check.cube")
+    assert meshes.is_ready(sphere) and meshes.is_ready(cube)
+    var count = drawn.draws.count()
+    if count == last_count and count > 0 {
+        steady = steady + 1
+    } else {
+        steady = 0
+    }
+    last_count = count
+    assert steady >= 10 and drawn.occlusion.ready
+    check_levels(sphere)
+    next_phase()
+}
+
+func check_levels(slot: Integer) {
+    var loaded = meshes.mesh_at(slot)
+    var sizes = loaded.detail_screen_sizes
+    var levels = sizes.count() + 1
+    var enough_levels = levels >= 4
+    crash enough_levels
+    var sections = loaded.sections.count() / 3
+    crash loaded.sections[1]
+    var previous = loaded.sections[1]
+    var vertex_count = loaded.vertices.length / 52
+    var level = 1
+    while level < levels {
+        var at = (level - 1) * sections * 2
+        crash loaded.detail_sections[at]
+        crash loaded.detail_sections[at + 1]
+        var first = loaded.detail_sections[at]
+        var count = loaded.detail_sections[at + 1]
+        var fewer = count < previous and count > 0
+        crash fewer
+        check_indices(loaded, first, count, vertex_count)
+        crash sizes[level - 1]
+        var size = sizes[level - 1]
+        var triangles = count / 3
+        console.print("level", level, "triangles", triangles, "screen size", size)
+        previous = count
+        level = level + 1
+    }
+}
+
+func check_indices(loaded: Scene.LoadedMesh, first: Integer, count: Integer, vertex_count: Integer) {
+    var index = first
+    while index < first + count {
+        var vertex = index_at(loaded, index)
+        var inside = vertex >= 0 and vertex < vertex_count
+        crash inside
+        index = index + 1
+    }
+}
+
+func index_at(loaded: Scene.LoadedMesh, index: Integer): Integer {
+    var at = index * 4
+    var low = loaded.indices.byte_at(at)
+    var second = loaded.indices.byte_at(at + 1)
+    var third = loaded.indices.byte_at(at + 2)
+    var high = loaded.indices.byte_at(at + 3)
+    return low + second * 256 + third * 65536 + high * 16777216
+}
+
+func find_sphere(drawn: Scene.DrawSet, at_x: Float, at_z: Float): Scene.Draw? {
+    var slot = sphere_slot()
+    var index = 0
+    while index < drawn.draws.count() {
+        var draw = drawn.draws[index]
+        var across = scalar.absolute(draw.model.m12 - at_x)
+        var along = scalar.absolute(draw.model.m14 - at_z)
+        if draw.mesh_slot == slot and across < 0.01 and along < 0.01 {
+            return draw
+        }
+        index = index + 1
+    }
+    return null
+}
+
+func hidden_occluded(drawn: Scene.DrawSet): Boolean {
+    var hidden = find_sphere(drawn, 0.0, 20.0)
+    if hidden {
+        return hidden.occluded
+    }
+    return false
+}
+
+func wait_for_occlusion(drawn: Scene.DrawSet) {
+    never_hidden(drawn, -9.0, 20.0, "beside")
+    var waited_too_long = ticks > 60
+    crash not waited_too_long
+    assert hidden_occluded(drawn)
+    console.print("hidden sphere occluded after", ticks, "ticks")
+    next_phase()
+}
+
+func never_hidden(drawn: Scene.DrawSet, at_x: Float, at_z: Float, name: String) {
+    var draw = find_sphere(drawn, at_x, at_z)
+    assert draw
+    if draw.occluded {
+        console.print("sphere", name, "was culled while in view, tick", ticks, "phase", phase)
+    }
+    crash not draw.occluded
+}
+
+func turn(drawn: Scene.DrawSet, angle: Float, direction: Integer) {
+    never_hidden(drawn, -9.0, 20.0, "beside")
+    never_hidden(drawn, 30.0, 10.0, "aside")
+    var progress: Float = ticks
+    progress = scalar.minimum(progress / 40.0, 1.0)
+    var start_angle = 1.2490458 - angle
+    var heading = start_angle + (angle - start_angle) * progress
+    var camera = cameras.of(placed.camera)
+    crash camera
+    camera.target_x = camera.eye_x + scalar.sine(heading) * 20.0
+    camera.target_z = camera.eye_z + scalar.cosine(heading) * 20.0
+    assert ticks >= 50
+    if direction > 0 {
+        var aside = find_sphere(drawn, 30.0, 10.0)
+        crash aside
+        console.print("turned to the side sphere: drawn and never culled while in view")
+        next_phase()
+        return
+    }
+    var hidden_again = hidden_occluded(drawn)
+    crash hidden_again
+    var wall = transforms.of(placed.wall)
+    crash wall
+    wall.position_y = -100.0
+    console.print("turned back: hidden sphere occluded again; wall moved away")
+    next_phase()
+}
+
+func wait_for_reveal(drawn: Scene.DrawSet) {
+    var waited_too_long = ticks > 3
+    crash not waited_too_long
+    var hidden = find_sphere(drawn, 0.0, 20.0)
+    assert hidden
+    assert not hidden.occluded
+    console.print("hidden sphere drawn again", ticks, "ticks after the wall moved")
+    next_phase()
+}
+
+func check_capture(checked: Checked) {
+    if not capture_asked {
+        capture_asked = true
+        var request = RenderVulkan.Component.CaptureRequested()
+        checked.entity.add_component(request)
+    }
+    assert captured_frames.has(checked.entity.id)
+    var width = checked.draw_list.width
+    var height = checked.draw_list.height
+    var center = renderer.pixel_at(width / 2, height / 2)
+    var red = center.shifted_right(16).bits_and(255)
+    var green = center.shifted_right(8).bits_and(255)
+    var blue = center.bits_and(255)
+    var sky = renderer.pixel_at(4, 4)
+    var sky_red = sky.shifted_right(16).bits_and(255)
+    var sky_blue = sky.bits_and(255)
+    console.print("center pixel", red, green, blue, "sky pixel", sky_red, sky_blue)
+    var sphere_shown = blue - red < sky_blue - sky_red - 20
+    crash sphere_shown
+    next_phase()
+}
+
+func walk(drawn: Scene.DrawSet, view_camera: Scene.Component.ViewCamera, factor: Float) {
+    var along_x = view_camera.eye_x
+    var along_y = view_camera.eye_y - 1.0
+    var along_z = view_camera.eye_z - 20.0
+    var seen = scalar.square_root(along_x * along_x + along_y * along_y + along_z * along_z)
+    var hidden = find_sphere(drawn, 0.0, 20.0)
+    crash hidden
+    var level = hidden.detail_level
+    if ticks > 2 and level != last_level {
+        check_transition(view_camera, level, seen)
+    }
+    last_level = level
+    last_distance = seen
+    distance = distance * factor
+    var camera = cameras.of(placed.camera)
+    crash camera
+    camera.eye_x = 0.0
+    camera.eye_y = 1.0
+    camera.eye_z = 20.0 - distance
+    camera.target_x = 0.0
+    camera.target_y = 1.0
+    camera.target_z = 20.0
+    var out_done = factor > 1.0 and distance > 400.0
+    var in_done = factor < 1.0 and distance < 2.0
+    if out_done {
+        next_phase()
+    }
+    assert in_done
+    var both_ways = transitions_out >= 3 and transitions_in >= 3
+    crash both_ways
+    console.print("detail levels switched", transitions_out, "times going out and", transitions_in, "coming back")
+    console.print("lod check passed")
+    var quit = Component.Quit()
+    world.as_entity().add_component(quit)
+    phase = 9
+}
+
+func check_transition(view_camera: Scene.Component.ViewCamera, level: Integer, seen: Float) {
+    var slot = sphere_slot()
+    var loaded = meshes.mesh_at(slot)
+    var tangent = scalar.tangent(view_camera.field_of_view * 0.5)
+    var radius = loaded.bound_radius * 2.0
+    var going_out = level > last_level
+    var crossed = level
+    var factor = 1.0 - details.hysteresis
+    if not going_out {
+        crossed = last_level
+        factor = 1.0 + details.hysteresis
+    }
+    var one_step = level - last_level == 1 or last_level - level == 1
+    crash one_step
+    crash loaded.detail_screen_sizes[crossed - 1]
+    var threshold = loaded.detail_screen_sizes[crossed - 1] * factor
+    var expected = radius / (threshold * tangent)
+    var low = scalar.minimum(last_distance, seen) * 0.999
+    var high = scalar.maximum(last_distance, seen) * 1.001
+    console.print("level", last_level, "to", level, "between", last_distance, "and", seen, "expected", expected)
+    var where_expected = expected >= low and expected <= high
+    crash where_expected
+    if going_out {
+        transitions_out = transitions_out + 1
+    } else {
+        transitions_in = transitions_in + 1
+    }
+}

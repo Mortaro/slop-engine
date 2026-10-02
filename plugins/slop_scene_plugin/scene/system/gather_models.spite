@@ -18,6 +18,8 @@ var skins = Lookup<Component.Skin>()
 var draws = Scene.Draws()
 var lights = Scene.Lights()
 var no_palette = List<Math.Matrix4>()
+var details = Scene.DetailPicker()
+var detail_levels = Lookup<Component.DetailLevel>()
 
 func render_each(target: Target, modeled: Modeled) {
     add_draw(target, modeled)
@@ -50,6 +52,15 @@ func add_draw(target: Target, modeled: Modeled) {
         mark_view(modeled.entity, casting)
     }
     assert casting
+    var level = details.level_for(
+        detail_levels,
+        modeled.entity,
+        loaded,
+        target.view.cone,
+        radius,
+        drawn.forced_detail_level,
+    )
+    var occluded = drawn.culls_occluded and drawn.occlusion.hides(target.view.cone, radius, drawn.camera_cut)
     var palette_first = 0
     if skinned {
         palette_first = drawn.palettes.count()
@@ -69,6 +80,8 @@ func add_draw(target: Target, modeled: Modeled) {
         draw.center_y = target.view.cone.placed.y_value
         draw.center_z = target.view.cone.placed.z_value
         draw.radius = radius
+        draw.detail_level = level
+        draw.occluded = occluded
         add_section(drawn, loaded, draw, section, in_view)
         section = section + 1
     }
@@ -82,6 +95,9 @@ func add_section(drawn: Scene.DrawSet, loaded: Scene.LoadedMesh, draw: Scene.Dra
     draw.section = section
     draw.first_index = loaded.sections[at]
     draw.index_count = loaded.sections[at + 1]
+    var section_count = loaded.sections.count() / 3
+    details.narrow(draw, loaded, section_count)
+    assert draw.index_count > 0
     var material = loaded.sections[at + 2]
     draw.masked = loaded.masked_materials.contains(material)
     if material < loaded.textures.count() {
