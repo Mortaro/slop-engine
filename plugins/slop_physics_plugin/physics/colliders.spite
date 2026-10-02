@@ -15,9 +15,11 @@ var slot_counts = List<Integer>()
 var character_slots = List<Integer>()
 var static_slots = List<Integer>()
 var moving_slots = List<Integer>()
+var character_list = List<Integer>()
 var trigger_slots = List<Integer>()
 var static_grid = Physics.Grid()
 var moving_grid = Physics.Grid()
+var character_grid = Physics.Grid()
 var membership_changed = true
 var statics_changed = true
 var dead_count = 0
@@ -49,6 +51,7 @@ var narrow_tests = 0
 func configure(cell_size: Float) {
     static_grid.cell_size = cell_size
     moving_grid.cell_size = cell_size
+    character_grid.cell_size = cell_size
     statics_changed = true
 }
 
@@ -397,8 +400,24 @@ func move_character(entity: Integer, transform: Transform.Component.Transform) {
     assert slot >= 0
     var base = slot * 24
     crash base + 23 < shapes.count()
-    build_character(transform, shapes[base + 21], shapes[base + 23])
-    store(slot, built, 0.0, shapes[base + 23])
+    var radius = shapes[base + 21]
+    var height = shapes[base + 23]
+    var bottom = transform.position_y + radius
+    var top = greater(transform.position_y + height - radius, bottom)
+    shapes[base] = transform.position_x
+    shapes[base + 1] = bottom
+    shapes[base + 2] = transform.position_z
+    shapes[base + 3] = transform.position_x
+    shapes[base + 4] = top
+    shapes[base + 5] = transform.position_z
+    var edge = slot * 6
+    crash edge + 5 < bounds.count()
+    bounds[edge] = transform.position_x - radius
+    bounds[edge + 1] = bottom - radius
+    bounds[edge + 2] = transform.position_z - radius
+    bounds[edge + 3] = transform.position_x + radius
+    bounds[edge + 4] = top + radius
+    bounds[edge + 5] = transform.position_z + radius
 }
 
 func prepare() {
@@ -413,6 +432,9 @@ func prepare() {
         statics_changed = false
     }
     moving_grid.build(moving_slots, bounds)
+    if trigger_slots.count() > 0 {
+        character_grid.build(character_list, bounds)
+    }
 }
 
 func ensure_prepared() {
@@ -424,12 +446,15 @@ func ensure_prepared() {
 func sort_membership() {
     static_slots.clear()
     moving_slots.clear()
+    character_list.clear()
     trigger_slots.clear()
     var slot = 0
     while slot < flags.count() {
         var flag = flags[slot]
         if flag.bits_and(trigger) != 0 {
             trigger_slots.append(slot)
+        } else if flag.bits_and(character) != 0 {
+            character_list.append(slot)
         } else if flag.bits_and(moving) != 0 {
             moving_slots.append(slot)
         } else if flag.bits_and(solid) != 0 {
@@ -565,7 +590,7 @@ func nearest(
     ensure_prepared()
     next_stamp()
     var length = (motion_x * motion_x + motion_y * motion_y + motion_z * motion_z).square_root()
-    var pieces: Integer = (length / static_grid.cell_size).clamp(0.0, 100000.0)
+    var pieces: Integer = clamped(length / static_grid.cell_size, 0.0, 100000.0)
     pieces = pieces + 1
     if brute_force {
         pieces = 1
@@ -576,12 +601,12 @@ func nearest(
     var local_end_y = end_y - start_y
     var local_end_z = end_z - start_z
     var reach = radius + geometry.tolerance
-    var whole_lowest_x = start_x.minimum(end_x) + motion_x.minimum(0.0) - reach
-    var whole_lowest_y = start_y.minimum(end_y) + motion_y.minimum(0.0) - reach
-    var whole_lowest_z = start_z.minimum(end_z) + motion_z.minimum(0.0) - reach
-    var whole_highest_x = start_x.maximum(end_x) + motion_x.maximum(0.0) + reach
-    var whole_highest_y = start_y.maximum(end_y) + motion_y.maximum(0.0) + reach
-    var whole_highest_z = start_z.maximum(end_z) + motion_z.maximum(0.0) + reach
+    var whole_lowest_x = lesser(start_x, end_x) + lesser(motion_x, 0.0) - reach
+    var whole_lowest_y = lesser(start_y, end_y) + lesser(motion_y, 0.0) - reach
+    var whole_lowest_z = lesser(start_z, end_z) + lesser(motion_z, 0.0) - reach
+    var whole_highest_x = greater(start_x, end_x) + greater(motion_x, 0.0) + reach
+    var whole_highest_y = greater(start_y, end_y) + greater(motion_y, 0.0) + reach
+    var whole_highest_z = greater(start_z, end_z) + greater(motion_z, 0.0) + reach
     var piece = 0
     while piece < pieces {
         var from: Float = piece
@@ -591,10 +616,10 @@ func nearest(
         if found and best < from {
             return true
         }
-        var lowest_x = start_x.minimum(end_x) + motion_x.minimum(0.0) * to + motion_x.maximum(0.0) * from - reach
-        var lowest_z = start_z.minimum(end_z) + motion_z.minimum(0.0) * to + motion_z.maximum(0.0) * from - reach
-        var highest_x = start_x.maximum(end_x) + motion_x.maximum(0.0) * to + motion_x.minimum(0.0) * from + reach
-        var highest_z = start_z.maximum(end_z) + motion_z.maximum(0.0) * to + motion_z.minimum(0.0) * from + reach
+        var lowest_x = lesser(start_x, end_x) + lesser(motion_x, 0.0) * to + greater(motion_x, 0.0) * from - reach
+        var lowest_z = lesser(start_z, end_z) + lesser(motion_z, 0.0) * to + greater(motion_z, 0.0) * from - reach
+        var highest_x = greater(start_x, end_x) + greater(motion_x, 0.0) * to + lesser(motion_x, 0.0) * from + reach
+        var highest_z = greater(start_z, end_z) + greater(motion_z, 0.0) * to + lesser(motion_z, 0.0) * from + reach
         candidates.clear()
         collect(lowest_x, lowest_z, highest_x, highest_z)
         var index = 0
@@ -765,12 +790,12 @@ func deepest_overlap(
 ): Boolean {
     ensure_prepared()
     next_stamp()
-    var lowest_x = start_x.minimum(end_x) - radius
-    var lowest_y = start_y.minimum(end_y) - radius
-    var lowest_z = start_z.minimum(end_z) - radius
-    var highest_x = start_x.maximum(end_x) + radius
-    var highest_y = start_y.maximum(end_y) + radius
-    var highest_z = start_z.maximum(end_z) + radius
+    var lowest_x = lesser(start_x, end_x) - radius
+    var lowest_y = lesser(start_y, end_y) - radius
+    var lowest_z = lesser(start_z, end_z) - radius
+    var highest_x = greater(start_x, end_x) + radius
+    var highest_y = greater(start_y, end_y) + radius
+    var highest_z = greater(start_z, end_z) + radius
     candidates.clear()
     collect(lowest_x, lowest_z, highest_x, highest_z)
     penetration_depth = 0.0
@@ -829,6 +854,7 @@ func overlaps_of_trigger(slot: Integer) {
         collect(lowest_x, lowest_z, highest_x, highest_z)
     } else {
         moving_grid.gather(lowest_x, lowest_z, highest_x, highest_z, candidates, stamps, stamp)
+        character_grid.gather(lowest_x, lowest_z, highest_x, highest_z, candidates, stamps, stamp)
     }
     var index = 0
     while index < candidates.count() {
@@ -844,4 +870,28 @@ func overlaps_of_trigger(slot: Integer) {
         }
         index = index + 1
     }
+}
+
+func lesser(first: Float, second: Float): Float {
+    if second < first {
+        return second
+    }
+    return first
+}
+
+func greater(first: Float, second: Float): Float {
+    if second > first {
+        return second
+    }
+    return first
+}
+
+func clamped(value: Float, low: Float, high: Float): Float {
+    if value < low {
+        return low
+    }
+    if value > high {
+        return high
+    }
+    return value
 }

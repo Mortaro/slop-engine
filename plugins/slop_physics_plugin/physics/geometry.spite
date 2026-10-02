@@ -73,24 +73,24 @@ func choose_parameters(
     along_second = 0.0
     assert first_length > 0.00000001 or second_length > 0.00000001
     if first_length <= 0.00000001 {
-        along_second = (second_between / second_length).clamp(0.0, 1.0)
+        along_second = clamped(second_between / second_length, 0.0, 1.0)
         return
     }
     if second_length <= 0.00000001 {
-        along_first = (-first_between / first_length).clamp(0.0, 1.0)
+        along_first = clamped(-first_between / first_length, 0.0, 1.0)
         return
     }
     var denominator = first_length * second_length - both * both
     if denominator > 0.0 {
-        along_first = ((both * second_between - first_between * second_length) / denominator).clamp(0.0, 1.0)
+        along_first = clamped((both * second_between - first_between * second_length) / denominator, 0.0, 1.0)
     }
     along_second = (both * along_first + second_between) / second_length
     if along_second < 0.0 {
         along_second = 0.0
-        along_first = (-first_between / first_length).clamp(0.0, 1.0)
+        along_first = clamped(-first_between / first_length, 0.0, 1.0)
     } else if along_second > 1.0 {
         along_second = 1.0
-        along_first = ((both - first_between) / first_length).clamp(0.0, 1.0)
+        along_first = clamped((both - first_between) / first_length, 0.0, 1.0)
     }
 }
 
@@ -108,9 +108,9 @@ func point_box(query_x: Float, query_y: Float, query_z: Float, box: Physics.Shap
     var local_x = relative_x * box.axis_x_x + relative_y * box.axis_x_y + relative_z * box.axis_x_z
     var local_y = relative_x * box.axis_y_x + relative_y * box.axis_y_y + relative_z * box.axis_y_z
     var local_z = relative_x * box.axis_z_x + relative_y * box.axis_z_y + relative_z * box.axis_z_z
-    local_x = local_x.clamp(-box.half_x, box.half_x)
-    local_y = local_y.clamp(-box.half_y, box.half_y)
-    local_z = local_z.clamp(-box.half_z, box.half_z)
+    local_x = clamped(local_x, -box.half_x, box.half_x)
+    local_y = clamped(local_y, -box.half_y, box.half_y)
+    local_z = clamped(local_z, -box.half_z, box.half_z)
     on_query_x = query_x
     on_query_y = query_y
     on_query_z = query_z
@@ -254,8 +254,8 @@ func clip_slab(start: Float, delta: Float, half: Float): Boolean {
         entering = leaving
         leaving = swapped
     }
-    clip_low = clip_low.maximum(entering)
-    clip_high = clip_high.minimum(leaving)
+    clip_low = greater(clip_low, entering)
+    clip_high = lesser(clip_high, leaving)
     return clip_low <= clip_high
 }
 
@@ -301,8 +301,114 @@ func segment_box(
     consider(at_start)
     var at_end = point_box(end_x, end_y, end_z, box)
     consider(at_end)
+    var face = beyond_face(local_x, step_x, box.half_x)
+    if face != 0.0 {
+        face_edges(start_x, start_y, start_z, end_x, end_y, end_z, box, face, 0)
+        return finish_best()
+    }
+    face = beyond_face(local_y, step_y, box.half_y)
+    if face != 0.0 {
+        face_edges(start_x, start_y, start_z, end_x, end_y, end_z, box, face, 1)
+        return finish_best()
+    }
+    face = beyond_face(local_z, step_z, box.half_z)
+    if face != 0.0 {
+        face_edges(start_x, start_y, start_z, end_x, end_y, end_z, box, face, 2)
+        return finish_best()
+    }
     box_edges(start_x, start_y, start_z, end_x, end_y, end_z, box)
     return finish_best()
+}
+
+func beyond_face(start: Float, step: Float, half: Float): Float {
+    var finish = start + step
+    if start > half and finish > half {
+        return 1.0
+    }
+    if start < -half and finish < -half {
+        return -1.0
+    }
+    return 0.0
+}
+
+func face_edges(
+    start_x: Float,
+    start_y: Float,
+    start_z: Float,
+    end_x: Float,
+    end_y: Float,
+    end_z: Float,
+    box: Physics.Shape,
+    side: Float,
+    axis: Integer,
+) {
+    var across_x = box.axis_x_x * box.half_x
+    var across_y = box.axis_x_y * box.half_x
+    var across_z = box.axis_x_z * box.half_x
+    var first_x = box.axis_y_x * box.half_y
+    var first_y = box.axis_y_y * box.half_y
+    var first_z = box.axis_y_z * box.half_y
+    var second_x = box.axis_z_x * box.half_z
+    var second_y = box.axis_z_y * box.half_z
+    var second_z = box.axis_z_z * box.half_z
+    if axis == 1 {
+        across_x = box.axis_y_x * box.half_y
+        across_y = box.axis_y_y * box.half_y
+        across_z = box.axis_y_z * box.half_y
+        first_x = box.axis_x_x * box.half_x
+        first_y = box.axis_x_y * box.half_x
+        first_z = box.axis_x_z * box.half_x
+    } else if axis == 2 {
+        across_x = box.axis_z_x * box.half_z
+        across_y = box.axis_z_y * box.half_z
+        across_z = box.axis_z_z * box.half_z
+        second_x = box.axis_x_x * box.half_x
+        second_y = box.axis_x_y * box.half_x
+        second_z = box.axis_x_z * box.half_x
+    }
+    var face_x = box.first_x + across_x * side
+    var face_y = box.first_y + across_y * side
+    var face_z = box.first_z + across_z * side
+    var sign: Float = -1.0
+    while sign < 2.0 {
+        var along_x = face_x + second_x * sign
+        var along_y = face_y + second_y * sign
+        var along_z = face_z + second_z * sign
+        var on_first = segment_segment(
+            start_x,
+            start_y,
+            start_z,
+            end_x,
+            end_y,
+            end_z,
+            along_x - first_x,
+            along_y - first_y,
+            along_z - first_z,
+            along_x + first_x,
+            along_y + first_y,
+            along_z + first_z,
+        )
+        consider(on_first)
+        var beside_x = face_x + first_x * sign
+        var beside_y = face_y + first_y * sign
+        var beside_z = face_z + first_z * sign
+        var on_second = segment_segment(
+            start_x,
+            start_y,
+            start_z,
+            end_x,
+            end_y,
+            end_z,
+            beside_x - second_x,
+            beside_y - second_y,
+            beside_z - second_z,
+            beside_x + second_x,
+            beside_y + second_y,
+            beside_z + second_z,
+        )
+        consider(on_second)
+        sign = sign + 2.0
+    }
 }
 
 func box_edges(
@@ -728,8 +834,10 @@ func triangle_apart_on(
     var first = (triangle.first_x - box.first_x) * axis_x + (triangle.first_y - box.first_y) * axis_y + (triangle.first_z - box.first_z) * axis_z
     var second = (triangle.second_x - box.first_x) * axis_x + (triangle.second_y - box.first_y) * axis_y + (triangle.second_z - box.first_z) * axis_z
     var third = (triangle.third_x - box.first_x) * axis_x + (triangle.third_y - box.first_y) * axis_y + (triangle.third_z - box.first_z) * axis_z
-    var lowest = first.minimum(second).minimum(third)
-    var highest = first.maximum(second).maximum(third)
+    var lowest = lesser(first, second)
+    lowest = lesser(lowest, third)
+    var highest = greater(first, second)
+    highest = greater(highest, third)
     var reach = box_extent(box, axis_x, axis_y, axis_z)
     return lowest > reach or highest < -reach
 }
@@ -793,4 +901,28 @@ func box_overlaps_triangle(box: Physics.Shape, triangle: Physics.Shape): Boolean
         crossings = crossings + 1
     }
     return true
+}
+
+func lesser(first: Float, second: Float): Float {
+    if second < first {
+        return second
+    }
+    return first
+}
+
+func greater(first: Float, second: Float): Float {
+    if second > first {
+        return second
+    }
+    return first
+}
+
+func clamped(value: Float, low: Float, high: Float): Float {
+    if value < low {
+        return low
+    }
+    if value > high {
+        return high
+    }
+    return value
 }

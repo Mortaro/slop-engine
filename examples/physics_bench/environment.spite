@@ -1,0 +1,6 @@
+var characters = 5000
+var boxes = 10000
+var triggers = 200
+var ticks = 100
+var world_size = 1024
+var brute_force = false

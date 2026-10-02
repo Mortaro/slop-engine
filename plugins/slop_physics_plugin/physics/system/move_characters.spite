@@ -30,7 +30,7 @@ func update_each(clock: GameClock, walking: Walking) {
     position_y = transform.position_y
     position_z = transform.position_z
     radius = character.radius
-    height = character.height.maximum(character.radius * 2.0)
+    height = greater(character.height, character.radius * 2.0)
     ignored = walking.entity.id
     floor_limit = (character.slope_limit * Float.pi / 180.0).cosine()
     var was_grounded = grounded_markers.has(ignored)
@@ -139,7 +139,7 @@ func slide(motion_x: Float, motion_y: Float, motion_z: Float, walking: Boolean) 
         }
         var length = squared.square_root()
         var fraction = colliders.hit_fraction
-        var travel = (fraction * length - skin).maximum(0.0) / length
+        var travel = greater(fraction * length - skin, 0.0) / length
         position_x = position_x + remaining_x * travel
         position_y = position_y + remaining_y * travel
         position_z = position_z + remaining_z * travel
@@ -221,7 +221,7 @@ func walk(move_x: Float, move_z: Float, step_height: Float) {
     position_y = start_y
     var rise = step_height
     if cast(0.0, step_height, 0.0) {
-        rise = (colliders.hit_fraction * step_height - skin).maximum(0.0)
+        rise = greater(colliders.hit_fraction * step_height - skin, 0.0)
     }
     position_y = position_y + rise
     slide(move_x, 0.0, move_z, true)
@@ -261,7 +261,7 @@ func lands(reach: Float): Boolean {
     if not walkable(normal_x, normal_y, normal_z, touched_x, touched_y, touched_z) {
         return false
     }
-    position_y = position_y - (fraction * reach - skin).maximum(0.0)
+    position_y = position_y - greater(fraction * reach - skin, 0.0)
     return true
 }
 
@@ -290,4 +290,28 @@ func walkable(
     }
     surface_y = probe_y - colliders.hit_fraction * 0.1
     return (surface_y - touched_y).absolute() < 0.03
+}
+
+func lesser(first: Float, second: Float): Float {
+    if second < first {
+        return second
+    }
+    return first
+}
+
+func greater(first: Float, second: Float): Float {
+    if second > first {
+        return second
+    }
+    return first
+}
+
+func clamped(value: Float, low: Float, high: Float): Float {
+    if value < low {
+        return low
+    }
+    if value > high {
+        return high
+    }
+    return value
 }

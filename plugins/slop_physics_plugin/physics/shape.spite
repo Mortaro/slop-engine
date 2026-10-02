@@ -179,9 +179,9 @@ func lowest_x(): Float {
     if kind == 1 {
         return first_x - reach_x()
     }
-    var lowest = first_x.minimum(second_x)
+    var lowest = lesser(first_x, second_x)
     if kind == 2 {
-        lowest = lowest.minimum(third_x)
+        lowest = lesser(lowest, third_x)
     }
     return lowest - radius
 }
@@ -190,9 +190,9 @@ func lowest_y(): Float {
     if kind == 1 {
         return first_y - reach_y()
     }
-    var lowest = first_y.minimum(second_y)
+    var lowest = lesser(first_y, second_y)
     if kind == 2 {
-        lowest = lowest.minimum(third_y)
+        lowest = lesser(lowest, third_y)
     }
     return lowest - radius
 }
@@ -201,9 +201,9 @@ func lowest_z(): Float {
     if kind == 1 {
         return first_z - reach_z()
     }
-    var lowest = first_z.minimum(second_z)
+    var lowest = lesser(first_z, second_z)
     if kind == 2 {
-        lowest = lowest.minimum(third_z)
+        lowest = lesser(lowest, third_z)
     }
     return lowest - radius
 }
@@ -212,9 +212,9 @@ func highest_x(): Float {
     if kind == 1 {
         return first_x + reach_x()
     }
-    var highest = first_x.maximum(second_x)
+    var highest = greater(first_x, second_x)
     if kind == 2 {
-        highest = highest.maximum(third_x)
+        highest = greater(highest, third_x)
     }
     return highest + radius
 }
@@ -223,9 +223,9 @@ func highest_y(): Float {
     if kind == 1 {
         return first_y + reach_y()
     }
-    var highest = first_y.maximum(second_y)
+    var highest = greater(first_y, second_y)
     if kind == 2 {
-        highest = highest.maximum(third_y)
+        highest = greater(highest, third_y)
     }
     return highest + radius
 }
@@ -234,9 +234,33 @@ func highest_z(): Float {
     if kind == 1 {
         return first_z + reach_z()
     }
-    var highest = first_z.maximum(second_z)
+    var highest = greater(first_z, second_z)
     if kind == 2 {
-        highest = highest.maximum(third_z)
+        highest = greater(highest, third_z)
     }
     return highest + radius
+}
+
+func lesser(first: Float, second: Float): Float {
+    if second < first {
+        return second
+    }
+    return first
+}
+
+func greater(first: Float, second: Float): Float {
+    if second > first {
+        return second
+    }
+    return first
+}
+
+func clamped(value: Float, low: Float, high: Float): Float {
+    if value < low {
+        return low
+    }
+    if value > high {
+        return high
+    }
+    return value
 }
