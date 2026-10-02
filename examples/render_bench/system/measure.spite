@@ -32,6 +32,7 @@ func last_each(checked: Checked, _quitting: Quitting) {
     measured = measured + 1
     if measured == environment.measured_frames {
         console.print("draws", drawn)
+        print_culling(checked.entity.id)
         var timings = renderer.gpu_timings.describe()
         console.print(timings)
         var request = RenderVulkan.Component.CaptureRequested()
@@ -45,6 +46,26 @@ func last_each(checked: Checked, _quitting: Quitting) {
         return
     }
     keep_capture(checked.draw_list.width, checked.draw_list.height)
+}
+
+func print_culling(view: Integer) {
+    var drawn = draws.of(view).draws
+    var occluded = 0
+    var triangles = 0
+    var shadow_triangles = 0
+    var index = 0
+    while index < drawn.count() {
+        var draw = drawn[index]
+        var draw_triangles = draw.index_count / 3
+        shadow_triangles = shadow_triangles + draw_triangles
+        if draw.occluded {
+            occluded = occluded + 1
+        } else {
+            triangles = triangles + draw_triangles
+        }
+        index = index + 1
+    }
+    console.print("occluded draws", occluded, "scene triangles", triangles, "shadow triangles", shadow_triangles)
 }
 
 func settled(drawn: Integer): Boolean {

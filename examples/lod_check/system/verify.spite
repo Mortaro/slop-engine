@@ -189,7 +189,7 @@ func turn(drawn: Scene.DrawSet, angle: Float, direction: Integer) {
 }
 
 func wait_for_reveal(drawn: Scene.DrawSet) {
-    var waited_too_long = ticks > 10
+    var waited_too_long = ticks > 3
     crash not waited_too_long
     var hidden = find_sphere(drawn, 0.0, 20.0)
     assert hidden

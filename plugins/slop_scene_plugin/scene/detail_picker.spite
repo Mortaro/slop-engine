@@ -1,7 +1,12 @@
 var culling = Scene.Culling()
-var levels = Lookup<Scene.Component.DetailLevel>()
 
-func level_for(entity: Entity, mesh: Scene.LoadedMesh, cone: Scene.ViewCone, radius: Float): Integer {
+func level_for(
+    levels: Lookup<Scene.Component.DetailLevel>,
+    entity: Entity,
+    mesh: Scene.LoadedMesh,
+    cone: Scene.ViewCone,
+    radius: Float,
+): Integer {
     var count = mesh.detail_screen_sizes.count()
     if count == 0 {
         return 0

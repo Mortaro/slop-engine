@@ -197,12 +197,45 @@ func add_slot(renderer: RenderVulkan.Renderer) {
 
 func publish(renderer: RenderVulkan.Renderer, slot: Integer) {
     var previous = (slot + renderer.frames_in_flight - 1) % renderer.frames_in_flight
-    if ready_to_publish(previous) and fence_signalled(renderer, previous) {
-        publish_slot(previous)
-        published[slot] = true
-        return
-    }
+    var newer = ready_to_publish(previous) and fence_signalled(renderer, previous)
     if ready_to_publish(slot) {
+        var superseded = newer and owners[slot] == owners[previous]
+        if superseded {
+            published[slot] = true
+        } else {
+            publish_slot(slot)
+        }
+    }
+    if newer {
+        publish_slot(previous)
+    }
+}
+
+func publish_finished(renderer: RenderVulkan.Renderer) {
+    var slot = 0
+    while slot < built.count() {
+        if ready_to_publish(slot) and fence_signalled(renderer, slot) {
+            publish_unless_superseded(renderer, slot)
+        }
+        slot = slot + 1
+    }
+}
+
+func publish_unless_superseded(renderer: RenderVulkan.Renderer, slot: Integer) {
+    var other = 0
+    var superseded = false
+    crash built_frames[slot]
+    var built_at = built_frames[slot]
+    while other < built_frames.count() {
+        var newer = built_frames[other] > built_at and owners[other] == owners[slot]
+        if other != slot and newer and ready_to_publish(other) and fence_signalled(renderer, other) {
+            superseded = true
+        }
+        other = other + 1
+    }
+    if superseded {
+        published[slot] = true
+    } else {
         publish_slot(slot)
     }
 }
@@ -289,8 +322,8 @@ func record(
     push.append_integer(block)
     var compute_stage = 32
     vulkan.vkCmdPushConstants(command_buffer, pipeline_layout, compute_stage, 0, push_bytes, push.address)
-    var groups_across = (columns + 7) / 8
-    var groups_down = (rows + 7) / 8
+    var groups_across = (columns + 1) / 2
+    var groups_down = (rows + 1) / 2
     vulkan.vkCmdDispatch(command_buffer, groups_across, groups_down, 1)
     renderer.gpu_timings.end(timing)
     results_to_host(renderer)
@@ -309,7 +342,7 @@ func depth_to_read(renderer: RenderVulkan.Renderer, depth_image: Long) {
     description.append_integer(depth_write)
     description.append_integer(shader_read)
     var attachment_layout = 3
-    var read_layout = 5
+    var read_layout = 4
     description.append_integer(attachment_layout)
     description.append_integer(read_layout)
     description.append_integer(-1)
@@ -420,7 +453,7 @@ func write_set(renderer: RenderVulkan.Renderer, slot: Integer, depth_view: Long)
     var image_information = RenderVulkan.Structure(24)
     image_information.append_long(sampler)
     image_information.append_long(depth_view)
-    var read_layout = 5
+    var read_layout = 4
     image_information.append_integer(read_layout)
     var whole: Long = -1
     var buffer_information = RenderVulkan.Structure(24)

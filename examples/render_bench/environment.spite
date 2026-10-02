@@ -6,3 +6,6 @@ var pillars = 400
 var lights = 64
 var measured_frames = 200
 var capture = ""
+var field = 0
+var lod = true
+var occlusion = true

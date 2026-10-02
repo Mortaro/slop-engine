@@ -18,6 +18,7 @@ var skins = Lookup<Component.Skin>()
 var draws = Scene.Draws()
 var no_palette = List<Math.Matrix4>()
 var details = Scene.DetailPicker()
+var detail_levels = Lookup<Component.DetailLevel>()
 
 func render_each(target: Target, modeled: Modeled) {
     add_draw(target, modeled)
@@ -49,7 +50,7 @@ func add_draw(target: Target, modeled: Modeled) {
         mark_view(target.view, modeled.entity, radius, in_view)
     }
     assert in_view
-    var level = details.level_for(modeled.entity, loaded, target.view.cone, radius)
+    var level = details.level_for(detail_levels, modeled.entity, loaded, target.view.cone, radius)
     var occluded = drawn.occlusion.hides(target.view.cone, radius)
     var palette_first = 0
     if skinned {
