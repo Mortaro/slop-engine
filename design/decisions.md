@@ -38,13 +38,28 @@ parts are Claude's proposals. Mortaro decides the API; a proposal stays marked h
   chosen with `argument_count` (D219); IO systems found with `function_waits` (D209); writing an inline component
   of an IO system's row is a compile error (D261).
 - The clock row is opted into by the row's class (a proposal by Claude).
+- The runner uses no markers: what a system reads and writes comes from its phase function's `function.accesses`
+  (D335), and systems that do not conflict run at the same time (Spite's D362, Mortaro, 2026-10-01, answering item
+  109). Thread affinity is declared on the data, by a component class's `pinned_to_creating_thread()` (D363,
+  Mortaro, 2026-10-01, naming D362's function), the same pattern as `mirrored_from`.
+- Proposals by Claude while building D362 and D363 (2026-10-02), for Mortaro to confirm: pinned systems run on the
+  app's thread, the one that calls `tick()`, and ticking from another thread crashes; a `Lookup` attribute and a
+  resource count as written until `accesses` follows writes through them; markers, `Without` and `Removed` are
+  reads; the stages stay consecutive runs in name order, so moving to read and write conflicts changes which systems
+  share a stage but never the order in which their changes apply; `app.describe_accesses()`.
 
 ## [conventions.md](../docs/conventions.md)
 
+- A component tied to an OS thread declares `pinned_to_creating_thread()` (D363), replacing the rule that no system
+  has thread affinity and that OS-bound state gets a thread of its own.
 - Program code never reads raw addresses (D178).
 
 ## [plugins.md](../docs/plugins.md)
 
+- `Window.Component.Handle` is pinned (D363), so the Win32 systems that touch it run on the app's thread and the
+  dedicated window thread (`Windows.Owner`, `Windows.Pump`) is gone, with `Requested`, `Opening`, `FinishOpening`
+  and `StopWindows`. A window is opened when it has no `Handle` (`Without<Handle>`), and "the window is open" is
+  `Added<Handle>`.
 - Folders are snake_case (D181); a program's subfolders always load (D182); a `load` under an `if` on a `Build`
   field is folded at compile time (D186).
 - Held keys are entities (a proposal by Claude).

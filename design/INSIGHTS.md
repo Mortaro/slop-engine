@@ -201,6 +201,11 @@ All sent to the "Language implementation review" session, which is fixing them o
 | 48 | decided (D205), queued | `function_writes_parameter` counts `row.entity.remove_component(...)` as a write to the row, so IO handlers are refused a structural change | a game writes `world.entity_of(row.entity.id).remove_component(...)`. Coming: `function_writes_parameter_attribute`, so the engine refuses writes to component attributes only |
 | 49 | found, to report (a game's alert A100) | a local `var` in one folded branch of an attribute walk (`if attribute.class == Entity { var own = Entity() ... }`) makes the borrowed `Column<attribute.class>().values[row]` read in the sibling branch an error ("cannot be put in a list"); without the local it compiles | `Stream` fills the entity with `world.entity_of(entity)` |
 | 50 | found, to report (a game's alert A101) | a setter (`set_id(value)`) intercepts `x.id = ...` only when the class has an attribute `id`; the docs describe getters and setters without one | `Entity` keeps `var id = -1` beside its `set_id`, which refuses a negative id |
+| 51 | found, to report | `function.accesses` does not count a write through a value lent by an attribute's function when the value comes from a singleton: `timers.of(id).remaining_while_paused = 0` in `TickTimers` reads as a read of `timers` (`Lookup.of` lends from `Column<T>`); through a value the attribute's own object holds, it does count | the runner counts every `Lookup` attribute as a write |
+| 52 | found, to report | `function.accesses` does not count a call that changes a singleton attribute as a write: `store.add(item)` on a singleton `Store` whose `add` appends to its list reads as a read | the runner counts every singleton but `World` as written |
+| 53 | found, to report | `access.target` cannot be kept in a `var` or switched over ("'target' cannot be read from this value"); only chained reads such as `access.target.name` work | the runner reads `access.target.name` and matches it against the argument and attribute names it already walks |
+| 54 | found, to report | `columns.key(argument.class.element_type)` is refused in a walk over a `_all` function's arguments ("'Class' has no attribute 'element_type'") while `Row<argument.class.element_type>()` in the same walk compiles, and `.class` of a `type` row's value answers `Object` | the runner keys shared rows by the one shared row class it knows, `GameClock` |
+| 55 | found, to report | the abbreviation table reads `hdr` as `header`, but in graphics it means high dynamic range, so the suggested fix is wrong | renamed to `high_dynamic_range_image` and friends |
 | - | design | a class reopened from the program root gets new attributes, but its constructor loses to the loaded folder's version | the test sets window settings in its entry function; sent to Mortaro's decisions file |
 
 ## Gaps that aren't bugs
@@ -403,6 +408,26 @@ what each became:
   speed.
 - **Wall-clock time inside systems is a bug magnet.** Animation sampled the clock per row, so a character's parts
   drifted apart. Systems now read the fixed tick step.
+
+## Update, 2026-10-02: a runner on `function.accesses`
+
+D362 and D363 are built: the runner reads each system's phase function's `accesses`, and the window's `Handle` is
+pinned to its creating thread. What it taught:
+
+- **Accesses per whole argument are too coarse for rows.** A row is one argument, so a system writing one of its
+  components counts as writing all of them, and two systems that read `Transform` but write different components
+  still serialize whenever `Transform` sits in a written row. `server_bench`'s stages did not change for this
+  reason. Accesses per piece (per field of a row argument) would make read sharing the common case; D335 left them
+  for `Changed<T>`, but scheduling needs them now.
+- **The answers that matter most for safety are the ones missing** (bugs 51 and 52): writes through a lookup and
+  through a singleton. A scheduler that trusted `accesses` there would run a writer beside a reader. The runner is
+  conservative for both, so correctness holds and only the parallelism waits on the compiler.
+- **Reflection objects that can only be read, never held**, push code toward matching by name (bug 53). That works,
+  and keeps the runner simple: it records the written names, then classifies the rows and attributes it already
+  walks with Symbol templates.
+- **Thread affinity on the data was easy to build**: a component function folded per class, the way `mirrored_from`
+  is, and a flag on the runner. What Spite lacks is a way to give work to one chosen thread of the pool, so "the
+  thread that created it" is the app's own thread.
 
 ## Suggested order
 

@@ -11,11 +11,12 @@ page gains something that is not built yet, add it here.
 |---|---|
 | Systems as phase functions over `type` rows, found by folder, no registration | built |
 | Links between entities as components (`Parent`, `Owner`), followed by a two-row system, removed with their entity | built |
-| Stages by class conflicts, `Parallel` per system | built; 1.2x on two systems |
+| Stages by read and write conflicts from `function.accesses`, a stage's systems on the thread pool | built (2026-10-02); reads and writes per whole row, see ecs.md below |
+| Components pinned to their creating thread (`pinned_to_creating_thread()`) | built; the window path is compiled but not yet run on Windows |
 | Window, mouse, button interaction, bitmap text | built, Windows only |
 | Vulkan and software backends with pixel parity | built |
 | Recipes as code, assets as declared classes, PSD, zstd, `.blend` structure | built |
-| Read-only and filter-only access | not built: needs compile-time reads and writes |
+| Read-only and filter-only access | built per whole row: markers are never fetched, and a row the system only reads is never written back nor conflicts with other readers; per field waits on per-piece accesses |
 | Blender meshes, skeletons, skins, animations, textures | built ([docs/scene.md](../docs/scene.md)) |
 | Thread pool (`Parallel`, `Concurrent`, IO systems) | built |
 | Parallel iteration inside one system | not built |
@@ -25,6 +26,21 @@ and the click test passed for 5 and 12 clicks.
 
 ## [ecs.md](../docs/ecs.md)
 
+- The runner (D362, D363, 2026-10-02), known gaps:
+  - `function.accesses` answers per whole argument, so a row that writes one component counts as writing every
+    component in it (`parallel_check`'s `Drift` "writes" the `Velocity` it only reads). Scheduling by field needs
+    per-piece accesses, which D335 left for `Changed<T>`.
+  - A `Lookup<T>` attribute always counts as a write of `T`, because `accesses` does not count a write through
+    what `of` lends (it comes from the `Column<T>` singleton; INSIGHTS bug 51), and a resource always counts as
+    written, because `accesses` does not count a call that changes a singleton (bug 52). Both can switch to
+    `access.is_written` once the compiler answers them.
+  - A `Lookup<T>()` made inside a function body, or a column reached through another class (the flex layout's
+    lookups), is invisible to the runner, as before: such a system can share a stage with a writer of that class.
+  - Two systems of one stage that both create entities get ids in the order their threads ask, so ids (never the
+    components, which commands apply in runner order) can differ between parallel runs.
+  - A pinned system runs on the app's thread. A thread of its own per pinned class would need Spite's thread pool to
+    take work for one chosen thread, which it does not offer.
+  - Measured on Linux (4 cores, `--optimized`, medians of interleaved runs): see the table in performance.md below.
 - Which bundle class a value is cannot yet be asked reliably at run time (both forms are language bugs, D237), so a
   bundle the typed spawn path does not recognise takes the reflective path (`attribute.value` walked at run time),
   which is correct and slower: 200,000 bodies of four components in about 650 ms, against about 190 ms typed.
@@ -60,6 +76,11 @@ and the click test passed for 5 and 12 clicks.
   clipboard, and every control past the button, the combo box, the scroll container and the text field.
 
 ## [rendering.md](../docs/rendering.md)
+
+- Windows now pump their messages once a tick on the app's thread (D363), replacing the dedicated window thread
+  that kept pumping while a frame ran long. Not yet run on Windows: the click, text field, drag and drop, combo
+  box, scroll list and resize tests, `render_parity`, and the README's `app.describe()` example, which was written
+  before the runner changed.
 
 - Spite cannot pass a function to C yet, so there is no window procedure written in Spite. Fullscreen and IME need a
   real callback; they wait on the language.
@@ -118,9 +139,9 @@ The whole page is Claude's proposal, unconfirmed; Mortaro decides the API. It is
 
 ## [performance.md](../docs/performance.md)
 
-GPU timestamps per pass are not built yet. There is no parallel iteration inside one system; skipping unread
-fields, never writing back read-only ones, and scheduling by field instead of by class all need the compiler to say
-what a function reads and writes (item 109 in the language's decisions file).
+GPU timestamps per pass are not built yet. There is no parallel iteration inside one system. Rows a system only
+reads are no longer written back (2026-10-02, from `function.accesses`); skipping unread fields and scheduling by
+field instead of by class need accesses per piece rather than per argument.
 
 ### `stress` over time
 
@@ -171,6 +192,13 @@ The benchmarks to race are ecs_bench_suite's: `add_remove` and `schedule` look w
 | Streaming a row | improved: a single-row `_each` system cost about 300 ns per entity even when its body only copied eight floats (`GatherPointLights`, 3,000 rows: 0.9 to 1.1 ms). Most of it was singleton locks: with Spite's reader-side locks, the lock skipped when no `Parallel` runs (d13aae7), and inline storage inferred, it is 0.33 ms, about 110 ns per row (optimized, 2026-09-28). The same change took `server_bench` from 7.7 to 7.4 ms. `stream_bench` (100,000 rows, optimized): one inline component 22 ns, two 37 ns, `Entity` plus one 31 ns, and an inline plus a reference component 180 ns, of which `Column.at` checking and then reading the item cost 35 (now one read, 143 ns). The rest is Spite's generated C: every reference fetched is retained and released (two atomic writes on a cold object, about 70 ns), every inline attribute retains its column's `Items` and takes the singleton guard (about 15 ns), and the row `Vector` is retained per row. Reported to Spite (2026-09-28) |
 
 ## [testing.md](../docs/testing.md)
+
+- On Linux (2026-10-02, Spite master): the headless core and its examples build and run, balanced under
+  `--debug-memory`; the store lock goes through `flock` there (`os/linux/`). Still Windows-only: the window, input
+  and XInput plugins, the software presenter (GDI), Vulkan's `vulkan-1.dll`, and `Recipes.Watcher` (hot reload,
+  `kernel32`); those examples were compiled for Windows in check mode only. The UI plugin loads `spite_truetype`,
+  which must sit beside the engine, and the pinned MongoDB driver commit `ea1a143` does not compile with current
+  Spite (`map_key` must be `map_keys`, `map_to_string` `map_to_strings`): it needs a driver commit and a new pin.
 
 - The tests that still capture at a frame number (`scene_probe`, `lights_check`, `terrain_check`,
   `kal_character`'s `--frames`) are to move to a trigger, as `render_parity` did. `render_parity` used to capture two
