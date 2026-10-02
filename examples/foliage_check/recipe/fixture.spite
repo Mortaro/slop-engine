@@ -6,7 +6,7 @@ var lake_x: Float = 92.0
 var lake_z: Float = 60.0
 
 func build() {
-    var fingerprint = cache.fingerprint("foliage fixture 2")
+    var fingerprint = cache.fingerprint("foliage fixture 3")
     assert not cache.is_current("foliage.check.material", fingerprint)
     build_cell(fingerprint, 0, 0)
     build_cell(fingerprint, 1, 0)
@@ -156,16 +156,17 @@ func add_corner(mesh: Asset.Mesh, corner_x: Float, corner_y: Float, corner_z: Fl
 
 func build_layers(fingerprint: String) {
     var array = Asset.TextureArray()
-    array.width = 16
-    array.height = 16
-    array.layers = 1
+    var layer = Asset.Texture()
+    layer.width = 16
+    layer.height = 16
     var index = 0
     while index < 256 {
         var speckle = index * 37 % 23
         var texel = pack_texel(150 + speckle, 122 + speckle, 86 + speckle / 2, 255)
-        array.pixels.append(texel)
+        layer.append_pixel(texel)
         index = index + 1
     }
+    array.append_layer(layer)
     var pack = Pack<Asset.TextureArray>()
     var bytes = Asset.Bytes()
     pack.encode(array, bytes)
@@ -252,7 +253,7 @@ func put_texture(
         var column = 0
         while column < width {
             var texel = texel_at(column, row, width)
-            texture.pixels.append(texel)
+            texture.append_pixel(texel)
             column = column + 1
         }
         row = row + 1

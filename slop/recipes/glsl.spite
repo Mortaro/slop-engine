@@ -61,12 +61,25 @@ func included_in(folder: String, text: String): String {
             var include_file = File(include_path)
             var include = include_file.read()
             crash include
-            var nested = included_in(folder, include)
+            var include_folder = folder_of(folder, name)
+            var nested = included_in(include_folder, include)
             joined = "{joined}{name}\n{include}\n{nested}"
         }
         index = index + 1
     }
     return joined
+}
+
+func folder_of(folder: String, name: String): String {
+    var pieces = name.split("/")
+    var file_name = pieces.last()
+    crash file_name
+    if pieces.count() == 1 {
+        return folder
+    }
+    var cut = name.length() - file_name.length() - 1
+    var relative = name.slice(0, cut)
+    return "{folder}/{relative}"
 }
 
 func compiler_path(): String {

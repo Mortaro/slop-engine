@@ -376,7 +376,7 @@ func capture_ground(
     floats.write_value(depth.address + 52, 0, 1.0)
     builder.begin_rendering(renderer, ground_size, ground_size, color, depth)
     vulkan.vkCmdBindPipeline(command_buffer, 0, capture_pipeline)
-    mesh_renderer.set_viewport(renderer, ground_size, ground_size)
+    set_viewport(renderer, ground_size, ground_size)
     var no_offsets: Long = 0
     vulkan.vkCmdBindDescriptorSets(
         command_buffer,
@@ -655,4 +655,22 @@ func release(renderer: RenderVulkan.Renderer) {
     vulkan.vkDestroyShaderModule(renderer.device, shader_capture, no_allocator)
     vulkan.vkDestroyShaderModule(renderer.device, shader_scatter, no_allocator)
     vulkan.vkDestroyShaderModule(renderer.device, shader_vertex, no_allocator)
+}
+
+func set_viewport(renderer: RenderVulkan.Renderer, width: Integer, height: Integer) {
+    var command_buffer = renderer.frame.command_buffer
+    var viewport = RenderVulkan.Structure(24)
+    viewport.append_float(0.0)
+    viewport.append_float(0.0)
+    viewport.append_float(width)
+    viewport.append_float(height)
+    viewport.append_float(0.0)
+    viewport.append_float(1.0)
+    vulkan.vkCmdSetViewport(command_buffer, 0, 1, viewport.address)
+    var scissor = RenderVulkan.Structure(16)
+    scissor.append_integer(0)
+    scissor.append_integer(0)
+    scissor.append_integer(width)
+    scissor.append_integer(height)
+    vulkan.vkCmdSetScissor(command_buffer, 0, 1, scissor.address)
 }
