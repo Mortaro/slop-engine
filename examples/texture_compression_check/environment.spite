@@ -1,0 +1,5 @@
+var source = ""
+var compression = "default"
+var dump = ""
+var single_thread = false
+var repeat = 1

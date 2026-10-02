@@ -3,4 +3,4 @@ var height = 0
 var name = ""
 var opaque = false
 var pixels = List<Integer>()
-var levels = List<Asset.Level>()
+var scales = List<Asset.Level>()

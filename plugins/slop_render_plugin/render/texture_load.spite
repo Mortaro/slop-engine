@@ -20,11 +20,9 @@ func run(): Render.LoadedTexture {
     var pack = Pack<Asset.Texture>()
     var texture = pack.decode(bytes)
     crash texture
+    var complete = texture.texels.length == texture.expected_bytes()
+    crash complete
     var loaded = Render.LoadedTexture()
     loaded.texture = texture
-    var pixels = texture.pixels
-    var count = pixels.count()
-    loaded.raw.reserve(count * 4 + 1)
-    pixels.each(loaded.raw.write_integer)
     return loaded
 }

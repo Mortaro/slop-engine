@@ -75,14 +75,13 @@ func start_load(reader: Recipes.CacheReader, id: String) {
     world.entity_of(owner).add_component(marker)
 }
 
-func publish(id: String, image: Asset.Texture, raw_texels: Asset.Bytes): Integer {
+func publish(id: String, image: Asset.Texture): Integer {
     var found = known_slots[id]
     if found {
         var owner = entity_of(found)
         var record = Lookup<Render.Component.Texture>().of(owner)
         crash record
         record.image = image
-        record.raw = raw_texels
         record.generation = record.generation + 1
         return found
     }
@@ -92,7 +91,6 @@ func publish(id: String, image: Asset.Texture, raw_texels: Asset.Bytes): Integer
     created.id = id
     created.slot = slot
     created.image = image
-    created.raw = raw_texels
     created.generation = 1
     var entity = world.create_entity()
     entity.add_component(created)
@@ -122,7 +120,6 @@ func finish_if_done(index: Integer) {
     var record = Lookup<Render.Component.Texture>().of(owner)
     assert record
     record.image = loaded.texture
-    record.raw = loaded.raw
     record.generation = record.generation + 1
     record.loaded_revision = load_revisions[index]
     world.entity_of(owner).remove_component(Component.Loading)

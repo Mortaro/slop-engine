@@ -7,13 +7,16 @@ game names ids.
 
 An asset format is a class. `Pack<T>` derives its binary codec from the class's attributes with a plural template,
 and `Field<T>` decides each attribute's encoding at compile time: `Integer`, `Long`, `Float`, `Double`, `Byte`, `Boolean`,
-`String`, lists of any of these or of classes, and nested classes. No format has a hand-written reader or writer.
+`String`, `Asset.Bytes` (its length, then the bytes as one block), lists of any of these or of classes, and nested
+classes. No format has a hand-written reader or writer.
 
 ```gdscript
 # slop/asset/texture.spite
 var width = 0
 var height = 0
-var pixels = List<Integer>()
+var format = "rgba8"
+var levels = 1
+var texels = Asset.Bytes()
 ```
 
 ```gdscript
@@ -52,8 +55,47 @@ The steps:
 |---|---|
 | `Psd.Layers` | `open(id)`, `texture(layer path, id)`, `skip(prefix, reason)`, `finish()`, which refuses any layer nothing claimed |
 | `Recipes.Glsl` | `compile(root, id, stage)`: GLSL to SPIR-V with `glslangValidator`; the plugin names its own folder as the root |
+| `TextureCompression.Compressor` | `compress(texture, setting)`: a mip chain and block compression, below |
 
 Any package can bring recipes along with its systems: the Vulkan plugin brings its shaders, a game brings its PSDs.
+
+## Textures are cooked GPU-ready
+
+An `Asset.Texture` holds exactly what the GPU reads: `format`, `levels` (the mip count) and `texels`, every level's
+bytes from the largest down, each level's rows of blocks top to bottom. A loader answers an uncompressed texture
+(`format` `"rgba8"`, one level, four bytes a pixel in R, G, B, A order); `pixel(index)`, `set_pixel(index, value)`,
+`append_pixel(value)`, `pixel_count()` and `clear_pixels(width, height)` read and write one as packed
+`0xAABBGGRR` integers, and `level_offset(level)`, `level_bytes(level)` and `expected_bytes()` find the levels of any
+format.
+
+A recipe compresses with `slop_texture_compression_plugin`, choosing a setting the way Unreal's Compression Settings
+do:
+
+```gdscript
+var compressor = TextureCompression.Compressor()
+var texture = document.pixels_of(layer)
+var compressed = compressor.compress(texture, 'default')
+pack.encode(compressed, bytes)
+```
+
+| Setting | Unreal | Format | Mips |
+|---|---|---|---|
+| `'default'` | `TC_Default` | BC1, or BC3 when any pixel's alpha is below 255 | averaged in linear light (sRGB colour) |
+| `'masks'` | `TC_Masks` | BC1 or BC3, the same way | averaged as stored (linear data) |
+| `'normal_map'` | `TC_Normalmap` | BC5: X and Y; the shader derives Z | averaged as vectors and renormalised |
+| `'grayscale'` | `TC_Grayscale` | R8, uncompressed; sampled as (r, r, r, 1) | averaged in linear light |
+| `'bc7'` | `TC_BC7` | BC7 (mode 6) | averaged in linear light |
+| `'user_interface'` | `TC_UserInterface2D` | RGBA8, unchanged, one level | none: the UI samples it pixel-exact |
+
+A BC4 texture is sampled as (r, r, r, 1) too. The mip chain is a 2x2 box filter (Unreal's SimpleAverage) down to 1x1;
+each level of a large texture is split into bands of rows, and every band is filtered and encoded as a `Parallel` job
+on the thread pool. The encoders fit each 4x4 block's endpoints along its colours' principal axis and refine them
+by least squares; a block of one colour gets the endpoint pair that reproduces it best. `TextureCompression.Decoder`
+decodes every format back to RGBA8 and measures `peak_signal_to_noise`, which `texture_compression_check` uses.
+
+A texture stays uncompressed when nothing compresses it: `Psd.Layers.texture` cuts UI plates, so it keeps them RGBA8,
+and the renderer makes their mips on the GPU. An `Asset.TextureArray` is layers of one shape and format:
+`append_layer(texture)` adds a cooked texture's bytes, so a terrain array is its layers compressed one by one.
 
 ## Everything is named by id
 
@@ -162,8 +204,8 @@ A game names an asset; the engine loads it without stalling a frame. `Render.Tex
 slot at once, and gives the texture an entity of its own holding a `Render.Component.Texture`, marked
 `Component.Loading` while its job runs. The first request
 for an id looks up where its record sits in the cache binary
-(an in-memory index, no disk access) and starts a `Parallel` job on its own thread: the job reads the record,
-decodes it with `Pack`, and lays the pixels out as raw bytes for the GPU. The frame thread never waits for it:
+(an in-memory index, no disk access) and starts a `Parallel` job on its own thread: the job reads the record and
+decodes it with `Pack`, which copies the texels in one block, already laid out for the GPU. The frame thread never waits for it:
 `FinishTextureLoads` asks each job's thread whether it has finished with a zero-timeout wait and only then takes the
 result. The Vulkan backend stages each new texture with one `memcpy` and records its copy into the frame's own
 command buffer, so no upload waits on its own fence. Until

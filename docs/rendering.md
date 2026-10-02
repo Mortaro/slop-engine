@@ -35,7 +35,12 @@ size / rectangle size, in integers) and blended with straight alpha,
 
 A texture that finished loading is copied into the frame's persistent staging buffer and from there into its image
 by the frame's own command buffer, at most `upload_budget_bytes` (4 MiB) per frame, shared with mesh uploads. A
-larger texture streams in bands of rows over several frames and replaces the old image only after its last band. A draw whose texture is not resident yet is skipped, as it is before the texture has loaded. See
+larger texture streams in bands of rows over several frames and replaces the old image only after its last band.
+A cooked texture uploads in its own format with the levels it stores (`BC1_RGB`, `BC3`, `BC4`, `BC5` and `BC7`
+`_UNORM_BLOCK`, `R8_UNORM`), level by level in bands of block rows, and its view reads R8 and BC4 as (r, r, r, 1);
+an uncompressed RGBA8 texture uploads its one level and gets its mips from GPU blits. The device enables
+`textureCompressionBC` when it has it, and a compressed texture on a device without it crashes naming the reason.
+Colour stays `UNORM` because the scene shader decodes sRGB itself. A draw whose texture is not resident yet is skipped, as it is before the texture has loaded. See
 [performance.md](performance.md#no-stutters). The device is released by
 `ReleaseRenderer` in the final tick after quit, not at program exit.
 

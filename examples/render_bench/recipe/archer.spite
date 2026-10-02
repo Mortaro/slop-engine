@@ -7,6 +7,7 @@ var parts = ["Chest", "Boots", "Gloves", "Shorts part 1", "Shorts part 2", "Face
 var clips = ["Idle", "Walk", "Run"]
 var version = "archer 5"
 var decoder = Png.Decoder()
+var compressor = TextureCompression.Compressor()
 var cooked_textures = List<String>()
 
 func build() {
@@ -89,9 +90,10 @@ func cook_texture(reader: Blend.MeshReader, mesh: Asset.Mesh, material: Integer,
     cooked_textures.append(id)
     var texture = decoder.decode(reader.image_bytes[material])
     crash texture
+    var compressed = compressor.compress(texture, 'default')
     var bytes = Asset.Bytes()
     var pack = Pack<Asset.Texture>()
-    pack.encode(texture, bytes)
+    pack.encode(compressed, bytes)
     cache.put(id, fingerprint, bytes)
 }
 

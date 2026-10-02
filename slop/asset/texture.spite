@@ -1,3 +1,105 @@
 var width = 0
 var height = 0
-var pixels = List<Integer>()
+var format = "rgba8"
+var levels = 1
+var texels = Asset.Bytes()
+
+func pixel_count(): Integer {
+    return texels.length / 4
+}
+
+func pixel(index: Integer): Integer {
+    var inside = format == "rgba8" and index >= 0 and index * 4 + 4 <= texels.length
+    crash inside
+    return texels.raw.read_integer(texels.address, index * 4)
+}
+
+func set_pixel(index: Integer, value: Integer) {
+    var inside = format == "rgba8" and index >= 0 and index * 4 + 4 <= texels.length
+    crash inside
+    texels.raw.write_integer(texels.address, index * 4, value)
+}
+
+func append_pixel(value: Integer) {
+    texels.write_integer(value)
+}
+
+func clear_pixels(new_width: Integer, new_height: Integer) {
+    width = new_width
+    height = new_height
+    format = "rgba8"
+    levels = 1
+    texels.clear()
+    texels.zeroes(new_width * new_height * 4)
+}
+
+func is_compressed(): Boolean {
+    return block_side() == 4
+}
+
+func block_side(): Integer {
+    if format == "rgba8" or format == "r8" {
+        return 1
+    }
+    return 4
+}
+
+func block_bytes(): Integer {
+    if format == "rgba8" {
+        return 4
+    } else if format == "r8" {
+        return 1
+    } else if format == "bc1" or format == "bc4" {
+        return 8
+    }
+    return 16
+}
+
+func level_width(level: Integer): Integer {
+    var size = width.shifted_right(level)
+    if size < 1 {
+        return 1
+    }
+    return size
+}
+
+func level_height(level: Integer): Integer {
+    var size = height.shifted_right(level)
+    if size < 1 {
+        return 1
+    }
+    return size
+}
+
+func blocks_across(level: Integer): Integer {
+    var side = block_side()
+    var across = level_width(level)
+    return (across + side - 1) / side
+}
+
+func blocks_down(level: Integer): Integer {
+    var side = block_side()
+    var down = level_height(level)
+    return (down + side - 1) / side
+}
+
+func level_bytes(level: Integer): Integer {
+    var across = blocks_across(level)
+    var down = blocks_down(level)
+    var each = block_bytes()
+    return across * down * each
+}
+
+func level_offset(level: Integer): Integer {
+    var offset = 0
+    var index = 0
+    while index < level {
+        offset = offset + level_bytes(index)
+        index = index + 1
+    }
+    return offset
+}
+
+func expected_bytes(): Integer {
+    return level_offset(levels)
+}

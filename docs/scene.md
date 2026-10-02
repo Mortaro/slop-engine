@@ -20,6 +20,7 @@ with `spite kal_character --kal-assets=<folder>`.
 | `slop_water_plugin` | `Water` | `Water.Component.WaterBody` and its children's `GerstnerWave`, gathered into the `Scene.Water` resource ([water](#water)) |
 | `slop_blend_plugin` | `Blend` | `MeshReader`, `SkeletonReader` and `ActionReader`: what a recipe needs from a `.blend` |
 | `slop_png_plugin` | `Png` | a PNG decoder, pixel-exact against Pillow, for the images packed in a `.blend` |
+| `slop_texture_compression_plugin` | `TextureCompression` | the cook step that makes a texture's mips and block-compresses them (`Compressor`), and a `Decoder` back to RGBA8 ([assets-and-recipes.md](assets-and-recipes.md#textures-are-cooked-gpu-ready)) |
 
 `slop/` itself gains only neutral pieces:
 - the assets: `Asset.Mesh`, `Asset.Skeleton` and `Asset.Animation`;
@@ -255,8 +256,9 @@ Unreal's masked materials clip; every other section is opaque and never discards
 Mipmapping averages a cut-out's alpha, so at a distance chain mail and straps read as solid, as they do in Unreal.
 Nothing dithers.
 
-**Texture filtering.** Every texture is uploaded with a full mip chain, made on the GPU by blitting each level from the
-one above. Scene textures sample trilinearly with 16× anisotropic filtering (when the device has it) and repeat
+**Texture filtering.** Every texture has a full mip chain: a cooked texture brings its own, averaged in linear light
+when the recipe compressed it ([assets-and-recipes.md](assets-and-recipes.md#textures-are-cooked-gpu-ready)), and an
+uncompressed one gets it on the GPU by blitting each level from the one above. Scene textures sample trilinearly with 16× anisotropic filtering (when the device has it) and repeat
 addressing. The UI samples the same images through its own nearest, top-level-only sampler, so it stays pixel-exact.
 
 ### Culling and draw distance
@@ -292,8 +294,9 @@ A terrain cell is an entity with a `Transform` and a `Scene.Component.TerrainCel
   material.
 
 `Asset.TerrainMaterial` names its textures by id:
-- the layer, normal, detail, overlay and far-colour images are `Asset.TextureArray`s (RGBA8, layer-major), which
-  upload one layer per frame, each with its mipmaps made on the GPU;
+- the layer, normal, detail, overlay and far-colour images are `Asset.TextureArray`s (layer-major), which upload one
+  layer per frame: a compressed array with the mips it stores (colour arrays as `_SRGB` formats), an RGBA8 one with
+  mips made on the GPU. Normals are read from X and Y with Z derived, so a BC5 normal array works as Unreal's does;
 - the control, scale, splat and mask images are ordinary `Asset.Texture`s.
 
 A material is drawn once every array and texture has arrived; until then its cells are skipped, so nothing waits.

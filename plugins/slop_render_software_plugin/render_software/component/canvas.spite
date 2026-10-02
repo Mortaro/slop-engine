@@ -92,6 +92,7 @@ func source_to(left: Integer, top: Integer, source_width: Integer, source_height
 }
 
 func blend_image(left: Integer, top: Integer, image_width: Integer, image_height: Integer, image: Asset.Texture) {
+    assert image.format == "rgba8"
     var row = 0
     while row < image_height {
         blend_row(left, top + row, row, image_width, image_height, image)
@@ -117,8 +118,8 @@ func blend_row(
         if on_canvas and in_clip {
             var texel_column = source_left + column * source_columns / image_width
             var at = texel_row * image.width + texel_column
-            crash image.pixels[at]
-            var tinted = tinted_texel(image.pixels[at])
+            var texel = image.pixel(at)
+            var tinted = tinted_texel(texel)
             blend_pixel(canvas_left, canvas_top, tinted)
         }
         column = column + 1

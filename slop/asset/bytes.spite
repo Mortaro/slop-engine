@@ -10,7 +10,12 @@ var untrusted = false
 var failed = false
 
 func reserve(wanted: Integer) {
-    assert wanted > capacity
+    if wanted > capacity {
+        grow(wanted)
+    }
+}
+
+func grow(wanted: Integer) {
     var grown = capacity * 2
     if grown < wanted {
         grown = wanted + 64
@@ -68,6 +73,39 @@ func write_bytes(source: Long, count: Integer) {
     reserve(length + count)
     raw.copy(source, address + length, count)
     length = length + count
+}
+
+func write_block(block: Asset.Bytes) {
+    write_integer(block.length)
+    if block.length > 0 {
+        write_bytes(block.address, block.length)
+    }
+}
+
+func repeat_byte(value: Integer, count: Integer) {
+    reserve(length + count + 1)
+    var end = length + count
+    var at = length
+    while at < end {
+        raw.write_byte(address, at, value)
+        at = at + 1
+    }
+    length = end
+}
+
+func zeroes(count: Integer) {
+    reserve(length + count + 8)
+    var end = length + count
+    var at = length
+    while at + 8 <= end {
+        raw.write_long(address, at, 0)
+        at = at + 8
+    }
+    while at < end {
+        raw.write_byte(address, at, 0)
+        at = at + 1
+    }
+    length = end
 }
 
 func append_text_bytes(text: String) {
@@ -168,6 +206,17 @@ func read_text(): String {
     var text = raw.text(address + position, text_length)
     position = position + text_length
     return text
+}
+
+func read_block(): Asset.Bytes {
+    var block = Asset.Bytes()
+    var count = read_integer()
+    if not count_fits(count) or count == 0 {
+        return block
+    }
+    block.write_bytes(address + position, count)
+    position = position + count
+    return block
 }
 
 func byte_at(offset: Integer): Integer {

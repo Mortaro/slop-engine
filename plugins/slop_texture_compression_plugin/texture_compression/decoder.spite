@@ -1,0 +1,291 @@
+var raw = Raw()
+var bc7_weights = [0, 4, 9, 13, 17, 21, 26, 30, 34, 38, 43, 47, 51, 55, 60, 64]
+var colours = Asset.Bytes()
+var values = Asset.Bytes()
+
+func decode_level(texture: Asset.Texture, level: Integer): Asset.Bytes {
+    if colours.length == 0 {
+        colours.zeroes(4 * 4 * 4)
+        values.zeroes(8 * 4)
+    }
+    var width = texture.level_width(level)
+    var height = texture.level_height(level)
+    var start = texture.level_offset(level)
+    var pixels = Asset.Bytes()
+    pixels.zeroes(width * height * 4)
+    if texture.format == "rgba8" {
+        raw.copy(texture.texels.address + start, pixels.address, width * height * 4)
+        return pixels
+    }
+    if texture.format == "r8" {
+        var index = 0
+        while index < width * height {
+            var red = texture.texels.byte_at(start + index)
+            var grey = opaque_grey(red)
+            raw.write_integer(pixels.address, index * 4, grey)
+            index = index + 1
+        }
+        return pixels
+    }
+    var across = texture.blocks_across(level)
+    var down = texture.blocks_down(level)
+    var each = texture.block_bytes()
+    var block_y = 0
+    while block_y < down {
+        var block_x = 0
+        while block_x < across {
+            var at = start + (block_y * across + block_x) * each
+            decode_block(texture.format, texture.texels, at, pixels, width, height, block_x, block_y)
+            block_x = block_x + 1
+        }
+        block_y = block_y + 1
+    }
+    return pixels
+}
+
+func decode_block(
+    format: String,
+    texels: Asset.Bytes,
+    at: Integer,
+    pixels: Asset.Bytes,
+    width: Integer,
+    height: Integer,
+    block_x: Integer,
+    block_y: Integer,
+) {
+    var index = 0
+    while index < 16 {
+        raw.write_integer(colours.address, index * 4, -16777216)
+        index = index + 1
+    }
+    if format == "bc1" {
+        decode_colour(texels, at, true)
+    } else if format == "bc3" {
+        decode_single(texels, at, 24)
+        decode_colour(texels, at + 8, false)
+    } else if format == "bc4" {
+        decode_single(texels, at, 0)
+        replicate_red()
+    } else if format == "bc5" {
+        decode_single(texels, at, 0)
+        decode_single(texels, at + 8, 8)
+    } else {
+        decode_bc7(texels, at)
+    }
+    index = 0
+    while index < 16 {
+        var column = block_x * 4 + index % 4
+        var row = block_y * 4 + index / 4
+        if column < width and row < height {
+            var colour = raw.read_integer(colours.address, index * 4)
+            raw.write_integer(pixels.address, (row * width + column) * 4, colour)
+        }
+        index = index + 1
+    }
+}
+
+func replicate_red() {
+    var index = 0
+    while index < 16 {
+        var red = raw.read_integer(colours.address, index * 4).bits_and(255)
+        var grey = opaque_grey(red)
+        raw.write_integer(colours.address, index * 4, grey)
+        index = index + 1
+    }
+}
+
+func opaque_grey(red: Integer): Integer {
+    var green = red.shifted_left(8)
+    var blue = red.shifted_left(16)
+    return red.bits_or(green).bits_or(blue).bits_or(-16777216)
+}
+
+func short_at(texels: Asset.Bytes, at: Integer): Integer {
+    var low = texels.byte_at(at)
+    var high = texels.byte_at(at + 1)
+    return high * 256 + low
+}
+
+func expand(value: Integer, bits: Integer): Integer {
+    var top_bits = value.shifted_right(4)
+    if bits == 5 {
+        top_bits = value.shifted_right(2)
+        return value.shifted_left(3).bits_or(top_bits)
+    }
+    return value.shifted_left(2).bits_or(top_bits)
+}
+
+func decode_colour(texels: Asset.Bytes, at: Integer, three_colour_allowed: Boolean) {
+    var first = short_at(texels, at)
+    var second = short_at(texels, at + 2)
+    var four = first > second or not three_colour_allowed
+    var shift = 0
+    while shift < 3 {
+        var bits = 5
+        var place = 0
+        if shift == 0 {
+            place = 11
+        } else if shift == 1 {
+            place = 5
+            bits = 6
+        }
+        var mask = 31
+        if bits == 6 {
+            mask = 63
+        }
+        var first_bits = first.shifted_right(place).bits_and(mask)
+        var second_bits = second.shifted_right(place).bits_and(mask)
+        var start_value = expand(first_bits, bits)
+        var end_value = expand(second_bits, bits)
+        var third_value = (start_value + end_value) / 2
+        var fourth_value = 0
+        if four {
+            third_value = (2 * start_value + end_value) / 3
+            fourth_value = (start_value + 2 * end_value) / 3
+        }
+        raw.write_integer(values.address, 0, start_value)
+        raw.write_integer(values.address, 4, end_value)
+        raw.write_integer(values.address, 8, third_value)
+        raw.write_integer(values.address, 12, fourth_value)
+        var index = 0
+        while index < 16 {
+            var byte = texels.byte_at(at + 4 + index / 4)
+            var selected = byte.shifted_right(index % 4 * 2).bits_and(3)
+            var value = raw.read_integer(values.address, selected * 4)
+            set_channel(index, shift * 8, value)
+            index = index + 1
+        }
+        shift = shift + 1
+    }
+    if not four {
+        var index = 0
+        while index < 16 {
+            var byte = texels.byte_at(at + 4 + index / 4)
+            var selected = byte.shifted_right(index % 4 * 2).bits_and(3)
+            if selected == 3 {
+                raw.write_integer(colours.address, index * 4, 0)
+            }
+            index = index + 1
+        }
+    }
+}
+
+func set_channel(index: Integer, shift: Integer, value: Integer) {
+    var colour = raw.read_integer(colours.address, index * 4)
+    var keep = 255
+    keep = keep.shifted_left(shift).bits_inverted()
+    var placed = value.shifted_left(shift)
+    var updated = colour.bits_and(keep).bits_or(placed)
+    raw.write_integer(colours.address, index * 4, updated)
+}
+
+func decode_single(texels: Asset.Bytes, at: Integer, shift: Integer) {
+    var first = texels.byte_at(at)
+    var second = texels.byte_at(at + 1)
+    var entry = 0
+    while entry < 8 {
+        var value = single_entry(first, second, entry)
+        raw.write_integer(values.address, entry * 4, value)
+        entry = entry + 1
+    }
+    var index = 0
+    while index < 16 {
+        var bit = index * 3
+        var low = texels.byte_at(at + 2 + bit / 8)
+        var high = 0
+        if bit / 8 < 5 {
+            high = texels.byte_at(at + 3 + bit / 8)
+        }
+        var shifted_high = high.shifted_left(8)
+        var pair = low.bits_or(shifted_high)
+        var selected = pair.shifted_right(bit % 8).bits_and(7)
+        var value = raw.read_integer(values.address, selected * 4)
+        set_channel(index, shift, value)
+        index = index + 1
+    }
+}
+
+func single_entry(first: Integer, second: Integer, entry: Integer): Integer {
+    if entry == 0 {
+        return first
+    } else if entry == 1 {
+        return second
+    } else if first > second {
+        return ((8 - entry) * first + (entry - 1) * second + 3) / 7
+    } else if entry < 6 {
+        return ((6 - entry) * first + (entry - 1) * second + 2) / 5
+    } else if entry == 6 {
+        return 0
+    }
+    return 255
+}
+
+func bits_at(texels: Asset.Bytes, at: Integer, first_bit: Integer, count: Integer): Integer {
+    var value = 0
+    var bit = 0
+    while bit < count {
+        var position = first_bit + bit
+        var byte = texels.byte_at(at + position / 8)
+        var set = byte.shifted_right(position % 8).bits_and(1)
+        var placed = set.shifted_left(bit)
+        value = value.bits_or(placed)
+        bit = bit + 1
+    }
+    return value
+}
+
+func decode_bc7(texels: Asset.Bytes, at: Integer) {
+    var mode = texels.byte_at(at)
+    var mode_six = mode.bits_and(127) == 64
+    crash mode_six
+    var first_parity = bits_at(texels, at, 63, 1)
+    var second_parity = bits_at(texels, at, 64, 1)
+    var channel = 0
+    while channel < 4 {
+        var start_value = bits_at(texels, at, 7 + channel * 14, 7).shifted_left(1).bits_or(first_parity)
+        var end_value = bits_at(texels, at, 14 + channel * 14, 7).shifted_left(1).bits_or(second_parity)
+        var index = 0
+        while index < 16 {
+            var selected = 0
+            if index == 0 {
+                selected = bits_at(texels, at, 65, 3)
+            } else {
+                selected = bits_at(texels, at, 64 + index * 4, 4)
+            }
+            crash bc7_weights[selected]
+            var weight = bc7_weights[selected]
+            var value = ((64 - weight) * start_value + weight * end_value + 32) / 64
+            set_channel(index, channel * 8, value)
+            index = index + 1
+        }
+        channel = channel + 1
+    }
+}
+
+func peak_signal_to_noise(original: Asset.Bytes, decoded: Asset.Bytes, count: Integer, channels: Integer): Float {
+    var squared: Double = 0.0
+    var index = 0
+    while index < count {
+        var first = raw.read_integer(original.address, index * 4)
+        var second = raw.read_integer(decoded.address, index * 4)
+        var channel = 0
+        while channel < channels {
+            var start_value = first.shifted_right(channel * 8).bits_and(255)
+            var end_value = second.shifted_right(channel * 8).bits_and(255)
+            var difference: Double = start_value - end_value
+            squared = squared + difference * difference
+            channel = channel + 1
+        }
+        index = index + 1
+    }
+    var samples: Double = count * channels
+    var mean = squared / samples
+    if mean <= 0.0 {
+        return 99.0
+    }
+    var ratio: Double = 65025.0
+    ratio = ratio / mean
+    var decibels = ratio.logarithm_base_10() * 10.0
+    var narrowed: Float = decibels
+    return narrowed
+}

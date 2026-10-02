@@ -1,0 +1,28 @@
+var width = 0
+var height = 0
+var first_row = 0
+var rows = 0
+var filter: TextureCompression.MipChain.Filter = 'srgb'
+var source_address: Long = 0
+
+func MipBandJob(
+    source_width: Integer,
+    source_height: Integer,
+    first_output_row: Integer,
+    output_rows: Integer,
+    chosen_filter: TextureCompression.MipChain.Filter,
+) {
+    width = source_width
+    height = source_height
+    first_row = first_output_row
+    rows = output_rows
+    filter = chosen_filter
+}
+
+func run(): Asset.Bytes {
+    var mips = TextureCompression.MipChain()
+    if filter == 'srgb' {
+        mips.prepare()
+    }
+    return mips.filter_rows(source_address, width, height, first_row, rows, filter)
+}

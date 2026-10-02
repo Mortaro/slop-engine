@@ -1,0 +1,928 @@
+var raw = Raw()
+var samples = Asset.Bytes()
+var chosen = Asset.Bytes()
+var trial = Asset.Bytes()
+var palette = Asset.Bytes()
+var best_endpoints = Asset.Bytes()
+var scratch_bytes = 4096
+var match_first = 0
+var match_second = 0
+var bc7_weights = [0, 4, 9, 13, 17, 21, 26, 30, 34, 38, 43, 47, 51, 55, 60, 64]
+var low_bits: Long = 0
+var high_bits: Long = 0
+var bit_position = 0
+
+func prepare() {
+    samples.zeroes(scratch_bytes)
+    chosen.zeroes(scratch_bytes)
+    trial.zeroes(scratch_bytes)
+    palette.zeroes(scratch_bytes)
+    best_endpoints.zeroes(scratch_bytes)
+}
+
+func gather(source_address: Long, width: Integer, rows: Integer, block_x: Integer, block_y: Integer) {
+    var index = 0
+    while index < 16 {
+        var column = block_x * 4 + index % 4
+        var row = block_y * 4 + index / 4
+        if column >= width {
+            column = width - 1
+        }
+        if row >= rows {
+            row = rows - 1
+        }
+        var pixel = raw.read_integer(source_address, (row * width + column) * 4)
+        var red = pixel.bits_and(255)
+        var green = pixel.shifted_right(8).bits_and(255)
+        var blue = pixel.shifted_right(16).bits_and(255)
+        var alpha = pixel.shifted_right(24).bits_and(255)
+        raw.write_integer(samples.address, index * 4, red)
+        raw.write_integer(samples.address, (16 + index) * 4, green)
+        raw.write_integer(samples.address, (32 + index) * 4, blue)
+        raw.write_integer(samples.address, (48 + index) * 4, alpha)
+        index = index + 1
+    }
+}
+
+func sample(channel: Integer, index: Integer): Integer {
+    return raw.read_integer(samples.address, (channel * 16 + index) * 4)
+}
+
+func chosen_at(index: Integer): Integer {
+    return raw.read_integer(chosen.address, index * 4)
+}
+
+func trial_at(index: Integer): Integer {
+    return raw.read_integer(trial.address, index * 4)
+}
+
+func keep_trial() {
+    raw.copy(trial.address, chosen.address, 64)
+}
+
+func write_short(out: Asset.Bytes, value: Integer) {
+    var low = value.bits_and(255)
+    var high = value.shifted_right(8).bits_and(255)
+    out.write_byte(low)
+    out.write_byte(high)
+}
+
+func expand5(value: Integer): Integer {
+    var top = value.shifted_right(2)
+    return value.shifted_left(3).bits_or(top)
+}
+
+func expand6(value: Integer): Integer {
+    var top = value.shifted_right(4)
+    return value.shifted_left(2).bits_or(top)
+}
+
+func quantize(value: Integer, levels: Integer): Integer {
+    var scaled = value * levels + 128
+    return (scaled + scaled.shifted_right(8)).shifted_right(8)
+}
+
+func packed565(red: Integer, green: Integer, blue: Integer): Integer {
+    var red_part = quantize(red, 31).shifted_left(11)
+    var green_part = quantize(green, 63).shifted_left(5)
+    var blue_part = quantize(blue, 31)
+    return red_part.bits_or(green_part).bits_or(blue_part)
+}
+
+func largest_of(first: Float, second: Float, third: Float, fourth: Float): Float {
+    var largest = first.absolute()
+    var other = second.absolute()
+    largest = largest.maximum(other)
+    other = third.absolute()
+    largest = largest.maximum(other)
+    other = fourth.absolute()
+    return largest.maximum(other)
+}
+
+func clamped_byte(value: Float): Integer {
+    var rounded = value.round()
+    var whole: Integer = rounded
+    if whole < 0 {
+        return 0
+    }
+    if whole > 255 {
+        return 255
+    }
+    return whole
+}
+
+func encode_color(out: Asset.Bytes) {
+    var minimum_red = 255
+    var minimum_green = 255
+    var minimum_blue = 255
+    var maximum_red = 0
+    var maximum_green = 0
+    var maximum_blue = 0
+    var sum_red = 0
+    var sum_green = 0
+    var sum_blue = 0
+    var index = 0
+    while index < 16 {
+        var red = sample(0, index)
+        var green = sample(1, index)
+        var blue = sample(2, index)
+        minimum_red = minimum_red.minimum(red)
+        minimum_green = minimum_green.minimum(green)
+        minimum_blue = minimum_blue.minimum(blue)
+        maximum_red = maximum_red.maximum(red)
+        maximum_green = maximum_green.maximum(green)
+        maximum_blue = maximum_blue.maximum(blue)
+        sum_red = sum_red + red
+        sum_green = sum_green + green
+        sum_blue = sum_blue + blue
+        index = index + 1
+    }
+    var solid = minimum_red == maximum_red and minimum_green == maximum_green and minimum_blue == maximum_blue
+    if solid {
+        encode_solid_color(out, minimum_red, minimum_green, minimum_blue)
+        return
+    }
+    var mean_red: Float = sum_red
+    mean_red = mean_red / 16.0
+    var mean_green: Float = sum_green
+    mean_green = mean_green / 16.0
+    var mean_blue: Float = sum_blue
+    mean_blue = mean_blue / 16.0
+    var red_red: Float = 0.0
+    var red_green: Float = 0.0
+    var red_blue: Float = 0.0
+    var green_green: Float = 0.0
+    var green_blue: Float = 0.0
+    var blue_blue: Float = 0.0
+    index = 0
+    while index < 16 {
+        var red: Float = sample(0, index)
+        red = red - mean_red
+        var green: Float = sample(1, index)
+        green = green - mean_green
+        var blue: Float = sample(2, index)
+        blue = blue - mean_blue
+        red_red = red_red + red * red
+        red_green = red_green + red * green
+        red_blue = red_blue + red * blue
+        green_green = green_green + green * green
+        green_blue = green_blue + green * blue
+        blue_blue = blue_blue + blue * blue
+        index = index + 1
+    }
+    var axis_red: Float = maximum_red - minimum_red
+    var axis_green: Float = maximum_green - minimum_green
+    var axis_blue: Float = maximum_blue - minimum_blue
+    var step = 0
+    while step < 4 {
+        var next_red = axis_red * red_red + axis_green * red_green + axis_blue * red_blue
+        var next_green = axis_red * red_green + axis_green * green_green + axis_blue * green_blue
+        var next_blue = axis_red * red_blue + axis_green * green_blue + axis_blue * blue_blue
+        var largest = largest_of(next_red, next_green, next_blue, 0.0)
+        if largest > 0.0 {
+            axis_red = next_red / largest
+            axis_green = next_green / largest
+            axis_blue = next_blue / largest
+        }
+        step = step + 1
+    }
+    var length = axis_red * axis_red + axis_green * axis_green + axis_blue * axis_blue
+    if length < 0.000001 {
+        axis_red = 0.299
+        axis_green = 0.587
+        axis_blue = 0.114
+    }
+    var lowest: Float = 1000000.0
+    var highest: Float = -1000000.0
+    var low_index = 0
+    var high_index = 0
+    index = 0
+    while index < 16 {
+        var red: Float = sample(0, index)
+        var green: Float = sample(1, index)
+        var blue: Float = sample(2, index)
+        var along = red * axis_red + green * axis_green + blue * axis_blue
+        if along < lowest {
+            lowest = along
+            low_index = index
+        }
+        if along > highest {
+            highest = along
+            high_index = index
+        }
+        index = index + 1
+    }
+    var high_red = sample(0, high_index)
+    var high_green = sample(1, high_index)
+    var high_blue = sample(2, high_index)
+    var low_red = sample(0, low_index)
+    var low_green = sample(1, low_index)
+    var low_blue = sample(2, low_index)
+    var first = packed565(high_red, high_green, high_blue)
+    var second = packed565(low_red, low_green, low_blue)
+    var error = match_colors(first, second)
+    keep_trial()
+    var round = 0
+    while round < 2 {
+        var refined_first = first
+        var refined_second = second
+        var weights_a: Float = 0.0
+        var weights_b: Float = 0.0
+        var weights_ab: Float = 0.0
+        var first_red: Float = 0.0
+        var first_green: Float = 0.0
+        var first_blue: Float = 0.0
+        var second_red: Float = 0.0
+        var second_green: Float = 0.0
+        var second_blue: Float = 0.0
+        index = 0
+        while index < 16 {
+            var selected = chosen_at(index)
+            var weight: Float = 1.0
+            if selected == 1 {
+                weight = 0.0
+            } else if selected == 2 {
+                weight = 0.6666667
+            } else if selected == 3 {
+                weight = 0.3333333
+            }
+            var other: Float = 1.0 - weight
+            var red: Float = sample(0, index)
+            var green: Float = sample(1, index)
+            var blue: Float = sample(2, index)
+            weights_a = weights_a + weight * weight
+            weights_b = weights_b + other * other
+            weights_ab = weights_ab + weight * other
+            first_red = first_red + weight * red
+            first_green = first_green + weight * green
+            first_blue = first_blue + weight * blue
+            second_red = second_red + other * red
+            second_green = second_green + other * green
+            second_blue = second_blue + other * blue
+            index = index + 1
+        }
+        var determinant = weights_a * weights_b - weights_ab * weights_ab
+        if determinant.absolute() > 0.0001 {
+            var scale: Float = 1.0 / determinant
+            var a_red = (first_red * weights_b - second_red * weights_ab) * scale
+            var a_green = (first_green * weights_b - second_green * weights_ab) * scale
+            var a_blue = (first_blue * weights_b - second_blue * weights_ab) * scale
+            var b_red = (second_red * weights_a - first_red * weights_ab) * scale
+            var b_green = (second_green * weights_a - first_green * weights_ab) * scale
+            var b_blue = (second_blue * weights_a - first_blue * weights_ab) * scale
+            var red_a = clamped_byte(a_red)
+            var green_a = clamped_byte(a_green)
+            var blue_a = clamped_byte(a_blue)
+            var red_b = clamped_byte(b_red)
+            var green_b = clamped_byte(b_green)
+            var blue_b = clamped_byte(b_blue)
+            refined_first = packed565(red_a, green_a, blue_a)
+            refined_second = packed565(red_b, green_b, blue_b)
+        }
+        var unchanged = refined_first == first and refined_second == second
+        var refined_error = error + 1
+        if not unchanged {
+            refined_error = match_colors(refined_first, refined_second)
+        }
+        if refined_error < error {
+            error = refined_error
+            first = refined_first
+            second = refined_second
+            keep_trial()
+            round = round + 1
+        } else {
+            round = 2
+        }
+    }
+    write_color_block(out, first, second)
+}
+
+func encode_solid_color(out: Asset.Bytes, red: Integer, green: Integer, blue: Integer) {
+    single_colour_pair(red, 31)
+    var first_red = match_first.shifted_left(11)
+    var second_red = match_second.shifted_left(11)
+    single_colour_pair(green, 63)
+    var first_green = match_first.shifted_left(5)
+    var second_green = match_second.shifted_left(5)
+    single_colour_pair(blue, 31)
+    var first = first_red.bits_or(first_green).bits_or(match_first)
+    var second = second_red.bits_or(second_green).bits_or(match_second)
+    var index = 0
+    while index < 16 {
+        raw.write_integer(chosen.address, index * 4, 2)
+        index = index + 1
+    }
+    write_color_block(out, first, second)
+}
+
+func single_colour_pair(value: Integer, top: Integer) {
+    var center = quantize(value, top)
+    var best_error = 1000000
+    var first = (center - 2).maximum(0)
+    while first <= (center + 2).minimum(top) {
+        var first_expanded = expanded_bits(first, top)
+        var second = (center - 2).maximum(0)
+        while second <= (center + 2).minimum(top) {
+            var second_expanded = expanded_bits(second, top)
+            var between = (2 * first_expanded + second_expanded) / 3
+            var error = (between - value).absolute() * 100 + (first_expanded - second_expanded).absolute() * 3
+            if error < best_error {
+                best_error = error
+                match_first = first
+                match_second = second
+            }
+            second = second + 1
+        }
+        first = first + 1
+    }
+}
+
+func expanded_bits(value: Integer, top: Integer): Integer {
+    if top == 31 {
+        return expand5(value)
+    }
+    return expand6(value)
+}
+
+func write_color_block(out: Asset.Bytes, first: Integer, second: Integer) {
+    var high = first
+    var low = second
+    var flip = 0
+    if first < second {
+        high = second
+        low = first
+        flip = 1
+    }
+    write_short(out, high)
+    write_short(out, low)
+    var byte_index = 0
+    while byte_index < 4 {
+        var packed = 0
+        var within = 0
+        while within < 4 {
+            var selected = chosen_at(byte_index * 4 + within)
+            if high == low {
+                selected = 0
+            } else {
+                selected = selected.bits_exclusive_or(flip)
+            }
+            var placed = selected.shifted_left(within * 2)
+            packed = packed.bits_or(placed)
+            within = within + 1
+        }
+        out.write_byte(packed)
+        byte_index = byte_index + 1
+    }
+}
+
+func match_colors(first: Integer, second: Integer): Integer {
+    var first_red_bits = first.shifted_right(11).bits_and(31)
+    var first_green_bits = first.shifted_right(5).bits_and(63)
+    var first_blue_bits = first.bits_and(31)
+    var second_red_bits = second.shifted_right(11).bits_and(31)
+    var second_green_bits = second.shifted_right(5).bits_and(63)
+    var second_blue_bits = second.bits_and(31)
+    var red_a = expand5(first_red_bits)
+    var green_a = expand6(first_green_bits)
+    var blue_a = expand5(first_blue_bits)
+    var red_b = expand5(second_red_bits)
+    var green_b = expand6(second_green_bits)
+    var blue_b = expand5(second_blue_bits)
+    var red_c = (2 * red_a + red_b) / 3
+    var green_c = (2 * green_a + green_b) / 3
+    var blue_c = (2 * blue_a + blue_b) / 3
+    var red_d = (red_a + 2 * red_b) / 3
+    var green_d = (green_a + 2 * green_b) / 3
+    var blue_d = (blue_a + 2 * blue_b) / 3
+    var total = 0
+    var index = 0
+    while index < 16 {
+        var red = sample(0, index)
+        var green = sample(1, index)
+        var blue = sample(2, index)
+        var best = distance3(red - red_a, green - green_a, blue - blue_a)
+        var picked = 0
+        var other = distance3(red - red_b, green - green_b, blue - blue_b)
+        if other < best {
+            best = other
+            picked = 1
+        }
+        other = distance3(red - red_c, green - green_c, blue - blue_c)
+        if other < best {
+            best = other
+            picked = 2
+        }
+        other = distance3(red - red_d, green - green_d, blue - blue_d)
+        if other < best {
+            best = other
+            picked = 3
+        }
+        raw.write_integer(trial.address, index * 4, picked)
+        total = total + best
+        index = index + 1
+    }
+    return total
+}
+
+func distance3(red: Integer, green: Integer, blue: Integer): Integer {
+    return red * red + green * green + blue * blue
+}
+
+func encode_single(out: Asset.Bytes, channel: Integer) {
+    var lowest = 255
+    var highest = 0
+    var index = 0
+    while index < 16 {
+        var value = sample(channel, index)
+        lowest = lowest.minimum(value)
+        highest = highest.maximum(value)
+        index = index + 1
+    }
+    if lowest == highest {
+        out.write_byte(highest)
+        out.write_byte(lowest)
+        var blank = 0
+        while blank < 6 {
+            out.write_byte(0)
+            blank = blank + 1
+        }
+        return
+    }
+    var first = highest
+    var second = lowest
+    var error = match_single(channel, first, second)
+    keep_trial()
+    var rounds = 0
+    while rounds < 2 {
+        rounds = rounds + 1
+        var weights_a: Float = 0.0
+        var weights_b: Float = 0.0
+        var weights_ab: Float = 0.0
+        var first_sum: Float = 0.0
+        var second_sum: Float = 0.0
+        index = 0
+        while index < 16 {
+            var selected = chosen_at(index)
+            var weight: Float = 1.0
+            if selected == 1 {
+                weight = 0.0
+            } else if selected > 1 {
+                var share: Float = 8 - selected
+                weight = share / 7.0
+            }
+            var other: Float = 1.0 - weight
+            var value: Float = sample(channel, index)
+            weights_a = weights_a + weight * weight
+            weights_b = weights_b + other * other
+            weights_ab = weights_ab + weight * other
+            first_sum = first_sum + weight * value
+            second_sum = second_sum + other * value
+            index = index + 1
+        }
+        var determinant = weights_a * weights_b - weights_ab * weights_ab
+        var refined_first = first
+        var refined_second = second
+        if determinant.absolute() > 0.0001 {
+            var scale: Float = 1.0 / determinant
+            refined_first = clamped_byte((first_sum * weights_b - second_sum * weights_ab) * scale)
+            refined_second = clamped_byte((second_sum * weights_a - first_sum * weights_ab) * scale)
+        }
+        var changed = refined_first != first or refined_second != second
+        var refined_error = error + 1
+        if changed and refined_first > refined_second {
+            refined_error = match_single(channel, refined_first, refined_second)
+        }
+        if refined_error < error {
+            error = refined_error
+            first = refined_first
+            second = refined_second
+            keep_trial()
+        } else {
+            rounds = 2
+        }
+    }
+    out.write_byte(first)
+    out.write_byte(second)
+    write_three_bit_indices(out, 0)
+    write_three_bit_indices(out, 8)
+}
+
+func write_three_bit_indices(out: Asset.Bytes, start: Integer) {
+    var packed = 0
+    var index = 0
+    while index < 8 {
+        var selected = chosen_at(start + index)
+        var placed = selected.shifted_left(index * 3)
+        packed = packed.bits_or(placed)
+        index = index + 1
+    }
+    var first_byte = packed.bits_and(255)
+    var second_byte = packed.shifted_right(8).bits_and(255)
+    var third_byte = packed.shifted_right(16).bits_and(255)
+    out.write_byte(first_byte)
+    out.write_byte(second_byte)
+    out.write_byte(third_byte)
+}
+
+func single_palette(first: Integer, second: Integer, index: Integer): Integer {
+    if index == 0 {
+        return first
+    } else if index == 1 {
+        return second
+    }
+    return ((8 - index) * first + (index - 1) * second + 3) / 7
+}
+
+func match_single(channel: Integer, first: Integer, second: Integer): Integer {
+    var entry = 0
+    while entry < 8 {
+        var value = single_palette(first, second, entry)
+        raw.write_integer(palette.address, entry * 4, value)
+        entry = entry + 1
+    }
+    var span = first - second
+    var total = 0
+    var index = 0
+    while index < 16 {
+        var value = sample(channel, index)
+        var position = ((value - second) * 7 + span / 2) / span
+        if position < 0 {
+            position = 0
+        }
+        if position > 7 {
+            position = 7
+        }
+        var picked = 8 - position
+        if position == 7 {
+            picked = 0
+        } else if position == 0 {
+            picked = 1
+        }
+        var best_difference = value - raw.read_integer(palette.address, picked * 4)
+        var best = best_difference * best_difference
+        var neighbour = position - 1
+        while neighbour <= position + 1 {
+            if neighbour >= 0 and neighbour <= 7 {
+                var candidate = 8 - neighbour
+                if neighbour == 7 {
+                    candidate = 0
+                } else if neighbour == 0 {
+                    candidate = 1
+                }
+                var difference = value - raw.read_integer(palette.address, candidate * 4)
+                var squared = difference * difference
+                if squared < best {
+                    best = squared
+                    picked = candidate
+                }
+            }
+            neighbour = neighbour + 1
+        }
+        raw.write_integer(trial.address, index * 4, picked)
+        total = total + best
+        index = index + 1
+    }
+    return total
+}
+
+func put_bits(value: Integer, count: Integer) {
+    var wide: Long = value
+    if bit_position >= 64 {
+        var high_part = wide.shifted_left(bit_position - 64)
+        high_bits = high_bits.bits_or(high_part)
+    } else if bit_position + count <= 64 {
+        var low_part = wide.shifted_left(bit_position)
+        low_bits = low_bits.bits_or(low_part)
+    } else {
+        var low_count = 64 - bit_position
+        var low_part = wide.shifted_left(bit_position)
+        var high_part = wide.shifted_right(low_count)
+        low_bits = low_bits.bits_or(low_part)
+        high_bits = high_bits.bits_or(high_part)
+    }
+    bit_position = bit_position + count
+}
+
+func encode_bc7(out: Asset.Bytes) {
+    var mean_red = 0
+    var mean_green = 0
+    var mean_blue = 0
+    var mean_alpha = 0
+    var index = 0
+    while index < 16 {
+        mean_red = mean_red + sample(0, index)
+        mean_green = mean_green + sample(1, index)
+        mean_blue = mean_blue + sample(2, index)
+        mean_alpha = mean_alpha + sample(3, index)
+        index = index + 1
+    }
+    var center_red: Float = mean_red
+    center_red = center_red / 16.0
+    var center_green: Float = mean_green
+    center_green = center_green / 16.0
+    var center_blue: Float = mean_blue
+    center_blue = center_blue / 16.0
+    var center_alpha: Float = mean_alpha
+    center_alpha = center_alpha / 16.0
+    var rr: Float = 0.0
+    var rg: Float = 0.0
+    var rb: Float = 0.0
+    var ra: Float = 0.0
+    var gg: Float = 0.0
+    var gb: Float = 0.0
+    var ga: Float = 0.0
+    var bb: Float = 0.0
+    var ba: Float = 0.0
+    var aa: Float = 0.0
+    index = 0
+    while index < 16 {
+        var red: Float = sample(0, index)
+        red = red - center_red
+        var green: Float = sample(1, index)
+        green = green - center_green
+        var blue: Float = sample(2, index)
+        blue = blue - center_blue
+        var alpha: Float = sample(3, index)
+        alpha = alpha - center_alpha
+        rr = rr + red * red
+        rg = rg + red * green
+        rb = rb + red * blue
+        ra = ra + red * alpha
+        gg = gg + green * green
+        gb = gb + green * blue
+        ga = ga + green * alpha
+        bb = bb + blue * blue
+        ba = ba + blue * alpha
+        aa = aa + alpha * alpha
+        index = index + 1
+    }
+    var axis_red: Float = 1.0
+    var axis_green: Float = 1.0
+    var axis_blue: Float = 1.0
+    var axis_alpha: Float = 1.0
+    var step = 0
+    while step < 6 {
+        var next_red = axis_red * rr + axis_green * rg + axis_blue * rb + axis_alpha * ra
+        var next_green = axis_red * rg + axis_green * gg + axis_blue * gb + axis_alpha * ga
+        var next_blue = axis_red * rb + axis_green * gb + axis_blue * bb + axis_alpha * ba
+        var next_alpha = axis_red * ra + axis_green * ga + axis_blue * ba + axis_alpha * aa
+        var largest = largest_of(next_red, next_green, next_blue, next_alpha)
+        if largest > 0.0 {
+            axis_red = next_red / largest
+            axis_green = next_green / largest
+            axis_blue = next_blue / largest
+            axis_alpha = next_alpha / largest
+        }
+        step = step + 1
+    }
+    var lowest: Float = 1000000.0
+    var highest: Float = -1000000.0
+    index = 0
+    while index < 16 {
+        var red: Float = sample(0, index)
+        red = red - center_red
+        var green: Float = sample(1, index)
+        green = green - center_green
+        var blue: Float = sample(2, index)
+        blue = blue - center_blue
+        var alpha: Float = sample(3, index)
+        alpha = alpha - center_alpha
+        var along = red * axis_red + green * axis_green + blue * axis_blue + alpha * axis_alpha
+        lowest = lowest.minimum(along)
+        highest = highest.maximum(along)
+        index = index + 1
+    }
+    var a_red = clamped_byte(center_red + axis_red * lowest)
+    var a_green = clamped_byte(center_green + axis_green * lowest)
+    var a_blue = clamped_byte(center_blue + axis_blue * lowest)
+    var a_alpha = clamped_byte(center_alpha + axis_alpha * lowest)
+    var b_red = clamped_byte(center_red + axis_red * highest)
+    var b_green = clamped_byte(center_green + axis_green * highest)
+    var b_blue = clamped_byte(center_blue + axis_blue * highest)
+    var b_alpha = clamped_byte(center_alpha + axis_alpha * highest)
+    set_bc7_endpoints(a_red, a_green, a_blue, a_alpha, b_red, b_green, b_blue, b_alpha)
+    var error = match_bc7()
+    keep_trial()
+    raw.copy(palette.address, best_endpoints.address, 40)
+    var round = 0
+    while round < 2 {
+        round = round + 1
+        var weights_a: Float = 0.0
+        var weights_b: Float = 0.0
+        var weights_ab: Float = 0.0
+        var first_red: Float = 0.0
+        var first_green: Float = 0.0
+        var first_blue: Float = 0.0
+        var first_alpha: Float = 0.0
+        var second_red: Float = 0.0
+        var second_green: Float = 0.0
+        var second_blue: Float = 0.0
+        var second_alpha: Float = 0.0
+        index = 0
+        while index < 16 {
+            var selected = chosen_at(index)
+            crash bc7_weights[selected]
+            var weight: Float = bc7_weights[selected]
+            weight = weight / 64.0
+            var other: Float = 1.0 - weight
+            var red: Float = sample(0, index)
+            var green: Float = sample(1, index)
+            var blue: Float = sample(2, index)
+            var alpha: Float = sample(3, index)
+            weights_a = weights_a + other * other
+            weights_b = weights_b + weight * weight
+            weights_ab = weights_ab + weight * other
+            first_red = first_red + other * red
+            first_green = first_green + other * green
+            first_blue = first_blue + other * blue
+            first_alpha = first_alpha + other * alpha
+            second_red = second_red + weight * red
+            second_green = second_green + weight * green
+            second_blue = second_blue + weight * blue
+            second_alpha = second_alpha + weight * alpha
+            index = index + 1
+        }
+        var determinant = weights_a * weights_b - weights_ab * weights_ab
+        var refined_error = error + 1
+        if determinant.absolute() > 0.0001 {
+            var scale: Float = 1.0 / determinant
+            a_red = clamped_byte((first_red * weights_b - second_red * weights_ab) * scale)
+            a_green = clamped_byte((first_green * weights_b - second_green * weights_ab) * scale)
+            a_blue = clamped_byte((first_blue * weights_b - second_blue * weights_ab) * scale)
+            a_alpha = clamped_byte((first_alpha * weights_b - second_alpha * weights_ab) * scale)
+            b_red = clamped_byte((second_red * weights_a - first_red * weights_ab) * scale)
+            b_green = clamped_byte((second_green * weights_a - first_green * weights_ab) * scale)
+            b_blue = clamped_byte((second_blue * weights_a - first_blue * weights_ab) * scale)
+            b_alpha = clamped_byte((second_alpha * weights_a - first_alpha * weights_ab) * scale)
+            set_bc7_endpoints(a_red, a_green, a_blue, a_alpha, b_red, b_green, b_blue, b_alpha)
+            refined_error = match_bc7()
+        }
+        if refined_error < error {
+            error = refined_error
+            keep_trial()
+            raw.copy(palette.address, best_endpoints.address, 40)
+        } else {
+            round = 2
+        }
+    }
+    write_bc7_block(out, best_endpoints)
+}
+
+func set_bc7_endpoints(
+    a_red: Integer,
+    a_green: Integer,
+    a_blue: Integer,
+    a_alpha: Integer,
+    b_red: Integer,
+    b_green: Integer,
+    b_blue: Integer,
+    b_alpha: Integer,
+) {
+    var a_parity = best_parity(a_red, a_green, a_blue, a_alpha)
+    var b_parity = best_parity(b_red, b_green, b_blue, b_alpha)
+    store_seven_bits(0, a_red, a_parity)
+    store_seven_bits(1, a_green, a_parity)
+    store_seven_bits(2, a_blue, a_parity)
+    store_seven_bits(3, a_alpha, a_parity)
+    store_seven_bits(4, b_red, b_parity)
+    store_seven_bits(5, b_green, b_parity)
+    store_seven_bits(6, b_blue, b_parity)
+    store_seven_bits(7, b_alpha, b_parity)
+    raw.write_integer(palette.address, 32, a_parity)
+    raw.write_integer(palette.address, 36, b_parity)
+}
+
+func store_seven_bits(slot: Integer, value: Integer, parity: Integer) {
+    var stored = seven_bits(value, parity)
+    raw.write_integer(palette.address, slot * 4, stored)
+}
+
+func seven_bits(value: Integer, parity: Integer): Integer {
+    var halved = (value - parity + 1) / 2
+    if halved < 0 {
+        halved = 0
+    }
+    if halved > 127 {
+        halved = 127
+    }
+    return halved
+}
+
+func parity_error(value: Integer, parity: Integer): Integer {
+    var restored = seven_bits(value, parity).shifted_left(1).bits_or(parity)
+    var difference = restored - value
+    return difference * difference
+}
+
+func best_parity(red: Integer, green: Integer, blue: Integer, alpha: Integer): Integer {
+    var even = parity_error(red, 0) + parity_error(green, 0) + parity_error(blue, 0) + parity_error(alpha, 0)
+    var odd = parity_error(red, 1) + parity_error(green, 1) + parity_error(blue, 1) + parity_error(alpha, 1)
+    if odd < even {
+        return 1
+    }
+    return 0
+}
+
+func endpoint(channel: Integer, which: Integer): Integer {
+    var stored = raw.read_integer(palette.address, (which * 4 + channel) * 4)
+    var parity = raw.read_integer(palette.address, (8 + which) * 4)
+    return stored.shifted_left(1).bits_or(parity)
+}
+
+func match_bc7(): Integer {
+    var a_red = endpoint(0, 0)
+    var a_green = endpoint(1, 0)
+    var a_blue = endpoint(2, 0)
+    var a_alpha = endpoint(3, 0)
+    var b_red = endpoint(0, 1)
+    var b_green = endpoint(1, 1)
+    var b_blue = endpoint(2, 1)
+    var b_alpha = endpoint(3, 1)
+    var line_red: Float = b_red - a_red
+    var line_green: Float = b_green - a_green
+    var line_blue: Float = b_blue - a_blue
+    var line_alpha: Float = b_alpha - a_alpha
+    var line_length = line_red * line_red + line_green * line_green + line_blue * line_blue + line_alpha * line_alpha
+    var total = 0
+    var index = 0
+    while index < 16 {
+        var red = sample(0, index)
+        var green = sample(1, index)
+        var blue = sample(2, index)
+        var alpha = sample(3, index)
+        var guess = 0
+        if line_length > 0.0 {
+            var offset_red: Float = red - a_red
+            var offset_green: Float = green - a_green
+            var offset_blue: Float = blue - a_blue
+            var offset_alpha: Float = alpha - a_alpha
+            var along = offset_red * line_red + offset_green * line_green + offset_blue * line_blue + offset_alpha * line_alpha
+            var scaled = (along / line_length * 15.0).round()
+            guess = clamped_byte(scaled).minimum(15)
+        }
+        var best = 2147483647
+        var picked = guess
+        var candidate = guess - 1
+        while candidate <= guess + 1 {
+            if candidate >= 0 and candidate <= 15 {
+                crash bc7_weights[candidate]
+                var weight = bc7_weights[candidate]
+                var difference_red = red - ((64 - weight) * a_red + weight * b_red + 32) / 64
+                var difference_green = green - ((64 - weight) * a_green + weight * b_green + 32) / 64
+                var difference_blue = blue - ((64 - weight) * a_blue + weight * b_blue + 32) / 64
+                var difference_alpha = alpha - ((64 - weight) * a_alpha + weight * b_alpha + 32) / 64
+                var squared = distance3(difference_red, difference_green, difference_blue) + difference_alpha * difference_alpha
+                if squared < best {
+                    best = squared
+                    picked = candidate
+                }
+            }
+            candidate = candidate + 1
+        }
+        raw.write_integer(trial.address, index * 4, picked)
+        total = total + best
+        index = index + 1
+    }
+    return total
+}
+
+func write_bc7_block(out: Asset.Bytes, endpoints: Asset.Bytes) {
+    var swap = chosen_at(0) >= 8
+    var first = 0
+    var second = 1
+    if swap {
+        first = 1
+        second = 0
+    }
+    low_bits = 0
+    high_bits = 0
+    bit_position = 0
+    put_bits(64, 7)
+    var channel = 0
+    while channel < 4 {
+        var first_value = raw.read_integer(endpoints.address, (first * 4 + channel) * 4)
+        var second_value = raw.read_integer(endpoints.address, (second * 4 + channel) * 4)
+        put_bits(first_value, 7)
+        put_bits(second_value, 7)
+        channel = channel + 1
+    }
+    var first_parity = raw.read_integer(endpoints.address, (8 + first) * 4)
+    var second_parity = raw.read_integer(endpoints.address, (8 + second) * 4)
+    put_bits(first_parity, 1)
+    put_bits(second_parity, 1)
+    var index = 0
+    while index < 16 {
+        var selected = chosen_at(index)
+        if swap {
+            selected = 15 - selected
+        }
+        if index == 0 {
+            put_bits(selected, 3)
+        } else {
+            put_bits(selected, 4)
+        }
+        index = index + 1
+    }
+    out.write_long(low_bits)
+    out.write_long(high_bits)
+}

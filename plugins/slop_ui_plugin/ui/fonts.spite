@@ -39,7 +39,7 @@ func atlas_of(font: String, face_index: Integer, pixels: Integer): Ui.Component.
     atlas.ascent = ascent_units * per_unit + 0.5
     atlas.line_height = (ascent_units - descent_units + gap_units) * per_unit + 0.5
     atlas.side = first_atlas_side
-    fill_blank(atlas.texture, atlas.texels, first_atlas_side)
+    fill_blank(atlas.texture, first_atlas_side)
     var owner = world.create_entity()
     owner.add_component(atlas)
     atlases[name] = atlas
@@ -197,7 +197,6 @@ func pack(atlas: Ui.Component.GlyphAtlas, width: Integer, height: Integer): Inte
 
 func copy_into_atlas(atlas: Ui.Component.GlyphAtlas, left: Integer, top: Integer) {
     var texture = atlas.texture
-    var texels = atlas.texels
     var row = 0
     while row < bitmap.height {
         var column = 0
@@ -206,24 +205,20 @@ func copy_into_atlas(atlas: Ui.Component.GlyphAtlas, left: Integer, top: Integer
             var alpha = coverage.shifted_left(24)
             var texel = alpha.bits_or(16777215)
             var at = (top + row) * atlas.side + left + column
-            texture.pixels[at] = texel
-            raw.write_integer(texels.address, at * 4, texel)
+            texture.set_pixel(at, texel)
             column = column + 1
         }
         row = row + 1
     }
 }
 
-func fill_blank(texture: Asset.Texture, texels: Asset.Bytes, side: Integer) {
+func fill_blank(texture: Asset.Texture, side: Integer) {
     texture.width = side
     texture.height = side
-    while texture.pixels.count() < side * side {
-        texture.pixels.append(16777215)
-    }
-    texels.reserve(side * side * 4 + 4)
+    texture.texels.reserve(side * side * 4 + 4)
     var blank = 0
     while blank < side * side {
-        texels.write_integer(16777215)
+        texture.append_pixel(16777215)
         blank = blank + 1
     }
 }
@@ -234,40 +229,22 @@ func grow(atlas: Ui.Component.GlyphAtlas) {
     var atlas_fits_the_largest_side = side <= largest_atlas_side
     crash atlas_fits_the_largest_side
     var old_texture = atlas.texture
-    var old_texels = atlas.texels
     var texture = Asset.Texture()
-    var texels = Asset.Bytes()
-    fill_blank(texture, texels, side)
+    fill_blank(texture, side)
     var row = 0
     while row < old_side {
-        copy_row(old_texture, old_texels, old_side, texture, texels, side, row)
+        copy_row(old_texture, old_side, texture, side, row)
         row = row + 1
     }
     atlas.texture = texture
-    atlas.texels = texels
     atlas.side = side
     note_changed(atlas)
 }
 
-func copy_row(
-    old_texture: Asset.Texture,
-    old_texels: Asset.Bytes,
-    old_side: Integer,
-    texture: Asset.Texture,
-    texels: Asset.Bytes,
-    side: Integer,
-    row: Integer,
-) {
-    var source = old_texels.address + row * old_side * 4
-    var target = texels.address + row * side * 4
+func copy_row(old_texture: Asset.Texture, old_side: Integer, texture: Asset.Texture, side: Integer, row: Integer) {
+    var source = old_texture.texels.address + row * old_side * 4
+    var target = texture.texels.address + row * side * 4
     raw.copy(source, target, old_side * 4)
-    var column = 0
-    while column < old_side {
-        crash old_texture.pixels[row * old_side + column]
-        var texel = old_texture.pixels[row * old_side + column]
-        texture.pixels[row * side + column] = texel
-        column = column + 1
-    }
 }
 
 func glyph_left(atlas: Ui.Component.GlyphAtlas, glyph: Integer): Integer {

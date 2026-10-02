@@ -90,6 +90,21 @@ parts are Claude's proposals. Mortaro decides the API; a proposal stays marked h
 - Worktrees must be nearly free (Mortaro's requirement). A package asks the program through a method it declares
   (D155); a worktree reopens only the classes it changes (D156). Mortaro's workflow: agents make cheap worktrees for
   him to test, and approved changes are merged into the real code.
+- Textures cooked GPU-ready and block-compressed (a proposal by Claude, 2026-10-02, unconfirmed; game alert A3,
+  design/status.md's "texture decode format"). Choices made, each the conventional one, for Mortaro to confirm:
+  - `Asset.Texture` is `width`, `height`, `format` (text: `"rgba8"`, `"r8"`, `"bc1"`, `"bc3"`, `"bc4"`, `"bc5"`,
+    `"bc7"`), `levels` and `texels` (every level, largest first), replacing `pixels: List<Integer>`; packed-pixel
+    access is `pixel`, `set_pixel`, `append_pixel`, `pixel_count`, `clear_pixels`. A game's recipes that read
+    `.pixels` move to these. `Asset.TextureArray` is layers of one shape, built with `append_layer`.
+  - The settings copy Unreal's Compression Settings and their defaults (`TC_Default` as BC1 or BC3 by detected
+    alpha, `TC_Normalmap` as BC5, `TC_Masks` linear, `TC_Grayscale` as uncompressed R8, `TC_BC7`,
+    `TC_UserInterface2D` untouched), and the mip filter copies Unreal's default `SimpleAverage`.
+  - The plugin is `slop_texture_compression_plugin` (`TextureCompression.Compressor`, `.Decoder`), named after
+    Unreal's TextureCompressor module; a recipe loads it like any loader.
+  - Colour textures upload as `UNORM` because the scene shader already decodes sRGB and the same slot can be drawn
+    by the UI; switching to `_SRGB` formats (Unreal's choice, filtering in linear light) is the next step.
+  - The terrain shader derives a layer normal's Z from X and Y, as Unreal does for every `TC_Normalmap` texture,
+    so a BC5 array needs nothing else.
 
 ## [loaders.md](../docs/loaders.md)
 

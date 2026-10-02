@@ -31,12 +31,7 @@ func decode(bytes: Asset.Bytes): Asset.Texture? {
     var inflated = inflate.decompress(data, expected)
     assert not inflate.failed and inflated.length == expected
     var texture = Asset.Texture()
-    texture.width = width
-    texture.height = height
-    var total = width * height
-    while texture.pixels.count() < total {
-        texture.pixels.append(0)
-    }
+    texture.clear_pixels(width, height)
     var unfiltered = decode_passes(inflated, texture)
     assert unfiltered
     return texture
@@ -433,7 +428,7 @@ func place_row(
     var column = 0
     while column < columns {
         var texel = texel_at(pixels, column)
-        texture.pixels[first + column * column_step] = texel
+        texture.set_pixel(first + column * column_step, texel)
         column = column + 1
     }
 }

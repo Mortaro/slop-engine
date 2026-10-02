@@ -1,0 +1,241 @@
+var console = Console()
+var clock = Clock()
+var environment = Environment()
+var passed = true
+
+func TextureCompressionCheck() {
+    load "../../slop"
+    load "../../plugins/slop_psd_plugin"
+    load "../../plugins/slop_texture_compression_plugin"
+    if environment.source == "" {
+        check_generated()
+        console.print("passed", passed)
+        return
+    }
+    var paths = environment.source.split(";")
+    paths.each(measure)
+}
+
+func check_generated() {
+    var colour = generated(false)
+    expect(colour, 'default', "bc1", 3, 36.0)
+    expect(colour, 'masks', "bc1", 3, 36.0)
+    expect(colour, 'bc7', "bc7", 4, 40.0)
+    var translucent = generated(true)
+    expect(translucent, 'default', "bc3", 4, 36.0)
+    var bumps = generated_normals()
+    expect(bumps, 'normal_map', "bc5", 2, 40.0)
+    expect(colour, 'grayscale', "r8", 1, 99.0)
+    var interface = generated(true)
+    var compressor = TextureCompression.Compressor()
+    var kept = compressor.compress(interface, 'user_interface')
+    var untouched = kept.format == "rgba8" and kept.levels == 1 and kept.texels.length == 64 * 64 * 4
+    console.print("user_interface keeps rgba8 without mips", untouched)
+    passed = passed and untouched
+    var checker = checkerboard()
+    expect_last_level(checker, 'grayscale', 188)
+    expect_last_level(checker, 'masks', 128)
+}
+
+func expect(
+    source: Asset.Texture,
+    setting: TextureCompression.Compressor.Setting,
+    format: String,
+    channels: Integer,
+    lowest: Float,
+) {
+    var compressor = TextureCompression.Compressor()
+    var compressed = compressor.compress(source, setting)
+    var pack = Pack<Asset.Texture>()
+    var bytes = Asset.Bytes()
+    pack.encode(compressed, bytes)
+    var loaded = pack.decode(bytes)
+    crash loaded
+    var decoder = TextureCompression.Decoder()
+    var restored = decoder.decode_level(loaded, 0)
+    var count = source.width * source.height
+    var quality = decoder.peak_signal_to_noise(source.texels, restored, count, channels)
+    var shaped = loaded.format == format and loaded.levels == 7 and loaded.texels.length == loaded.expected_bytes()
+    var good = shaped and quality >= lowest
+    console.print(setting, loaded.format, "levels", loaded.levels, "bytes", loaded.texels.length, "psnr", quality, good)
+    passed = passed and good
+}
+
+func expect_last_level(source: Asset.Texture, setting: TextureCompression.Compressor.Setting, wanted: Integer) {
+    var compressor = TextureCompression.Compressor()
+    var compressed = compressor.compress(source, setting)
+    var decoder = TextureCompression.Decoder()
+    var last = compressed.levels - 1
+    var restored = decoder.decode_level(compressed, last)
+    var red = restored.byte_at(0)
+    var close = (red - wanted).absolute() <= 3
+    console.print(setting, "checkerboard's last level", red, "wanted", wanted, close)
+    passed = passed and close
+}
+
+func generated(translucent: Boolean): Asset.Texture {
+    var texture = Asset.Texture()
+    texture.width = 64
+    texture.height = 64
+    var seed = 12345
+    var row = 0
+    while row < 64 {
+        var column = 0
+        while column < 64 {
+            seed = (seed * 1103 + 12345) % 65521
+            var noise = seed.shifted_right(8).bits_and(15)
+            var red = (column * 4 + noise).minimum(255)
+            var green = (row * 4 + noise).minimum(255)
+            var blue = ((column + row) * 2).minimum(255)
+            var alpha = 255
+            if translucent {
+                alpha = (column * 4).minimum(255)
+            }
+            var value = pack_pixel(red, green, blue, alpha)
+            texture.append_pixel(value)
+            column = column + 1
+        }
+        row = row + 1
+    }
+    return texture
+}
+
+func generated_normals(): Asset.Texture {
+    var texture = Asset.Texture()
+    texture.width = 64
+    texture.height = 64
+    var row = 0
+    while row < 64 {
+        var column = 0
+        while column < 64 {
+            var across: Float = column % 16 - 8
+            across = across / 10.0
+            var down: Float = row % 16 - 8
+            down = down / 10.0
+            var flat = 1.0 - across * across - down * down
+            var up = flat.maximum(0.0).square_root()
+            var red = encoded(across)
+            var green = encoded(down)
+            var blue = encoded(up)
+            var value = pack_pixel(red, green, blue, 255)
+            texture.append_pixel(value)
+            column = column + 1
+        }
+        row = row + 1
+    }
+    return texture
+}
+
+func checkerboard(): Asset.Texture {
+    var texture = Asset.Texture()
+    texture.width = 64
+    texture.height = 64
+    var index = 0
+    while index < 64 * 64 {
+        var grey = 0
+        if (index % 64 + index / 64) % 2 == 0 {
+            grey = 255
+        }
+        var value = pack_pixel(grey, grey, grey, 255)
+        texture.append_pixel(value)
+        index = index + 1
+    }
+    return texture
+}
+
+func encoded(value: Float): Integer {
+    var scaled = ((value + 1.0) * 127.5).round()
+    var whole: Integer = scaled
+    return whole.clamp(0, 255)
+}
+
+func pack_pixel(red: Integer, green: Integer, blue: Integer, alpha: Integer): Integer {
+    var green_part = green.shifted_left(8)
+    var blue_part = blue.shifted_left(16)
+    var alpha_part = alpha.shifted_left(24)
+    return red.bits_or(green_part).bits_or(blue_part).bits_or(alpha_part)
+}
+
+func measure(path: String) {
+    var started = clock.elapsed_milliseconds()
+    var document = Psd.Document()
+    document.open(path)
+    var opened = clock.elapsed_milliseconds()
+    crash document.layers[0]
+    var texture = document.pixels_of(document.layers[0])
+    var decoded = clock.elapsed_milliseconds()
+    var open_took = opened - started
+    var decode_took = decoded - opened
+    console.print(path)
+    console.print("  psd", texture.width, texture.height, "open ms", open_took, "decode ms", decode_took)
+    var setting: TextureCompression.Compressor.Setting = environment.compression
+    var compressor = TextureCompression.Compressor()
+    if environment.single_thread {
+        compressor.smallest_band_blocks = 1000000000
+    }
+    var warm = 1
+    while warm < environment.repeat {
+        var discarded = compressor.compress(texture, setting)
+        crash discarded.levels > 0
+        warm = warm + 1
+    }
+    compressor.mip_milliseconds = 0
+    compressor.encode_milliseconds = 0
+    var before = clock.elapsed_milliseconds()
+    var compressed = compressor.compress(texture, setting)
+    var after = clock.elapsed_milliseconds()
+    var took = after - before
+    var pixels: Float = texture.width * texture.height
+    var megapixels = pixels / 1000000.0
+    var took_float: Float = took
+    var per_megapixel = took_float / megapixels
+    var pack = Pack<Asset.Texture>()
+    var bytes = Asset.Bytes()
+    pack.encode(compressed, bytes)
+    var stored = clock.elapsed_milliseconds()
+    var loaded = pack.decode(bytes)
+    crash loaded
+    var load_took = clock.elapsed_milliseconds() - stored
+    var decoder = TextureCompression.Decoder()
+    var restored = decoder.decode_level(loaded, 0)
+    var channels = channels_of(compressed.format)
+    var count = texture.width * texture.height
+    var quality = decoder.peak_signal_to_noise(texture.texels, restored, count, channels)
+    var uncompressed: Long = count
+    uncompressed = uncompressed * 16 / 3
+    console.print(
+        "  ",
+        setting,
+        compressed.format,
+        "levels",
+        compressed.levels,
+        "ms",
+        took,
+        "ms per megapixel",
+        per_megapixel,
+    )
+    console.print(
+        "  mip ms",
+        compressor.mip_milliseconds,
+        "encode ms",
+        compressor.encode_milliseconds,
+        "load ms",
+        load_took,
+    )
+    console.print("  bytes", compressed.texels.length, "rgba8 with mips", uncompressed, "psnr db", quality)
+    if environment.dump != "" {
+        texture.texels.save("{environment.dump}.source.rgba")
+        restored.save("{environment.dump}.{compressed.format}.rgba")
+    }
+}
+
+func channels_of(format: String): Integer {
+    switch format {
+        "bc5": return 2
+        "r8": return 1
+        "bc4": return 1
+        "bc3": return 4
+        "bc7": return 4
+        _: return 3
+    }
+}

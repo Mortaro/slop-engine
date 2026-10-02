@@ -1,8 +1,9 @@
 var cache = Recipes.Cache()
 var mesh = Asset.Mesh()
+var compressor = TextureCompression.Compressor()
 
 func build() {
-    var fingerprint = cache.fingerprint("terrain fixture 2")
+    var fingerprint = cache.fingerprint("terrain fixture 3")
     assert not cache.is_current("terrain.check.cell", fingerprint)
     build_mesh(fingerprint)
     build_layers(fingerprint)
@@ -77,9 +78,6 @@ func build_mesh(fingerprint: String) {
 
 func build_layers(fingerprint: String) {
     var array = Asset.TextureArray()
-    array.width = 16
-    array.height = 16
-    array.layers = 3
     fill_layer(array, 200, 40, 40)
     fill_layer(array, 40, 200, 40)
     fill_layer(array, 40, 40, 200)
@@ -91,11 +89,16 @@ func build_layers(fingerprint: String) {
 
 func fill_layer(array: Asset.TextureArray, red: Integer, green: Integer, blue: Integer) {
     var texel = pack_texel(red, green, blue, 255)
+    var layer = Asset.Texture()
+    layer.width = 16
+    layer.height = 16
     var index = 0
-    while index < array.width * array.height {
-        array.pixels.append(texel)
+    while index < layer.width * layer.height {
+        layer.append_pixel(texel)
         index = index + 1
     }
+    var compressed = compressor.compress(layer, 'default')
+    array.append_layer(compressed)
 }
 
 func pack_texel(red: Integer, green: Integer, blue: Integer, alpha: Integer): Integer {
@@ -147,7 +150,7 @@ func put_texture(
         var column = 0
         while column < width {
             var texel = texel_at(column, row, width)
-            texture.pixels.append(texel)
+            texture.append_pixel(texel)
             column = column + 1
         }
         row = row + 1

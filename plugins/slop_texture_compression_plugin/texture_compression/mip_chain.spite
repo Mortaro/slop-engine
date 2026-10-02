@@ -1,0 +1,199 @@
+enum Filter {
+    'srgb'
+    'linear'
+    'normal'
+}
+
+var raw = Raw()
+var pool = ThreadPool()
+var smallest_band_pixels = 65536
+var to_linear = List<Integer>()
+var to_srgb = List<Integer>()
+
+func prepare() {
+    assert to_linear.count() == 0
+    var value = 0
+    while value < 256 {
+        var encoded: Float = value
+        encoded = encoded / 255.0
+        var linear = encoded / 12.92
+        if encoded > 0.04045 {
+            var base = (encoded + 0.055) / 1.055
+            linear = base.power(2.4)
+        }
+        var scaled = (linear * 65535.0).round()
+        var whole: Integer = scaled
+        to_linear.append(whole)
+        value = value + 1
+    }
+    var level = 0
+    while level < 65536 {
+        var linear: Float = level
+        linear = linear / 65535.0
+        var encoded = linear * 12.92
+        if linear > 0.0031308 {
+            var curve = linear.power(0.41666667)
+            encoded = curve * 1.055 - 0.055
+        }
+        var scaled = (encoded * 255.0).round()
+        var whole: Integer = scaled
+        var clamped = whole.clamp(0, 255)
+        to_srgb.append(clamped)
+        level = level + 1
+    }
+}
+
+func next_level(source: Asset.Bytes, width: Integer, height: Integer, filter: Filter): Asset.Bytes {
+    var next_width = half_of(width)
+    var next_height = half_of(height)
+    var bands = next_width * next_height / smallest_band_pixels
+    var workers = pool.size()
+    bands = bands.clamp(1, workers).minimum(next_height)
+    if bands <= 1 {
+        return filter_rows(source.address, width, height, 0, next_height, filter)
+    }
+    var rows_each = (next_height + bands - 1) / bands
+    var runs = List<Parallel<Asset.Bytes>>()
+    var first_row = 0
+    while first_row < next_height {
+        var rows = rows_each.minimum(next_height - first_row)
+        var job = TextureCompression.MipBandJob(width, height, first_row, rows, filter)
+        job.source_address = source.address
+        var running = Parallel(job.run)
+        runs.append(running)
+        first_row = first_row + rows_each
+    }
+    var next = Asset.Bytes()
+    next.reserve(next_width * next_height * 4 + 8)
+    var index = 0
+    while index < runs.count() {
+        var running = runs[index]
+        var filtered: Asset.Bytes = running
+        next.write_bytes(filtered.address, filtered.length)
+        index = index + 1
+    }
+    return next
+}
+
+func filter_rows(
+    source_address: Long,
+    width: Integer,
+    height: Integer,
+    first_row: Integer,
+    rows: Integer,
+    filter: Filter,
+): Asset.Bytes {
+    var next_width = half_of(width)
+    var next = Asset.Bytes()
+    next.reserve(next_width * rows * 4 + 8)
+    var row = 0
+    while row < rows {
+        var top = ((first_row + row) * 2).minimum(height - 1)
+        var bottom = ((first_row + row) * 2 + 1).minimum(height - 1)
+        var column = 0
+        while column < next_width {
+            var left = (column * 2).minimum(width - 1)
+            var right = (column * 2 + 1).minimum(width - 1)
+            var top_left = raw.read_integer(source_address, (top * width + left) * 4)
+            var top_right = raw.read_integer(source_address, (top * width + right) * 4)
+            var bottom_left = raw.read_integer(source_address, (bottom * width + left) * 4)
+            var bottom_right = raw.read_integer(source_address, (bottom * width + right) * 4)
+            var averaged = 0
+            if filter == 'srgb' {
+                averaged = average_srgb(top_left, top_right, bottom_left, bottom_right)
+            } else if filter == 'normal' {
+                averaged = average_normal(top_left, top_right, bottom_left, bottom_right)
+            } else {
+                averaged = average_linear(top_left, top_right, bottom_left, bottom_right)
+            }
+            raw.write_integer(next.address, (row * next_width + column) * 4, averaged)
+            column = column + 1
+        }
+        row = row + 1
+    }
+    next.length = next_width * rows * 4
+    return next
+}
+
+func half_of(size: Integer): Integer {
+    if size > 1 {
+        return size / 2
+    }
+    return 1
+}
+
+func channel_of(pixel: Integer, shift: Integer): Integer {
+    return pixel.shifted_right(shift).bits_and(255)
+}
+
+func average_linear(top_left: Integer, top_right: Integer, bottom_left: Integer, bottom_right: Integer): Integer {
+    var packed = 0
+    var shift = 0
+    while shift < 32 {
+        var sum = channel_of(top_left, shift) + channel_of(top_right, shift) + channel_of(bottom_left, shift) + channel_of(bottom_right, shift)
+        var averaged = (sum + 2) / 4
+        var placed = averaged.shifted_left(shift)
+        packed = packed.bits_or(placed)
+        shift = shift + 8
+    }
+    return packed
+}
+
+func linear_of(pixel: Integer, shift: Integer): Integer {
+    var encoded = channel_of(pixel, shift)
+    crash to_linear[encoded]
+    return to_linear[encoded]
+}
+
+func average_srgb(top_left: Integer, top_right: Integer, bottom_left: Integer, bottom_right: Integer): Integer {
+    var packed = 0
+    var shift = 0
+    while shift < 24 {
+        var sum = linear_of(top_left, shift) + linear_of(top_right, shift) + linear_of(bottom_left, shift) + linear_of(bottom_right, shift)
+        var averaged = (sum + 2) / 4
+        crash to_srgb[averaged]
+        var encoded = to_srgb[averaged]
+        var placed = encoded.shifted_left(shift)
+        packed = packed.bits_or(placed)
+        shift = shift + 8
+    }
+    var alpha_sum = channel_of(top_left, 24) + channel_of(top_right, 24) + channel_of(bottom_left, 24) + channel_of(bottom_right, 24)
+    var alpha = (alpha_sum + 2) / 4
+    var alpha_bits = alpha.shifted_left(24)
+    return packed.bits_or(alpha_bits)
+}
+
+func signed_of(pixel: Integer, shift: Integer): Float {
+    var value: Float = channel_of(pixel, shift)
+    return value / 127.5 - 1.0
+}
+
+func average_normal(top_left: Integer, top_right: Integer, bottom_left: Integer, bottom_right: Integer): Integer {
+    var normal_x = signed_of(top_left, 0) + signed_of(top_right, 0) + signed_of(bottom_left, 0) + signed_of(bottom_right, 0)
+    var normal_y = signed_of(top_left, 8) + signed_of(top_right, 8) + signed_of(bottom_left, 8) + signed_of(bottom_right, 8)
+    var normal_z = signed_of(top_left, 16) + signed_of(top_right, 16) + signed_of(bottom_left, 16) + signed_of(bottom_right, 16)
+    var length_squared = normal_x * normal_x + normal_y * normal_y + normal_z * normal_z
+    if length_squared < 0.00000001 {
+        normal_x = 0.0
+        normal_y = 0.0
+        normal_z = 1.0
+    } else {
+        var scale = 1.0 / length_squared.square_root()
+        normal_x = normal_x * scale
+        normal_y = normal_y * scale
+        normal_z = normal_z * scale
+    }
+    var red = unsigned_of(normal_x)
+    var green = unsigned_of(normal_y).shifted_left(8)
+    var blue = unsigned_of(normal_z).shifted_left(16)
+    var alpha_sum = channel_of(top_left, 24) + channel_of(top_right, 24) + channel_of(bottom_left, 24) + channel_of(bottom_right, 24)
+    var alpha = (alpha_sum + 2) / 4
+    var alpha_bits = alpha.shifted_left(24)
+    return red.bits_or(green).bits_or(blue).bits_or(alpha_bits)
+}
+
+func unsigned_of(value: Float): Integer {
+    var scaled = ((value + 1.0) * 127.5).round()
+    var whole: Integer = scaled
+    return whole.clamp(0, 255)
+}

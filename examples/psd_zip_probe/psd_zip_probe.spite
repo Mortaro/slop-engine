@@ -28,8 +28,8 @@ func check_file(kind: String, depth: Integer, compression: Integer) {
     var texture = document.pixels_of(layer)
     var total: Long = 0
     var index = 0
-    while index < texture.pixels.count() {
-        total = total + texture.pixels[index]
+    while index < texture.pixel_count() {
+        total = total + texture.pixel(index)
         index = index + 1
     }
     var matched = total == expected

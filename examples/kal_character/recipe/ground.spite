@@ -25,7 +25,7 @@ func build() {
     var grey = -16777216 + 7372944
     var index = 0
     while index < 4 {
-        texture.pixels.append(grey)
+        texture.append_pixel(grey)
         index = index + 1
     }
     var texture_bytes = Asset.Bytes()

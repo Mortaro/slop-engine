@@ -205,14 +205,37 @@ func start_material(renderer: RenderVulkan.Renderer, materials: Scene.TerrainMat
         var place = material * arrays_per_material + which
         retire_image(renderer, place)
         var array = materials.array_at(material, which)
-        var format = 37
-        if which == 0 or which == 3 or which == 4 {
-            format = 43
-        }
+        var colour = which == 0 or which == 3 or which == 4
+        var format = array_format(array.format, colour)
         create_array_image(renderer, array, place, format)
         which = which + 1
     }
     write_parameters(renderer, materials, material)
+}
+
+func array_format(stored: String, colour: Boolean): Integer {
+    if colour {
+        switch stored {
+            "r8": return 15
+            "bc1": return 132
+            "bc3": return 138
+            "bc7": return 146
+            _: return 43
+        }
+    }
+    switch stored {
+        "r8": return 9
+        "bc1": return 131
+        "bc3": return 137
+        "bc4": return 139
+        "bc5": return 141
+        "bc7": return 145
+        _: return 37
+    }
+}
+
+func stores_levels(array: Scene.LoadedArray): Boolean {
+    return array.format != "rgba8" or array.levels > 1
 }
 
 func mip_count_of(width: Integer, height: Integer): Integer {
@@ -231,6 +254,11 @@ func mip_count_of(width: Integer, height: Integer): Integer {
 func create_array_image(renderer: RenderVulkan.Renderer, array: Scene.LoadedArray, place: Integer, format: Integer) {
     var no_allocator: Long = 0
     var mips = mip_count_of(array.width, array.height)
+    var usage = 7
+    if stores_levels(array) {
+        mips = array.levels
+        usage = 6
+    }
     var creation = RenderVulkan.Structure(96)
     creation.append_integer(14)
     creation.append_long(0)
@@ -244,7 +272,7 @@ func create_array_image(renderer: RenderVulkan.Renderer, array: Scene.LoadedArra
     creation.append_integer(array.layers)
     creation.append_integer(1)
     creation.append_integer(0)
-    creation.append_integer(7)
+    creation.append_integer(usage)
     creation.append_integer(0)
     creation.append_integer(0)
     creation.append_long(0)
@@ -295,6 +323,10 @@ func upload_layer(renderer: RenderVulkan.Renderer, array: Scene.LoadedArray, pla
     var image = images[place]
     crash mip_counts[place]
     var mips = mip_counts[place]
+    if stores_levels(array) {
+        upload_stored_layer(renderer, array, place, layer, image, mips)
+        return
+    }
     var bytes = array.width * array.height * 4
     var transfer_source = 1
     var staging = renderer.create_buffer(bytes, transfer_source)
@@ -337,6 +369,51 @@ func upload_layer(renderer: RenderVulkan.Renderer, array: Scene.LoadedArray, pla
         layer_barrier(command_buffer, image, 2048, 32, 6, 5, 4096, 128, 0, mips - 1, layer)
     }
     layer_barrier(command_buffer, image, 4096, 32, 7, 5, 4096, 128, mips - 1, 1, layer)
+    uploaded_layers[place] = layer + 1
+}
+
+func upload_stored_layer(
+    renderer: RenderVulkan.Renderer,
+    array: Scene.LoadedArray,
+    place: Integer,
+    layer: Integer,
+    image: Long,
+    mips: Integer,
+) {
+    var shape = array.layer_shape()
+    var bytes = shape.expected_bytes()
+    var transfer_source = 1
+    var staging = renderer.create_buffer(bytes, transfer_source)
+    var staging_memory = renderer.host_memory_for(staging)
+    var mapped = renderer.map(staging_memory, bytes)
+    raw.copy(array.raw.address + layer * bytes, mapped, bytes)
+    renderer.frame.in_flight_stagings.append(staging)
+    renderer.frame.in_flight_staging_memories.append(staging_memory)
+    var command_buffer = renderer.frame.command_buffer
+    layer_barrier(command_buffer, image, 0, 4096, 0, 7, 1, 4096, 0, mips, layer)
+    var regions = RenderVulkan.Structure(56 * mips)
+    var level = 0
+    while level < mips {
+        var offset: Long = shape.level_offset(level)
+        regions.append_long(offset)
+        regions.append_integer(0)
+        regions.append_integer(0)
+        regions.append_integer(1)
+        regions.append_integer(level)
+        regions.append_integer(layer)
+        regions.append_integer(1)
+        regions.append_integer(0)
+        regions.append_integer(0)
+        regions.append_integer(0)
+        var level_width = shape.level_width(level)
+        var level_height = shape.level_height(level)
+        regions.append_integer(level_width)
+        regions.append_integer(level_height)
+        regions.append_integer(1)
+        level = level + 1
+    }
+    vulkan.vkCmdCopyBufferToImage(command_buffer, staging, image, 7, mips, regions.address)
+    layer_barrier(command_buffer, image, 4096, 32, 7, 5, 4096, 128, 0, mips, layer)
     uploaded_layers[place] = layer + 1
 }
 

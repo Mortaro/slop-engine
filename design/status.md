@@ -132,11 +132,38 @@ and the click test passed for 5 and 12 clicks.
     decision): `FindFirstChangeNotification` on Windows, `inotify` on Linux (2026-10-02, checked with a probe that
     writes a file into a watched folder; no example re-cooks on Linux yet).
 - `examples/store_race_test` without the store lock: 5,965 of 8,000 records came back wrong or missing.
+- Texture compression (built 2026-10-02, game alert A3), known gaps:
+  - BC7 uses mode 6 only (one subset): about 3 dB over BC1 and BC3 on the tested textures, below what a
+    multi-mode encoder (bc7enc, Compressonator) reaches. `'bc7'` is opt-in, as in Unreal;
+  - the encoders are stb_dxt-style (principal axis, least-squares refinement); not yet compared with NVTT,
+    which Unreal uses, on the same images;
+  - box filter only: Unreal's Kaiser and Sharpen mip settings, alpha-coverage-preserving mips for masked materials,
+    BC6H for HDR, BC4 for `TC_Alpha`, `TC_Displacementmap` and the per-texture LOD bias are not built;
+  - textures are whole in VRAM: streaming mips by distance (Unreal's texture streaming) is not built, and a
+    texture's lower mips do not arrive first;
+  - colour formats are `UNORM` with the sRGB decode in the scene shader, so the GPU filters in sRGB space; `_SRGB`
+    formats (filtering in linear light, as Unreal does) need the scene shader's decode to go (a proposal in
+    design/decisions.md). Terrain colour arrays already use `_SRGB`;
+  - `Psd.Layers.texture` cuts only uncompressed UI plates; a theme that wants compressed cuts calls `pixels_of` and
+    the compressor itself.
+- Texture compression measured 2026-10-02 (optimized, Ryzen 9 5950X, 31 pool workers):
+  - 78 terrain layers (1024x1024 PSDs, `'default'`, all BC1): 436 MB as RGBA8 with mips, 54.5 MB cooked (8x);
+    1.1 s to compress all (14 ms each); peak signal-to-noise 36.4 dB on average, 28.4 dB at worst (dense grass;
+    BC7 gives 33.2 dB on it);
+  - a 2048x2048 albedo with alpha (BC3): 34 ms (8 ms a megapixel), 40.0 dB, BC7 42.8 dB;
+  - a 4096x4096 normal map: BC1 103 ms (6.1 ms a megapixel) at 46.6 dB, BC5 88 ms (5.2) at 61.0 dB on X and Y,
+    BC7 199 ms (11.9) at 51.0 dB; single-threaded, BC1 encoding alone took 388 ms and BC7 1,584 ms;
+  - the Kal archer's cook went from 838 to 860 ms with its textures compressed (zstd dominates it); `render_bench`'s
+    textures hold 480,728 bytes against 3,145,725 as RGBA8 with mips (6.5x), and its GPU passes did not change
+    (frame 530 to 520 us, scene 419 to 408 us, medians of three);
+  - loading a cooked texture is one block copy: 3 ms for the splat map's 47 MB, where converting the
+    `List<Integer>` took 92 ms.
 
 ## [loaders.md](../docs/loaders.md)
 
-- PSD: decoding straight into the texture's bytes, instead of `List<Integer>` one byte at a time, would cut the
-  683 ms of a 10 MB splat map several times over (measured 2026-09-26). PSB is not read.
+- PSD: decoding into byte planes and straight into the texels took the 3328x3584 splat map from 225 ms (683 ms on
+  2026-09-26, with the compiler of the time) to 40 ms, a 2048x2048 albedo from 104 to 30 ms and a 4096x4096 ZIP
+  normal map from 332 to 91 ms (2026-10-02, optimized). The per-pixel interleave is single-threaded. PSB is not read.
 - `.blend`, not built yet: more than one UV set and vertex colours (both need `Asset.Mesh` and the scene shader to
   carry more per-vertex data), and cooking images that reference external files (the reader reports their paths).
 - `.blend` corner normals differ from Blender's in one case: a fan whose normal space Blender cannot build (an edge
@@ -405,7 +432,7 @@ The benchmarks to race are ecs_bench_suite's: `add_remove` and `schedule` look w
 | New font size | fixed: the glyph atlas used to start at 1024², whose million-texel fill took up to 22 ms in a game's UI |
 | Thread start costs | open: a stage starts one OS thread per system per tick, and each load starts one. Needs D135's thread pool |
 | Despawning many entities | improved: 200,000 entities (4 components each) in one tick, worst tick 480 ms, then 224 ms, now 22 ms (2026-09-26). About 28 ns per component removed; a single compacting pass per column would be cheaper when a large share of a column goes at once, and waits on `Items` gaining a move and a truncate. Removing from columns on several threads was tried and was slower (44 ms against 25 ms) |
-| Texture decode format | open: textures are stored as a list of `Integer`s and converted to raw bytes on the worker. Should be GPU-ready bytes (and later block-compressed) in the store |
+| Texture decode format | fixed (2026-10-02): textures are stored GPU-ready, block-compressed with their mips when a recipe compresses them, and a load copies one block |
 | Spawning a streamed region | open: needs spawning spread over frames. `create_entity_from_bundle` computes each component's column key as a string, so bulk spawning got 2x slower with the entity API (200,000 bodies: 520 ms to 950 ms), and short strings brought it back to 510 ms; integer ids per component class instead of string keys are the next step |
 | Layout | open: the whole UI tree is laid out every frame. Fine for menus; an in-world UI needs dirty-subtree layout |
 | Streaming a row | improved: a single-row `_each` system cost about 300 ns per entity even when its body only copied eight floats (`GatherPointLights`, 3,000 rows: 0.9 to 1.1 ms). Most of it was singleton locks: with Spite's reader-side locks, the lock skipped when no `Parallel` runs (d13aae7), and inline storage inferred, it is 0.33 ms, about 110 ns per row (optimized, 2026-09-28). The same change took `server_bench` from 7.7 to 7.4 ms. `stream_bench` (100,000 rows, optimized): one inline component 22 ns, two 37 ns, `Entity` plus one 31 ns, and an inline plus a reference component 180 ns, of which `Column.at` checking and then reading the item cost 35 (now one read, 143 ns). The rest is Spite's generated C: every reference fetched is retained and released (two atomic writes on a cold object, about 70 ns), every inline attribute retains its column's `Items` and takes the singleton guard (about 15 ns), and the row `Vector` is retained per row. Reported to Spite (2026-09-28) |
