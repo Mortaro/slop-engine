@@ -1,0 +1,11 @@
+type Replaced {
+    entity: Entity
+    due: Component.Due
+    replaced: Component.Replaced
+}
+
+func update_each(replaced: Replaced) {
+    var gauge = Component.Gauge()
+    gauge.amount = 5
+    replaced.entity.add_component(gauge)
+}

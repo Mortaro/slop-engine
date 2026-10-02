@@ -26,6 +26,7 @@ var stream_total = 0
 var waiting_rows = List<$row_type>()
 var stream_list = List<Integer>()
 var pinned = false
+var changes = Changes()
 
 func prepare() {
     assert not prepared
@@ -49,7 +50,7 @@ func describe_attribute(attribute: Symbol<$row_type>, row: $row_type) {
         kind = 3
     }
     kinds.append(kind)
-    if kind == 1 or kind == 2 or kind == 4 {
+    if kind == 1 or kind == 2 or kind == 4 or kind == 5 {
         key = slot.tracked_key(row.attributes[attribute])
     } else if key == "Entity" {
         var a_row_field_of_class_entity_is_named_entity = attribute.name == "entity"
@@ -172,7 +173,7 @@ func smaller(current_smallest: Long, candidate: Long): Long {
 func is_plain(): Boolean {
     var index = 0
     while index < kinds.count() {
-        if kinds[index] == 1 or kinds[index] == 2 or kinds[index] == 4 {
+        if kinds[index] == 1 or kinds[index] == 2 or kinds[index] == 4 or kinds[index] == 5 {
             return false
         }
         index = index + 1
@@ -221,7 +222,17 @@ func find_row(index: Integer, entity: Integer, found: List<Integer>): Boolean {
     if stored <= 0 {
         return false
     }
-    return kinds[index] != 1 or header_reader.added_tick(header, stored - 1) >= since
+    return passes_tracking(kinds[index], header, stored - 1, entity)
+}
+
+func passes_tracking(kind: Integer, header: Long, row: Integer, entity: Integer): Boolean {
+    if kind == 1 {
+        return header_reader.added_tick(header, row) >= since
+    }
+    if kind == 5 {
+        return changes.changed_since(header, entity, since)
+    }
+    return true
 }
 
 func begin_stream() {
@@ -323,6 +334,18 @@ func store(entity: Integer) {
     }
     cursor = 0
     store_attributes(current, entity)
+    stamp_written(entity)
+}
+
+func stamp_written(entity: Integer) {
+    var index = 0
+    while index < headers.count() {
+        crash kinds[index]
+        if kinds[index] == 0 and headers[index] != 0 {
+            changes.stamp_written(headers[index], entity)
+        }
+        index = index + 1
+    }
 }
 
 func store_attribute(attribute: Symbol<$row_type>, row: $row_type, _entity: Integer) {
@@ -357,9 +380,9 @@ func every(): List<$row_type> {
         related = -1
         fill_attributes(row, entity)
         every_row.append(row)
+        every_entities.append(entity)
         if holds_copies {
             every_rows.append(row)
-            every_entities.append(entity)
         }
         index = index + 1
         entity = next_match()
@@ -379,6 +402,11 @@ func store_every(writing: Boolean) {
         store_listed(index)
         index = index + 1
     }
+    index = 0
+    while writing and not holds_copies and index < every_entities.count() {
+        stamp_written(every_entities[index])
+        index = index + 1
+    }
     every_rows.clear()
     every_entities.clear()
 }
@@ -390,4 +418,5 @@ func store_listed(index: Integer) {
     cursor = 0
     crash every_rows[index]
     store_attributes(every_rows[index], entity)
+    stamp_written(entity)
 }

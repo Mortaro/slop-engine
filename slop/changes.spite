@@ -1,0 +1,62 @@
+var raw = Raw()
+var heap = Memory.Heap()
+var columns = Columns()
+var block_offset = 16
+
+func stamp_written(column_header: Long, entity: Integer) {
+    var stamp: Long = columns.stage_counter * 2 + 2
+    stamp_with(column_header, entity, stamp)
+}
+
+func stamp_flushed(column_header: Long, entity: Integer) {
+    var stamp: Long = columns.stage_counter * 2 + 3
+    stamp_with(column_header, entity, stamp)
+}
+
+func stamp_with(column_header: Long, entity: Integer, stamp: Long) {
+    var block = block_for(column_header, entity)
+    raw.write_long(block, entity * 8 + 8, stamp)
+}
+
+func changed_since(column_header: Long, entity: Integer, since: Integer): Boolean {
+    var block = raw.read_long(column_header, block_offset)
+    if block == 0 {
+        return false
+    }
+    var capacity = raw.read_long(block, 0)
+    if capacity <= entity {
+        return false
+    }
+    var stamp = raw.read_long(block, entity * 8 + 8)
+    return stamp > 0 and stamp - 2 >= since * 2 + 1
+}
+
+func block_for(column_header: Long, entity: Integer): Long {
+    var block = raw.read_long(column_header, block_offset)
+    var capacity: Long = 0
+    if block != 0 {
+        capacity = raw.read_long(block, 0)
+    }
+    if capacity > entity {
+        return block
+    }
+    var grown = capacity * 2
+    if grown <= entity {
+        grown = entity + 64
+    }
+    var bytes = grown * 8 + 8
+    var resized: Long = 0
+    if block == 0 {
+        resized = heap.allocate(bytes)
+    } else {
+        resized = heap.resize(block, bytes)
+    }
+    var offset = capacity * 8 + 8
+    while offset < bytes {
+        raw.write_long(resized, offset, 0)
+        offset = offset + 8
+    }
+    raw.write_long(resized, 0, grown)
+    raw.write_long(column_header, block_offset, resized)
+    return resized
+}

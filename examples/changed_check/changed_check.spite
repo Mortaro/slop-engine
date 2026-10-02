@@ -1,0 +1,31 @@
+var world = World()
+
+func ChangedCheck() {
+    load "../../slop"
+    var app = App()
+    var host = world.as_entity()
+    var script = Component.Script()
+    host.add_component(script)
+    var echo = Component.Echo()
+    host.add_component(echo)
+    var streamed = Component.Streamed()
+    spawn_gauge(streamed)
+    var untouched = Component.Untouched()
+    spawn_gauge(untouched)
+    var looked = Component.Looked()
+    spawn_gauge(looked)
+    var replaced = Component.Replaced()
+    spawn_gauge(replaced)
+    var listed = Component.Listed()
+    spawn_gauge(listed)
+    app.run()
+}
+
+func spawn_gauge(role: Anything) {
+    var gauge_entity = world.create_entity()
+    var gauge = Component.Gauge()
+    gauge_entity.add_component(gauge)
+    var tally = Component.Tally()
+    gauge_entity.add_component(tally)
+    gauge_entity.add_component(role)
+}

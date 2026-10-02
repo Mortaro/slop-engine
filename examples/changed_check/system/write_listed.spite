@@ -1,0 +1,14 @@
+type Listed {
+    gauge: Component.Gauge
+    due: Component.Due
+    in_list: Component.Listed
+}
+
+func update_all(listed: List<Listed>) {
+    var index = 0
+    while index < listed.count() {
+        var gauge = listed[index].gauge
+        gauge.amount = gauge.amount + 1
+        index = index + 1
+    }
+}

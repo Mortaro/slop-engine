@@ -2,10 +2,13 @@ generic $component_type
 
 var column = Column<$component_type>()
 var columns = Columns()
+var changes = Changes()
 
 func of(entity: Integer): $component_type? {
     var row = column.row_of_entity(entity)
     assert row >= 0
+    var column_header = column.header_now()
+    changes.stamp_written(column_header, entity)
     if $component_type.fits_vector() and $component_type != Entity {
         return column.values[row]
     }

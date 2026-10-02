@@ -11,6 +11,7 @@ var columns = Columns()
 var own_key = ""
 var own_header: Long = 0
 var own_recorded = false
+var changes = Changes()
 
 func prepare_column() {
     header_now()
@@ -67,6 +68,7 @@ func insert_own(entity: Integer, value: $component_type) {
     } else {
         append(own_header, entity, value)
     }
+    changes.stamp_flushed(own_header, entity)
 }
 
 func insert(entity: Integer, value: $component_type) {
@@ -88,6 +90,7 @@ func insert(entity: Integer, value: $component_type) {
     } else {
         append(column_header, entity, value)
     }
+    changes.stamp_flushed(column_header, entity)
 }
 
 func inline(): Boolean {

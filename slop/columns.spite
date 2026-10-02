@@ -207,6 +207,7 @@ func release_column(names: List<String>, index: Integer) {
     free_block(column_header, 24)
     free_block(column_header, 32)
     free_block(column_header, 48)
+    free_block(column_header, 16)
     heap.free(column_header)
 }
 

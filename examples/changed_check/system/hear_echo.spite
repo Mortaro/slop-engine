@@ -1,0 +1,8 @@
+type Heard {
+    changed: Changed<Component.Echo>
+    echo: Component.Echo
+}
+
+func update_each(heard: Heard) {
+    heard.echo.heard = heard.echo.heard + 1
+}
