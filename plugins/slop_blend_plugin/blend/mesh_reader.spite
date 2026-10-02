@@ -14,8 +14,13 @@ var coordinates = -1
 var sharp_faces = -1
 var face_offsets = 0
 var deform_vertices = 0
-var vertex_normals = List<Float>()
-var face_normals = List<Float>()
+var attribute_kinds = List<Integer>()
+var attribute_domains = List<Integer>()
+var corner_normals = Blend.CornerNormals()
+var polygon = Blend.PolygonFill()
+var normal_matrix = Math.Matrix4()
+var projection_across = Math.Vector3()
+var projection_up = Math.Vector3()
 var group_bones = List<Integer>()
 var welded = Dictionary<Integer>()
 var point = Math.Vector3()
@@ -30,6 +35,7 @@ func read(source: Blend.File, object: Blend.View, bone_names: List<String>): Ass
     var world = space.object_world(file, object)
     var target = space.to_target()
     placement = target.multiplied(world)
+    normal_matrix = placement.inverted()
     var data_address_2 = object.pointer("data")
     var data = file.view_at(data_address_2)
     crash data
@@ -54,9 +60,8 @@ func read(source: Blend.File, object: Blend.View, bone_names: List<String>): Ass
     face_offsets = offsets_block.offset
     deform_vertices = deform_layer(data)
     map_groups(data, bone_names)
-    var vertex_count = data.integer("totvert")
     var face_count = data.integer("totpoly")
-    compute_normals(vertex_count, face_count)
+    compute_normals(data, face_count)
     var material_count = data.short_integer("totcol")
     if material_count < 1 {
         material_count = 1
@@ -138,6 +143,10 @@ func read_attributes(data: Blend.View) {
             attribute_names.append(name)
             var offset = block_offset(values_address)
             attribute_offsets.append(offset)
+            var kind = attribute.short_integer("data_type")
+            var domain = attribute.small_integer("domain")
+            attribute_kinds.append(kind)
+            attribute_domains.append(domain)
         }
         index = index + 1
     }
@@ -171,6 +180,17 @@ func block_offset(address: Long): Integer {
     var block = file.block_at(address)
     crash block
     return block.offset
+}
+
+func attribute_index(name: String): Integer {
+    var index = 0
+    while index < attribute_names.count() {
+        if attribute_names[index] == name {
+            return index
+        }
+        index = index + 1
+    }
+    return -1
 }
 
 func attribute_offset(name: String): Integer {
@@ -231,92 +251,140 @@ func position(vertex: Integer, axis: Integer): Float {
     return file.float_at(positions + vertex * 12 + axis * 4)
 }
 
-func compute_normals(vertex_count: Integer, face_count: Integer) {
-    var index = 0
-    while index < vertex_count * 3 {
-        vertex_normals.append(0.0)
-        index = index + 1
+func compute_normals(data: Blend.View, face_count: Integer) {
+    corner_normals.file = file
+    corner_normals.positions = positions
+    corner_normals.corner_vertices = corner_vertices
+    corner_normals.corner_edges = attribute_offset(".corner_edge")
+    corner_normals.face_offsets = face_offsets
+    corner_normals.sharp_faces = sharp_faces
+    corner_normals.sharp_face_constant = sharp_constant
+    corner_normals.sharp_edges = attribute_offset("sharp_edge")
+    var sharp_edge_single = single_offset("sharp_edge")
+    if sharp_edge_single >= 0 {
+        corner_normals.sharp_edge_constant = file.bytes.byte_at(sharp_edge_single) != 0
     }
-    var face = 0
-    while face < face_count {
-        add_face_normal(face)
-        face = face + 1
+    var custom = attribute_index("custom_normal")
+    if custom >= 0 {
+        crash attribute_offsets[custom]
+        crash attribute_kinds[custom]
+        crash attribute_domains[custom]
+        corner_normals.custom = attribute_offsets[custom]
+        corner_normals.custom_kind = attribute_kinds[custom]
+        corner_normals.custom_domain = attribute_domains[custom]
     }
-}
-
-func add_face_normal(face: Integer) {
-    var first = face_start(face)
-    var last = face_start(face + 1)
-    var normal_x: Float = 0.0
-    var normal_y: Float = 0.0
-    var normal_z: Float = 0.0
-    var corner = first
-    while corner < last {
-        var next = corner + 1
-        if next == last {
-            next = first
-        }
-        var here = corner_vertex(corner)
-        var there = corner_vertex(next)
-        var here_x = position(here, 0)
-        var here_y = position(here, 1)
-        var here_z = position(here, 2)
-        var there_x = position(there, 0)
-        var there_y = position(there, 1)
-        var there_z = position(there, 2)
-        normal_x = normal_x + (here_y - there_y) * (here_z + there_z)
-        normal_y = normal_y + (here_z - there_z) * (here_x + there_x)
-        normal_z = normal_z + (here_x - there_x) * (here_y + there_y)
-        corner = corner + 1
-    }
-    face_normals.append(normal_x)
-    face_normals.append(normal_y)
-    face_normals.append(normal_z)
-    corner = first
-    while corner < last {
-        var vertex = corner_vertex(corner)
-        accumulate(vertex * 3, normal_x)
-        accumulate(vertex * 3 + 1, normal_y)
-        accumulate(vertex * 3 + 2, normal_z)
-        corner = corner + 1
-    }
-}
-
-func accumulate(index: Integer, amount: Float) {
-    crash vertex_normals[index]
-    vertex_normals[index] = vertex_normals[index] + amount
+    corner_normals.vertex_count = data.integer("totvert")
+    corner_normals.edge_count = data.integer("totedge")
+    corner_normals.face_count = face_count
+    corner_normals.compute()
 }
 
 func emit_face(face: Integer) {
     var first = face_start(face)
     var last = face_start(face + 1)
-    var middle = first + 1
-    while middle + 1 < last {
-        emit_corner(face, first)
-        emit_corner(face, middle)
-        emit_corner(face, middle + 1)
-        middle = middle + 1
+    var size = last - first
+    if size == 3 {
+        emit_triangle(first, first + 1, first + 2)
+    } else if size == 4 {
+        emit_quad(first)
+    } else if size > 4 {
+        emit_polygon(face, first, last)
     }
 }
 
-func emit_corner(face: Integer, corner: Integer) {
-    var vertex = corner_vertex(corner)
-    var flat = sharp_constant or sharp_faces >= 0 and file.bytes.byte_at(sharp_faces + face) != 0
-    var normal_start = vertex * 3
-    var normals = vertex_normals
-    if flat {
-        normal_start = face * 3
-        normals = face_normals
+func emit_triangle(first: Integer, second: Integer, third: Integer) {
+    emit_corner(first)
+    emit_corner(second)
+    emit_corner(third)
+}
+
+func emit_quad(first: Integer) {
+    var one = corner_vertex(first)
+    var two = corner_vertex(first + 1)
+    var three = corner_vertex(first + 2)
+    var four = corner_vertex(first + 3)
+    var to_two_x = position(two, 0) - position(one, 0)
+    var to_two_y = position(two, 1) - position(one, 1)
+    var to_two_z = position(two, 2) - position(one, 2)
+    var to_three_x = position(three, 0) - position(one, 0)
+    var to_three_y = position(three, 1) - position(one, 1)
+    var to_three_z = position(three, 2) - position(one, 2)
+    var to_four_x = position(four, 0) - position(one, 0)
+    var to_four_y = position(four, 1) - position(one, 1)
+    var to_four_z = position(four, 2) - position(one, 2)
+    var first_x = to_two_y * to_three_z - to_two_z * to_three_y
+    var first_y = to_two_z * to_three_x - to_two_x * to_three_z
+    var first_z = to_two_x * to_three_y - to_two_y * to_three_x
+    var second_x = to_four_y * to_three_z - to_four_z * to_three_y
+    var second_y = to_four_z * to_three_x - to_four_x * to_three_z
+    var second_z = to_four_x * to_three_y - to_four_y * to_three_x
+    var folded = first_x * second_x + first_y * second_y + first_z * second_z > 0.0
+    if folded {
+        emit_triangle(first, first + 1, first + 3)
+        emit_triangle(first + 1, first + 2, first + 3)
+        return
     }
-    crash normals[normal_start]
-    crash normals[normal_start + 1]
-    crash normals[normal_start + 2]
-    placement.transform_direction(
-        direction,
-        normals[normal_start],
-        normals[normal_start + 1],
-        normals[normal_start + 2],
-    )
+    emit_triangle(first, first + 1, first + 2)
+    emit_triangle(first, first + 2, first + 3)
+}
+
+func emit_polygon(face: Integer, first: Integer, last: Integer) {
+    project_onto_face(face)
+    polygon.clear()
+    var corner = first
+    while corner < last {
+        var vertex = corner_vertex(corner)
+        var vertex_x = position(vertex, 0)
+        var vertex_y = position(vertex, 1)
+        var vertex_z = position(vertex, 2)
+        var along = projection_across.x_value * vertex_x + projection_across.y_value * vertex_y
+        along = along + projection_across.z_value * vertex_z
+        var upward = projection_up.x_value * vertex_x + projection_up.y_value * vertex_y
+        upward = upward + projection_up.z_value * vertex_z
+        polygon.add(along, upward)
+        corner = corner + 1
+    }
+    polygon.fill()
+    var index = 0
+    while index + 2 < polygon.triangles.count() {
+        var one = first + polygon.triangles[index]
+        var two = first + polygon.triangles[index + 1]
+        var three = first + polygon.triangles[index + 2]
+        emit_triangle(one, two, three)
+        index = index + 3
+    }
+}
+
+func project_onto_face(face: Integer) {
+    var away_x = 0.0 - corner_normals.face_normal(face, 0)
+    var away_y = 0.0 - corner_normals.face_normal(face, 1)
+    var away_z = 0.0 - corner_normals.face_normal(face, 2)
+    var flat = away_x * away_x + away_y * away_y
+    if flat > 0.00000011920929 {
+        var inverse = 1.0 / flat.square_root()
+        projection_across.x_value = away_y * inverse
+        projection_across.y_value = 0.0 - away_x * inverse
+        projection_across.z_value = 0.0
+        projection_up.x_value = 0.0 - away_z * projection_across.y_value
+        projection_up.y_value = away_z * projection_across.x_value
+        var up_z = away_x * projection_across.y_value - away_y * projection_across.x_value
+        projection_up.z_value = up_z
+        return
+    }
+    projection_across.x_value = 1.0
+    if away_z < 0.0 {
+        projection_across.x_value = -1.0
+    }
+    projection_across.y_value = 0.0
+    projection_across.z_value = 0.0
+    projection_up.x_value = 0.0
+    projection_up.y_value = 1.0
+    projection_up.z_value = 0.0
+}
+
+func emit_corner(corner: Integer) {
+    var vertex = corner_vertex(corner)
+    transform_normal(corner)
     var across: Float = 0.0
     var down: Float = 0.0
     if coordinates >= 0 {
@@ -346,6 +414,24 @@ func emit_corner(face: Integer, corner: Integer) {
     mesh.vertices.append(across)
     mesh.vertices.append(down)
     append_skin(vertex)
+}
+
+func transform_normal(corner: Integer) {
+    var normals = corner_normals.normals
+    crash normals[corner * 3]
+    crash normals[corner * 3 + 1]
+    crash normals[corner * 3 + 2]
+    var normal_x = normals[corner * 3]
+    var normal_y = normals[corner * 3 + 1]
+    var normal_z = normals[corner * 3 + 2]
+    var along_x = normal_matrix.m0 * normal_x + normal_matrix.m1 * normal_y + normal_matrix.m2 * normal_z
+    var along_y = normal_matrix.m4 * normal_x + normal_matrix.m5 * normal_y + normal_matrix.m6 * normal_z
+    var along_z = normal_matrix.m8 * normal_x + normal_matrix.m9 * normal_y + normal_matrix.m10 * normal_z
+    var squared = along_x * along_x + along_y * along_y + along_z * along_z
+    var length = squared.square_root()
+    direction.x_value = along_x / length
+    direction.y_value = along_y / length
+    direction.z_value = along_z / length
 }
 
 func weld_key(vertex: Integer, across: Float, down: Float): String {

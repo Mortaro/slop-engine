@@ -58,6 +58,7 @@ timings only on a production build ([performance.md](performance.md#measure-a-pr
 | `psd_zip_probe` | sixteen generated PSDs, layered and flat, 8 and 16 bit with raw, PackBits, ZIP and ZIP-with-prediction channels, decode to the expected checksum (`python make_fixtures.py` regenerates them) |
 | `zstd_probe` | decompresses a `.blend` (`--source=file.blend --output=plain.blend`); compared byte for byte with Zig's decoder when it was written |
 | `blend_probe` | a `.blend`'s datablocks, any SDNA struct, and a mesh's attributes (`--source=file.blend`) |
+| `blend_mesh_check` | the mesh reader's triangles and corner normals match Blender's own loop triangles and corner normals for thirteen generated meshes (concave and collinear n-gons, custom, weighted and free normals, sharp edges, a scaled object); `--blend=file.blend --reference=file.json` checks another file against a reference dumped with `blender -b file.blend --python make_fixtures.py -- --reference=file.json`; Blender 5.2 runs `make_fixtures.py` to regenerate the fixtures |
 
 ## A test ends on a trigger, never a count
 

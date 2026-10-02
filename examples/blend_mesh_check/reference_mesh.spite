@@ -1,0 +1,4 @@
+var name = ""
+var domain = ""
+var corners = List<Float>()
+var normals = List<Float>()
