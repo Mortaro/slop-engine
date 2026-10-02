@@ -21,6 +21,9 @@ func update_each(_started: Started) {
     daylight.sun.direction_y = stage.sun_y
     daylight.sun.direction_z = stage.sun_z
     var sun = world.create_entity_from_bundle(daylight)
+    var no_bloom = PostProcess.Component.Bloom()
+    no_bloom.intensity = 0.0
+    sun.add_component(no_bloom)
     stage.sun = sun.id
     var camera_entity = world.create_entity()
     var camera = Camera.Component.Camera()

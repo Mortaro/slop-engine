@@ -31,6 +31,8 @@ var edge: Float = 0.0
 var edge_x: Float = 0.0
 var edge_z: Float = 0.0
 var failures = 0
+var last_level: Float = -1.0
+var steady_captures = 0
 
 func last_each(checked: Checked, _quitting: Quitting) {
     if not aimed {
@@ -49,9 +51,40 @@ func last_each(checked: Checked, _quitting: Quitting) {
     assert captured_frames.has(checked.entity.id)
     checked.entity.remove_component(RenderVulkan.Component.Captured)
     waiting = false
+    var level = frame_level(checked.draw_list.width, checked.draw_list.height)
+    assert pixels_steady(level)
     steady_ticks = 0
     last_draws = -1
+    last_level = -1.0
+    steady_captures = 0
     check_step(checked)
+}
+
+func frame_level(width: Integer, height: Integer): Float {
+    var total = 0
+    var down = 1
+    while down < 8 {
+        var across = 1
+        while across < 8 {
+            var pixel = renderer.pixel_at(width * across / 8, height * down / 8)
+            total = total + pixel.bits_and(255) + pixel.shifted_right(8).bits_and(255)
+            across = across + 1
+        }
+        down = down + 1
+    }
+    var level: Float = total
+    return level / 98.0
+}
+
+func pixels_steady(level: Float): Boolean {
+    var change = scalar.absolute(level - last_level)
+    last_level = level
+    if change <= 0.25 {
+        steady_captures = steady_captures + 1
+    } else {
+        steady_captures = 0
+    }
+    return steady_captures >= 4
 }
 
 func settled(drawn: Integer): Boolean {

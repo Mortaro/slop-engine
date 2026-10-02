@@ -13,6 +13,7 @@ func ShadowsCheck() {
     load "../../plugins/slop_lighting_plugin"
     load "../../plugins/slop_scene_plugin"
     load "../../plugins/slop_scene_vulkan_plugin"
+    load "../../plugins/slop_post_process_plugin"
     cookbook.cook()
     var app = App()
     app.run()
