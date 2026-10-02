@@ -1,0 +1,17 @@
+type Armored {
+    armor: Component.Armor
+}
+
+var world = World()
+var weights = Lookup<Component.Weight>()
+
+func update_all(armored: List<Armored>) {
+    var weight = weights.of(world.entity)
+    crash weight
+    var index = 0
+    while index < armored.count() {
+        weight.total = (weight.total + armored[index].armor.value) % 1000003
+        index = index + 1
+    }
+    weight.runs = weight.runs + 1
+}

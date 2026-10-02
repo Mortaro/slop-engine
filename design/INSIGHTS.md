@@ -201,8 +201,8 @@ All sent to the "Language implementation review" session, which is fixing them o
 | 48 | decided (D205), queued | `function_writes_parameter` counts `row.entity.remove_component(...)` as a write to the row, so IO handlers are refused a structural change | a game writes `world.entity_of(row.entity.id).remove_component(...)`. Coming: `function_writes_parameter_attribute`, so the engine refuses writes to component attributes only |
 | 49 | found, to report (a game's alert A100) | a local `var` in one folded branch of an attribute walk (`if attribute.class == Entity { var own = Entity() ... }`) makes the borrowed `Column<attribute.class>().values[row]` read in the sibling branch an error ("cannot be put in a list"); without the local it compiles | `Stream` fills the entity with `world.entity_of(entity)` |
 | 50 | found, to report (a game's alert A101) | a setter (`set_id(value)`) intercepts `x.id = ...` only when the class has an attribute `id`; the docs describe getters and setters without one | `Entity` keeps `var id = -1` beside its `set_id`, which refuses a negative id |
-| 51 | found, to report | `function.accesses` does not count a write through a value lent by an attribute's function when the value comes from a singleton: `timers.of(id).remaining_while_paused = 0` in `TickTimers` reads as a read of `timers` (`Lookup.of` lends from `Column<T>`); through a value the attribute's own object holds, it does count | the runner counts every `Lookup` attribute as a write |
-| 52 | found, to report | `function.accesses` does not count a call that changes a singleton attribute as a write: `store.add(item)` on a singleton `Store` whose `add` appends to its list reads as a read | the runner counts every singleton but `World` as written |
+| 51 | found, to report (still on master 2026-10-02, repro below) | `function.accesses` does not count a write through a value lent by an attribute's function when the value comes from a singleton: `timers.of(id).remaining_while_paused = 0` in `TickTimers` reads as a read of `timers` (`Lookup.of` lends from `Column<T>`); through a value the attribute's own object holds, it does count | the runner counts every `Lookup` attribute as a write |
+| 52 | found, to report (still on master 2026-10-02, repro below) | `function.accesses` does not count a call that changes a singleton attribute as a write, nor an assignment to one of its fields (`store.total = store.total + 2` reads as a read; written alone, `store.total = 2` leaves no entry at all): `store.add(item)` on a singleton `Store` whose `add` appends to its list reads as a read | the runner counts every singleton but `World` as written |
 | 53 | found, to report | `access.target` cannot be kept in a `var` or switched over ("'target' cannot be read from this value"); only chained reads such as `access.target.name` work | the runner reads `access.target.name` and matches it against the argument and attribute names it already walks |
 | 54 | found, to report | `columns.key(argument.class.element_type)` is refused in a walk over a `_all` function's arguments ("'Class' has no attribute 'element_type'") while `Row<argument.class.element_type>()` in the same walk compiles, and `.class` of a `type` row's value answers `Object` | the runner keys shared rows by the one shared row class it knows, `GameClock` |
 | 55 | found, to report | the abbreviation table reads `hdr` as `header`, but in graphics it means high dynamic range, so the suggested fix is wrong | renamed to `high_dynamic_range_image` and friends |
@@ -359,6 +359,18 @@ With bugs 1 and 9 fixed, a fill should be two memory reads and a pointer copy. I
 next step after that is column storage by value instead of by pointer, which needs `TypedMemory` of a class laid out
 inline: the same question as `Type.size`, which is already listed as not built.
 
+### A tick that paid for the spawn (2026-10-02)
+
+After the runner landed, one tick of every parallel `stress` run took about 20 ms more, inside
+`Columns.release_buried` with nothing buried. Instrumenting the generated C narrowed it to one `free` of a 15-string
+list taking 11 to 20 ms; `mallinfo2` showed why: 1.2 million freed chunks (41.6 MB, the 200,000 spawned bundles of
+four components, 32 and 48 bytes each) waiting in glibc's fastbins, which glibc merges all at once
+(`malloc_consolidate`) at the first malloc of 1 KB or more, or the first free that leaves a 64 KB block. Before the
+runner, that first trigger happened to be the profile's JSON, after the timed ticks; after it, a free in a tick.
+`GLIBC_TUNABLES=glibc.malloc.mxfast=0` makes the difference vanish. Nothing in Spite's generated code is wrong, but
+any Spite program that frees many small objects at once pays this at an arbitrary later point; a runtime that wants
+predictable frames could merge them where it frees them (the engine now does after a large flush).
+
 ## What worked better than expected
 
 - **Systems as classes fit Spite.** A file is a class and the attributes are at the top of it, so a system's
@@ -428,6 +440,84 @@ pinned to its creating thread. What it taught:
 - **Thread affinity on the data was easy to build**: a component function folded per class, the way `mirrored_from`
   is, and a flag on the runner. What Spite lacks is a way to give work to one chosen thread of the pool, so "the
   thread that created it" is the app's own thread.
+
+## Update, 2026-10-02 (later): what the runner's gaps need from the compiler
+
+Re-checked against Spite master (2b3d148) while closing the runner's gaps: `function.accesses` still answers per
+whole argument, and still misses every write through a singleton attribute, so none of the three gaps (a row that
+writes one component counting as writing all of them, `Lookup` readers, read-only resources) can switch to the
+compiler yet. The smallest program that shows all three:
+
+```gdscript
+# accesses_report/point.spite
+var left = 0
+
+# accesses_report/points.spite
+singleton
+
+var values = Items<Point>()
+var total = 0
+
+func add(point: Point) {
+    values.append(point)
+}
+
+func of(index: Integer): Point? {
+    return values[index]
+}
+
+# accesses_report/pair.spite
+type Moving {
+    moved: Point
+    speed: Point
+}
+
+var lent = Points()
+var called = Points()
+var assigned = Points()
+
+func update_each(pair: Moving) {
+    var found = lent.of(0)
+    if found {
+        found.left = 1
+    }
+    called.add(pair.speed)
+    assigned.total = assigned.total + 2
+    pair.moved.left = pair.speed.left
+}
+
+# accesses_report/accesses_report.spite
+var console = Console()
+
+func AccessesReport() {
+    var update = Pair.functions['update_each']
+    crash update
+    update.accesses.each(describe)
+}
+
+func describe(access: Spite.Access) {
+    console.print(access.target.name, "read", access.is_read, "written", access.is_written)
+}
+```
+
+It prints `lent read true written false`, `called read true written false`, `assigned read true written false` and
+`pair read true written true`. Expected: all three singletons written (bugs 51 and 52), and, for scheduling by
+component, `pair` answered per piece: `moved` written, `speed` only read (D335 left per piece for `Changed<T>`).
+
+The cause of 51 and 52 is one line of reasoning in `generation/parameter_write_study.spite`: `named_roots` and
+`raw_roots` map every path through an attribute whose class is a singleton to the root `|shared|`, dropping the
+attribute's name (`|this|@name|` for any other attribute), so `reflected_accesses`, which asks
+`parameter_writes.answer(..., "@name")`, never sees those writes. Keeping the name beside `|shared|` would answer
+both.
+
+What the engine tried meanwhile: through a value the attribute's own object holds, `accesses` is right in every
+form tried (`lookup.of(id).x = 1`, a named local, a narrowed `T?`, passed to a writing function, through an alias,
+through another class's function taking the lookup). So a `Lookup` holding the column's storage in its own fields
+would schedule readers correctly, but D230 lets a function lend an inline item only from a singleton's storage
+(`'values[row]' is borrowed from 'values' and cannot be returned`), so that path is closed for inline components,
+which is nearly all of them.
+
+What the stress slowdown turned out to be is in [Performance](#performance) below: glibc, not the runner.
 
 ## Suggested order
 

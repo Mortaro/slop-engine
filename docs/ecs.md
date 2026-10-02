@@ -381,12 +381,15 @@ stage 0 (input): System.Recook, System.RefreshCatalog, System.TickTimers
 stage 1 (update): System.Average, System.Census
 stage 2 (update): System.Drift, System.Retire
 stage 3 (update): System.Wear
-stage 4 (prepare): System.Grow
-stage 5 (last): System.CountFrames, System.SilenceTimers
+stage 4 (update): System.Weigh
+stage 5 (update): System.Witness
+stage 6 (prepare): System.Grow
+stage 7 (last): System.CountFrames, System.SilenceTimers
 ```
 
 `Average` and `Census` both only read `Component.Velocity`, so they share a stage; `Drift` writes it, so it starts
-the next one.
+the next one. `Wear` writes `Component.Armor`, so `Weigh`, which reads it, starts a stage after it, and `Witness`,
+which reads it through a `Lookup` (counted as a write), starts another.
 
 Ordering inside a phase is by name, not by data. The finer phase names carry the ordering that matters today.
 
