@@ -1,0 +1,3 @@
+var half_x: Float = 0.5
+var half_y: Float = 0.5
+var half_z: Float = 0.5

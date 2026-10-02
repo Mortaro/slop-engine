@@ -1,0 +1,740 @@
+var console = Console()
+var world = World()
+var colliders = Physics.Colliders()
+var contacts = Physics.Contacts()
+var meshes = Physics.Meshes()
+var geometry = Physics.Geometry()
+var brute = Brute()
+var first = Physics.Shape()
+var second = Physics.Shape()
+var probe = Physics.Shape()
+var loaded = Physics.Shape()
+var hit = Physics.Hit()
+var transforms = Lookup<Transform.Component.Transform>()
+var grounded = Lookup<Physics.Component.Grounded>()
+var tallies = Lookup<Component.TriggerTally>()
+var seed: Long = 20261002
+var decided = 0
+var ambiguous = 0
+var wrong = 0
+var query_kind = 0
+var start_x: Float = 0.0
+var start_y: Float = 0.0
+var start_z: Float = 0.0
+var end_x: Float = 0.0
+var end_y: Float = 0.0
+var end_z: Float = 0.0
+var radius: Float = 0.0
+var direction_x: Float = 0.0
+var direction_y: Float = 0.0
+var direction_z: Float = 0.0
+var reach: Float = 40.0
+var found = false
+var found_entity = -1
+var found_distance: Float = 0.0
+
+func PhysicsCheck() {
+    load "../../slop"
+    load "../../plugins/slop_physics_plugin"
+    var app = App()
+    app.frame_milliseconds = 20
+    var tally = Component.TriggerTally()
+    var root = world.as_entity()
+    root.add_component(tally)
+    world.flush()
+    var pairs_passed = check_pairs()
+    var queries_passed = check_queries(app)
+    var walking_passed = check_characters(app)
+    var triggers_passed = check_triggers(app)
+    var passed = pairs_passed and queries_passed and walking_passed and triggers_passed
+    console.print("physics check passed", passed)
+    crash passed
+}
+
+func random(): Float {
+    seed = (seed * 1103515245 + 12345) % 2147483648
+    var value: Float = seed
+    return value / 2147483648.0
+}
+
+func between(low: Float, high: Float): Float {
+    return low + random() * (high - low)
+}
+
+func random_rotation(shape: Physics.Shape) {
+    var turn_x = between(-1.0, 1.0)
+    var turn_y = between(-1.0, 1.0)
+    var turn_z = between(-1.0, 1.0)
+    var turn_w = between(-1.0, 1.0)
+    var length = (turn_x * turn_x + turn_y * turn_y + turn_z * turn_z + turn_w * turn_w).square_root()
+    shape.set_rotation(turn_x / length, turn_y / length, turn_z / length, turn_w / length)
+}
+
+func random_shape(shape: Physics.Shape, kind: Integer) {
+    var center_x = between(-0.8, 0.8)
+    var center_y = between(-0.8, 0.8)
+    var center_z = between(-0.8, 0.8)
+    var size_x = between(0.15, 0.6)
+    var size_y = between(0.15, 0.6)
+    var size_z = between(0.15, 0.6)
+    if kind == 0 {
+        shape.set_sphere(center_x, center_y, center_z, size_x + 0.05)
+    } else if kind == 1 {
+        random_rotation(shape)
+        var up_x = shape.axis_y_x * size_y
+        var up_y = shape.axis_y_y * size_y
+        var up_z = shape.axis_y_z * size_y
+        var capsule_radius = size_z * 0.6
+        shape.set_capsule(
+            center_x - up_x,
+            center_y - up_y,
+            center_z - up_z,
+            center_x + up_x,
+            center_y + up_y,
+            center_z + up_z,
+            capsule_radius,
+        )
+    } else if kind == 2 {
+        shape.set_box_center(center_x, center_y, center_z, size_x, size_y, size_z)
+        random_rotation(shape)
+    } else {
+        var second_x = between(-1.0, 1.0)
+        var second_y = between(-1.0, 1.0)
+        var second_z = between(-1.0, 1.0)
+        var third_x = between(-1.0, 1.0)
+        var third_y = between(-1.0, 1.0)
+        var third_z = between(-1.0, 1.0)
+        shape.set_triangle(center_x, center_y, center_z, second_x, second_y, second_z, third_x, third_y, third_z)
+    }
+}
+
+func sampled_overlap(sampled: Physics.Shape, other: Physics.Shape): Integer {
+    var margin: Float = 0.04
+    var spacing: Float = 0.04
+    var possible = false
+    var sample_x = sampled.lowest_x() - margin
+    var last_x = sampled.highest_x() + margin
+    var last_y = sampled.highest_y() + margin
+    var last_z = sampled.highest_z() + margin
+    while sample_x <= last_x + spacing {
+        var sample_y = sampled.lowest_y() - margin
+        while sample_y <= last_y + spacing {
+            var sample_z = sampled.lowest_z() - margin
+            while sample_z <= last_z + spacing {
+                var inside = brute.signed_distance(sampled, sample_x, sample_y, sample_z)
+                if inside <= margin {
+                    var near = brute.signed_distance(other, sample_x, sample_y, sample_z)
+                    if near <= margin {
+                        if inside <= -margin {
+                            return 1
+                        }
+                        possible = true
+                    }
+                }
+                sample_z = sample_z + spacing
+            }
+            sample_y = sample_y + spacing
+        }
+        sample_x = sample_x + spacing
+    }
+    if possible {
+        return -1
+    }
+    return 0
+}
+
+func check_pairs(): Boolean {
+    var first_kind = 0
+    while first_kind < 3 {
+        var second_kind = first_kind
+        while second_kind < 4 {
+            var pair_wrong = 0
+            var cases = 0
+            while cases < 30 {
+                random_shape(first, first_kind)
+                random_shape(second, second_kind)
+                var expected = sampled_overlap(first, second)
+                var answer = geometry.overlaps(first, second)
+                var reversed = geometry.overlaps(second, first)
+                if expected < 0 {
+                    ambiguous = ambiguous + 1
+                } else {
+                    decided = decided + 1
+                    if answer != (expected == 1) or reversed != answer {
+                        pair_wrong = pair_wrong + 1
+                    }
+                }
+                cases = cases + 1
+            }
+            if pair_wrong > 0 {
+                console.print("shape pair", first_kind, second_kind, "wrong", pair_wrong)
+            }
+            wrong = wrong + pair_wrong
+            second_kind = second_kind + 1
+        }
+        first_kind = first_kind + 1
+    }
+    console.print("shape pairs: decided", decided, "too close to call", ambiguous, "wrong", wrong)
+    return wrong == 0 and decided > 200
+}
+
+func place(entity: Entity, position_x: Float, position_y: Float, position_z: Float, turned: Boolean) {
+    var transform = Transform.Component.Transform()
+    transform.position_x = position_x
+    transform.position_y = position_y
+    transform.position_z = position_z
+    if turned {
+        random_rotation(probe)
+        var turn_x = between(-1.0, 1.0)
+        var turn_y = between(-1.0, 1.0)
+        var turn_z = between(-1.0, 1.0)
+        var turn_w = between(-1.0, 1.0)
+        var length = (turn_x * turn_x + turn_y * turn_y + turn_z * turn_z + turn_w * turn_w).square_root()
+        transform.rotation_x = turn_x / length
+        transform.rotation_y = turn_y / length
+        transform.rotation_z = turn_z / length
+        transform.rotation_w = turn_w / length
+    }
+    entity.add_component(transform)
+}
+
+func spawn_box(
+    position_x: Float,
+    position_y: Float,
+    position_z: Float,
+    half_x: Float,
+    half_y: Float,
+    half_z: Float,
+    turned: Boolean,
+): Entity {
+    var entity = world.create_entity()
+    place(entity, position_x, position_y, position_z, turned)
+    var box = Physics.Component.BoxCollider()
+    box.half_x = half_x
+    box.half_y = half_y
+    box.half_z = half_z
+    entity.add_component(box)
+    return entity
+}
+
+func spawn_slope(low_x: Float, position_z: Float, degrees: Float, half_x: Float, half_y: Float, half_z: Float) {
+    var angle = degrees * Float.pi / 180.0
+    var rise = angle.sine()
+    var run = angle.cosine()
+    var entity = world.create_entity()
+    var transform = Transform.Component.Transform()
+    transform.position_x = low_x + half_x * run + half_y * rise
+    transform.position_y = half_x * rise - half_y * run
+    transform.position_z = position_z
+    transform.rotation_z = (angle * 0.5).sine()
+    transform.rotation_w = (angle * 0.5).cosine()
+    entity.add_component(transform)
+    var box = Physics.Component.BoxCollider()
+    box.half_x = half_x
+    box.half_y = half_y
+    box.half_z = half_z
+    entity.add_component(box)
+}
+
+func spawn_query_scene() {
+    spawn_box(0.0, -3.0, 0.0, 500.0, 0.5, 500.0, false)
+    var index = 0
+    while index < 150 {
+        var box_x = between(-30.0, 30.0)
+        var box_y = between(0.0, 4.0)
+        var box_z = between(-30.0, 30.0)
+        var half_x = between(0.3, 2.0)
+        var half_y = between(0.3, 2.0)
+        var half_z = between(0.3, 2.0)
+        spawn_box(box_x, box_y, box_z, half_x, half_y, half_z, true)
+        index = index + 1
+    }
+    index = 0
+    while index < 100 {
+        var entity = world.create_entity()
+        var place_x = between(-30.0, 30.0)
+        var place_y = between(0.0, 4.0)
+        var place_z = between(-30.0, 30.0)
+        place(entity, place_x, place_y, place_z, true)
+        var size = between(0.2, 1.5)
+        var length = between(0.2, 1.5)
+        if index % 2 == 0 {
+            var sphere = Physics.Component.SphereCollider()
+            sphere.radius = size
+            entity.add_component(sphere)
+        } else {
+            var capsule = Physics.Component.CapsuleCollider()
+            capsule.radius = size * 0.6
+            capsule.half_height = length
+            entity.add_component(capsule)
+        }
+        if index % 5 == 0 {
+            var kinematic = Physics.Component.Kinematic()
+            entity.add_component(kinematic)
+        }
+        index = index + 1
+    }
+    spawn_bumps()
+}
+
+func pick_query(kind: Integer) {
+    query_kind = kind
+    start_x = between(-30.0, 30.0)
+    start_y = between(-0.5, 6.0)
+    start_z = between(-30.0, 30.0)
+    end_x = start_x
+    end_y = start_y
+    end_z = start_z
+    radius = 0.0
+    if kind == 1 {
+        radius = between(0.1, 0.8)
+    } else if kind == 2 {
+        random_rotation(probe)
+        var length = between(0.2, 0.8)
+        end_x = start_x + probe.axis_y_x * length
+        end_y = start_y + probe.axis_y_y * length
+        end_z = start_z + probe.axis_y_z * length
+        radius = between(0.1, 0.5)
+    }
+    direction_x = between(-1.0, 1.0)
+    direction_y = between(-1.0, 1.0)
+    direction_z = between(-1.0, 1.0)
+    var length = (direction_x * direction_x + direction_y * direction_y + direction_z * direction_z).square_root()
+    direction_x = direction_x / length
+    direction_y = direction_y / length
+    direction_z = direction_z / length
+}
+
+func run_query(brute_force: Boolean) {
+    colliders.brute_force = brute_force
+    if query_kind == 0 {
+        found = colliders.raycast(start_x, start_y, start_z, direction_x, direction_y, direction_z, reach, hit)
+    } else if query_kind == 1 {
+        found = colliders.sweep_sphere(
+            start_x,
+            start_y,
+            start_z,
+            radius,
+            direction_x,
+            direction_y,
+            direction_z,
+            reach,
+            hit,
+        )
+    } else {
+        found = colliders.sweep_capsule(
+            start_x,
+            start_y,
+            start_z,
+            end_x,
+            end_y,
+            end_z,
+            radius,
+            direction_x,
+            direction_y,
+            direction_z,
+            reach,
+            hit,
+        )
+    }
+    colliders.brute_force = false
+    found_entity = -1
+    found_distance = reach
+    if found {
+        found_entity = hit.entity.id
+        found_distance = hit.distance
+    }
+}
+
+func probe_at(distance: Float) {
+    var offset_x = direction_x * distance
+    var offset_y = direction_y * distance
+    var offset_z = direction_z * distance
+    var probe_radius = radius.maximum(0.002)
+    probe.set_capsule(
+        start_x + offset_x,
+        start_y + offset_y,
+        start_z + offset_z,
+        end_x + offset_x,
+        end_y + offset_y,
+        end_z + offset_z,
+        probe_radius,
+    )
+}
+
+func probe_touches(slot: Integer): Boolean {
+    colliders.load_shape(slot, loaded, 0.0, 0.0, 0.0)
+    return geometry.overlaps(probe, loaded)
+}
+
+func march(): Float {
+    var step: Float = 0.01
+    var near = List<Integer>()
+    var travelled: Float = 0.0
+    while travelled < reach {
+        near.clear()
+        probe_at(travelled)
+        var probe_low_x = probe.lowest_x()
+        var probe_low_y = probe.lowest_y()
+        var probe_low_z = probe.lowest_z()
+        var probe_high_x = probe.highest_x()
+        var probe_high_y = probe.highest_y()
+        var probe_high_z = probe.highest_z()
+        var low_x = probe_low_x + direction_x.minimum(0.0) - 0.01
+        var low_y = probe_low_y + direction_y.minimum(0.0) - 0.01
+        var low_z = probe_low_z + direction_z.minimum(0.0) - 0.01
+        var high_x = probe_high_x + direction_x.maximum(0.0) + 0.01
+        var high_y = probe_high_y + direction_y.maximum(0.0) + 0.01
+        var high_z = probe_high_z + direction_z.maximum(0.0) + 0.01
+        var slot = 0
+        while slot < colliders.kinds.count() {
+            var near_bounds = colliders.bounds_touch(slot, low_x, low_y, low_z, high_x, high_y, high_z)
+            if near_bounds and colliders.has_flag(slot, colliders.solid) {
+                near.append(slot)
+            }
+            slot = slot + 1
+        }
+        var walked: Float = 0.0
+        while walked < 1.0 {
+            probe_at(travelled + walked)
+            var index = 0
+            while index < near.count() {
+                if probe_touches(near[index]) {
+                    return travelled + walked
+                }
+                index = index + 1
+            }
+            walked = walked + step
+        }
+        travelled = travelled + 1.0
+    }
+    return -1.0
+}
+
+func confirms(distance: Float, entity: Integer): Boolean {
+    probe_at(distance + 0.01)
+    probe.radius = probe.radius + 0.01
+    var slot = 0
+    while slot < colliders.kinds.count() {
+        if colliders.kinds[slot] >= 0 and colliders.owner_of(slot) == entity and probe_touches(slot) {
+            return true
+        }
+        slot = slot + 1
+    }
+    return false
+}
+
+func starts_free(): Boolean {
+    probe_at(0.0)
+    var slot = 0
+    while slot < colliders.kinds.count() {
+        if colliders.kinds[slot] >= 0 and colliders.has_flag(slot, colliders.solid) and probe_touches(slot) {
+            return false
+        }
+        slot = slot + 1
+    }
+    return true
+}
+
+func check_query_kind(kind: Integer, total: Integer, marched: Integer): Integer {
+    var mismatches = 0
+    var hits = 0
+    var index = 0
+    while index < total {
+        pick_query(kind)
+        while index < marched and not starts_free() {
+            pick_query(kind)
+        }
+        if index < marched {
+            reach = 12.0
+        } else {
+            reach = 40.0
+        }
+        run_query(true)
+        var brute_found = found
+        var brute_entity = found_entity
+        var brute_distance = found_distance
+        run_query(false)
+        var same = found == brute_found and (found_distance - brute_distance).absolute() < 0.0001
+        if same and found and found_entity != brute_entity {
+            same = (found_distance - brute_distance).absolute() < 0.00001
+        }
+        if not same {
+            console.print(
+                "query",
+                kind,
+                index,
+                "grid",
+                found,
+                found_entity,
+                found_distance,
+                "brute force",
+                brute_found,
+                brute_entity,
+                brute_distance,
+            )
+            mismatches = mismatches + 1
+        }
+        if found {
+            hits = hits + 1
+        }
+        if index < marched {
+            var marched_distance = march()
+            var agrees = true
+            if marched_distance >= 0.0 {
+                agrees = found and (found_distance - marched_distance).absolute() < 0.05
+            } else if found {
+                agrees = confirms(found_distance, found_entity)
+            }
+            if not agrees {
+                console.print("query", kind, index, "sweep", found, found_distance, "marched", marched_distance)
+                mismatches = mismatches + 1
+            }
+        }
+        index = index + 1
+    }
+    console.print("query kind", kind, "queries", total, "hits", hits, "marched", marched, "mismatches", mismatches)
+    return mismatches
+}
+
+func check_queries(app: App): Boolean {
+    spawn_query_scene()
+    world.flush()
+    app.tick()
+    var mismatches = check_query_kind(0, 300, 25)
+    mismatches = mismatches + check_query_kind(1, 300, 25)
+    mismatches = mismatches + check_query_kind(2, 300, 25)
+    var total = colliders.count()
+    console.print("colliders", total, "queries against brute force and marching, mismatches", mismatches)
+    return mismatches == 0
+}
+
+func spawn_character(position_x: Float, position_z: Float, velocity_x: Float, velocity_z: Float): Integer {
+    var bundle = Physics.Bundle.Character(position_x, 0.02, position_z)
+    bundle.desired.velocity_x = velocity_x
+    bundle.desired.velocity_z = velocity_z
+    var entity = world.create_entity_from_bundle(bundle)
+    return entity.id
+}
+
+func check_characters(app: App): Boolean {
+    spawn_box(2000.0, -0.5, 0.0, 60.0, 0.5, 60.0, false)
+    spawn_box(2010.0, 1.5, 10.0, 0.5, 1.5, 6.0, false)
+    spawn_box(2010.0, 0.125, -10.0, 2.0, 0.125, 3.0, false)
+    spawn_box(2010.0, 0.3, -20.0, 2.0, 0.3, 3.0, false)
+    spawn_slope(2008.0, -30.0, 60.0, 3.0, 0.5, 3.0)
+    spawn_slope(2008.0, -40.0, 20.0, 4.0, 0.5, 3.0)
+    var sliding = spawn_character(2007.0, 5.0, 2.0, 2.0)
+    var stepping = spawn_character(2005.0, -10.0, 2.0, 0.0)
+    var blocked = spawn_character(2005.0, -20.0, 2.0, 0.0)
+    var steep = spawn_character(2005.0, -30.0, 2.0, 0.0)
+    var climbing = spawn_character(2005.0, -40.0, 2.0, 0.0)
+    world.flush()
+    var slid = false
+    var slide_most_x: Float = 0.0
+    var slide_y: Float = 0.0
+    var slide_grounded = false
+    var stepped = false
+    var step_y: Float = 0.0
+    var step_grounded = false
+    var blocked_still = 0
+    var blocked_x: Float = 0.0
+    var blocked_y: Float = 0.0
+    var steep_still = 0
+    var steep_x: Float = 0.0
+    var steep_y: Float = 0.0
+    var climbed = false
+    var climb_x: Float = 0.0
+    var climb_y: Float = 0.0
+    var climb_grounded = false
+    var climb_airborne = 0
+    var climb_landed = false
+    var ticks = 0
+    var finished = false
+    while not finished {
+        var blocked_start = transforms.of(blocked)
+        crash blocked_start
+        var blocked_before = blocked_start.position_x
+        var steep_start = transforms.of(steep)
+        crash steep_start
+        var steep_before = steep_start.position_x
+        app.tick()
+        ticks = ticks + 1
+        var a_character_check_finishes_within_a_thousand_ticks = ticks < 1000
+        crash a_character_check_finishes_within_a_thousand_ticks
+        var slider = transforms.of(sliding)
+        crash slider
+        if not slid {
+            slide_most_x = slide_most_x.maximum(slider.position_x)
+        }
+        if not slid and slider.position_z >= 13.0 {
+            slid = true
+            slide_y = slider.position_y
+            slide_grounded = grounded.has(sliding)
+        }
+        var stepper = transforms.of(stepping)
+        crash stepper
+        if not stepped and stepper.position_x >= 2009.5 {
+            stepped = true
+            step_y = stepper.position_y
+            step_grounded = grounded.has(stepping)
+        }
+        var blocker = transforms.of(blocked)
+        crash blocker
+        if blocked_still < 5 {
+            if (blocker.position_x - blocked_before).absolute() < 0.0005 and grounded.has(blocked) {
+                blocked_still = blocked_still + 1
+            } else {
+                blocked_still = 0
+            }
+            blocked_x = blocker.position_x
+            blocked_y = blocker.position_y
+        }
+        var steeper = transforms.of(steep)
+        crash steeper
+        if steep_still < 5 {
+            if (steeper.position_x - steep_before).absolute() < 0.0005 and steeper.position_x > 2006.0 {
+                steep_still = steep_still + 1
+            } else {
+                steep_still = 0
+            }
+            steep_x = steeper.position_x
+            steep_y = steeper.position_y
+        }
+        var climber = transforms.of(climbing)
+        crash climber
+        var climber_grounded = grounded.has(climbing)
+        if climber_grounded {
+            climb_landed = true
+        } else if climb_landed and not climbed {
+            climb_airborne = climb_airborne + 1
+        }
+        if not climbed and climber.position_x >= 2012.0 {
+            climbed = true
+            climb_x = climber.position_x
+            climb_y = climber.position_y
+            climb_grounded = climber_grounded
+        }
+        finished = slid and stepped and blocked_still >= 5 and steep_still >= 5 and climbed
+    }
+    var wall_face = 2009.5 - 0.4
+    var slide_passed = slide_most_x <= wall_face and slide_most_x > wall_face - 0.05 and slide_y.absolute() < 0.05 and slide_grounded
+    console.print(
+        "wall slide: most x",
+        slide_most_x,
+        "face at",
+        wall_face,
+        "y",
+        slide_y,
+        "grounded",
+        slide_grounded,
+        "passed",
+        slide_passed,
+    )
+    var step_passed = (step_y - 0.25).absolute() < 0.03 and step_grounded
+    console.print("step up 0.25: y", step_y, "grounded", step_grounded, "passed", step_passed)
+    var blocked_passed = blocked_x <= 2008.0 - 0.4 and blocked_x > 2007.5 and blocked_y.absolute() < 0.05
+    console.print("block of 0.6: stopped at x", blocked_x, "y", blocked_y, "passed", blocked_passed)
+    var steep_passed = steep_y < 0.1 and steep_x < 2008.0
+    console.print("60 degree slope: stopped at x", steep_x, "y", steep_y, "passed", steep_passed)
+    var expected_y = (climb_x - 2008.0) * (20.0 * Float.pi / 180.0).tangent()
+    var climb_passed = (climb_y - expected_y).absolute() < 0.06 and climb_grounded and climb_airborne == 0
+    console.print(
+        "20 degree slope: x",
+        climb_x,
+        "y",
+        climb_y,
+        "expected",
+        expected_y,
+        "airborne ticks",
+        climb_airborne,
+        "passed",
+        climb_passed,
+    )
+    console.print("character ticks", ticks)
+    return slide_passed and step_passed and blocked_passed and steep_passed and climb_passed
+}
+
+func check_triggers(app: App): Boolean {
+    spawn_box(3000.0, -0.5, 0.0, 30.0, 0.5, 30.0, false)
+    var volume = spawn_box(3005.0, 1.0, 0.0, 1.0, 1.0, 1.0, false)
+    var marker = Physics.Component.Trigger()
+    volume.add_component(marker)
+    var walker_id = spawn_character(3000.0, 0.0, 2.0, 0.0)
+    var walker = world.entity_of(walker_id)
+    var walking = Component.Walker()
+    walker.add_component(walking)
+    world.flush()
+    var root = world.as_entity()
+    var ticks = 0
+    var left = false
+    while not left {
+        app.tick()
+        ticks = ticks + 1
+        var the_walker_leaves_the_trigger_within_six_hundred_ticks = ticks < 600
+        crash the_walker_leaves_the_trigger_within_six_hundred_ticks
+        var tally = tallies.of(root.id)
+        crash tally
+        left = tally.left_late > 0
+    }
+    app.tick()
+    app.tick()
+    var tally = tallies.of(root.id)
+    crash tally
+    var passed = tally.entered_early == 1 and tally.left_early == 1 and tally.entered_late == 1 and tally.left_late == 1
+    passed = passed and tally.walker_entered == 1 and tally.inside == 0 and contacts.count() == 0
+    console.print(
+        "trigger: entered seen",
+        tally.entered_early,
+        tally.entered_late,
+        "left seen",
+        tally.left_early,
+        tally.left_late,
+        "walker entered",
+        tally.walker_entered,
+        "inside after",
+        tally.inside,
+        "passed",
+        passed,
+    )
+    return passed
+}
+
+func spawn_bumps() {
+    var bumps = Physics.TriangleMesh()
+    var row = 0
+    while row <= 10 {
+        var column = 0
+        while column <= 10 {
+            var bump_x: Float = column * 2 - 10
+            var bump_z: Float = row * 2 - 10
+            var wave_x = (bump_x * 0.7).sine()
+            var wave_z = (bump_z * 0.5).cosine()
+            var bump_y = wave_x * 0.4 + wave_z * 0.3
+            bumps.add_vertex(bump_x, bump_y, bump_z)
+            column = column + 1
+        }
+        row = row + 1
+    }
+    row = 0
+    while row < 10 {
+        var column = 0
+        while column < 10 {
+            var corner = row * 11 + column
+            bumps.add_triangle(corner, corner + 11, corner + 1)
+            bumps.add_triangle(corner + 1, corner + 11, corner + 12)
+            column = column + 1
+        }
+        row = row + 1
+    }
+    meshes.add("bumps", bumps)
+    var ground = world.create_entity()
+    var transform = Transform.Component.Transform()
+    transform.position_y = -1.0
+    transform.rotation_y = 0.0998
+    transform.rotation_w = 0.995
+    ground.add_component(transform)
+    var mesh = Physics.Component.MeshCollider()
+    mesh.mesh = "bumps"
+    ground.add_component(mesh)
+}

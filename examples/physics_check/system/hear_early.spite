@@ -1,0 +1,20 @@
+type Tallied {
+    tally: Component.TriggerTally
+}
+
+type Arrival {
+    entered: Physics.Component.Entered
+    visitor: Physics.Component.Visitor
+}
+
+type Departure {
+    left: Physics.Component.Left
+    parent: Component.Parent
+}
+
+func input_all(tallies: List<Tallied>, arrivals: List<Arrival>, departures: List<Departure>) {
+    assert tallies.count() > 0
+    var tally = tallies[0].tally
+    tally.entered_early = tally.entered_early + arrivals.count()
+    tally.left_early = tally.left_early + departures.count()
+}

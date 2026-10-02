@@ -1,0 +1,20 @@
+var positions = List<Float>()
+var indices = List<Integer>()
+
+func add_vertex(position_x: Float, position_y: Float, position_z: Float): Integer {
+    var index = positions.count() / 3
+    positions.append(position_x)
+    positions.append(position_y)
+    positions.append(position_z)
+    return index
+}
+
+func add_triangle(first: Integer, second: Integer, third: Integer) {
+    indices.append(first)
+    indices.append(second)
+    indices.append(third)
+}
+
+func triangle_count(): Integer {
+    return indices.count() / 3
+}

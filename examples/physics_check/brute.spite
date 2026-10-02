@@ -1,0 +1,188 @@
+func segment_distance(
+    point_x: Float,
+    point_y: Float,
+    point_z: Float,
+    start_x: Float,
+    start_y: Float,
+    start_z: Float,
+    end_x: Float,
+    end_y: Float,
+    end_z: Float,
+): Float {
+    var along_x = end_x - start_x
+    var along_y = end_y - start_y
+    var along_z = end_z - start_z
+    var length = along_x * along_x + along_y * along_y + along_z * along_z
+    var share: Float = 0.0
+    if length > 0.0 {
+        share = (((point_x - start_x) * along_x + (point_y - start_y) * along_y + (point_z - start_z) * along_z) / length).clamp(
+            0.0,
+            1.0,
+        )
+    }
+    var across_x = point_x - start_x - along_x * share
+    var across_y = point_y - start_y - along_y * share
+    var across_z = point_z - start_z - along_z * share
+    return (across_x * across_x + across_y * across_y + across_z * across_z).square_root()
+}
+
+func signed_distance(shape: Physics.Shape, point_x: Float, point_y: Float, point_z: Float): Float {
+    if shape.kind == 0 {
+        var core = segment_distance(
+            point_x,
+            point_y,
+            point_z,
+            shape.first_x,
+            shape.first_y,
+            shape.first_z,
+            shape.second_x,
+            shape.second_y,
+            shape.second_z,
+        )
+        return core - shape.radius
+    }
+    if shape.kind == 1 {
+        return box_distance(shape, point_x, point_y, point_z)
+    }
+    return triangle_distance(shape, point_x, point_y, point_z)
+}
+
+func box_distance(shape: Physics.Shape, point_x: Float, point_y: Float, point_z: Float): Float {
+    var relative_x = point_x - shape.first_x
+    var relative_y = point_y - shape.first_y
+    var relative_z = point_z - shape.first_z
+    var out_x = (relative_x * shape.axis_x_x + relative_y * shape.axis_x_y + relative_z * shape.axis_x_z).absolute() - shape.half_x
+    var out_y = (relative_x * shape.axis_y_x + relative_y * shape.axis_y_y + relative_z * shape.axis_y_z).absolute() - shape.half_y
+    var out_z = (relative_x * shape.axis_z_x + relative_y * shape.axis_z_y + relative_z * shape.axis_z_z).absolute() - shape.half_z
+    var outside_x = out_x.maximum(0.0)
+    var outside_y = out_y.maximum(0.0)
+    var outside_z = out_z.maximum(0.0)
+    var outside = (outside_x * outside_x + outside_y * outside_y + outside_z * outside_z).square_root()
+    var inside = out_x.maximum(out_y).maximum(out_z).minimum(0.0)
+    return outside + inside
+}
+
+func triangle_distance(shape: Physics.Shape, point_x: Float, point_y: Float, point_z: Float): Float {
+    var edge_one_x = shape.second_x - shape.first_x
+    var edge_one_y = shape.second_y - shape.first_y
+    var edge_one_z = shape.second_z - shape.first_z
+    var edge_two_x = shape.third_x - shape.first_x
+    var edge_two_y = shape.third_y - shape.first_y
+    var edge_two_z = shape.third_z - shape.first_z
+    var face_x = edge_one_y * edge_two_z - edge_one_z * edge_two_y
+    var face_y = edge_one_z * edge_two_x - edge_one_x * edge_two_z
+    var face_z = edge_one_x * edge_two_y - edge_one_y * edge_two_x
+    var face_length = (face_x * face_x + face_y * face_y + face_z * face_z).square_root()
+    face_x = face_x / face_length
+    face_y = face_y / face_length
+    face_z = face_z / face_length
+    var height = (point_x - shape.first_x) * face_x + (point_y - shape.first_y) * face_y + (point_z - shape.first_z) * face_z
+    var flat_x = point_x - face_x * height
+    var flat_y = point_y - face_y * height
+    var flat_z = point_z - face_z * height
+    var inside_first = side(
+        shape.first_x,
+        shape.first_y,
+        shape.first_z,
+        shape.second_x,
+        shape.second_y,
+        shape.second_z,
+        flat_x,
+        flat_y,
+        flat_z,
+        face_x,
+        face_y,
+        face_z,
+    )
+    var inside_second = side(
+        shape.second_x,
+        shape.second_y,
+        shape.second_z,
+        shape.third_x,
+        shape.third_y,
+        shape.third_z,
+        flat_x,
+        flat_y,
+        flat_z,
+        face_x,
+        face_y,
+        face_z,
+    )
+    var inside_third = side(
+        shape.third_x,
+        shape.third_y,
+        shape.third_z,
+        shape.first_x,
+        shape.first_y,
+        shape.first_z,
+        flat_x,
+        flat_y,
+        flat_z,
+        face_x,
+        face_y,
+        face_z,
+    )
+    if inside_first and inside_second and inside_third {
+        return height.absolute()
+    }
+    var to_first = segment_distance(
+        point_x,
+        point_y,
+        point_z,
+        shape.first_x,
+        shape.first_y,
+        shape.first_z,
+        shape.second_x,
+        shape.second_y,
+        shape.second_z,
+    )
+    var to_second = segment_distance(
+        point_x,
+        point_y,
+        point_z,
+        shape.second_x,
+        shape.second_y,
+        shape.second_z,
+        shape.third_x,
+        shape.third_y,
+        shape.third_z,
+    )
+    var to_third = segment_distance(
+        point_x,
+        point_y,
+        point_z,
+        shape.third_x,
+        shape.third_y,
+        shape.third_z,
+        shape.first_x,
+        shape.first_y,
+        shape.first_z,
+    )
+    return to_first.minimum(to_second).minimum(to_third)
+}
+
+func side(
+    start_x: Float,
+    start_y: Float,
+    start_z: Float,
+    end_x: Float,
+    end_y: Float,
+    end_z: Float,
+    point_x: Float,
+    point_y: Float,
+    point_z: Float,
+    face_x: Float,
+    face_y: Float,
+    face_z: Float,
+): Boolean {
+    var edge_x = end_x - start_x
+    var edge_y = end_y - start_y
+    var edge_z = end_z - start_z
+    var to_x = point_x - start_x
+    var to_y = point_y - start_y
+    var to_z = point_z - start_z
+    var cross_x = edge_y * to_z - edge_z * to_y
+    var cross_y = edge_z * to_x - edge_x * to_z
+    var cross_z = edge_x * to_y - edge_y * to_x
+    return cross_x * face_x + cross_y * face_y + cross_z * face_z >= 0.0
+}

@@ -1,0 +1,12 @@
+type Placed {
+    entity: Entity
+    character: Added<Physics.Component.Character>
+    transform: Transform.Component.Transform
+}
+
+var colliders = Physics.Colliders()
+
+func after_input_each(placed: Placed) {
+    var character = placed.character.value
+    colliders.place_character(placed.entity.id, placed.transform, character.radius, character.height)
+}

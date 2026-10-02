@@ -1,0 +1,11 @@
+singleton
+
+var meshes = Dictionary<Physics.TriangleMesh>()
+
+func add(name: String, mesh: Physics.TriangleMesh) {
+    meshes[name] = mesh
+}
+
+func named(name: String): Physics.TriangleMesh? {
+    return meshes[name]
+}

@@ -1,0 +1,3 @@
+var velocity_x: Float = 0.0
+var velocity_y: Float = 0.0
+var velocity_z: Float = 0.0

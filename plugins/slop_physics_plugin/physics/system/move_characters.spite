@@ -1,0 +1,293 @@
+type Walking {
+    entity: Entity
+    transform: Transform.Component.Transform
+    character: Physics.Component.Character
+    desired: Physics.Component.DesiredVelocity
+    vertical: Physics.Component.VerticalSpeed
+}
+
+var colliders = Physics.Colliders()
+var grounded_markers = Lookup<Physics.Component.Grounded>()
+var skin: Float = 0.01
+var position_x: Float = 0.0
+var position_y: Float = 0.0
+var position_z: Float = 0.0
+var radius: Float = 0.4
+var height: Float = 1.8
+var floor_limit: Float = 0.7
+var ignored = -1
+var walled = false
+var landed = false
+var ceiling_hit = false
+var surface_y: Float = 0.0
+
+func update_each(clock: GameClock, walking: Walking) {
+    var seconds: Float = clock.frame.step_milliseconds
+    seconds = seconds / 1000.0
+    var character = walking.character
+    var transform = walking.transform
+    position_x = transform.position_x
+    position_y = transform.position_y
+    position_z = transform.position_z
+    radius = character.radius
+    height = character.height.maximum(character.radius * 2.0)
+    ignored = walking.entity.id
+    floor_limit = (character.slope_limit * Float.pi / 180.0).cosine()
+    var was_grounded = grounded_markers.has(ignored)
+    push_out()
+    var vertical_speed = walking.vertical.value
+    if was_grounded and vertical_speed <= 0.0 {
+        vertical_speed = 0.0
+    } else {
+        vertical_speed = vertical_speed - character.gravity * seconds
+    }
+    var desired = walking.desired
+    var move_x = desired.velocity_x * seconds
+    var move_y = (desired.velocity_y + vertical_speed) * seconds
+    var move_z = desired.velocity_z * seconds
+    var grounded = false
+    if was_grounded and move_y <= 0.0 {
+        walk(move_x, move_z, character.step_height)
+        grounded = snap_down(character.step_height)
+    } else {
+        landed = false
+        ceiling_hit = false
+        slide(move_x, move_y, move_z, false)
+        grounded = landed
+        if not grounded and move_y <= 0.0 {
+            grounded = snap_down(skin)
+        }
+        if grounded {
+            vertical_speed = 0.0
+        }
+        if ceiling_hit and vertical_speed > 0.0 {
+            vertical_speed = 0.0
+        }
+    }
+    transform.position_x = position_x
+    transform.position_y = position_y
+    transform.position_z = position_z
+    walking.vertical.value = vertical_speed
+    if grounded and not was_grounded {
+        var marker = Physics.Component.Grounded()
+        walking.entity.add_component(marker)
+    } else if was_grounded and not grounded {
+        walking.entity.remove_component(Physics.Component.Grounded)
+    }
+}
+
+func cast(motion_x: Float, motion_y: Float, motion_z: Float): Boolean {
+    var bottom = position_y + radius
+    var top = position_y + height - radius
+    return colliders.nearest(
+        position_x,
+        bottom,
+        position_z,
+        position_x,
+        top,
+        position_z,
+        radius,
+        motion_x,
+        motion_y,
+        motion_z,
+        ignored,
+    )
+}
+
+func push_out() {
+    var attempt = 0
+    while attempt < 4 {
+        var bottom = position_y + radius
+        var top = position_y + height - radius
+        var overlapping = colliders.deepest_overlap(
+            position_x,
+            bottom,
+            position_z,
+            position_x,
+            top,
+            position_z,
+            radius,
+            ignored,
+        )
+        assert overlapping and colliders.penetration_depth >= 0.001
+        var push = colliders.penetration_depth + skin
+        position_x = position_x + colliders.penetration_x * push
+        position_y = position_y + colliders.penetration_y * push
+        position_z = position_z + colliders.penetration_z * push
+        attempt = attempt + 1
+    }
+}
+
+func slide(motion_x: Float, motion_y: Float, motion_z: Float, walking: Boolean) {
+    walled = false
+    var remaining_x = motion_x
+    var remaining_y = motion_y
+    var remaining_z = motion_z
+    var first_x: Float = 0.0
+    var first_y: Float = 0.0
+    var first_z: Float = 0.0
+    var planes = 0
+    var iteration = 0
+    while iteration < 4 {
+        var squared = remaining_x * remaining_x + remaining_y * remaining_y + remaining_z * remaining_z
+        assert squared >= 0.0000000001
+        if not cast(remaining_x, remaining_y, remaining_z) {
+            position_x = position_x + remaining_x
+            position_y = position_y + remaining_y
+            position_z = position_z + remaining_z
+            return
+        }
+        var length = squared.square_root()
+        var fraction = colliders.hit_fraction
+        var travel = (fraction * length - skin).maximum(0.0) / length
+        position_x = position_x + remaining_x * travel
+        position_y = position_y + remaining_y * travel
+        position_z = position_z + remaining_z * travel
+        var normal_x = colliders.hit_normal_x
+        var normal_y = colliders.hit_normal_y
+        var normal_z = colliders.hit_normal_z
+        if normal_y >= floor_limit and remaining_y < 0.0 {
+            landed = true
+        }
+        if normal_y < -0.7 {
+            ceiling_hit = true
+        }
+        if walking and normal_y < floor_limit {
+            var flat = (normal_x * normal_x + normal_z * normal_z).square_root()
+            assert flat >= 0.0001
+            normal_x = normal_x / flat
+            normal_y = 0.0
+            normal_z = normal_z / flat
+            walled = true
+        }
+        var left_over = 1.0 - fraction
+        var rest_x = remaining_x * left_over
+        var rest_y = remaining_y * left_over
+        var rest_z = remaining_z * left_over
+        var into = rest_x * normal_x + rest_y * normal_y + rest_z * normal_z
+        if into < 0.0 {
+            rest_x = rest_x - normal_x * into
+            rest_y = rest_y - normal_y * into
+            rest_z = rest_z - normal_z * into
+        }
+        if planes == 1 {
+            var against = rest_x * first_x + rest_y * first_y + rest_z * first_z
+            if against < 0.0 {
+                var crease_x = first_y * normal_z - first_z * normal_y
+                var crease_y = first_z * normal_x - first_x * normal_z
+                var crease_z = first_x * normal_y - first_y * normal_x
+                var crease_length = (crease_x * crease_x + crease_y * crease_y + crease_z * crease_z).square_root()
+                assert crease_length >= 0.0001
+                crease_x = crease_x / crease_length
+                crease_y = crease_y / crease_length
+                crease_z = crease_z / crease_length
+                var along = rest_x * crease_x + rest_y * crease_y + rest_z * crease_z
+                rest_x = crease_x * along
+                rest_y = crease_y * along
+                rest_z = crease_z * along
+            }
+        }
+        assert planes < 2
+        if planes == 0 {
+            first_x = normal_x
+            first_y = normal_y
+            first_z = normal_z
+        }
+        planes = planes + 1
+        remaining_x = rest_x
+        remaining_y = rest_y
+        remaining_z = rest_z
+        iteration = iteration + 1
+    }
+}
+
+func walk(move_x: Float, move_z: Float, step_height: Float) {
+    var start_x = position_x
+    var start_y = position_y
+    var start_z = position_z
+    slide(move_x, 0.0, move_z, true)
+    assert walled and step_height > 0.0
+    var flat_x = position_x
+    var flat_y = position_y
+    var flat_z = position_z
+    var flat_progress = (flat_x - start_x) * (flat_x - start_x) + (flat_z - start_z) * (flat_z - start_z)
+    position_x = start_x
+    position_y = start_y
+    position_z = start_z
+    var support = start_y
+    if lands(step_height + skin) {
+        support = surface_y
+    }
+    position_y = start_y
+    var rise = step_height
+    if cast(0.0, step_height, 0.0) {
+        rise = (colliders.hit_fraction * step_height - skin).maximum(0.0)
+    }
+    position_y = position_y + rise
+    slide(move_x, 0.0, move_z, true)
+    var stepped = false
+    var drop = rise + skin * 2.0
+    if lands(drop) and surface_y - support <= step_height + skin {
+        var stepped_progress = (position_x - start_x) * (position_x - start_x) + (position_z - start_z) * (position_z - start_z)
+        stepped = stepped_progress > flat_progress + 0.00000001
+    }
+    if not stepped {
+        position_x = flat_x
+        position_y = flat_y
+        position_z = flat_z
+    }
+}
+
+func snap_down(distance: Float): Boolean {
+    var start_y = position_y
+    if lands(distance + skin) {
+        return true
+    }
+    position_y = start_y
+    return false
+}
+
+func lands(reach: Float): Boolean {
+    if not cast(0.0, -reach, 0.0) {
+        return false
+    }
+    var fraction = colliders.hit_fraction
+    var normal_x = colliders.hit_normal_x
+    var normal_y = colliders.hit_normal_y
+    var normal_z = colliders.hit_normal_z
+    var touched_x = colliders.hit_point_x
+    var touched_y = colliders.hit_point_y
+    var touched_z = colliders.hit_point_z
+    if not walkable(normal_x, normal_y, normal_z, touched_x, touched_y, touched_z) {
+        return false
+    }
+    position_y = position_y - (fraction * reach - skin).maximum(0.0)
+    return true
+}
+
+func walkable(
+    normal_x: Float,
+    normal_y: Float,
+    normal_z: Float,
+    touched_x: Float,
+    touched_y: Float,
+    touched_z: Float,
+): Boolean {
+    surface_y = touched_y
+    if normal_y >= floor_limit {
+        return true
+    }
+    var flat = (normal_x * normal_x + normal_z * normal_z).square_root()
+    if normal_y <= 0.0 or flat < 0.0001 {
+        return false
+    }
+    var probe_x = touched_x - normal_x / flat * 0.02
+    var probe_z = touched_z - normal_z / flat * 0.02
+    var probe_y = touched_y + 0.05
+    var found = colliders.nearest(probe_x, probe_y, probe_z, probe_x, probe_y, probe_z, 0.0, 0.0, -0.1, 0.0, ignored)
+    if not found or colliders.hit_normal_y < floor_limit {
+        return false
+    }
+    surface_y = probe_y - colliders.hit_fraction * 0.1
+    return (surface_y - touched_y).absolute() < 0.03
+}

@@ -1,0 +1,37 @@
+type Tallied {
+    tally: Component.TriggerTally
+}
+
+type Arrival {
+    entered: Physics.Component.Entered
+    visitor: Physics.Component.Visitor
+    parent: Component.Parent
+}
+
+type Departure {
+    left: Physics.Component.Left
+    parent: Component.Parent
+}
+
+type Inside {
+    visitor: Physics.Component.Visitor
+}
+
+var walkers = Lookup<Component.Walker>()
+var triggers = Lookup<Physics.Component.Trigger>()
+
+func update_all(tallies: List<Tallied>, arrivals: List<Arrival>, departures: List<Departure>, inside: List<Inside>) {
+    assert tallies.count() > 0
+    var tally = tallies[0].tally
+    tally.entered_late = tally.entered_late + arrivals.count()
+    tally.left_late = tally.left_late + departures.count()
+    tally.inside = inside.count()
+    var index = 0
+    while index < arrivals.count() {
+        var arrival = arrivals[index]
+        if walkers.has(arrival.visitor.entity.id) and triggers.has(arrival.parent.entity.id) {
+            tally.walker_entered = tally.walker_entered + 1
+        }
+        index = index + 1
+    }
+}
