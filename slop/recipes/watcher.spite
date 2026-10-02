@@ -1,3 +1,4 @@
+var build = Build()
 var raw = Raw()
 var heap = Memory.Heap()
 var clock = Clock()
@@ -6,34 +7,28 @@ var count = 0
 var pending = false
 var last_signal: Long = 0
 var settle: Long = 100
-var kernel = DynamicLibrary("kernel32.dll", 'identity', "")
+
+func Watcher() {
+    if build.target_operating_system == "windows" {
+        load "../../os/windows"
+    } else {
+        load "../../os/linux"
+    }
+}
 
 func start(watched: List<String>) {
     assert watched.count() > 0 and handles == 0
     count = watched.count()
-    handles = heap.allocate(count * 8)
-    var index = 0
-    while index < count {
-        crash watched[index]
-        var file_names_and_writes = 17
-        var handle = kernel.FindFirstChangeNotificationA_as_long(watched[index], 0, file_names_and_writes)
-        raw.write_long(handles, index * 8, handle)
-        index = index + 1
-    }
+    start_watching(watched)
 }
 
 func take_change(): Boolean {
     if handles == 0 {
         return false
     }
-    var no_wait = 0
-    var signalled = kernel.WaitForMultipleObjects(count, handles, 0, no_wait)
-    while signalled >= 0 and signalled < count {
-        var handle = raw.read_long(handles, signalled * 8)
-        kernel.FindNextChangeNotification(handle)
+    if take_signals() {
         pending = true
         last_signal = clock.elapsed_milliseconds()
-        signalled = kernel.WaitForMultipleObjects(count, handles, 0, no_wait)
     }
     var quiet = clock.elapsed_milliseconds() - last_signal
     var settled = pending and quiet >= settle
@@ -45,11 +40,5 @@ func take_change(): Boolean {
 
 func drop() {
     assert handles != 0
-    var index = 0
-    while index < count {
-        var handle = raw.read_long(handles, index * 8)
-        kernel.FindCloseChangeNotification(handle)
-        index = index + 1
-    }
-    heap.free(handles)
+    stop_watching()
 }
