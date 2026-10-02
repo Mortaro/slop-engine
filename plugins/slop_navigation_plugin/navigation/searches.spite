@@ -10,7 +10,7 @@ func add(job: Parallel<Navigation.Found>) {
 func batch_size(requests: Integer): Integer {
     var workers = pool.size() + 1
     var size = (requests + workers - 1) / workers
-    return size.maximum(16)
+    return size.clamp(16, 128)
 }
 
 func take_finished(): Navigation.Found? {

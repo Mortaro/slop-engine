@@ -150,6 +150,43 @@ The whole page is Claude's proposal, unconfirmed; Mortaro decides the API. It is
   each other instead of misreading, and a compile-time check that no two components hash to the same message id.
 - **Unreliable delivery** (UDP) for state that is superseded every tick, prediction, and rates.
 
+## [navigation.md](../docs/navigation.md)
+
+Built 2026-10-02 (the roadmap's item 6); the API is Claude's proposal ([decisions.md](decisions.md#navigationmd)).
+
+- Not built yet:
+  - the roadmap's later inputs: water and safe planes, and reading collision (`UCX_` meshes, collection instances)
+    from a map's `.blend`; a recipe passes triangles to `Navigation.Bake` by hand today;
+  - an agent radius: cells are not eroded, so a path may run along the cell next to a wall;
+  - several floors per cell: the grid keeps the highest floor with room, so the ground under a bridge is lost;
+  - runtime changes to the grid (doors, dynamic obstacles) and avoidance between bots;
+  - a smooth height: a walking bot takes its cell's height, which steps on slopes.
+- Known gaps:
+  - Replacing a `Destination` in place does not search again: `Added` sees only a new component, and there is no
+    `Changed<T>`. A game removes and adds it in the same tick.
+  - `RequestPaths` is a list system driven by `Added<Destination>`, and building that list walks every
+    `Destination` each tick: about 0.7 ms a tick with 10,000 bots holding one (`navigation_bench`), whether or not
+    one is new. An engine-wide cost of `Added` in list systems.
+  - 10,000 destinations added in one tick cost about 21 ms in that tick's `RequestPaths` (making the batches and
+    10,000 marker commands); answers land at most 512 bots a tick.
+  - On Linux, `cookbook.cook()` ends by starting `Recipes.Watcher`, which is Windows-only, so headless programs
+    (`navigation_check`) call `cookbook.cook_recipes()`; the docs present that as the server's way.
+  - A `Navigation.Search` keeps 12 bytes per cell for each thread that searches: 48 MB at 2048 by 2048.
+  - Search speed is bound by `List` reads and writes, which stay calls in the C (`List_Long_set_at`,
+    `List_Integer_set_at`, the binary heap's sifting take most of a query in callgrind): about 0.5 µs per expanded
+    cell. Inlined list access (D402's work) is the expected win.
+- Question for Mortaro: one grid per program (`Navigation.Map`), or one per space as `Spatial.Grid` has, so
+  instances and dungeons sharing coordinates each have their own? Options: (a) keep one grid (simplest, a server
+  per map); (b) a `Dictionary` of grids keyed by `Spatial.Component.Indexed.space`, read by the systems from each
+  bot's `Indexed`; (c) a grid entity per map and a link on each bot. Recommendation: (b), matching the spatial
+  grid, once a game runs several maps in one process.
+- Measured (2026-10-02, Linux, 4-core cloud machine shared with four other builds, `--optimized`, medians of 3
+  runs of `navigation_bench`): baking 2048 by 2048 cells from a 512 by 512 quad terrain and 3,000 boxes (560,288
+  triangles) takes 5.3 s; A* with smoothing on that grid answers 2,670 queries per second on one thread for goals
+  within 125 cells (622 cells expanded on average, unreachable goals answered at once) and 140 per second for goals
+  within 600 cells; four threads answer 3,730 per second (the machine was loaded, so this is to measure again on
+  Windows); 10,000 bots asking at once through the systems are all answered within 3.0 s, worst tick 46 ms.
+
 ## [performance.md](../docs/performance.md)
 
 GPU timestamps per pass are not built yet. There is no parallel iteration inside one system. Rows a system only

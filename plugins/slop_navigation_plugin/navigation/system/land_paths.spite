@@ -3,12 +3,18 @@ var searches = Navigation.Searches()
 var destinations = Lookup<Navigation.Component.Destination>()
 var headings = Lookup<Navigation.Component.Heading>()
 var nexts = Lookup<Navigation.Component.Next>()
+var budget = 512
 
 func input_each() {
+    var landed = 0
     var found = searches.take_finished()
     while found {
         land(found)
-        found = searches.take_finished()
+        landed = landed + found.entities.count()
+        found = null
+        if landed < budget {
+            found = searches.take_finished()
+        }
     }
 }
 

@@ -198,6 +198,13 @@ Each cell is a linked list through entity ids, shared by every space since an en
 write per entity and clearing resets only the cells used. `server_bench` (15,000 entities) ticks in about 6 ms with
 10,000 aggro queries of 20 m and 5,000 of 60 m, and checks a query against brute force.
 
+## slop_navigation_plugin
+
+Walkability and paths for bots: `Navigation.Bake` turns triangles (meshes and heightfields) into a
+`Navigation.Asset.Walkability` grid in a recipe, `Navigation.Search` finds A* paths and smooths them by line of
+sight, and four systems walk any entity with a `Navigation.Component.Destination` along its path, its waypoints
+being entities. It loads the transform plugin. See [navigation.md](navigation.md).
+
 ## slop_interest_plugin
 
 Observing by distance: `Interest.Component.Viewer` and the link `Interest.Component.Viewpoint` on a connection

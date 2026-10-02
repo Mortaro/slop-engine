@@ -267,6 +267,35 @@ func query_through_systems(bots: Integer) {
         worst / 1000000,
         "ms",
     )
+    print_profile(app)
+}
+
+func print_profile(app: App) {
+    var report = app.profile()
+    var index = 0
+    while index < report.stages.count() {
+        var stage = report.stages[index]
+        if stage.worst_microseconds > 1000 {
+            console.print(
+                "  ",
+                stage.name,
+                stage.phase,
+                "average",
+                stage.average_microseconds,
+                "worst",
+                stage.worst_microseconds,
+            )
+        }
+        index = index + 1
+    }
+    index = 0
+    while index < report.systems.count() {
+        var entry = report.systems[index]
+        if entry.worst_microseconds > 1000 {
+            console.print("  ", entry.name, "average", entry.average_microseconds, "worst", entry.worst_microseconds)
+        }
+        index = index + 1
+    }
 }
 
 func count_answered(
