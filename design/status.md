@@ -126,9 +126,12 @@ and the click test passed for 5 and 12 clicks.
     properties, so the time-driven parameters are set by recipes; Unreal's ambient occlusion input has no Principled
     BSDF socket, so no occlusion map is read;
   - one-sided culling is not applied in the shadow pass, which draws both faces of everything.
-- GPU passes for materials (render_bench, optimized, 1920x1080, RTX 3090, median of 3; other streams shared the GPU,
-  so single runs vary by about 30 us): before, frame 538, shadows 76, scene 426, tone map 17 us. With maps,
-  per-section materials and the lean shader variant: see the measurements line below.
+- GPU passes for materials (render_bench, optimized, 1920x1080, RTX 3090, median of 3 runs alternating with the
+  base build; other streams shared the GPU, so single runs vary by about 30 us): before, frame 534, shadows 76, scene
+  423, tone map 17 us; after, frame 543, shadows 76, scene 432, tone map 17 us. The full material shader for every
+  section cost about 35 us more in the scene pass, which the lean variant took back. With `--decals=64
+  --faded-archers=16`: scene 437, decals 43 us. The archers now take roughness 0.5 from their `.blend` (Blender's and
+  Unreal's default) instead of the painted 0.7, so they are a little glossier.
 - A light that is a child of a moving entity reads only its own position (proposal: follow the parent once
   transforms have a world pass).
 - Point and spot lights, not built yet:
