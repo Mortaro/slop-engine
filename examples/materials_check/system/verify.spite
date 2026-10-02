@@ -130,6 +130,9 @@ func check_materials() {
     var one_sided = settings("materials.onesided")
     var two_sided = settings("materials.twosided")
     check(not one_sided.two_sided and two_sided.two_sided, "backface culling is read", 0, 0)
+    var ring = settings("materials.ring")
+    var ring_reads = ring.unlit and ring.translucent and ring.opacity_from_base and ring.opacity_channel == 3
+    check(ring_reads, "a transparent mix with an emission is unlit and translucent", ring.opacity_channel, 3)
     var glass = settings("materials.glass")
     var opacity: Integer = glass.opacity * 100.0
     check(glass.translucent and opacity == 50, "a blended material is translucent", opacity, 50)
@@ -181,6 +184,17 @@ func check_pixels(checked: Checked) {
     var slab_red = red_of(slab)
     var slab_green = green_of(slab)
     check(slab_red < slab_green + 12, "the decal stays inside its box", slab_red, slab_green)
+    var hole = color_at(checked, 6.0, 0.0, 0.0)
+    var band = color_at(checked, 6.37, 0.0, 0.0)
+    var hole_clear = alike(hole, sky)
+    var band_red = red_of(band)
+    var band_blue = blue_of(band)
+    check(
+        hole_clear and band_red > band_blue + 40,
+        "an unlit translucent ring shows only its band",
+        band_red,
+        band_blue,
+    )
     check_dither(checked, sky)
 }
 

@@ -168,6 +168,11 @@ The sun casts a 2048² shadow map:
 | `unlit` | the Surface is an Emission node: its Color (an image, read as the base image, or a colour) times its Strength | off |
 | `scroll_across`, `scroll_down`, `pulse_speed`, `pulse_minimum` | set by the recipe | none |
 
+The Surface may also be a Mix Shader of a Transparent BSDF (its first shader) and a Principled BSDF or an Emission
+(its second): the material is the second one's, with the Mix's factor as its opacity. With the Blended render
+method, a Transparent and Emission mix whose factor is an image's alpha is Blender's unlit, translucent, emissive
+material.
+
 A map's channel is 0 to 3: an image's Color reads red (a greyscale map), its Alpha reads alpha, and a Separate Color
 (or Separate RGB) node picks one channel, so one packed occlusion, roughness and metallic image feeds both maps.
 

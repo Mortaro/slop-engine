@@ -1,7 +1,7 @@
 var cache = Recipes.Cache()
 var cookbook = Recipes.Cookbook()
 var decoder = Png.Decoder()
-var version = "materials 1"
+var version = "materials 2"
 var objects = [
     "Plain"
     "BumpRight"
@@ -14,6 +14,7 @@ var objects = [
     "Backdrop"
     "Glass"
     "Scroll"
+    "Ring"
 ]
 var cooked_textures = List<String>()
 

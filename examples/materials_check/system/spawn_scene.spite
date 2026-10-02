@@ -16,6 +16,7 @@ var placed = [
     "backdrop"
     "glass"
     "scroll"
+    "ring"
 ]
 
 func update_each(_started: Started) {
