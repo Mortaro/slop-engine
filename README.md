@@ -321,6 +321,7 @@ plugins/                  each loaded on its own: plugins/slop_<feature>_plugin/
   window/, input/, ui/, render/, render_software/, render_vulkan/
   network/                replicated components and connections (docs/networking.md)
   transform/, camera/, scene/, scene_vulkan/, animation/, lighting/   3D (docs/scene.md)
+  navigation/             walkability bake, grid A*, line of sight, path following (docs/navigation.md)
   mongodb/                the ECS side of MongoDB; the driver is its own package, spite_mongodb_driver
   png/                    PNG decoding
   psd/, zstd/, blend/     the source-format loaders, loaded by whoever has a recipe that reads them
@@ -348,8 +349,9 @@ The pages in [docs/](docs/README.md), in reading order; each ends with a link to
 9. [3D: scenes, characters and lighting](docs/scene.md)
 10. [Physics](docs/physics.md)
 11. [Environments and networking](docs/networking.md)
-12. [Performance](docs/performance.md)
-13. [Testing](docs/testing.md)
+12. [Navigation](docs/navigation.md)
+13. [Performance](docs/performance.md)
+14. [Testing](docs/testing.md)
 
 The people and agents who build the engine keep their material in [design/](design/): what is not built yet, where
 each decision came from, the roadmap, and what building the engine taught about Spite.

@@ -1,0 +1,4 @@
+var cells = 2048
+var boxes = 3000
+var queries = 20000
+var bots = 10000

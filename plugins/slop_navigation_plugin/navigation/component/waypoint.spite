@@ -1,0 +1,2 @@
+var position_x: Float = 0.0
+var position_z: Float = 0.0

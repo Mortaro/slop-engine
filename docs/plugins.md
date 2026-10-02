@@ -208,6 +208,13 @@ triangles by name; the character controller (`Character`, `DesiredVelocity`, `Ve
 `MoveCharacters` in `update`); and trigger volumes, whose overlaps are entities marked `Entered` and `Left`. It loads
 the transform plugin.
 
+## slop_navigation_plugin
+
+Walkability and paths for bots: `Navigation.Bake` turns triangles (meshes and heightfields) into a
+`Navigation.Asset.Walkability` grid in a recipe, `Navigation.Search` finds A* paths and smooths them by line of
+sight, and four systems walk any entity with a `Navigation.Component.Destination` along its path, its waypoints
+being entities. It loads the transform plugin. See [navigation.md](navigation.md).
+
 ## slop_interest_plugin
 
 Observing by distance: `Interest.Component.Viewer` and the link `Interest.Component.Viewpoint` on a connection

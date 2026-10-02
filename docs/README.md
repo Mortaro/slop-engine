@@ -25,5 +25,7 @@ Read the pages in this order the first time; each page assumes the ones before i
     character controller, trigger volumes.
 11. [networking.md](networking.md): environments as folders (client, server, bot), replicated components,
     observers and area of interest, the binary wire.
-12. [performance.md](performance.md): measuring, the profile, where the time goes, how the engine avoids stutters.
-13. [testing.md](testing.md): every example, what it proves, and how to write a test.
+12. [navigation.md](navigation.md): a walkability grid baked from triangles, A* paths, line of sight, and bots
+    that follow paths.
+13. [performance.md](performance.md): measuring, the profile, where the time goes, how the engine avoids stutters.
+14. [testing.md](testing.md): every example, what it proves, and how to write a test.

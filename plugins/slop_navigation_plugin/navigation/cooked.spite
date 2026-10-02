@@ -1,0 +1,10 @@
+var cache = Recipes.Cache()
+
+func walkability(id: String): Navigation.Asset.Walkability {
+    var bytes = cache.read(id)
+    crash bytes
+    var pack = Pack<Navigation.Asset.Walkability>()
+    var decoded = pack.decode(bytes)
+    crash decoded
+    return decoded
+}

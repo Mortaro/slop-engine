@@ -1,0 +1,7 @@
+singleton
+
+var grid = Navigation.Grid()
+
+func use(walkability: Navigation.Asset.Walkability) {
+    grid.use(walkability)
+}

@@ -1,0 +1,12 @@
+var cache = Recipes.Cache()
+
+func build() {
+    var fingerprint = cache.fingerprint("navigation check course 1")
+    assert not cache.is_current("navigation.check.course", fingerprint)
+    var course = Course()
+    var walkability = course.build()
+    var pack = Pack<Navigation.Asset.Walkability>()
+    var bytes = Asset.Bytes()
+    pack.encode(walkability, bytes)
+    cache.put("navigation.check.course", fingerprint, bytes)
+}

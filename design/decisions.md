@@ -142,6 +142,29 @@ Claude (2026-10-02), for Mortaro to confirm:
 - A message is an entity (a game's alert A109, Claude's proposal).
 - The dial runs on the thread pool (D191).
 
+## [navigation.md](../docs/navigation.md)
+
+- The roadmap's item 6 (a game's request, 2026-09-26: a walkability bitgrid cooked from terrain and collision at
+  0.8 m, grid A*, line of sight).
+- Plain classes and `List`s throughout, no `Raw` or `TypedMemory` (Spite's D398, D399, D402).
+- Proposals by Claude (2026-10-02), for Mortaro to decide:
+  - the bake as a recipe step (`Navigation.Bake`) whose output is an asset class (`Navigation.Asset.Walkability`:
+    bits packed 32 to an `Integer`, plus a standing height per cell), and the span model borrowed from Recast
+    (triangles clipped per cell, spans merged, highest floor with room for the agent, ledges dropped);
+  - one grid per program in a `Navigation.Map` singleton;
+  - A* with integer costs 1000 and 1414 and the octile heuristic, no corner cutting, ties to the deeper node; line of
+    sight by the supercover line asking for both cells at a corner; string pulling;
+  - regions labelled at load, so an unreachable goal is answered at once;
+  - a path as waypoint entities (children of the bot, chained by the link `Next`, the bot's `Heading` naming the
+    current one) rather than a list in a resource keyed by entity, since docs/ecs.md turns a list of items into
+    entities; walking is a two-row system following `Heading`;
+  - the names `Destination`, `Speed`, `Searching`, `Heading`, `Waypoint`, `Next`, `Arrived` and `Unreachable`;
+    `Unreachable` says something the destination is, not something the bot lacks;
+  - searches batched per tick, one `Parallel` per batch in the `Navigation.Searches` resource, each pool thread
+    keeping its own `Navigation.Search` in a `ThreadLocal`; results land in `input` on a later tick;
+  - `Destination` stays after `Arrived` and `Unreachable`, and a new destination is a remove and an add in the same
+    tick, since a replaced component is not `Added`.
+
 ## [performance.md](../docs/performance.md)
 
 - The profile API is a proposal by Claude.

@@ -1,0 +1,65 @@
+type Request {
+    entity: Entity
+    destination: Added<Navigation.Component.Destination>
+    transform: Transform.Component.Transform
+}
+
+var world = World()
+var searches = Navigation.Searches()
+var headings = Lookup<Navigation.Component.Heading>()
+var nexts = Lookup<Navigation.Component.Next>()
+
+func update_all(requests: List<Request>) {
+    var count = requests.count()
+    var size = searches.batch_size(count)
+    var first = 0
+    while first < requests.count() {
+        var job = Navigation.SearchJob()
+        var index = first
+        while index < requests.count() and index < first + size {
+            var request = requests[index]
+            var goal = request.destination.value
+            job.ask(
+                request.entity.id,
+                request.transform.position_x,
+                request.transform.position_z,
+                goal.position_x,
+                goal.position_z,
+            )
+            index = index + 1
+        }
+        var running = Parallel(job.run)
+        searches.add(running)
+        first = first + size
+    }
+    var marked = 0
+    while marked < requests.count() {
+        mark(requests[marked].entity)
+        marked = marked + 1
+    }
+}
+
+func mark(bot: Entity) {
+    forget_path(bot)
+    bot.remove_component(Navigation.Component.Arrived)
+    bot.remove_component(Navigation.Component.Unreachable)
+    var searching = Navigation.Component.Searching()
+    bot.add_component(searching)
+}
+
+func forget_path(bot: Entity) {
+    var heading = headings.of(bot.id)
+    assert heading
+    var waypoint = heading.entity.id
+    bot.remove_component(Navigation.Component.Heading)
+    var walking = true
+    while walking {
+        var next = nexts.of(waypoint)
+        world.despawn(waypoint)
+        if next {
+            waypoint = next.entity.id
+        } else {
+            walking = false
+        }
+    }
+}

@@ -1,0 +1,497 @@
+var cell_size: Float = 0.8
+var agent_height: Float = 1.8
+var maximum_slope_degrees: Float = 45.0
+var step_height: Float = 0.5
+var origin_x: Float = 0.0
+var origin_z: Float = 0.0
+var columns = 0
+var rows = 0
+var heads = List<Integer>()
+var bottoms = List<Float>()
+var tops = List<Float>()
+var flags = List<Byte>()
+var nexts = List<Integer>()
+var free = -1
+var minimum_normal_y: Float = 0.7071
+var polygon = List<Float>()
+var remainder = List<Float>()
+var strip = List<Float>()
+var strip_rest = List<Float>()
+var piece = List<Float>()
+var triangles = 0
+var merged_bottom: Float = 0.0
+var merged_top: Float = 0.0
+var merged_walkable: Byte = 0
+
+func cover(left: Float, top: Float, new_columns: Integer, new_rows: Integer) {
+    origin_x = left
+    origin_z = top
+    columns = new_columns
+    rows = new_rows
+    var radians = maximum_slope_degrees * Float.pi / 180.0
+    minimum_normal_y = radians.cosine()
+    heads.clear()
+    var count = columns * rows
+    heads.reserve(count)
+    while heads.count() < count {
+        heads.append(-1)
+    }
+    bottoms.clear()
+    tops.clear()
+    flags.clear()
+    nexts.clear()
+    free = -1
+    triangles = 0
+}
+
+func add_triangle(
+    first_x: Float,
+    first_y: Float,
+    first_z: Float,
+    second_x: Float,
+    second_y: Float,
+    second_z: Float,
+    third_x: Float,
+    third_y: Float,
+    third_z: Float,
+) {
+    var edge_x = second_x - first_x
+    var edge_y = second_y - first_y
+    var edge_z = second_z - first_z
+    var other_x = third_x - first_x
+    var other_y = third_y - first_y
+    var other_z = third_z - first_z
+    var normal_x = edge_y * other_z - edge_z * other_y
+    var normal_y = edge_z * other_x - edge_x * other_z
+    var normal_z = edge_x * other_y - edge_y * other_x
+    var length = (normal_x * normal_x + normal_y * normal_y + normal_z * normal_z).square_root()
+    assert length > 0.0
+    var walkable: Byte = 0
+    if normal_y / length >= minimum_normal_y {
+        walkable = 1
+    }
+    triangles = triangles + 1
+    polygon.clear()
+    polygon.append(first_x)
+    polygon.append(first_y)
+    polygon.append(first_z)
+    polygon.append(second_x)
+    polygon.append(second_y)
+    polygon.append(second_z)
+    polygon.append(third_x)
+    polygon.append(third_y)
+    polygon.append(third_z)
+    rasterize(walkable)
+}
+
+func add_mesh(mesh: Asset.Mesh, transform: Transform.Component.Transform) {
+    var matrix = transform.matrix()
+    var index = 0
+    while index + 2 < mesh.indices.count() {
+        var first = mesh.indices[index] * 8
+        var second = mesh.indices[index + 1] * 8
+        var third = mesh.indices[index + 2] * 8
+        var first_x = placed_x(matrix, mesh.vertices, first)
+        var first_y = placed_y(matrix, mesh.vertices, first)
+        var first_z = placed_z(matrix, mesh.vertices, first)
+        var second_x = placed_x(matrix, mesh.vertices, second)
+        var second_y = placed_y(matrix, mesh.vertices, second)
+        var second_z = placed_z(matrix, mesh.vertices, second)
+        var third_x = placed_x(matrix, mesh.vertices, third)
+        var third_y = placed_y(matrix, mesh.vertices, third)
+        var third_z = placed_z(matrix, mesh.vertices, third)
+        add_triangle(first_x, first_y, first_z, second_x, second_y, second_z, third_x, third_y, third_z)
+        index = index + 3
+    }
+}
+
+func placed_x(matrix: Math.Matrix4, vertices: List<Float>, at: Integer): Float {
+    crash vertices[at]
+    crash vertices[at + 1]
+    crash vertices[at + 2]
+    return matrix.m0 * vertices[at] + matrix.m4 * vertices[at + 1] + matrix.m8 * vertices[at + 2] + matrix.m12
+}
+
+func placed_y(matrix: Math.Matrix4, vertices: List<Float>, at: Integer): Float {
+    crash vertices[at]
+    crash vertices[at + 1]
+    crash vertices[at + 2]
+    return matrix.m1 * vertices[at] + matrix.m5 * vertices[at + 1] + matrix.m9 * vertices[at + 2] + matrix.m13
+}
+
+func placed_z(matrix: Math.Matrix4, vertices: List<Float>, at: Integer): Float {
+    crash vertices[at]
+    crash vertices[at + 1]
+    crash vertices[at + 2]
+    return matrix.m2 * vertices[at] + matrix.m6 * vertices[at + 1] + matrix.m10 * vertices[at + 2] + matrix.m14
+}
+
+func add_heightfield(
+    samples: List<Float>,
+    sample_columns: Integer,
+    sample_rows: Integer,
+    spacing: Float,
+    left: Float,
+    base: Float,
+    top: Float,
+) {
+    var row = 0
+    while row + 1 < sample_rows {
+        var column = 0
+        while column + 1 < sample_columns {
+            add_quad(samples, sample_columns, column, row, spacing, left, base, top)
+            column = column + 1
+        }
+        row = row + 1
+    }
+}
+
+func add_quad(
+    samples: List<Float>,
+    sample_columns: Integer,
+    column: Integer,
+    row: Integer,
+    spacing: Float,
+    left: Float,
+    base: Float,
+    top: Float,
+) {
+    var near = row * sample_columns + column
+    var far = near + sample_columns
+    crash samples[near]
+    crash samples[near + 1]
+    crash samples[far]
+    crash samples[far + 1]
+    var across: Float = column
+    var down: Float = row
+    var west = left + across * spacing
+    var east = west + spacing
+    var north = top + down * spacing
+    var south = north + spacing
+    var north_west = base + samples[near]
+    var north_east = base + samples[near + 1]
+    var south_west = base + samples[far]
+    var south_east = base + samples[far + 1]
+    add_triangle(west, north_west, north, east, south_east, south, east, north_east, north)
+    add_triangle(west, north_west, north, west, south_west, south, east, south_east, south)
+}
+
+func rasterize(walkable: Byte) {
+    var lowest_z = coordinate_minimum(polygon, 2)
+    var highest_z = coordinate_maximum(polygon, 2)
+    var first_row = whole_below((lowest_z - origin_z) / cell_size)
+    var last_row = whole_below((highest_z - origin_z) / cell_size)
+    assert last_row >= 0 and first_row < rows
+    if first_row < 0 {
+        first_row = 0
+    }
+    if last_row >= rows {
+        last_row = rows - 1
+    }
+    var row = first_row
+    while row <= last_row {
+        var down: Float = row + 1
+        divide(polygon, strip, remainder, 2, origin_z + down * cell_size)
+        swap_remainder()
+        if strip.count() >= 9 {
+            rasterize_strip(row, walkable)
+        }
+        row = row + 1
+    }
+}
+
+func rasterize_strip(row: Integer, walkable: Byte) {
+    var lowest_x = coordinate_minimum(strip, 0)
+    var highest_x = coordinate_maximum(strip, 0)
+    var first_column = whole_below((lowest_x - origin_x) / cell_size)
+    var last_column = whole_below((highest_x - origin_x) / cell_size)
+    assert last_column >= 0 and first_column < columns
+    if first_column < 0 {
+        first_column = 0
+    }
+    if last_column >= columns {
+        last_column = columns - 1
+    }
+    var column = first_column
+    while column <= last_column {
+        var across: Float = column + 1
+        divide(strip, piece, strip_rest, 0, origin_x + across * cell_size)
+        swap_strip()
+        if piece.count() >= 9 {
+            var bottom = coordinate_minimum(piece, 1)
+            var top = coordinate_maximum(piece, 1)
+            add_span(row * columns + column, bottom, top, walkable)
+        }
+        column = column + 1
+    }
+}
+
+func swap_remainder() {
+    var held = polygon
+    polygon = remainder
+    remainder = held
+}
+
+func swap_strip() {
+    var held = strip
+    strip = strip_rest
+    strip_rest = held
+}
+
+func divide(input: List<Float>, below: List<Float>, above: List<Float>, axis: Integer, line: Float) {
+    below.clear()
+    above.clear()
+    var count = input.count() / 3
+    var index = 0
+    var previous = count - 1
+    while index < count {
+        crash input[previous * 3 + axis]
+        crash input[index * 3 + axis]
+        var previous_distance = line - input[previous * 3 + axis]
+        var distance = line - input[index * 3 + axis]
+        var previous_inside = previous_distance >= 0.0
+        var inside = distance >= 0.0
+        if previous_inside != inside {
+            var share = previous_distance / (previous_distance - distance)
+            append_between(input, previous, index, share, below)
+            append_between(input, previous, index, share, above)
+            append_side(input, index, distance, below, above, false)
+        } else {
+            append_side(input, index, distance, below, above, true)
+        }
+        previous = index
+        index = index + 1
+    }
+}
+
+func append_side(
+    input: List<Float>,
+    index: Integer,
+    distance: Float,
+    below: List<Float>,
+    above: List<Float>,
+    on_line_goes_both: Boolean,
+) {
+    if distance > 0.0 {
+        append_point(input, index, below)
+    } else if distance < 0.0 {
+        append_point(input, index, above)
+    } else if on_line_goes_both {
+        append_point(input, index, below)
+        append_point(input, index, above)
+    }
+}
+
+func append_point(input: List<Float>, index: Integer, output: List<Float>) {
+    crash input[index * 3]
+    crash input[index * 3 + 1]
+    crash input[index * 3 + 2]
+    output.append(input[index * 3])
+    output.append(input[index * 3 + 1])
+    output.append(input[index * 3 + 2])
+}
+
+func append_between(input: List<Float>, from: Integer, to: Integer, share: Float, output: List<Float>) {
+    var offset = 0
+    while offset < 3 {
+        crash input[from * 3 + offset]
+        crash input[to * 3 + offset]
+        var start = input[from * 3 + offset]
+        var end_value = input[to * 3 + offset]
+        output.append(start + (end_value - start) * share)
+        offset = offset + 1
+    }
+}
+
+func coordinate_minimum(points: List<Float>, axis: Integer): Float {
+    crash points[axis]
+    var lowest = points[axis]
+    var index = axis + 3
+    while index < points.count() {
+        if points[index] < lowest {
+            lowest = points[index]
+        }
+        index = index + 3
+    }
+    return lowest
+}
+
+func coordinate_maximum(points: List<Float>, axis: Integer): Float {
+    crash points[axis]
+    var highest = points[axis]
+    var index = axis + 3
+    while index < points.count() {
+        if points[index] > highest {
+            highest = points[index]
+        }
+        index = index + 3
+    }
+    return highest
+}
+
+func whole_below(value: Float): Integer {
+    var whole: Integer = value
+    if value < 0.0 and value < whole {
+        whole = whole - 1
+    }
+    return whole
+}
+
+func add_span(cell: Integer, new_bottom: Float, new_top: Float, new_walkable: Byte) {
+    merged_bottom = new_bottom
+    merged_top = new_top
+    merged_walkable = new_walkable
+    var previous = -1
+    crash heads[cell]
+    var current = heads[cell]
+    var placed = false
+    while current >= 0 and not placed {
+        crash bottoms[current]
+        crash tops[current]
+        crash flags[current]
+        crash nexts[current]
+        var bottom = bottoms[current]
+        var top = tops[current]
+        var walkable = flags[current]
+        var following = nexts[current]
+        if bottom > merged_top {
+            placed = true
+        } else if top < merged_bottom {
+            previous = current
+            current = following
+        } else {
+            merge(bottom, top, walkable)
+            release(current)
+            unlink(cell, previous, following)
+            current = following
+        }
+    }
+    var made = take_span(merged_bottom, merged_top, merged_walkable)
+    nexts[made] = current
+    unlink(cell, previous, made)
+}
+
+func merge(bottom: Float, top: Float, walkable: Byte) {
+    var difference = top - merged_top
+    if difference.absolute() <= step_height {
+        if walkable == 1 {
+            merged_walkable = 1
+        }
+    } else if top > merged_top {
+        merged_walkable = walkable
+    }
+    merged_bottom = merged_bottom.minimum(bottom)
+    merged_top = merged_top.maximum(top)
+}
+
+func unlink(cell: Integer, previous: Integer, following: Integer) {
+    if previous >= 0 {
+        nexts[previous] = following
+    } else {
+        heads[cell] = following
+    }
+}
+
+func take_span(bottom: Float, top: Float, walkable: Byte): Integer {
+    if free >= 0 {
+        var reused = free
+        crash nexts[reused]
+        free = nexts[reused]
+        bottoms[reused] = bottom
+        tops[reused] = top
+        flags[reused] = walkable
+        return reused
+    }
+    bottoms.append(bottom)
+    tops.append(top)
+    flags.append(walkable)
+    nexts.append(-1)
+    return bottoms.count() - 1
+}
+
+func release(span: Integer) {
+    nexts[span] = free
+    free = span
+}
+
+func finish(): Navigation.Asset.Walkability {
+    var walkability = Navigation.Asset.Walkability()
+    walkability.cell_size = cell_size
+    walkability.origin_x = origin_x
+    walkability.origin_z = origin_z
+    walkability.cover(columns, rows)
+    var floors = List<Float>()
+    var count = columns * rows
+    floors.reserve(count)
+    var cell = 0
+    while cell < count {
+        var floor = floor_of(cell)
+        floors.append(floor)
+        cell = cell + 1
+    }
+    var radians = maximum_slope_degrees * Float.pi / 180.0
+    var ledge = cell_size * radians.tangent()
+    if step_height > ledge {
+        ledge = step_height
+    }
+    cell = 0
+    while cell < count {
+        crash floors[cell]
+        var floor = floors[cell]
+        if floor > unwalkable() and not over_ledge(floors, cell, floor, ledge) {
+            walkability.mark_walkable(cell, floor)
+        }
+        cell = cell + 1
+    }
+    return walkability
+}
+
+func unwalkable(): Float {
+    return -1000000000.0
+}
+
+func floor_of(cell: Integer): Float {
+    var floor = unwalkable()
+    crash heads[cell]
+    var current = heads[cell]
+    while current >= 0 {
+        crash nexts[current]
+        crash tops[current]
+        crash flags[current]
+        var following = nexts[current]
+        var room = agent_height
+        if following >= 0 {
+            crash bottoms[following]
+            room = bottoms[following] - tops[current]
+        }
+        if flags[current] == 1 and room >= agent_height {
+            floor = tops[current]
+        }
+        current = following
+    }
+    return floor
+}
+
+func over_ledge(floors: List<Float>, cell: Integer, floor: Float, ledge: Float): Boolean {
+    var column = cell % columns
+    var row = cell / columns
+    if column > 0 and drops(floors, cell - 1, floor, ledge) {
+        return true
+    }
+    if column + 1 < columns and drops(floors, cell + 1, floor, ledge) {
+        return true
+    }
+    if row > 0 and drops(floors, cell - columns, floor, ledge) {
+        return true
+    }
+    if row + 1 < rows and drops(floors, cell + columns, floor, ledge) {
+        return true
+    }
+    return false
+}
+
+func drops(floors: List<Float>, neighbour: Integer, floor: Float, ledge: Float): Boolean {
+    crash floors[neighbour]
+    var other = floors[neighbour]
+    return other > unwalkable() and floor - other > ledge
+}

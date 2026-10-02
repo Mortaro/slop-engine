@@ -315,4 +315,4 @@ buffer stops reading at 1 MiB, so a peer that floods is slowed by TCP.
 
 ---
 
-Next: [Performance](performance.md), measuring a build and keeping frames free of stutters.
+Next: [Navigation](navigation.md), walkability baked from geometry and paths that bots follow.

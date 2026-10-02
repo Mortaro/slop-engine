@@ -1,0 +1,81 @@
+var map = Navigation.Map()
+var searchers = Navigation.Searchers()
+var entities = List<Integer>()
+var starts_x = List<Float>()
+var starts_z = List<Float>()
+var goals_x = List<Float>()
+var goals_z = List<Float>()
+var reach = 4
+
+func ask(entity: Integer, start_x: Float, start_z: Float, goal_x: Float, goal_z: Float) {
+    entities.append(entity)
+    starts_x.append(start_x)
+    starts_z.append(start_z)
+    goals_x.append(goal_x)
+    goals_z.append(goal_z)
+}
+
+func run(): Navigation.Found {
+    var found = Navigation.Found()
+    var search = searchers.own()
+    var grid = map.grid
+    var index = 0
+    while index < entities.count() {
+        crash starts_x[index]
+        crash starts_z[index]
+        crash goals_x[index]
+        crash goals_z[index]
+        found.entities.append(entities[index])
+        found.goals_x.append(goals_x[index])
+        found.goals_z.append(goals_z[index])
+        answer(grid, search, found, starts_x[index], starts_z[index], goals_x[index], goals_z[index])
+        index = index + 1
+    }
+    return found
+}
+
+func answer(
+    grid: Navigation.Grid,
+    search: Navigation.Search,
+    found: Navigation.Found,
+    start_x: Float,
+    start_z: Float,
+    goal_x: Float,
+    goal_z: Float,
+) {
+    var start_column = grid.column_of(start_x)
+    var start_row = grid.row_of(start_z)
+    var goal_column = grid.column_of(goal_x)
+    var goal_row = grid.row_of(goal_z)
+    var start = grid.nearest_open(start_column, start_row, reach)
+    var goal = grid.nearest_open(goal_column, goal_row, reach)
+    if start < 0 or goal < 0 or not search.find(grid, start, goal) {
+        found.counts.append(0)
+        return
+    }
+    search.smooth(grid)
+    var count = 0
+    var index = 1
+    while index < search.smoothed.count() {
+        var cell = search.smoothed[index]
+        var column = cell % grid.columns
+        var row = cell / grid.columns
+        if index + 1 == search.smoothed.count() and column == goal_column and row == goal_row {
+            found.points.append(goal_x)
+            found.points.append(goal_z)
+        } else {
+            var center_x = grid.center_x(column)
+            var center_z = grid.center_z(row)
+            found.points.append(center_x)
+            found.points.append(center_z)
+        }
+        count = count + 1
+        index = index + 1
+    }
+    if count == 0 {
+        found.points.append(goal_x)
+        found.points.append(goal_z)
+        count = 1
+    }
+    found.counts.append(count)
+}

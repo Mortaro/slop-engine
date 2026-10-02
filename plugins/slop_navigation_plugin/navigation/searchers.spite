@@ -1,0 +1,13 @@
+singleton
+
+var searches = ThreadLocal<Navigation.Search>()
+
+func own(): Navigation.Search {
+    var found = searches.get()
+    if found {
+        return found
+    }
+    var made = Navigation.Search()
+    searches.set(made)
+    return made
+}

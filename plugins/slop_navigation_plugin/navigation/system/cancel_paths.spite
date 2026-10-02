@@ -1,0 +1,30 @@
+type Cancelled {
+    entity: Entity
+    destination: Removed<Navigation.Component.Destination>
+}
+
+var world = World()
+var destinations = Lookup<Navigation.Component.Destination>()
+var headings = Lookup<Navigation.Component.Heading>()
+var nexts = Lookup<Navigation.Component.Next>()
+
+func update_each(cancelled: Cancelled) {
+    var bot = cancelled.entity
+    assert not destinations.has(bot.id)
+    bot.remove_component(Navigation.Component.Arrived)
+    bot.remove_component(Navigation.Component.Unreachable)
+    var heading = headings.of(bot.id)
+    assert heading
+    var waypoint = heading.entity.id
+    bot.remove_component(Navigation.Component.Heading)
+    var walking = true
+    while walking {
+        var next = nexts.of(waypoint)
+        world.despawn(waypoint)
+        if next {
+            waypoint = next.entity.id
+        } else {
+            walking = false
+        }
+    }
+}

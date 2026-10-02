@@ -1,0 +1,38 @@
+singleton
+
+var jobs = List<Parallel<Navigation.Found>>()
+var pool = ThreadPool()
+
+func add(job: Parallel<Navigation.Found>) {
+    jobs.append(job)
+}
+
+func batch_size(requests: Integer): Integer {
+    var workers = pool.size() + 1
+    var size = (requests + workers - 1) / workers
+    return size.clamp(16, 128)
+}
+
+func take_finished(): Navigation.Found? {
+    var index = 0
+    while index < jobs.count() {
+        if finished_at(index) {
+            return take_at(index)
+        }
+        index = index + 1
+    }
+    return null
+}
+
+func finished_at(index: Integer): Boolean {
+    crash jobs[index]
+    return jobs[index].finished
+}
+
+func take_at(index: Integer): Navigation.Found? {
+    crash jobs[index]
+    var job = jobs[index]
+    var found = job.finished_value()
+    jobs.remove_at(index)
+    return found
+}
