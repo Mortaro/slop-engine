@@ -22,8 +22,9 @@ into textures; a game using that theme never names the PSD loader itself.
   from the flat, bottom-first record list.
 - `pixels_of(layer)` decodes every channel compression PSD uses: raw, PackBits, ZIP, and ZIP with prediction
   (the row deltas undone per byte at 8 bits and per big-endian sample at 16). ZIP goes through `Png.Inflate`, so
-  the plugin loads `slop_png_plugin`. It applies the transparency channel (`-1`) and the layer mask, and answers
-  an `Asset.Texture` in straight RGBA; a 16-bit sample keeps its high byte.
+  the plugin loads `slop_png_plugin`. Each channel decodes into a plane of bytes (a PackBits run is one copy or one
+  fill), and the planes interleave straight into the texture's `texels`, applying the transparency channel (`-1`) and
+  the layer mask: an RGBA8 `Asset.Texture`; a 16-bit sample keeps its high byte.
 - A flat document, with no layer section and only the merged image (what Photoshop writes for a single-image file,
   and the only part Blender and OpenImageIO read), shows as one layer named `Background` covering the canvas.
   Its channels are red, green, blue and an optional transparency, sharing one compression: raw, PackBits with every
@@ -34,8 +35,9 @@ Checked: the three primary button plates of `buttons.psd` match a reference deco
 `psd_zip_probe` decodes sixteen generated files (layered and flat, 8 and 16 bit, each of the four compressions) to the checksum
 `make_fixtures.py` works out for them.
 
-Speed: channels decode into `List<Integer>` one byte at a time. A 3328×3584 terrain splat map (PackBits, 10 MB)
-opens in 11 ms and decodes in 683 ms, about 57 ns a pixel (optimized). That is paid once, when a recipe cooks.
+Speed (optimized, Ryzen 9 5950X): a 3328×3584 terrain splat map (PackBits, 10 MB) opens in 3 ms and decodes in
+40 ms, about 3.4 ns a pixel; a 4096×4096 ZIP-compressed normal map decodes in 91 ms. That is paid once, when a
+recipe cooks.
 
 ## zstd (`slop_zstd_plugin`)
 
