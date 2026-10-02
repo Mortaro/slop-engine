@@ -1,0 +1,5 @@
+var direction_x: Float = 1.0
+var direction_z: Float = 0.0
+var wavelength: Float = 60.0
+var amplitude: Float = 0.8
+var steepness: Float = 0.2

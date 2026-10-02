@@ -1,0 +1,46 @@
+singleton
+
+var bodies = List<Scene.WaterSurface>()
+var count = 0
+var wave_owners = List<Integer>()
+var wave_floats = List<Float>()
+var wave_stride = 5
+var time_seconds: Float = 0.0
+
+func clear() {
+    count = 0
+    wave_owners.clear()
+    wave_floats.clear()
+}
+
+func next_body(owner: Integer): Scene.WaterSurface {
+    if count == bodies.count() {
+        var made = Scene.WaterSurface()
+        bodies.append(made)
+    }
+    var reused = bodies[count]
+    crash reused
+    reused.owner = owner
+    count = count + 1
+    return reused
+}
+
+func add_wave(
+    owner: Integer,
+    direction_x: Float,
+    direction_z: Float,
+    wavelength: Float,
+    amplitude: Float,
+    steepness: Float,
+) {
+    wave_owners.append(owner)
+    wave_floats.append(direction_x)
+    wave_floats.append(direction_z)
+    wave_floats.append(wavelength)
+    wave_floats.append(amplitude)
+    wave_floats.append(steepness)
+}
+
+func wave_count(): Integer {
+    return wave_owners.count()
+}

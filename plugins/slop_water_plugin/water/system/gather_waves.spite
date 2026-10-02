@@ -1,0 +1,18 @@
+type Wave {
+    wave: Water.Component.GerstnerWave
+    parent: Component.Parent
+}
+
+var water = Scene.Water()
+
+func render_each(wave: Wave) {
+    var shape = wave.wave
+    water.add_wave(
+        wave.parent.entity.id,
+        shape.direction_x,
+        shape.direction_z,
+        shape.wavelength,
+        shape.amplitude,
+        shape.steepness,
+    )
+}

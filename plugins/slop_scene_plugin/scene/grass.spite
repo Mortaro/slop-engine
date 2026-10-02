@@ -1,0 +1,20 @@
+singleton
+
+var kinds = List<Scene.GrassKind>()
+var count = 0
+var time_seconds: Float = 0.0
+
+func clear() {
+    count = 0
+}
+
+func next(): Scene.GrassKind {
+    if count == kinds.count() {
+        var made = Scene.GrassKind()
+        kinds.append(made)
+    }
+    var reused = kinds[count]
+    crash reused
+    count = count + 1
+    return reused
+}

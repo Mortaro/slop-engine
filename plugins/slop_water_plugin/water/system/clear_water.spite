@@ -1,0 +1,5 @@
+var water = Scene.Water()
+
+func prepare_each() {
+    water.clear()
+}

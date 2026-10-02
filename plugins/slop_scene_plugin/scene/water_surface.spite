@@ -1,0 +1,15 @@
+var owner = 0
+var center_x: Float = 0.0
+var height: Float = 0.0
+var center_z: Float = 0.0
+var extent_x: Float = 100.0
+var extent_z: Float = 100.0
+var albedo_red: Float = 0.85
+var albedo_green: Float = 0.85
+var albedo_blue: Float = 0.85
+var scattering: Float = 0.5
+var absorption_red: Float = 0.1
+var absorption_green: Float = 1.5
+var absorption_blue: Float = 3.5
+var roughness: Float = 0.02
+var specular: Float = 0.255

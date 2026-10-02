@@ -320,7 +320,7 @@ slop/                     the core, loaded by every program
 plugins/                  each loaded on its own: plugins/slop_<feature>_plugin/<feature>/{component,system,assets,...}
   window/, input/, ui/, render/, render_software/, render_vulkan/
   network/                replicated components and connections (docs/networking.md)
-  transform/, camera/, scene/, scene_vulkan/, animation/, scene_animation/, lighting/   3D (docs/scene.md)
+  transform/, camera/, scene/, scene_vulkan/, animation/, scene_animation/, lighting/, foliage/, water/   3D (docs/scene.md)
   physics/                colliders, raycasts and sweeps, the character controller, triggers (docs/physics.md)
   navigation/             walkability bake, grid A*, line of sight, path following (docs/navigation.md)
   mongodb/                the ECS side of MongoDB; the driver is its own package, spite_mongodb_driver
