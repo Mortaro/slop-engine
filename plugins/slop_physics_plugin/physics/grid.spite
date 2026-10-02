@@ -28,7 +28,9 @@ func cell_of(value: Float): Integer {
 func bucket(column: Integer, row: Integer): Integer {
     var hashed_column: UnsignedInteger = column
     var hashed_row: UnsignedInteger = row
-    var mixed = (hashed_column * 73856093).bits_exclusive_or(hashed_row * 19349663)
+    var column_part = hashed_column.wrapping_multiply(73856093)
+    var row_part = hashed_row.wrapping_multiply(19349663)
+    var mixed = column_part.bits_exclusive_or(row_part)
     var masked: Integer = mixed.bits_and(mask)
     return masked
 }
