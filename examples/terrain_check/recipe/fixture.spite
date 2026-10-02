@@ -6,16 +6,16 @@ func build() {
     assert not cache.is_current("terrain.check.cell", fingerprint)
     build_mesh(fingerprint)
     build_layers(fingerprint)
-    put_texture("terrain.check.ctrl_a", fingerprint, 2, 2, control_texel)
-    put_texture("terrain.check.ctrl_b", fingerprint, 2, 2, empty_texel)
+    put_texture("terrain.check.control_a", fingerprint, 2, 2, control_texel)
+    put_texture("terrain.check.control_b", fingerprint, 2, 2, empty_texel)
     put_texture("terrain.check.scale_a", fingerprint, 2, 2, scale_texel)
     put_texture("terrain.check.scale_b", fingerprint, 2, 2, scale_texel)
     put_texture("terrain.check.splat_0", fingerprint, 128, 128, splat_texel)
     put_texture("terrain.check.splat_1", fingerprint, 2, 2, empty_texel)
     var material = Asset.TerrainMaterial()
     material.layers = "terrain.check.layers"
-    material.ctrl_a = "terrain.check.ctrl_a"
-    material.ctrl_b = "terrain.check.ctrl_b"
+    material.control_a = "terrain.check.control_a"
+    material.control_b = "terrain.check.control_b"
     material.scale_a = "terrain.check.scale_a"
     material.scale_b = "terrain.check.scale_b"
     material.splat_0 = "terrain.check.splat_0"

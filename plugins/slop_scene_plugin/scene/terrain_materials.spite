@@ -225,8 +225,8 @@ func request_textures(slot: Integer, textures: Render.Textures) {
     var record = record_of(slot)
     crash record
     var material = record.material
-    record.control_a = request_texture(record, material.ctrl_a, textures)
-    record.control_b = request_texture(record, material.ctrl_b, textures)
+    record.control_a = request_texture(record, material.control_a, textures)
+    record.control_b = request_texture(record, material.control_b, textures)
     record.scale_a = request_texture(record, material.scale_a, textures)
     record.scale_b = request_texture(record, material.scale_b, textures)
     record.splat_0 = request_texture(record, material.splat_0, textures)

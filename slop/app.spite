@@ -258,7 +258,7 @@ func describe_stage(lines: List<String>, index: Integer) {
     crash stages[index]
     crash stage_phases[index]
     var phase = stage_phases[index]
-    var names = stages[index].map_name()
+    var names = stages[index].map_names()
     var joined = names.join(", ")
     lines.append("stage {index} ({phase}): {joined}")
 }

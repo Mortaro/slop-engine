@@ -174,7 +174,7 @@ A terrain cell is an entity with a `Transform` and a `Scene.Component.TerrainCel
 (`lit.glsl`). The shader ports a splat-index Unreal terrain material formula for formula:
 
 - **Control textures:** control UV = world x/z ÷ (`control_width`, `control_depth`). The tile's eight layer slots come
-  from `ctrl_a` (slots 0–3) and `ctrl_b` (4–7), read unfiltered (slice = texel × 255). Their tiling comes from
+  from `control_a` (slots 0–3) and `control_b` (4–7), read unfiltered (slice = texel × 255). Their tiling comes from
   `scale_a`/`scale_b`, filtered (tiles per metre = texel × `layer_scale`).
 - **Blend:** slot 0 is the base; slots 1–7 paint over it in order, `lerp(colour, layer_k, weight_k)`, with weights
   from `splat_0` (rgba) and `splat_1` (rgb).
