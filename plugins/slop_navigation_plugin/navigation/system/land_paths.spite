@@ -1,0 +1,81 @@
+var world = World()
+var searches = Navigation.Searches()
+var destinations = Lookup<Navigation.Component.Destination>()
+var headings = Lookup<Navigation.Component.Heading>()
+var nexts = Lookup<Navigation.Component.Next>()
+
+func input_each() {
+    var found = searches.take_finished()
+    while found {
+        land(found)
+        found = searches.take_finished()
+    }
+}
+
+func land(found: Navigation.Found) {
+    var first_point = 0
+    var index = 0
+    while index < found.entities.count() {
+        crash found.counts[index]
+        var count = found.counts[index]
+        land_one(found, index, first_point, count)
+        first_point = first_point + count * 2
+        index = index + 1
+    }
+}
+
+func land_one(found: Navigation.Found, index: Integer, first_point: Integer, count: Integer) {
+    crash found.entities[index]
+    crash found.goals_x[index]
+    crash found.goals_z[index]
+    var id = found.entities[index]
+    var destination = destinations.of(id)
+    assert destination
+    assert destination.position_x == found.goals_x[index] and destination.position_z == found.goals_z[index]
+    var bot = world.entity_of(id)
+    bot.remove_component(Navigation.Component.Searching)
+    forget_path(bot)
+    if count == 0 {
+        var unreachable = Navigation.Component.Unreachable()
+        bot.add_component(unreachable)
+        return
+    }
+    var following = Entity()
+    var point = count - 1
+    while point >= 0 {
+        crash found.points[first_point + point * 2]
+        crash found.points[first_point + point * 2 + 1]
+        var waypoint = bot.create_entity()
+        var place = Navigation.Component.Waypoint()
+        place.position_x = found.points[first_point + point * 2]
+        place.position_z = found.points[first_point + point * 2 + 1]
+        waypoint.add_component(place)
+        if point < count - 1 {
+            var next = Navigation.Component.Next()
+            next.entity = following
+            waypoint.add_component(next)
+        }
+        following = waypoint
+        point = point - 1
+    }
+    var heading = Navigation.Component.Heading()
+    heading.entity = following
+    bot.add_component(heading)
+}
+
+func forget_path(bot: Entity) {
+    var heading = headings.of(bot.id)
+    assert heading
+    var waypoint = heading.entity.id
+    bot.remove_component(Navigation.Component.Heading)
+    var walking = true
+    while walking {
+        var next = nexts.of(waypoint)
+        world.despawn(waypoint)
+        if next {
+            waypoint = next.entity.id
+        } else {
+            walking = false
+        }
+    }
+}

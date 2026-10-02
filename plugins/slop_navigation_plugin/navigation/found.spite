@@ -1,0 +1,5 @@
+var entities = List<Integer>()
+var goals_x = List<Float>()
+var goals_z = List<Float>()
+var counts = List<Integer>()
+var points = List<Float>()

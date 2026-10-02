@@ -1,0 +1,86 @@
+var bake = Navigation.Bake()
+
+func build(): Navigation.Asset.Walkability {
+    bake.cover(0.0, 0.0, 60, 60)
+    ground()
+    up_quad(8.0, 4.0, 12.0, 12.0, 0.0, 2.91)
+    up_quad(20.0, 4.0, 24.0, 5.6, 0.0, 2.77)
+    ceiling(30.0, 4.0, 34.0, 8.0, 1.5)
+    ceiling(38.0, 4.0, 42.0, 8.0, 2.5)
+    wall()
+    return bake.finish()
+}
+
+func ground() {
+    var samples = List<Float>()
+    var row = 0
+    while row <= 60 {
+        var column = 0
+        while column <= 60 {
+            var mound = column >= 12 and column <= 16 and row >= 36 and row <= 40
+            if mound {
+                samples.append(3.0)
+            } else {
+                samples.append(0.0)
+            }
+            column = column + 1
+        }
+        row = row + 1
+    }
+    bake.add_heightfield(samples, 61, 61, 0.8, 0.0, 0.0, 0.0)
+}
+
+func up_quad(west: Float, north: Float, east: Float, south: Float, low: Float, high: Float) {
+    bake.add_triangle(west, high, south, east, high, south, east, low, north)
+    bake.add_triangle(west, high, south, east, low, north, west, low, north)
+}
+
+func ceiling(west: Float, north: Float, east: Float, south: Float, height: Float) {
+    bake.add_triangle(west, height, south, east, height, north, east, height, south)
+    bake.add_triangle(west, height, south, west, height, north, east, height, north)
+}
+
+func wall() {
+    var box = Asset.Mesh()
+    corner(box, -0.5, 0.0, -0.5)
+    corner(box, 0.5, 0.0, -0.5)
+    corner(box, 0.5, 0.0, 0.5)
+    corner(box, -0.5, 0.0, 0.5)
+    corner(box, -0.5, 1.0, -0.5)
+    corner(box, 0.5, 1.0, -0.5)
+    corner(box, 0.5, 1.0, 0.5)
+    corner(box, -0.5, 1.0, 0.5)
+    face(box, 4, 7, 6, 5)
+    face(box, 0, 1, 2, 3)
+    face(box, 0, 4, 5, 1)
+    face(box, 1, 5, 6, 2)
+    face(box, 2, 6, 7, 3)
+    face(box, 3, 7, 4, 0)
+    var placed = Transform.Component.Transform()
+    placed.position_x = 20.5
+    placed.position_z = 27.0
+    placed.scale_x = 1.0
+    placed.scale_y = 3.0
+    placed.scale_z = 34.0
+    bake.add_mesh(box, placed)
+}
+
+func corner(box: Asset.Mesh, across: Float, rise: Float, down: Float) {
+    box.vertices.append(across)
+    box.vertices.append(rise)
+    box.vertices.append(down)
+    box.vertices.append(0.0)
+    box.vertices.append(1.0)
+    box.vertices.append(0.0)
+    box.vertices.append(0.0)
+    box.vertices.append(0.0)
+}
+
+func face(box: Asset.Mesh, first: Integer, second: Integer, third: Integer, fourth: Integer) {
+    box.indices.append(first)
+    box.indices.append(second)
+    box.indices.append(third)
+    box.indices.append(first)
+    box.indices.append(third)
+    box.indices.append(fourth)
+}

@@ -1,0 +1,45 @@
+var console = Console()
+var clock = Clock()
+var seed: Long = 777
+
+func NavigationBench() {
+    load "../../slop"
+    load "../../plugins/slop_navigation_plugin"
+    var size = 2048
+    var walkability = Navigation.Asset.Walkability()
+    walkability.cover(size, size)
+    var cell = 0
+    while cell < size * size {
+        walkability.mark_walkable(cell, 0.0)
+        cell = cell + 1
+    }
+    var grid = Navigation.Grid()
+    grid.use(walkability)
+    var search = Navigation.Search()
+    search.find(grid, 0, 1)
+    var started = clock.elapsed_nanoseconds()
+    var queries = 0
+    var found = 0
+    var expanded = 0
+    while queries < 2000 {
+        var start = random_below(size * size)
+        var column = start % size
+        var row = start / size
+        var goal_column = (column + random_below(128) - 64).clamp(0, size - 1)
+        var goal_row = (row + random_below(128) - 64).clamp(0, size - 1)
+        if search.find(grid, start, goal_row * size + goal_column) {
+            found = found + 1
+            expanded = expanded + search.expanded
+        }
+        queries = queries + 1
+    }
+    var took = clock.elapsed_nanoseconds() - started
+    console.print("queries", queries, "found", found, "expanded", expanded, "microseconds", took / 1000)
+}
+
+func random_below(limit: Integer): Integer {
+    seed = (seed * 1103515245 + 12345) % 2147483648
+    var value: Long = seed % limit
+    var whole: Integer = value
+    return whole
+}

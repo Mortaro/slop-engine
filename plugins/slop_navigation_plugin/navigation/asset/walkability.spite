@@ -1,0 +1,54 @@
+var columns = 0
+var rows = 0
+var cell_size: Float = 0.8
+var origin_x: Float = 0.0
+var origin_z: Float = 0.0
+var walkable = List<Integer>()
+var heights = List<Float>()
+
+func cover(new_columns: Integer, new_rows: Integer) {
+    columns = new_columns
+    rows = new_rows
+    walkable.clear()
+    heights.clear()
+    var count = columns * rows
+    var words = (count + 31) / 32
+    walkable.reserve(words)
+    heights.reserve(count)
+    while walkable.count() < words {
+        walkable.append(0)
+    }
+    while heights.count() < count {
+        heights.append(0.0)
+    }
+}
+
+func mark_walkable(cell: Integer, height: Float) {
+    var word = cell.shifted_right(5)
+    crash walkable[word]
+    var one = 1
+    var place = cell.bits_and(31)
+    var bit = one.shifted_left(place)
+    walkable[word] = walkable[word].bits_or(bit)
+    heights[cell] = height
+}
+
+func is_walkable(cell: Integer): Boolean {
+    var at = cell.shifted_right(5)
+    crash walkable[at]
+    var word = walkable[at]
+    var place = cell.bits_and(31)
+    return word.shifted_right(place).bits_and(1) == 1
+}
+
+func walkable_count(): Integer {
+    var count = 0
+    var cell = 0
+    while cell < columns * rows {
+        if is_walkable(cell) {
+            count = count + 1
+        }
+        cell = cell + 1
+    }
+    return count
+}

@@ -1,0 +1,297 @@
+var console = Console()
+var world = World()
+var map = Navigation.Map()
+var seed: Long = 2024
+
+func NavigationCheck() {
+    load "../../slop"
+    load "../../plugins/slop_navigation_plugin"
+    var optimal = check_optimal()
+    console.print("a star matches dijkstra", optimal)
+    crash optimal
+    var course = Course()
+    var baked = course.build()
+    var pack = Pack<Navigation.Asset.Walkability>()
+    var bytes = Asset.Bytes()
+    pack.encode(baked, bytes)
+    var walkability = pack.decode(bytes)
+    crash walkability
+    var baked_right = check_bake(walkability)
+    console.print("bake", baked_right)
+    crash baked_right
+    map.use(walkability)
+    var sight = check_sight(map.grid)
+    console.print("line of sight", sight)
+    crash sight
+    var followed = check_follow()
+    console.print("follower", followed)
+    crash followed
+    console.print("passed true")
+}
+
+func check_bake(walkability: Navigation.Asset.Walkability): Boolean {
+    var gentle = walkable_at(walkability, 10.0, 8.0)
+    var gentle_height = height_at(walkability, 10.0, 8.0)
+    var steep = walkable_at(walkability, 22.0, 4.9)
+    var steep_foot = walkable_at(walkability, 22.0, 4.3)
+    var low = walkable_at(walkability, 32.0, 6.0)
+    var high = walkable_at(walkability, 40.0, 6.0)
+    var ground = walkable_at(walkability, 4.0, 20.0)
+    var slope = walkable_at(walkability, 9.2, 30.4)
+    var plateau = walkable_at(walkability, 11.2, 30.4)
+    var plateau_height = height_at(walkability, 11.2, 30.4)
+    var wall = walkable_at(walkability, 20.5, 27.0)
+    console.print("gentle ramp", gentle, "at", gentle_height, "steep ramp", steep, steep_foot)
+    console.print("low ceiling", low, "high ceiling", high, "ground", ground)
+    console.print("steep slope", slope, "plateau", plateau, "at", plateau_height, "wall", wall)
+    var walkable_count = walkability.walkable_count()
+    console.print("walkable cells", walkable_count, "of", walkability.columns * walkability.rows)
+    var ramps = gentle and gentle_height > 1.2 and gentle_height < 2.0 and not steep and not steep_foot
+    var ceilings = not low and high and ground
+    var terrain = not slope and plateau and plateau_height == 3.0 and not wall
+    return ramps and ceilings and terrain
+}
+
+func walkable_at(walkability: Navigation.Asset.Walkability, position_x: Float, position_z: Float): Boolean {
+    var cell = cell_at(walkability, position_x, position_z)
+    return walkability.is_walkable(cell)
+}
+
+func height_at(walkability: Navigation.Asset.Walkability, position_x: Float, position_z: Float): Float {
+    var cell = cell_at(walkability, position_x, position_z)
+    crash walkability.heights[cell]
+    return walkability.heights[cell]
+}
+
+func cell_at(walkability: Navigation.Asset.Walkability, position_x: Float, position_z: Float): Integer {
+    var column: Integer = (position_x - walkability.origin_x) / walkability.cell_size
+    var row: Integer = (position_z - walkability.origin_z) / walkability.cell_size
+    return row * walkability.columns + column
+}
+
+func check_sight(grid: Navigation.Grid): Boolean {
+    var west = grid.row_of(20.0) * grid.columns + grid.column_of(16.0)
+    var east = grid.row_of(20.0) * grid.columns + grid.column_of(26.0)
+    var north = grid.row_of(1.0) * grid.columns + grid.column_of(16.0)
+    var beyond = grid.row_of(1.0) * grid.columns + grid.column_of(26.0)
+    var through_wall = grid.line_of_sight(west, east)
+    var open_ground = grid.line_of_sight(north, beyond)
+    var corner = check_corner()
+    console.print("through the wall", through_wall, "open ground", open_ground, "diagonal gap", corner)
+    return not through_wall and open_ground and corner
+}
+
+func check_corner(): Boolean {
+    var walkability = Navigation.Asset.Walkability()
+    walkability.cover(3, 3)
+    walkability.mark_walkable(0, 0.0)
+    walkability.mark_walkable(2, 0.0)
+    walkability.mark_walkable(4, 0.0)
+    walkability.mark_walkable(6, 0.0)
+    walkability.mark_walkable(8, 0.0)
+    var grid = Navigation.Grid()
+    grid.use(walkability)
+    var squeezed = grid.line_of_sight(0, 8)
+    walkability.mark_walkable(1, 0.0)
+    walkability.mark_walkable(3, 0.0)
+    walkability.mark_walkable(5, 0.0)
+    walkability.mark_walkable(7, 0.0)
+    grid.use(walkability)
+    var clear = grid.line_of_sight(0, 8) and grid.line_of_sight(6, 2)
+    return not squeezed and clear
+}
+
+func check_follow(): Boolean {
+    var app = App()
+    app.frame_milliseconds = 50
+    var walker = world.create_entity()
+    var placed = Transform.Component.Transform()
+    placed.position_x = 16.0
+    placed.position_z = 24.0
+    walker.add_component(placed)
+    var speed = Navigation.Component.Speed()
+    speed.meters_per_second = 8.0
+    walker.add_component(speed)
+    var destination = Navigation.Component.Destination()
+    destination.position_x = 26.0
+    destination.position_z = 24.0
+    walker.add_component(destination)
+    var stranded = world.create_entity()
+    var stranded_at = Transform.Component.Transform()
+    stranded_at.position_x = 4.0
+    stranded_at.position_z = 20.0
+    stranded.add_component(stranded_at)
+    var island = Navigation.Component.Destination()
+    island.position_x = 11.2
+    island.position_z = 30.4
+    stranded.add_component(island)
+    world.flush()
+    var transforms = Lookup<Transform.Component.Transform>()
+    var arrivals = Lookup<Navigation.Component.Arrived>()
+    var unreachables = Lookup<Navigation.Component.Unreachable>()
+    var waypoints = Lookup<Navigation.Component.Waypoint>()
+    var ticks = 0
+    var farthest: Float = 0.0
+    var on_walkable = true
+    while not arrivals.has(walker.id) or not unreachables.has(stranded.id) {
+        app.tick()
+        ticks = ticks + 1
+        crash ticks < 100000
+        var now = transforms.of(walker.id)
+        crash now
+        var off_line = now.position_z - 24.0
+        var distance = off_line.absolute()
+        farthest = farthest.maximum(distance)
+        var column = map.grid.column_of(now.position_x)
+        var row = map.grid.row_of(now.position_z)
+        on_walkable = on_walkable and map.grid.open(column, row)
+    }
+    var ended = transforms.of(walker.id)
+    crash ended
+    var across = ended.position_x - 26.0
+    var down = ended.position_z - 24.0
+    var close = across * across + down * down < 0.0001
+    console.print(
+        "arrived at",
+        ended.position_x,
+        ended.position_z,
+        "after",
+        ticks,
+        "ticks, farthest from the straight line",
+        farthest,
+    )
+    var island_unreachable = unreachables.has(stranded.id)
+    console.print("stayed on walkable cells", on_walkable, "island unreachable", island_unreachable)
+    return close and farthest > 14.0 and on_walkable
+}
+
+func check_optimal(): Boolean {
+    var search = Navigation.Search()
+    var trial = 0
+    var compared = 0
+    var unreachable = 0
+    while trial < 40 {
+        var walkability = random_walkability(48, 40, 30)
+        var grid = Navigation.Grid()
+        grid.use(walkability)
+        var start = random_open(grid)
+        var goal = random_open(grid)
+        var found = search.find(grid, start, goal)
+        var expected = dijkstra(grid, start, goal)
+        if found {
+            var difference = search.cost - expected
+            if difference.absolute() > 0.001 {
+                console.print("trial", trial, "a star", search.cost, "dijkstra", expected)
+                return false
+            }
+            compared = compared + 1
+        } else {
+            if expected >= 0.0 {
+                console.print("trial", trial, "a star found nothing, dijkstra", expected)
+                return false
+            }
+            unreachable = unreachable + 1
+        }
+        trial = trial + 1
+    }
+    console.print("paths compared", compared, "unreachable", unreachable)
+    return compared > 20 and unreachable > 0
+}
+
+func random_walkability(columns: Integer, rows: Integer, blocked_percent: Integer): Navigation.Asset.Walkability {
+    var walkability = Navigation.Asset.Walkability()
+    walkability.cover(columns, rows)
+    var cell = 0
+    while cell < columns * rows {
+        if random_below(100) >= blocked_percent {
+            walkability.mark_walkable(cell, 0.0)
+        }
+        cell = cell + 1
+    }
+    return walkability
+}
+
+func random_open(grid: Navigation.Grid): Integer {
+    var cell = random_below(grid.columns * grid.rows)
+    while not grid.open_cell(cell) {
+        cell = random_below(grid.columns * grid.rows)
+    }
+    return cell
+}
+
+func dijkstra(grid: Navigation.Grid, start: Integer, goal: Integer): Float {
+    var count = grid.columns * grid.rows
+    var distances = List<Float>()
+    var done = List<Integer>()
+    while distances.count() < count {
+        distances.append(-1.0)
+        done.append(0)
+    }
+    distances[start] = 0.0
+    var remaining = true
+    while remaining {
+        var best = -1
+        var best_distance: Float = 0.0
+        var cell = 0
+        while cell < count {
+            crash distances[cell]
+            crash done[cell]
+            if done[cell] == 0 and distances[cell] >= 0.0 and (best < 0 or distances[cell] < best_distance) {
+                best = cell
+                best_distance = distances[cell]
+            }
+            cell = cell + 1
+        }
+        if best < 0 {
+            remaining = false
+        } else {
+            done[best] = 1
+            if best == goal {
+                return best_distance
+            }
+            relax_around(grid, distances, best, best_distance)
+        }
+    }
+    return -1.0
+}
+
+func relax_around(grid: Navigation.Grid, distances: List<Float>, cell: Integer, distance: Float) {
+    var column = cell % grid.columns
+    var row = cell / grid.columns
+    var down = -1
+    while down <= 1 {
+        var across = -1
+        while across <= 1 {
+            if (across != 0 or down != 0) and can_step(grid, column, row, across, down) {
+                var next = (row + down) * grid.columns + column + across
+                var step: Float = 1.0
+                if across != 0 and down != 0 {
+                    step = 1.414
+                }
+                crash distances[next]
+                if distances[next] < 0.0 or distance + step < distances[next] {
+                    distances[next] = distance + step
+                }
+            }
+            across = across + 1
+        }
+        down = down + 1
+    }
+}
+
+func can_step(grid: Navigation.Grid, column: Integer, row: Integer, across: Integer, down: Integer): Boolean {
+    if not grid.open(column + across, row + down) {
+        return false
+    }
+    if across != 0 and down != 0 {
+        return grid.open(column + across, row) and grid.open(column, row + down)
+    }
+    return true
+}
+
+func random_below(limit: Integer): Integer {
+    seed = (seed * 1103515245 + 12345) % 2147483648
+    var value: Long = seed % limit
+    var whole: Integer = value
+    return whole
+}

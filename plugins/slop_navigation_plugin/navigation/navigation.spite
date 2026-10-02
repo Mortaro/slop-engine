@@ -1,0 +1,3 @@
+func Navigation() {
+    load "../../slop_transform_plugin"
+}

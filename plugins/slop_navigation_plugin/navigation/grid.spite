@@ -1,0 +1,160 @@
+var columns = 0
+var rows = 0
+var cell_size: Float = 0.8
+var origin_x: Float = 0.0
+var origin_z: Float = 0.0
+var cells = List<Byte>()
+var heights = List<Float>()
+
+func use(walkability: Navigation.Asset.Walkability) {
+    columns = walkability.columns
+    rows = walkability.rows
+    cell_size = walkability.cell_size
+    origin_x = walkability.origin_x
+    origin_z = walkability.origin_z
+    cells.clear()
+    heights.clear()
+    var count = columns * rows
+    cells.reserve(count)
+    heights.reserve(count)
+    var cell = 0
+    while cell < count {
+        var walkable_cell: Byte = 0
+        if walkability.is_walkable(cell) {
+            walkable_cell = 1
+        }
+        cells.append(walkable_cell)
+        crash walkability.heights[cell]
+        heights.append(walkability.heights[cell])
+        cell = cell + 1
+    }
+}
+
+func open(column: Integer, row: Integer): Boolean {
+    if column < 0 or row < 0 or column >= columns or row >= rows {
+        return false
+    }
+    crash cells[row * columns + column]
+    return cells[row * columns + column] == 1
+}
+
+func open_cell(cell: Integer): Boolean {
+    crash cells[cell]
+    return cells[cell] == 1
+}
+
+func height_of(cell: Integer): Float {
+    crash heights[cell]
+    return heights[cell]
+}
+
+func column_of(position_x: Float): Integer {
+    return whole_below((position_x - origin_x) / cell_size)
+}
+
+func row_of(position_z: Float): Integer {
+    return whole_below((position_z - origin_z) / cell_size)
+}
+
+func center_x(column: Integer): Float {
+    var across: Float = column
+    return origin_x + (across + 0.5) * cell_size
+}
+
+func center_z(row: Integer): Float {
+    var down: Float = row
+    return origin_z + (down + 0.5) * cell_size
+}
+
+func inside(column: Integer, row: Integer): Boolean {
+    return column >= 0 and row >= 0 and column < columns and row < rows
+}
+
+func whole_below(value: Float): Integer {
+    var whole: Integer = value
+    if value < 0.0 and value < whole {
+        whole = whole - 1
+    }
+    return whole
+}
+
+func nearest_open(column: Integer, row: Integer, reach: Integer): Integer {
+    if open(column, row) {
+        return row * columns + column
+    }
+    var ring = 1
+    while ring <= reach {
+        var found = open_on_ring(column, row, ring)
+        if found >= 0 {
+            return found
+        }
+        ring = ring + 1
+    }
+    return -1
+}
+
+func open_on_ring(column: Integer, row: Integer, ring: Integer): Integer {
+    var best = -1
+    var best_distance = 0
+    var down = 0 - ring
+    while down <= ring {
+        var across = 0 - ring
+        while across <= ring {
+            var on_ring = across == ring or across == 0 - ring or down == ring or down == 0 - ring
+            var distance = across * across + down * down
+            if on_ring and open(column + across, row + down) and (best < 0 or distance < best_distance) {
+                best = (row + down) * columns + column + across
+                best_distance = distance
+            }
+            across = across + 1
+        }
+        down = down + 1
+    }
+    return best
+}
+
+func line_of_sight(from_cell: Integer, to_cell: Integer): Boolean {
+    var column = from_cell % columns
+    var row = from_cell / columns
+    var to_column = to_cell % columns
+    var to_row = to_cell / columns
+    var step_column = 1
+    var across = to_column - column
+    if across < 0 {
+        step_column = -1
+        across = 0 - across
+    }
+    var step_row = 1
+    var down = to_row - row
+    if down < 0 {
+        step_row = -1
+        down = 0 - down
+    }
+    if not open(column, row) {
+        return false
+    }
+    var taken_across = 0
+    var taken_down = 0
+    while taken_across < across or taken_down < down {
+        var decision = (1 + 2 * taken_across) * down - (1 + 2 * taken_down) * across
+        if decision == 0 {
+            if not open(column + step_column, row) or not open(column, row + step_row) {
+                return false
+            }
+            column = column + step_column
+            row = row + step_row
+            taken_across = taken_across + 1
+            taken_down = taken_down + 1
+        } else if decision < 0 {
+            column = column + step_column
+            taken_across = taken_across + 1
+        } else {
+            row = row + step_row
+            taken_down = taken_down + 1
+        }
+        if not open(column, row) {
+            return false
+        }
+    }
+    return true
+}

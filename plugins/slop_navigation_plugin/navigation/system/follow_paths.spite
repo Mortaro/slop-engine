@@ -1,0 +1,60 @@
+type Walker {
+    entity: Entity
+    transform: Transform.Component.Transform
+    speed: Navigation.Component.Speed
+    heading: Navigation.Component.Heading
+}
+
+type Target {
+    entity: Entity
+    waypoint: Navigation.Component.Waypoint
+}
+
+var world = World()
+var map = Navigation.Map()
+var frames = Lookup<Component.Frame>()
+var nexts = Lookup<Navigation.Component.Next>()
+
+func update_each(walker: Walker, target: Target) {
+    var clock = world.as_entity()
+    var frame = frames.of(clock.id)
+    crash frame
+    var step: Float = frame.step_milliseconds
+    var reach = walker.speed.meters_per_second * step / 1000.0
+    var transform = walker.transform
+    var across = target.waypoint.position_x - transform.position_x
+    var down = target.waypoint.position_z - transform.position_z
+    var distance = (across * across + down * down).square_root()
+    if distance > reach {
+        transform.position_x = transform.position_x + across / distance * reach
+        transform.position_z = transform.position_z + down / distance * reach
+        stand(transform)
+        return
+    }
+    transform.position_x = target.waypoint.position_x
+    transform.position_z = target.waypoint.position_z
+    stand(transform)
+    reach_waypoint(walker.entity, target.entity)
+}
+
+func stand(transform: Transform.Component.Transform) {
+    var grid = map.grid
+    var column = grid.column_of(transform.position_x)
+    var row = grid.row_of(transform.position_z)
+    assert grid.open(column, row)
+    transform.position_y = grid.height_of(row * grid.columns + column)
+}
+
+func reach_waypoint(bot: Entity, waypoint: Entity) {
+    var next = nexts.of(waypoint.id)
+    if next {
+        var heading = Navigation.Component.Heading()
+        heading.entity = next.entity
+        bot.add_component(heading)
+    } else {
+        bot.remove_component(Navigation.Component.Heading)
+        var arrived = Navigation.Component.Arrived()
+        bot.add_component(arrived)
+    }
+    world.despawn(waypoint.id)
+}

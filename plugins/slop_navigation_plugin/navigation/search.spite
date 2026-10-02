@@ -1,0 +1,258 @@
+var states = List<Integer>()
+var costs = List<Integer>()
+var parents = List<Integer>()
+var heap_cells = List<Integer>()
+var heap_keys = List<Long>()
+var stamp = 0
+var cells = List<Integer>()
+var smoothed = List<Integer>()
+var cost: Float = 0.0
+var expanded = 0
+var straight = 1000
+var diagonal = 1414
+var room: Long = 16777216
+
+func find(grid: Navigation.Grid, start: Integer, goal: Integer): Boolean {
+    prepare(grid.columns * grid.rows)
+    cells.clear()
+    cost = 0.0
+    expanded = 0
+    if not grid.open_cell(start) or not grid.open_cell(goal) {
+        return false
+    }
+    next_stamp()
+    heap_cells.clear()
+    heap_keys.clear()
+    var columns = grid.columns
+    var goal_column = goal % columns
+    var goal_row = goal / columns
+    states[start] = stamp * 2
+    costs[start] = 0
+    parents[start] = -1
+    var first_estimate = estimate(start % columns, start / columns, goal_column, goal_row)
+    push(start, first_estimate, 0)
+    while heap_cells.count() > 0 {
+        var current = pop()
+        crash states[current]
+        if states[current] == stamp * 2 {
+            states[current] = stamp * 2 + 1
+            expanded = expanded + 1
+            if current == goal {
+                crash costs[current]
+                var reached: Float = costs[current]
+                cost = reached / 1000.0
+                trace(goal)
+                return true
+            }
+            expand(grid, current, goal_column, goal_row)
+        }
+    }
+    return false
+}
+
+func next_stamp() {
+    stamp = stamp + 1
+    assert stamp >= 1000000000
+    stamp = 1
+    var index = 0
+    while index < states.count() {
+        states[index] = 0
+        index = index + 1
+    }
+}
+
+func expand(grid: Navigation.Grid, current: Integer, goal_column: Integer, goal_row: Integer) {
+    var columns = grid.columns
+    var column = current % columns
+    var row = current / columns
+    crash costs[current]
+    var base = costs[current]
+    var open = grid.cells
+    var west = column > 0 and open[current - 1] == 1
+    var east = column + 1 < columns and open[current + 1] == 1
+    var north = row > 0 and open[current - columns] == 1
+    var south = row + 1 < grid.rows and open[current + columns] == 1
+    if west {
+        relax(current, current - 1, column - 1, row, base + straight, goal_column, goal_row)
+    }
+    if east {
+        relax(current, current + 1, column + 1, row, base + straight, goal_column, goal_row)
+    }
+    if north {
+        relax(current, current - columns, column, row - 1, base + straight, goal_column, goal_row)
+    }
+    if south {
+        relax(current, current + columns, column, row + 1, base + straight, goal_column, goal_row)
+    }
+    if north and west and open[current - columns - 1] == 1 {
+        relax(current, current - columns - 1, column - 1, row - 1, base + diagonal, goal_column, goal_row)
+    }
+    if north and east and open[current - columns + 1] == 1 {
+        relax(current, current - columns + 1, column + 1, row - 1, base + diagonal, goal_column, goal_row)
+    }
+    if south and west and open[current + columns - 1] == 1 {
+        relax(current, current + columns - 1, column - 1, row + 1, base + diagonal, goal_column, goal_row)
+    }
+    if south and east and open[current + columns + 1] == 1 {
+        relax(current, current + columns + 1, column + 1, row + 1, base + diagonal, goal_column, goal_row)
+    }
+}
+
+func relax(
+    current: Integer,
+    next: Integer,
+    column: Integer,
+    row: Integer,
+    reached: Integer,
+    goal_column: Integer,
+    goal_row: Integer,
+) {
+    crash states[next]
+    var state = states[next]
+    assert state < stamp * 2 or state == stamp * 2 and improves(next, reached)
+    states[next] = stamp * 2
+    costs[next] = reached
+    parents[next] = current
+    var remaining = estimate(column, row, goal_column, goal_row)
+    push(next, reached + remaining, reached)
+}
+
+func improves(next: Integer, reached: Integer): Boolean {
+    crash costs[next]
+    return costs[next] > reached
+}
+
+func estimate(column: Integer, row: Integer, goal_column: Integer, goal_row: Integer): Integer {
+    var across = column - goal_column
+    if across < 0 {
+        across = 0 - across
+    }
+    var down = row - goal_row
+    if down < 0 {
+        down = 0 - down
+    }
+    if down > across {
+        return down * straight + across * (diagonal - straight)
+    }
+    return across * straight + down * (diagonal - straight)
+}
+
+func trace(goal: Integer) {
+    var at = goal
+    while at >= 0 {
+        cells.append(at)
+        crash parents[at]
+        at = parents[at]
+    }
+    cells.reverse()
+}
+
+func smooth(grid: Navigation.Grid) {
+    smoothed.clear()
+    assert cells.count() != 0
+    var anchor = cells[0]
+    smoothed.append(anchor)
+    var index = 2
+    while index < cells.count() {
+        if not grid.line_of_sight(anchor, cells[index]) {
+            crash cells[index - 1]
+            anchor = cells[index - 1]
+            smoothed.append(anchor)
+        }
+        index = index + 1
+    }
+    var last = cells.last()
+    crash last
+    if cells.count() > 1 {
+        smoothed.append(last)
+    }
+}
+
+func prepare(count: Integer) {
+    assert states.count() < count
+    states.reserve(count)
+    costs.reserve(count)
+    parents.reserve(count)
+    while states.count() < count {
+        states.append(0)
+        costs.append(0)
+        parents.append(-1)
+    }
+}
+
+func push(cell: Integer, score: Integer, reached: Integer) {
+    var wide_score: Long = score
+    var wide_reached: Long = reached
+    if wide_reached >= room {
+        wide_reached = room - 1
+    }
+    var key = wide_score * room + room - 1 - wide_reached
+    heap_cells.append(cell)
+    heap_keys.append(key)
+    var child = heap_cells.count() - 1
+    var moving = true
+    while child > 0 and moving {
+        var parent = (child - 1) / 2
+        crash heap_keys[parent]
+        crash heap_cells[parent]
+        var parent_key = heap_keys[parent]
+        if parent_key > key {
+            heap_keys[child] = parent_key
+            heap_cells[child] = heap_cells[parent]
+            child = parent
+        } else {
+            moving = false
+        }
+    }
+    heap_keys[child] = key
+    heap_cells[child] = cell
+}
+
+func pop(): Integer {
+    crash heap_cells[0]
+    var top = heap_cells[0]
+    var last = heap_cells.count() - 1
+    var moved_cell = heap_cells.last()
+    var moved_key = heap_keys.last()
+    crash moved_cell
+    crash moved_key
+    heap_cells.truncate(last)
+    heap_keys.truncate(last)
+    if last > 0 {
+        sift_down(moved_cell, moved_key, last)
+    }
+    return top
+}
+
+func sift_down(cell: Integer, key: Long, count: Integer) {
+    var parent = 0
+    var moving = true
+    while moving {
+        var child = parent * 2 + 1
+        if child + 1 < count and smaller(child + 1, child) {
+            child = child + 1
+        }
+        if child < count and lower(child, key) {
+            crash heap_cells[child]
+            crash heap_keys[child]
+            heap_cells[parent] = heap_cells[child]
+            heap_keys[parent] = heap_keys[child]
+            parent = child
+        } else {
+            moving = false
+        }
+    }
+    heap_cells[parent] = cell
+    heap_keys[parent] = key
+}
+
+func smaller(first: Integer, second: Integer): Boolean {
+    crash heap_keys[first]
+    crash heap_keys[second]
+    return heap_keys[first] < heap_keys[second]
+}
+
+func lower(child: Integer, key: Long): Boolean {
+    crash heap_keys[child]
+    return heap_keys[child] < key
+}
