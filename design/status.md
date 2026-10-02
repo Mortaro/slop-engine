@@ -500,10 +500,12 @@ The benchmarks to race are ecs_bench_suite's: `add_remove` and `schedule` look w
   `--debug-memory` (benches `--optimized`), with `render_parity` at 0 of 256,000 pixels and `flex_layout` 92 of 92,
   plus `io_systems`, `mongodb_check`, `scene_probe`, `kal_character --frames=300`, `waits_check` and
   `template_wait_check`. `replication_bench` runs as `--environment=server` and `--environment=bot` (2,000 bytes and
-  695 us of `Send` a tick). `blend_probe` on `blend_mesh_check`'s fixture crashes on an attribute whose name block is
-  missing (`name_block is null`, the seventh attribute), though the mesh reader reads the same file; not looked into.
+  695 us of `Send` a tick).
   Two examples building at once can collide checking out the same pinned package (`<package>.index.lock` exists);
   the second build fails and passes when run again.
+- Spite master `a0b22a7` (2026-10-02) refuses the engine: folders became namespaces and a class may not hide a
+  standard library class, so `slop/math/matrix4.spite` (`Math.Matrix4` against `Matrix4`) fails every build. The
+  suite above still runs on `2d84122` until the engine moves to the new rule.
 - `render_bench` with everything on (2026-10-02, optimized, RTX 3090, `--shadowed-lights=8`, levels of detail,
   occlusion culling and BC textures): frame 1,428 us at 100% and 982 us at `--screen-percentage=67`; the per-pass
   table is in performance.md. Before the animation plugin's pose moved out of the scene, `render_bench` did not load

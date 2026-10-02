@@ -44,7 +44,8 @@ zstd `.blend`, and only when the file's size or modification time changes.
 What the readers do:
 
 - **Pointers are resolved within the ID being read.** Blender 5 reuses pointer values across data-blocks, so a
-  reader enters the ID it reads (`file.enter(view)`) and duplicate addresses resolve to that ID's blocks.
+  reader enters the ID it reads (`file.enter(view)`) and duplicate addresses resolve to that ID's blocks. An
+  address shared by several blocks, none of them in the entered ID, resolves to `null`, never to another ID's block.
 - **Meshes.** Blender 5 keeps geometry in `AttributeStorage`: `position`, `.corner_vert`, the active UV map and
   `sharp_face`. Each attribute's data sits behind an `AttributeArray`.
   - Faces are triangulated as Blender triangulates them, so the triangles are Blender's loop triangles in the

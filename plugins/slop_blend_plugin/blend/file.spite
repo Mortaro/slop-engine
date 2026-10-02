@@ -314,13 +314,14 @@ func block_at(address: Long): Blend.Block? {
     while candidate >= 0 {
         crash blocks[candidate]
         var block = blocks[candidate]
-        if block.code != "DATA" or candidate > scope_start and candidate < scope_end {
+        var only = candidate == first_found and same_address[candidate] == -1
+        if only or block.code != "DATA" or candidate > scope_start and candidate < scope_end {
             return block
         }
         crash same_address[candidate]
         candidate = same_address[candidate]
     }
-    return blocks[first_found]
+    return null
 }
 
 func view_of(block: Blend.Block): Blend.View {

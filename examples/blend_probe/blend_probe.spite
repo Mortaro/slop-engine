@@ -47,6 +47,7 @@ func list_attributes(file: Blend.File) {
     var meshes = file.blocks_coded("ME")
     crash meshes[0]
     var mesh = file.view_of(meshes[0])
+    file.enter(mesh)
     var vertices = mesh.integer("totvert")
     var faces = mesh.integer("totpoly")
     var corners = mesh.integer("totloop")
