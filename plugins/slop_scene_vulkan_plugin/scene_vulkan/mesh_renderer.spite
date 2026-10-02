@@ -22,6 +22,8 @@ var lighting_mapped = List<Long>()
 var lighting_bytes = 256
 var clusters = Scene.LightClusters()
 var terrain = SceneVulkan.TerrainPass()
+var grass = SceneVulkan.GrassPass()
+var water = SceneVulkan.WaterPass()
 var sections_per_mesh = 64
 var key_counts = List<Integer>()
 var used_keys = List<Integer>()
@@ -119,6 +121,11 @@ func record(
     storage.append_long(storage_sets[slot])
     var no_offsets: Long = 0
     var timings = renderer.gpu_timings
+    var projection = camera.projection(aspect)
+    var view_projection = projection.multiplied(camera.view)
+    var grass_scatter_timing = timings.begin("grass scatter")
+    grass.prepare(renderer, this, drawn, camera, view_projection, storage)
+    timings.end(grass_scatter_timing)
     var shadow_timing = timings.begin("shadows")
     record_shadows(renderer, drawn, storage)
     timings.end(shadow_timing)
@@ -129,12 +136,16 @@ func record(
     vulkan.vkCmdBindPipeline(frame.command_buffer, 0, pipeline)
     record_viewport(renderer)
     vulkan.vkCmdBindDescriptorSets(frame.command_buffer, 0, pipeline_layout, 1, 1, storage.address, 0, no_offsets)
-    var projection = camera.projection(aspect)
-    var view_projection = projection.multiplied(camera.view)
     record_runs(renderer, drawn, view_projection)
     record_terrain(renderer, drawn, terrain_materials, storage, view_projection)
+    var grass_timing = timings.begin("grass")
+    grass.draw(renderer, this, storage, view_projection)
+    timings.end(grass_timing)
     vulkan.vkCmdEndRendering(frame.command_buffer)
     timings.end(scene_timing)
+    var water_timing = timings.begin("water")
+    water.record(renderer, this, camera, view_projection, storage)
+    timings.end(water_timing)
     renderer.barrier(high_dynamic_range_image, 256, 32, 2, 5, 1024, 128)
     var tone_timing = timings.begin("tone map")
     record_tone_map(renderer)
@@ -756,7 +767,10 @@ func shaders_ready(renderer: RenderVulkan.Renderer): Boolean {
     var shadow_fragment = renderer.shader_ready("shader.shadow.fragment")
     var tone_vertex = renderer.shader_ready("shader.tone_map.vertex")
     var tone_fragment = renderer.shader_ready("shader.tone_map.fragment")
-    return scene_vertex and scene_fragment and terrain_fragment and shadow_fragment and tone_vertex and tone_fragment
+    var scene_ready = scene_vertex and scene_fragment and terrain_fragment and shadow_fragment
+    var grass_ready = grass.shaders_ready(renderer)
+    var water_ready = water.shaders_ready(renderer)
+    return scene_ready and tone_vertex and tone_fragment and grass_ready and water_ready
 }
 
 func create(renderer: RenderVulkan.Renderer, chosen: RenderVulkan.Component.Device) {
@@ -772,6 +786,8 @@ func create(renderer: RenderVulkan.Renderer, chosen: RenderVulkan.Component.Devi
     terrain.create(renderer, chosen, storage_layout)
     create_scene_pool(renderer)
     terrain.pipeline = build_pipeline(renderer, terrain.pipeline_layout, terrain.shader_terrain)
+    grass.create(renderer, this)
+    water.create(renderer, this)
     shadow_pipeline = create_shadow_pipeline(renderer)
     create_tone_map(renderer)
     renderer.parts.append(this)
@@ -1114,7 +1130,7 @@ func ensure_depth(renderer: RenderVulkan.Renderer) {
     creation.append_integer(1)
     creation.append_integer(1)
     creation.append_integer(0)
-    creation.append_integer(32)
+    creation.append_integer(36)
     creation.append_integer(0)
     creation.append_integer(0)
     creation.append_long(0)
@@ -1149,7 +1165,7 @@ func create_high_dynamic_range(renderer: RenderVulkan.Renderer) {
     creation.append_integer(1)
     creation.append_integer(1)
     creation.append_integer(0)
-    creation.append_integer(20)
+    creation.append_integer(21)
     creation.append_integer(0)
     creation.append_integer(0)
     creation.append_long(0)
@@ -1947,6 +1963,8 @@ func release_part(renderer: RenderVulkan.Renderer) {
     release_all(renderer, cluster_buffers, cluster_memories)
     release_all(renderer, light_index_buffers, light_index_memories)
     terrain.release(renderer)
+    grass.release(renderer)
+    water.release(renderer)
     var no_pool_allocator: Long = 0
     vulkan.vkDestroyDescriptorPool(renderer.device, scene_pool, no_pool_allocator)
     vulkan.vkDestroyPipeline(renderer.device, shadow_pipeline, no_allocator)

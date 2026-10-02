@@ -1,0 +1,179 @@
+type Checked {
+    entity: Entity
+    view: Scene.Component.View
+    camera: Scene.Component.ViewCamera
+    draw_list: Render.Component.DrawList
+}
+
+type Quitting {
+    frame: Component.Frame
+    running: Without<Component.Quit>
+}
+
+var renderer = RenderVulkan.Renderer()
+var mesh_renderer = SceneVulkan.MeshRenderer()
+var textures = Render.Textures()
+var draws = Scene.Draws()
+var water = Scene.Water()
+var console = Console()
+var world = World()
+var environment = Environment()
+var captured_frames = Lookup<RenderVulkan.Component.Captured>()
+var steady_ticks = 0
+var measured = 0
+var finished = false
+
+func last_each(checked: Checked, quitting: Quitting) {
+    assert not finished
+    var terrain_count = draws.of(checked.entity.id).terrain_draws.count()
+    assert terrain_count == 4
+    assert measured != 0 or settled()
+    if measured == 0 {
+        renderer.gpu_timings.clear()
+    }
+    measured = measured + 1
+    if measured == environment.measured_frames {
+        var timings = renderer.gpu_timings.describe()
+        console.print(timings)
+        var request = RenderVulkan.Component.CaptureRequested()
+        checked.entity.add_component(request)
+    }
+    assert captured_frames.has(checked.entity.id)
+    finished = true
+    var width = checked.draw_list.width
+    var height = checked.draw_list.height
+    var view_projection = view_projection_of(checked.camera, width, height)
+    var grass = color_at(view_projection, 44.0, 0.0, 34.0, width, height)
+    var bare = color_at(view_projection, 70.0, 0.0, 30.0, width, height)
+    var lake = color_at(view_projection, 88.0, -1.0, 56.0, width, height)
+    var grass_red = channel(grass, 16)
+    var grass_green = channel(grass, 8)
+    var grass_blue = channel(grass, 0)
+    var bare_red = channel(bare, 16)
+    var bare_green = channel(bare, 8)
+    var bare_blue = channel(bare, 0)
+    var lake_red = channel(lake, 16)
+    var lake_green = channel(lake, 8)
+    var lake_blue = channel(lake, 0)
+    var grass_green_enough = grass_green * 10 > grass_red * 11 and grass_green * 10 > grass_blue * 14
+    var bare_sandy = bare_red > bare_green and bare_green > bare_blue
+    var lake_blue_enough = lake_blue * 10 > lake_red * 12
+    var passed = grass_green_enough and bare_sandy and lake_blue_enough
+    console.print("grass", grass_red, grass_green, grass_blue, "bare", bare_red, bare_green, bare_blue)
+    console.print("lake", lake_red, lake_green, lake_blue, "passed", passed)
+    if not environment.capture.is_empty() {
+        save(width, height)
+    }
+    crash passed
+    var quit = Component.Quit()
+    world.as_entity().add_component(quit)
+}
+
+func settled(): Boolean {
+    var resident = not renderer.uploads_pending(textures)
+    var grass_ready = mesh_renderer.grass.active.count() == 2
+    var water_ready = water.count == 1 and water.wave_count() == 4
+    if resident and grass_ready and water_ready {
+        steady_ticks = steady_ticks + 1
+    } else {
+        steady_ticks = 0
+    }
+    return steady_ticks >= 30
+}
+
+func view_projection_of(camera: Scene.Component.ViewCamera, width: Integer, height: Integer): Math.Matrix4 {
+    var across: Float = width
+    var down: Float = height
+    var projection = camera.projection(across / down)
+    return projection.multiplied(camera.view)
+}
+
+func color_at(
+    matrix: Math.Matrix4,
+    point_x: Float,
+    point_y: Float,
+    point_z: Float,
+    width: Integer,
+    height: Integer,
+): Integer {
+    var clip_x = matrix.m0 * point_x + matrix.m4 * point_y + matrix.m8 * point_z + matrix.m12
+    var clip_y = matrix.m1 * point_x + matrix.m5 * point_y + matrix.m9 * point_z + matrix.m13
+    var clip_w = matrix.m3 * point_x + matrix.m7 * point_y + matrix.m11 * point_z + matrix.m15
+    var across: Float = width
+    var down: Float = height
+    var left: Integer = (clip_x / clip_w * 0.5 + 0.5) * across
+    var top: Integer = (clip_y / clip_w * 0.5 + 0.5) * down
+    var on_screen = left >= 2 and top >= 2 and left < width - 2 and top < height - 2
+    crash on_screen
+    var red = 0
+    var green = 0
+    var blue = 0
+    var row = top - 2
+    while row <= top + 2 {
+        var column = left - 2
+        while column <= left + 2 {
+            var pixel = renderer.pixel_at(column, row)
+            red = red + channel(pixel, 16)
+            green = green + channel(pixel, 8)
+            blue = blue + channel(pixel, 0)
+            column = column + 1
+        }
+        row = row + 1
+    }
+    var red_part = red / 25
+    var green_part = green / 25
+    var blue_part = blue / 25
+    var red_shifted = red_part.shifted_left(16)
+    var green_shifted = green_part.shifted_left(8)
+    return red_shifted.bits_or(green_shifted).bits_or(blue_part)
+}
+
+func channel(pixel: Integer, shift: Integer): Integer {
+    return pixel.shifted_right(shift).bits_and(255)
+}
+
+func save(width: Integer, height: Integer) {
+    var row_bytes = width * 3
+    var padding = (4 - row_bytes % 4) % 4
+    var data_bytes = (row_bytes + padding) * height
+    var image = Asset.Bytes()
+    image.write_byte(66)
+    image.write_byte(77)
+    image.write_integer(54 + data_bytes)
+    image.write_integer(0)
+    image.write_integer(54)
+    image.write_integer(40)
+    image.write_integer(width)
+    image.write_integer(height)
+    image.write_byte(1)
+    image.write_byte(0)
+    image.write_byte(24)
+    image.write_byte(0)
+    image.write_integer(0)
+    image.write_integer(data_bytes)
+    image.write_integer(2835)
+    image.write_integer(2835)
+    image.write_integer(0)
+    image.write_integer(0)
+    var row = height - 1
+    while row >= 0 {
+        var column = 0
+        while column < width {
+            var texel = renderer.pixel_at(column, row)
+            var blue = channel(texel, 0)
+            var green = channel(texel, 8)
+            var red = channel(texel, 16)
+            image.write_byte(blue)
+            image.write_byte(green)
+            image.write_byte(red)
+            column = column + 1
+        }
+        var pad = 0
+        while pad < padding {
+            image.write_byte(0)
+            pad = pad + 1
+        }
+        row = row - 1
+    }
+    image.save(environment.capture)
+}

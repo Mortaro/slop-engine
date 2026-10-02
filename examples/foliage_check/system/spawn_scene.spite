@@ -1,0 +1,121 @@
+type Started {
+    frame: Added<Component.Frame>
+}
+
+var world = World()
+var environment = Environment()
+var scalar = Math.Scalar()
+
+func update_each(_started: Started) {
+    var window_bundle = Window.Bundle.Window()
+    window_bundle.window.title = "Foliage check"
+    window_bundle.window.width = environment.width
+    window_bundle.window.height = environment.height
+    var window_entity = world.create_entity_from_bundle(window_bundle)
+    if not environment.show_window {
+        var hidden = Window.Component.Hidden()
+        window_entity.add_component(hidden)
+    }
+    var camera_entity = world.create_entity()
+    var camera = Camera.Component.Camera()
+    camera.eye_x = 34.0
+    camera.eye_y = 9.0
+    camera.eye_z = 8.0
+    camera.target_x = 76.0
+    camera.target_y = -2.0
+    camera.target_z = 60.0
+    camera_entity.add_component(camera)
+    var daylight = Lighting.Bundle.Daylight()
+    daylight.sun.direction_x = 0.62
+    daylight.sun.direction_y = -0.75
+    daylight.sun.direction_z = 0.64
+    world.create_entity_from_bundle(daylight)
+    add_cell(0, 0)
+    add_cell(1, 0)
+    add_cell(0, 1)
+    add_cell(1, 1)
+    var percent: Float = environment.density_percent
+    var density_scale = percent / 100.0
+    var grass = Foliage.Component.GrassType()
+    grass.mesh = "foliage.check.grass"
+    grass.density = 8.0 * density_scale
+    grass.scale_minimum = 0.7
+    grass.scale_maximum = 1.3
+    grass.start_cull_distance = 60.0
+    grass.end_cull_distance = 90.0
+    grass.wind_strength = 0.15
+    add_grass(grass, 0)
+    var flowers = Foliage.Component.GrassType()
+    flowers.mesh = "foliage.check.flowers"
+    flowers.density = 1.5 * density_scale
+    flowers.scale_minimum = 0.8
+    flowers.scale_maximum = 1.2
+    flowers.start_cull_distance = 40.0
+    flowers.end_cull_distance = 70.0
+    add_grass(flowers, 1)
+    add_lake()
+}
+
+func add_cell(cell_x: Integer, cell_z: Integer) {
+    var entity = world.create_entity()
+    var cell = Scene.Component.TerrainCell()
+    cell.mesh = "foliage.check.cell.{cell_x}_{cell_z}"
+    cell.material = "foliage.check.material"
+    entity.add_component(cell)
+    var transform = Transform.Component.Transform()
+    var at_x: Float = cell_x
+    var at_z: Float = cell_z
+    transform.position_x = at_x * 64.0
+    transform.position_z = at_z * 64.0
+    entity.add_component(transform)
+}
+
+func add_grass(kind: Foliage.Component.GrassType, channel: Integer) {
+    var entity = world.create_entity()
+    entity.add_component(kind)
+    var map = Foliage.Component.DensityMap()
+    map.texture = "foliage.check.density"
+    map.channel = channel
+    map.width = 128.0
+    map.depth = 128.0
+    entity.add_component(map)
+    var aligned = Foliage.Component.AlignToSurface()
+    entity.add_component(aligned)
+    var turned = Foliage.Component.RandomYaw()
+    entity.add_component(turned)
+}
+
+func add_lake() {
+    var lake = world.create_entity()
+    var body = Water.Component.WaterBody()
+    body.extent_x = 30.0
+    body.extent_z = 30.0
+    lake.add_component(body)
+    var transform = Transform.Component.Transform()
+    transform.position_x = 92.0
+    transform.position_y = -1.0
+    transform.position_z = 60.0
+    lake.add_component(transform)
+    add_wave(lake, 1.0, 0.3, 9.0, 0.06, 0.25)
+    add_wave(lake, -0.4, 1.0, 5.5, 0.035, 0.2)
+    add_wave(lake, 0.7, -0.7, 14.0, 0.08, 0.2)
+    add_wave(lake, 0.2, 1.0, 3.2, 0.02, 0.15)
+}
+
+func add_wave(
+    lake: Entity,
+    direction_x: Float,
+    direction_z: Float,
+    wavelength: Float,
+    amplitude: Float,
+    steepness: Float,
+) {
+    var entity = lake.create_entity()
+    var wave = Water.Component.GerstnerWave()
+    wave.direction_x = direction_x
+    wave.direction_z = direction_z
+    wave.wavelength = wavelength
+    wave.amplitude = amplitude
+    wave.steepness = steepness
+    entity.add_component(wave)
+}

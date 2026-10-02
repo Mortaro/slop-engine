@@ -1,0 +1,55 @@
+var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
+var buffer: Long = 0
+var buffer_memory: Long = 0
+var capacity = 0
+var generation = 0
+var usage = 0
+
+func GpuBuffer(buffer_usage: Integer) {
+    usage = buffer_usage
+}
+
+func ensure(renderer: RenderVulkan.Renderer, bytes: Integer) {
+    assert bytes > capacity
+    if buffer != 0 {
+        renderer.release_later(buffer, buffer_memory)
+    }
+    capacity = bytes + bytes / 2 + 256
+    buffer = renderer.create_buffer(capacity, usage)
+    buffer_memory = renderer.device_memory_for(buffer)
+    generation = generation + 1
+}
+
+func update(renderer: RenderVulkan.Renderer, data: RenderVulkan.Structure, bytes: Integer) {
+    var fits = bytes <= capacity and bytes % 4 == 0
+    crash fits
+    var done = 0
+    while done < bytes {
+        var part = bytes - done
+        if part > 65536 {
+            part = 65536
+        }
+        var offset: Long = done
+        var size: Long = part
+        vulkan.vkCmdUpdateBuffer(renderer.frame.command_buffer, buffer, offset, size, data.address + done)
+        done = done + part
+    }
+}
+
+func describe(): RenderVulkan.Structure {
+    var whole: Long = -1
+    var information = RenderVulkan.Structure(24)
+    information.append_long(buffer)
+    information.append_long(0)
+    information.append_long(whole)
+    return information
+}
+
+func release(renderer: RenderVulkan.Renderer) {
+    assert buffer != 0
+    var no_allocator: Long = 0
+    vulkan.vkDestroyBuffer(renderer.device, buffer, no_allocator)
+    vulkan.vkFreeMemory(renderer.device, buffer_memory, no_allocator)
+    buffer = 0
+    capacity = 0
+}

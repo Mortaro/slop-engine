@@ -1,0 +1,421 @@
+var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
+var raw = Raw()
+var floats = TypedMemory<Float>()
+var scalar = Math.Scalar()
+var builder = SceneVulkan.PipelineBuilder()
+var water = Scene.Water()
+var created = false
+var grid_quads = 256
+var high_dynamic_range_format = 97
+var shader_vertex: Long = 0
+var shader_fragment: Long = 0
+var set_layout: Long = 0
+var pipeline_layout: Long = 0
+var pipeline: Long = 0
+var pool: Long = 0
+var linear_sampler: Long = 0
+var nearest_sampler: Long = 0
+var copy_image: Long = 0
+var copy_memory: Long = 0
+var copy_view: Long = 0
+var copy_width = 0
+var copy_height = 0
+var frame_buffer = SceneVulkan.GpuBuffer(34)
+var waves_buffer = SceneVulkan.GpuBuffer(34)
+var frame_bytes = 160
+var body_bytes = 80
+var wave_bytes = 32
+var set: Long = 0
+var set_frame_generation = -1
+var set_waves_generation = -1
+var set_copy_view: Long = 0
+var set_depth_view: Long = 0
+var retired_sets = List<Long>()
+var retired_at = List<Integer>()
+var gravity: Float = 9.81
+var pi: Float = 3.14159265
+
+func create(renderer: RenderVulkan.Renderer, mesh_renderer: SceneVulkan.MeshRenderer) {
+    assert not created
+    created = true
+    shader_vertex = renderer.create_shader("shader.water.vertex")
+    shader_fragment = renderer.create_shader("shader.water.fragment")
+    linear_sampler = builder.sampler(renderer, 1)
+    nearest_sampler = builder.sampler(renderer, 0)
+    var vertex_and_fragment = 17
+    var kinds = List<Integer>()
+    kinds.append(1)
+    kinds.append(1)
+    kinds.append(7)
+    kinds.append(7)
+    set_layout = builder.set_layout(renderer, kinds, vertex_and_fragment)
+    var layouts = List<Long>()
+    layouts.append(set_layout)
+    layouts.append(mesh_renderer.storage_layout)
+    pipeline_layout = builder.pipeline_layout(renderer, layouts, 4, vertex_and_fragment)
+    builder.color_format = high_dynamic_range_format
+    builder.depth_compare = 4
+    builder.depth_write = 0
+    builder.cull_mode = 0
+    builder.mesh_vertices = false
+    pipeline = builder.graphics(renderer, mesh_renderer, shader_vertex, shader_fragment, pipeline_layout)
+    pool = builder.pool(renderer, 16)
+}
+
+func shaders_ready(renderer: RenderVulkan.Renderer): Boolean {
+    var vertex = renderer.shader_ready("shader.water.vertex")
+    var fragment = renderer.shader_ready("shader.water.fragment")
+    return vertex and fragment
+}
+
+func record(
+    renderer: RenderVulkan.Renderer,
+    mesh_renderer: SceneVulkan.MeshRenderer,
+    camera: Scene.Component.ViewCamera,
+    view_projection: Math.Matrix4,
+    storage: RenderVulkan.Structure,
+) {
+    release_retired(renderer)
+    assert water.count > 0
+    var frame = renderer.frame
+    ensure_copy(renderer, frame.target_width, frame.target_height)
+    var data = frame_data(renderer, camera, view_projection)
+    var waves = wave_data()
+    var frame_wanted = frame_bytes + water.count * body_bytes
+    if frame_wanted > frame_buffer.capacity {
+        frame_buffer.ensure(renderer, frame_wanted)
+    }
+    var waves_wanted = water.wave_count() * wave_bytes + wave_bytes
+    if waves_wanted > waves_buffer.capacity {
+        waves_buffer.ensure(renderer, waves_wanted)
+    }
+    var everything_before = 65536
+    var transfer_stage = 4096
+    var transfer_write = 4096
+    builder.memory_barrier(renderer, everything_before, 0, transfer_stage, transfer_write)
+    frame_buffer.update(renderer, data, frame_wanted)
+    waves_buffer.update(renderer, waves, waves_wanted)
+    copy_scene(renderer, mesh_renderer)
+    var vertex_and_fragment_stages = 136
+    var shader_read = 32
+    builder.memory_barrier(renderer, transfer_stage, transfer_write, vertex_and_fragment_stages, shader_read)
+    var depth_aspect = 2
+    var depth_attachment_layout = 3
+    var depth_read_only_layout = 4
+    var late_tests = 512
+    var depth_write = 1024
+    var tests_and_fragment = 384
+    var depth_and_shader_read = 544
+    builder.image_barrier(
+        renderer,
+        mesh_renderer.depth_image,
+        depth_aspect,
+        depth_attachment_layout,
+        depth_read_only_layout,
+        late_tests,
+        depth_write,
+        tests_and_fragment,
+        depth_and_shader_read,
+    )
+    var keep_contents = 0
+    var store_contents = 0
+    var dont_care = 1
+    var color_layout = 2
+    var color = builder.attachment(mesh_renderer.high_dynamic_range_view, color_layout, keep_contents, store_contents)
+    var depth = builder.attachment(mesh_renderer.depth_view, depth_read_only_layout, keep_contents, dont_care)
+    builder.begin_rendering(renderer, frame.target_width, frame.target_height, color, depth)
+    var command_buffer = frame.command_buffer
+    vulkan.vkCmdBindPipeline(command_buffer, 0, pipeline)
+    mesh_renderer.record_viewport(renderer)
+    var no_offsets: Long = 0
+    var water_set = set_now(renderer, mesh_renderer)
+    var sets = RenderVulkan.Structure(8)
+    sets.append_long(water_set)
+    vulkan.vkCmdBindDescriptorSets(command_buffer, 0, pipeline_layout, 0, 1, sets.address, 0, no_offsets)
+    vulkan.vkCmdBindDescriptorSets(command_buffer, 0, pipeline_layout, 1, 1, storage.address, 0, no_offsets)
+    var vertices = grid_quads * grid_quads * 6
+    var body = 0
+    while body < water.count {
+        var push = RenderVulkan.Structure(4)
+        push.append_integer(body)
+        var vertex_and_fragment = 17
+        vulkan.vkCmdPushConstants(command_buffer, pipeline_layout, vertex_and_fragment, 0, 4, push.address)
+        vulkan.vkCmdDraw(command_buffer, vertices, 1, 0, 0)
+        body = body + 1
+    }
+    vulkan.vkCmdEndRendering(command_buffer)
+}
+
+func copy_scene(renderer: RenderVulkan.Renderer, mesh_renderer: SceneVulkan.MeshRenderer) {
+    var frame = renderer.frame
+    var color_aspect = 1
+    var color_layout = 2
+    var transfer_source_layout = 6
+    var transfer_target_layout = 7
+    var shader_read_layout = 5
+    var color_output = 1024
+    var color_write = 256
+    var transfer_stage = 4096
+    var transfer_read = 2048
+    var transfer_write = 4096
+    var fragment_stage = 128
+    var shader_read = 32
+    builder.image_barrier(
+        renderer,
+        mesh_renderer.high_dynamic_range_image,
+        color_aspect,
+        color_layout,
+        transfer_source_layout,
+        color_output,
+        color_write,
+        transfer_stage,
+        transfer_read,
+    )
+    builder.image_barrier(
+        renderer,
+        copy_image,
+        color_aspect,
+        0,
+        transfer_target_layout,
+        fragment_stage,
+        0,
+        transfer_stage,
+        transfer_write,
+    )
+    var region = RenderVulkan.Structure(68)
+    region.append_integer(color_aspect)
+    region.append_integer(0)
+    region.append_integer(0)
+    region.append_integer(1)
+    region.append_integer(0)
+    region.append_integer(0)
+    region.append_integer(0)
+    region.append_integer(color_aspect)
+    region.append_integer(0)
+    region.append_integer(0)
+    region.append_integer(1)
+    region.append_integer(0)
+    region.append_integer(0)
+    region.append_integer(0)
+    region.append_integer(frame.target_width)
+    region.append_integer(frame.target_height)
+    region.append_integer(1)
+    vulkan.vkCmdCopyImage(
+        frame.command_buffer,
+        mesh_renderer.high_dynamic_range_image,
+        transfer_source_layout,
+        copy_image,
+        transfer_target_layout,
+        1,
+        region.address,
+    )
+    builder.image_barrier(
+        renderer,
+        mesh_renderer.high_dynamic_range_image,
+        color_aspect,
+        transfer_source_layout,
+        color_layout,
+        transfer_stage,
+        transfer_read,
+        color_output,
+        color_write,
+    )
+    builder.image_barrier(
+        renderer,
+        copy_image,
+        color_aspect,
+        transfer_target_layout,
+        shader_read_layout,
+        transfer_stage,
+        transfer_write,
+        fragment_stage,
+        shader_read,
+    )
+}
+
+func ensure_copy(renderer: RenderVulkan.Renderer, width: Integer, height: Integer) {
+    assert width != copy_width or height != copy_height
+    if copy_image != 0 {
+        renderer.frame.retired_images.append(copy_image)
+        renderer.frame.retired_memories.append(copy_memory)
+        renderer.frame.retired_views.append(copy_view)
+        renderer.frame.retired_sets.append(0)
+    }
+    var sampled_and_transfer_target = 6
+    copy_image = builder.create_image(renderer, width, height, high_dynamic_range_format, sampled_and_transfer_target)
+    copy_memory = builder.bind_image_memory(renderer, copy_image)
+    var color_aspect = 1
+    copy_view = builder.create_view(renderer, copy_image, high_dynamic_range_format, color_aspect)
+    copy_width = width
+    copy_height = height
+}
+
+func frame_data(
+    renderer: RenderVulkan.Renderer,
+    camera: Scene.Component.ViewCamera,
+    view_projection: Math.Matrix4,
+): RenderVulkan.Structure {
+    var data = RenderVulkan.Structure(frame_bytes + water.count * body_bytes)
+    view_projection.write_to(data.address)
+    var inverse = view_projection.inverted()
+    inverse.write_to(data.address + 64)
+    var reach = scalar.minimum(camera.far, 4000.0)
+    write_floats(data, 128, camera.eye_x, camera.eye_z, reach, water.time_seconds)
+    var width: Float = renderer.frame.target_width
+    var height: Float = renderer.frame.target_height
+    write_floats(data, 144, width, height, 1.0 / width, 1.0 / height)
+    var first_wave = 0
+    var body = 0
+    while body < water.count {
+        var surface = water.bodies[body]
+        crash surface
+        var at = frame_bytes + body * body_bytes
+        write_floats(data, at, surface.center_x, surface.height, surface.center_z, 0.0)
+        write_floats(data, at + 16, surface.extent_x, surface.extent_z, surface.roughness, surface.specular)
+        write_floats(data, at + 32, surface.albedo_red, surface.albedo_green, surface.albedo_blue, surface.scattering)
+        write_floats(data, at + 48, surface.absorption_red, surface.absorption_green, surface.absorption_blue, 0.0)
+        var count = waves_of(surface.owner)
+        raw.write_integer(data.address, at + 64, first_wave)
+        raw.write_integer(data.address, at + 68, count)
+        raw.write_integer(data.address, at + 72, 0)
+        raw.write_integer(data.address, at + 76, 0)
+        first_wave = first_wave + count
+        body = body + 1
+    }
+    return data
+}
+
+func waves_of(owner: Integer): Integer {
+    var count = 0
+    var index = 0
+    while index < water.wave_owners.count() {
+        if water.wave_owners[index] == owner {
+            count = count + 1
+        }
+        index = index + 1
+    }
+    return count
+}
+
+func wave_data(): RenderVulkan.Structure {
+    var wave_count = water.wave_count()
+    var data = RenderVulkan.Structure(wave_count * wave_bytes + wave_bytes)
+    var written = 0
+    var body = 0
+    while body < water.count {
+        var surface = water.bodies[body]
+        crash surface
+        var index = 0
+        while index < water.wave_owners.count() {
+            if water.wave_owners[index] == surface.owner {
+                write_wave(data, written, index)
+                written = written + 1
+            }
+            index = index + 1
+        }
+        body = body + 1
+    }
+    return data
+}
+
+func write_wave(data: RenderVulkan.Structure, written: Integer, index: Integer) {
+    var from = index * water.wave_stride
+    var stored = water.wave_floats
+    crash stored[from]
+    crash stored[from + 1]
+    crash stored[from + 2]
+    crash stored[from + 3]
+    crash stored[from + 4]
+    var direction_x = stored[from]
+    var direction_z = stored[from + 1]
+    var length = scalar.square_root(direction_x * direction_x + direction_z * direction_z)
+    if length < 0.000001 {
+        direction_x = 1.0
+        direction_z = 0.0
+        length = 1.0
+    }
+    var wavelength = scalar.maximum(stored[from + 2], 0.01)
+    var wave_number = 2.0 * pi / wavelength
+    var angular_frequency = scalar.square_root(gravity * wave_number)
+    var horizontal = stored[from + 4] / wave_number
+    var at = written * wave_bytes
+    write_floats(data, at, direction_x / length, direction_z / length, wave_number, stored[from + 3])
+    write_floats(data, at + 16, horizontal, angular_frequency, 0.0, 0.0)
+}
+
+func write_floats(data: RenderVulkan.Structure, at: Integer, first: Float, second: Float, third: Float, fourth: Float) {
+    floats.write_value(data.address + at, 0, first)
+    floats.write_value(data.address + at, 1, second)
+    floats.write_value(data.address + at, 2, third)
+    floats.write_value(data.address + at, 3, fourth)
+}
+
+func set_now(renderer: RenderVulkan.Renderer, mesh_renderer: SceneVulkan.MeshRenderer): Long {
+    var same_buffers = set_frame_generation == frame_buffer.generation and set_waves_generation == waves_buffer.generation
+    var same_images = set_copy_view == copy_view and set_depth_view == mesh_renderer.depth_view
+    if set != 0 and same_buffers and same_images {
+        return set
+    }
+    if set != 0 {
+        retired_sets.append(set)
+        retired_at.append(renderer.frame_number)
+    }
+    set = builder.allocate_set(renderer, pool, set_layout)
+    var copy_information = builder.image_information(linear_sampler, copy_view, 5)
+    var depth_read_only_layout = 4
+    var depth_information = builder.image_information(nearest_sampler, mesh_renderer.depth_view, depth_read_only_layout)
+    var frame_information = frame_buffer.describe()
+    var waves_information = waves_buffer.describe()
+    var writes = RenderVulkan.Structure(256)
+    builder.append_image_write(writes, set, 0, copy_information)
+    builder.append_image_write(writes, set, 1, depth_information)
+    builder.append_buffer_write(writes, set, 2, frame_information)
+    builder.append_buffer_write(writes, set, 3, waves_information)
+    var no_copies: Long = 0
+    vulkan.vkUpdateDescriptorSets(renderer.device, 4, writes.address, 0, no_copies)
+    set_frame_generation = frame_buffer.generation
+    set_waves_generation = waves_buffer.generation
+    set_copy_view = copy_view
+    set_depth_view = mesh_renderer.depth_view
+    return set
+}
+
+func release_retired(renderer: RenderVulkan.Renderer) {
+    var index = retired_sets.count() - 1
+    while index >= 0 {
+        crash retired_at[index]
+        if retired_at[index] + renderer.frames_in_flight < renderer.frame_number {
+            crash retired_sets[index]
+            var freed = RenderVulkan.Structure(8)
+            freed.append_long(retired_sets[index])
+            vulkan.vkFreeDescriptorSets(renderer.device, pool, 1, freed.address)
+            retired_sets.remove_at(index)
+            retired_at.remove_at(index)
+        }
+        index = index - 1
+    }
+}
+
+func release(renderer: RenderVulkan.Renderer) {
+    assert created
+    var no_allocator: Long = 0
+    if frame_buffer.buffer != 0 {
+        frame_buffer.release(renderer)
+    }
+    if waves_buffer.buffer != 0 {
+        waves_buffer.release(renderer)
+    }
+    if copy_image != 0 {
+        vulkan.vkDestroyImageView(renderer.device, copy_view, no_allocator)
+        vulkan.vkDestroyImage(renderer.device, copy_image, no_allocator)
+        vulkan.vkFreeMemory(renderer.device, copy_memory, no_allocator)
+    }
+    vulkan.vkDestroyDescriptorPool(renderer.device, pool, no_allocator)
+    vulkan.vkDestroyPipeline(renderer.device, pipeline, no_allocator)
+    vulkan.vkDestroyPipelineLayout(renderer.device, pipeline_layout, no_allocator)
+    vulkan.vkDestroyDescriptorSetLayout(renderer.device, set_layout, no_allocator)
+    vulkan.vkDestroySampler(renderer.device, linear_sampler, no_allocator)
+    vulkan.vkDestroySampler(renderer.device, nearest_sampler, no_allocator)
+    vulkan.vkDestroyShaderModule(renderer.device, shader_vertex, no_allocator)
+    vulkan.vkDestroyShaderModule(renderer.device, shader_fragment, no_allocator)
+}

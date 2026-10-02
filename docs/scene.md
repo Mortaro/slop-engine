@@ -12,9 +12,11 @@ with `spite kal_character --kal-assets=<folder>`.
 | `slop_transform_plugin` | `Transform` | `Transform.Component.Transform`: position, a rotation quaternion and scale |
 | `slop_camera_plugin` | `Camera` | `Camera.Component.Camera` (eye, target, field of view, near, far) and `Camera.Component.Orbit` with the `AimOrbit` system |
 | `slop_scene_plugin` | `Scene` | `Scene.Component.Model` (a mesh id) and, on an animated model, `Scene.Component.Skin` (its `Scene.Pose`: the bone palette and each bone's pose, asset data rewritten every frame); `Scene.Component.View` on each window, whose draws, terrain draws and palettes for the frame live in the `Scene.Draws` resource (`draws.of(view)`, a `Scene.DrawSet` per view); the `Scene.Meshes` and `Scene.TerrainMaterials` resources, which give each mesh and terrain material an entity (`Scene.Component.Mesh`, `Scene.Component.TerrainMaterial`, marked `Component.Loading` while a job runs and `TerrainTexturesRequested` once its control textures are asked for); and `Scene.Component.ViewCamera` (the view matrix, field of view, near, far, eye and shadow centre) while a camera exists; `Gather` collects the camera, the models and the lighting every frame |
-| `slop_scene_vulkan_plugin` | `SceneVulkan` | the Vulkan passes: sun shadow map, lit scene into HDR, tone map into the frame, then the UI draws on top; `SceneVulkan.MeshRenderer` is a resource (singleton) holding the passes and the per-frame buffers; each mesh's entity gets `SceneVulkan.Component.GpuMesh` (its vertex and index buffers) and each texture's `SceneVulkan.Component.SceneTexture` (its scene-sampler descriptor set); `SceneVulkan.Component.MeshRendererCreated` marks the world entity once the passes are built |
+| `slop_scene_vulkan_plugin` | `SceneVulkan` | the Vulkan passes: grass scatter, sun shadow map, lit scene (grass included) into HDR, water, tone map into the frame, then the UI draws on top; `SceneVulkan.MeshRenderer` is a resource (singleton) holding the passes and the per-frame buffers; each mesh's entity gets `SceneVulkan.Component.GpuMesh` (its vertex and index buffers) and each texture's `SceneVulkan.Component.SceneTexture` (its scene-sampler descriptor set); `SceneVulkan.Component.MeshRendererCreated` marks the world entity once the passes are built |
 | `slop_animation_plugin` | `Animation` | `Animation.Component.Animator` (skeleton, clip, time, speed), looping unless the entity has the marker `Animation.Component.PlayOnce`; `Animate` samples the clip into the model's `Skin`, adding one the first time |
 | `slop_lighting_plugin` | `Lighting` | `Sun`, `Sky`, `HeightFog` and `Exposure` components and a `Daylight` bundle, written into each view; `PointLight` and `SpotLight` components gathered into `Scene.Lights` |
+| `slop_foliage_plugin` | `Foliage` | grass types: `Foliage.Component.GrassType`, `DensityMap` and the markers `AlignToSurface` and `RandomYaw`, gathered into the `Scene.Grass` resource ([grass](#grass)) |
+| `slop_water_plugin` | `Water` | `Water.Component.WaterBody` and its children's `GerstnerWave`, gathered into the `Scene.Water` resource ([water](#water)) |
 | `slop_blend_plugin` | `Blend` | `MeshReader`, `SkeletonReader` and `ActionReader`: what a recipe needs from a `.blend` |
 | `slop_png_plugin` | `Png` | a PNG decoder, pixel-exact against Pillow, for the images packed in a `.blend` |
 
@@ -192,6 +194,101 @@ A terrain cell is an entity with a `Transform` and a `Scene.Component.TerrainCel
 A material is drawn once every array and texture has arrived; until then its cells are skipped, so nothing waits.
 `examples/terrain_check` cooks a two-by-two-tile fixture and checks that each tile's base layer and a painted splat
 land where the formula puts them.
+
+### Grass
+
+Grass is scattered on the GPU around the camera every frame, as Unreal's landscape grass is: nothing is stored per
+blade, and a grass type costs the same whether the world is one cell or a thousand. A grass type is an entity with a
+`Foliage.Component.GrassType`:
+
+| Field | Means |
+|---|---|
+| `mesh` | the mesh drawn for each instance, with its sections, textures and masked cut-outs like any model |
+| `density` | instances per square metre (Unreal's grass density counts per 10 m by 10 m, a hundred times more) |
+| `scale_minimum`, `scale_maximum` | the range of the uniform scale each instance picks |
+| `placement_jitter` | how far an instance moves off its grid point, as a fraction of the spacing (1, as in Unreal) |
+| `start_cull_distance`, `end_cull_distance` | metres: instances shrink to nothing between the two, as Unreal's do, and none are placed past the end |
+| `wind_strength`, `wind_speed` | the sway, in metres per metre of height above the mesh's origin, and its cycles per second |
+
+Two markers shape each instance: `Foliage.Component.AlignToSurface` tilts it to the ground's normal, and
+`Foliage.Component.RandomYaw` turns it about its up axis by a random angle. A `Foliage.Component.DensityMap` on the
+same entity says where the type grows: a texture spread over the world from the origin, `width` metres along x and
+`depth` along z, whose `channel` (0 to 3 for red, green, blue, alpha) scales the density. A type without one grows on
+all terrain.
+
+```gdscript
+var grass = world.create_entity()
+var kind = Foliage.Component.GrassType()
+kind.mesh = "grass.meadow"
+kind.density = 8.0
+kind.end_cull_distance = 90.0
+grass.add_component(kind)
+var aligned = Foliage.Component.AlignToSurface()
+grass.add_component(aligned)
+```
+
+Each frame, `Foliage.System.ClearGrass` (`prepare`) empties the `Scene.Grass` resource and `GatherGrass` (`render`)
+fills it with every grass type whose mesh has loaded. `SceneVulkan.GrassPass` then:
+
+1. **Captures the ground.** The terrain cells in view are drawn from straight above into a 1024² image of height and
+   normal: a square around the camera reaching the farthest end cull distance, snapped to its texels.
+2. **Scatters**, with one compute dispatch per type, over a world-space grid whose spacing is `1 / √density`,
+   covering the square of the end cull distance around the camera. Each grid cell's jitter, scale, yaw and density
+   threshold come from a hash of the cell and the type's entity, so a blade stands in the same place every frame and
+   nothing swims as the camera moves. A cell is dropped when it is off the terrain, past the end cull distance,
+   thinned out by the density map, or outside the view's four side planes (its sphere, sway included); the rest are
+   appended to an instance buffer by an atomic count in each mesh section's indirect draw command.
+3. **Draws** each section with one indexed indirect draw, in the scene pass after the terrain, through the scene's own
+   fragment shader: grass is lit, receives the sun's shadow and fog, and is cut out like any masked mesh. The vertex
+   shader sways each vertex by its height.
+
+Grass casts no shadow. In `examples/foliage_check` (two types, 8 and 1.5 instances per square metre, out to 90 m),
+optimized at 1920x1080 on an RTX 3090, the scatter takes 52 µs of GPU time and the grass draw 714 µs.
+
+### Water
+
+A water body is an entity with a `Water.Component.WaterBody` and a `Transform`, whose position is the centre of the
+still surface. Its fields follow Unreal's water material:
+
+| Field | Means |
+|---|---|
+| `extent_x`, `extent_z` | the half size of the body in metres; an ocean is a very large body |
+| `albedo_red`, `albedo_green`, `albedo_blue` | the colour of the light the water scatters (Unreal's Water Albedo, 0.85) |
+| `scattering` | the scattering coefficient, per metre |
+| `absorption_red`, `absorption_green`, `absorption_blue` | the distance in metres over which each colour is absorbed to 1/e (Unreal's Absorption, which it gives in centimetres) |
+| `roughness`, `specular` | the surface's roughness (0.02) and specular (0.255, a reflectance of 0.02 straight on) |
+
+Its Gerstner waves are its children: each holds a `Water.Component.GerstnerWave` with `direction_x`, `direction_z`,
+`wavelength`, `amplitude` and `steepness`. A wave travels at the deep-water speed of its wavelength, an angular
+frequency of `√(9.81 · 2π / wavelength)`, as Unreal's Gerstner waves do; at steepness 1 a lone wave's crest comes to
+a point.
+
+```gdscript
+var lake = world.create_entity()
+lake.add_component(body)
+lake.add_component(transform)
+var swell = lake.create_entity()
+var wave = Water.Component.GerstnerWave()
+wave.wavelength = 9.0
+wave.amplitude = 0.06
+swell.add_component(wave)
+```
+
+`Water.System.ClearWater` (`prepare`), `GatherWaterBodies` and `GatherWaves` (`render`) fill the `Scene.Water`
+resource. `SceneVulkan.WaterPass` draws after the opaque scene and the grass:
+
+1. It copies the scene's colour, and keeps the depth buffer for testing and for reading.
+2. Each body is a grid of 256 by 256 quads made in the vertex shader from the vertex index alone: centred on the
+   camera, packed toward it (each side's coordinate squared), reaching the camera's far plane up to 4 km, clamped to
+   the body's extent and displaced by the sum of its waves. A wave fades out beyond 40 wavelengths from the eye, so
+   the far surface does not shimmer.
+3. The fragment shader recomputes the waves' normal for every pixel. The scene depth behind the surface gives the
+   thickness of water the view ray crosses; the scene colour behind, bent a little by the normal, is dimmed per colour
+   by `exp(-(1 / absorption + scattering) · thickness)`, and the sun and sky light the water scatters back toward the
+   eye is added. Shallow water shows the shore through it, and deep water takes the scattered colour. The sky is
+   reflected by Schlick's Fresnel and the sun by the scene's GGX highlight, in its shadow; fog comes last.
+
+`examples/foliage_check` puts a lake with four waves into a terrain basin; its pass takes 62 µs at 1920x1080.
 
 ### Point and spot lights
 

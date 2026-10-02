@@ -1,0 +1,57 @@
+type Planted {
+    entity: Entity
+    kind: Foliage.Component.GrassType
+}
+
+var grass = Scene.Grass()
+var meshes = Scene.Meshes()
+var textures = Render.Textures()
+var world = World()
+var density_maps = Lookup<Foliage.Component.DensityMap>()
+var aligned = Lookup<Foliage.Component.AlignToSurface>()
+var turned = Lookup<Foliage.Component.RandomYaw>()
+
+func render_each(planted: Planted) {
+    var kind = planted.kind
+    var mesh_slot = meshes.request(kind.mesh)
+    assert meshes.is_ready(mesh_slot)
+    var loaded = meshes.mesh_at(mesh_slot)
+    var owner = planted.entity.id
+    var gathered = grass.next()
+    gathered.seed = owner
+    gathered.mesh_slot = mesh_slot
+    gathered.density = kind.density
+    gathered.scale_minimum = kind.scale_minimum
+    gathered.scale_maximum = kind.scale_maximum
+    gathered.placement_jitter = kind.placement_jitter
+    gathered.start_cull_distance = kind.start_cull_distance
+    gathered.end_cull_distance = kind.end_cull_distance
+    gathered.wind_strength = kind.wind_strength
+    gathered.wind_speed = kind.wind_speed
+    gathered.align_to_surface = aligned.has(owner)
+    gathered.random_yaw = turned.has(owner)
+    gathered.density_texture = -1
+    var map = density_maps.of(owner)
+    if map {
+        gathered.density_texture = textures.request(map.texture)
+        gathered.density_channel = map.channel
+        gathered.map_width = map.width
+        gathered.map_depth = map.depth
+    }
+    gathered.section_textures.clear()
+    var section = 0
+    while section * 3 + 2 < loaded.sections.count() {
+        var material = loaded.sections[section * 3 + 2]
+        var texture_slot = -1
+        if material < loaded.textures.count() {
+            var texture = loaded.textures[material]
+            if not texture.is_empty() {
+                texture_slot = textures.request(texture)
+            }
+        }
+        gathered.section_textures.append(texture_slot)
+        section = section + 1
+    }
+    var now: Float = world.now()
+    grass.time_seconds = now / 1000.0
+}

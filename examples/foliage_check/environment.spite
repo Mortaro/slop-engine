@@ -1,0 +1,6 @@
+var show_window = false
+var width = 1280
+var height = 720
+var density_percent = 100
+var measured_frames = 100
+var capture = ""

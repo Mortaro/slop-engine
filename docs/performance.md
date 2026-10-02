@@ -41,13 +41,17 @@ renderer.gpu_timings.end(timing)
 
 A frame's results are read when its fence is waited on, two frames later, so timing never stalls the GPU. Each
 name's average accumulates until `renderer.gpu_timings.clear()`; `average_milliseconds(name)` reads one and
-`describe()` lists every pass in microseconds. The engine times `frame` (the whole command buffer), `shadows`,
-`scene`, `tone map` and `ui`. `examples/render_bench` prints them for a fixed scene (optimized, 1920x1080, RTX 3090):
+`describe()` lists every pass in microseconds. The engine times `frame` (the whole command buffer), `grass scatter`,
+`shadows`, `scene` (with `grass` timed inside it), `water`, `tone map` and `ui`. `examples/render_bench` prints them
+for a fixed scene with no grass and no water (optimized, 1920x1080, RTX 3090):
 
 ```
-frame 527 us
-shadows 75 us
-scene 417 us
+frame 544 us
+grass scatter 0 us
+shadows 76 us
+scene 433 us
+grass 0 us
+water 0 us
 tone map 16 us
 ui 0 us
 ```

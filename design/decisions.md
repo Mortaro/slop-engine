@@ -96,6 +96,24 @@ parts are Claude's proposals. Mortaro decides the API; a proposal stays marked h
 - `mesh.add_section` (a proposal by Claude).
 - Bone attachments (a proposal by Claude, for Mortaro to decide).
 - The terrain shader is a port of the first game's Unreal `M_Terrain`, whose roughness and specular are 1 and 0.
+- Grass and water come from a game's alert A57 (eleven landscape grass types and Gerstner oceans and lakes). Proposals
+  by Claude (2026-10-02), unconfirmed, for Mortaro to decide:
+  - the split follows lighting: `slop_foliage_plugin` and `slop_water_plugin` hold the components, gather them into
+    the neutral `Scene.Grass` and `Scene.Water` resources, and `SceneVulkan.GrassPass` and `WaterPass` draw them, so
+    a scene without those plugins has no grass and no water and pays nothing;
+  - a grass type's `density` is per square metre, where Unreal counts per 10 m by 10 m; the cull fade shrinks
+    instances as Unreal's instanced grass does; placement is a jittered world grid whose every choice is a hash of the
+    cell, Unreal's `bUseGrid`;
+  - what drives a type's density is a `DensityMap` component (a texture, a channel and the area it covers), since the
+    game's grass is placed by mask textures rather than terrain layer weights; a type without one grows everywhere;
+  - the ground the grass stands on comes from drawing the terrain cells in view from above each frame, so it works for
+    any terrain mesh; grass casts no shadow;
+  - `AlignToSurface` and `RandomYaw` are markers, as Unreal's `AlignToSurface` and `RandomRotation` are flags;
+  - Gerstner waves are child entities of their body (a component holds no list), and a wave has no speed field: its
+    angular frequency follows its wavelength by deep-water dispersion, which is how Unreal's `GerstnerWaterWaves`
+    computes `WaveSpeed` and matches the game's exported values;
+  - a body's absorption is given as distances in metres (Unreal's `Absorption` vector is the same distances in
+    centimetres), and its colour comes from single scattering with an isotropic phase; reflections are of the sky only.
 
 ## [networking.md](../docs/networking.md)
 

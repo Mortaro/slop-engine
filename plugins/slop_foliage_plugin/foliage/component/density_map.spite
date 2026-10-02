@@ -1,0 +1,4 @@
+var texture = ""
+var channel = 0
+var width: Float = 1.0
+var depth: Float = 1.0

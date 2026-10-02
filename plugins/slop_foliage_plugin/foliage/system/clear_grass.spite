@@ -1,0 +1,5 @@
+var grass = Scene.Grass()
+
+func prepare_each() {
+    grass.clear()
+}

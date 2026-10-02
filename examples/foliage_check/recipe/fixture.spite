@@ -1,0 +1,264 @@
+var cache = Recipes.Cache()
+var scalar = Math.Scalar()
+var cell_size: Float = 64.0
+var cell_steps = 64
+var lake_x: Float = 92.0
+var lake_z: Float = 60.0
+
+func build() {
+    var fingerprint = cache.fingerprint("foliage fixture 2")
+    assert not cache.is_current("foliage.check.material", fingerprint)
+    build_cell(fingerprint, 0, 0)
+    build_cell(fingerprint, 1, 0)
+    build_cell(fingerprint, 0, 1)
+    build_cell(fingerprint, 1, 1)
+    build_layers(fingerprint)
+    put_texture("foliage.check.control_a", fingerprint, 1, 1, empty_texel)
+    put_texture("foliage.check.control_b", fingerprint, 1, 1, empty_texel)
+    put_texture("foliage.check.scale_a", fingerprint, 1, 1, scale_texel)
+    put_texture("foliage.check.scale_b", fingerprint, 1, 1, scale_texel)
+    put_texture("foliage.check.splat_0", fingerprint, 1, 1, empty_texel)
+    put_texture("foliage.check.splat_1", fingerprint, 1, 1, empty_texel)
+    put_texture("foliage.check.density", fingerprint, 64, 64, density_texel)
+    put_texture("foliage.check.blade", fingerprint, 32, 64, blade_texel)
+    put_texture("foliage.check.flower", fingerprint, 32, 32, flower_texel)
+    build_clump("foliage.check.grass", fingerprint, 0.9, 0.7, "foliage.check.blade")
+    build_clump("foliage.check.flowers", fingerprint, 1.0, 0.5, "foliage.check.flower")
+    var material = Asset.TerrainMaterial()
+    material.layers = "foliage.check.layers"
+    material.control_a = "foliage.check.control_a"
+    material.control_b = "foliage.check.control_b"
+    material.scale_a = "foliage.check.scale_a"
+    material.scale_b = "foliage.check.scale_b"
+    material.splat_0 = "foliage.check.splat_0"
+    material.splat_1 = "foliage.check.splat_1"
+    material.tiles_x = 1
+    material.tiles_z = 1
+    material.control_width = 128.0
+    material.control_depth = 128.0
+    material.layer_scale = 1.0
+    var pack = Pack<Asset.TerrainMaterial>()
+    var bytes = Asset.Bytes()
+    pack.encode(material, bytes)
+    cache.put("foliage.check.material", fingerprint, bytes)
+}
+
+func height_at(at_x: Float, at_z: Float): Float {
+    var rolling = scalar.sine(at_x * 0.09) * scalar.cosine(at_z * 0.07) * 0.5
+    var across_x = at_x - lake_x
+    var across_z = at_z - lake_z
+    var from_lake = scalar.square_root(across_x * across_x + across_z * across_z)
+    var shore = scalar.clamp((from_lake - 10.0) / 16.0, 0.0, 1.0)
+    var smooth_shore = shore * shore * (3.0 - 2.0 * shore)
+    return rolling - 4.0 * (1.0 - smooth_shore)
+}
+
+func build_cell(fingerprint: String, cell_x: Integer, cell_z: Integer) {
+    var mesh = Asset.Mesh()
+    var origin_x: Float = cell_x
+    origin_x = origin_x * cell_size
+    var origin_z: Float = cell_z
+    origin_z = origin_z * cell_size
+    var steps: Float = cell_steps
+    var row = 0
+    while row <= cell_steps {
+        var column = 0
+        while column <= cell_steps {
+            var across: Float = column
+            var down: Float = row
+            var local_x = across / steps * cell_size
+            var local_z = down / steps * cell_size
+            var world_x = origin_x + local_x
+            var world_z = origin_z + local_z
+            var height = height_at(world_x, world_z)
+            var east = height_at(world_x + 0.5, world_z)
+            var west = height_at(world_x - 0.5, world_z)
+            var north = height_at(world_x, world_z + 0.5)
+            var south = height_at(world_x, world_z - 0.5)
+            var slope_x = east - west
+            var slope_z = north - south
+            var length = scalar.square_root(slope_x * slope_x + 1.0 + slope_z * slope_z)
+            mesh.vertices.append(local_x)
+            mesh.vertices.append(height)
+            mesh.vertices.append(local_z)
+            mesh.vertices.append(0.0 - slope_x / length)
+            mesh.vertices.append(1.0 / length)
+            mesh.vertices.append(0.0 - slope_z / length)
+            mesh.vertices.append(across / steps)
+            mesh.vertices.append(down / steps)
+            column = column + 1
+        }
+        row = row + 1
+    }
+    row = 0
+    while row < cell_steps {
+        var column = 0
+        while column < cell_steps {
+            var corner = row * (cell_steps + 1) + column
+            mesh.indices.append(corner)
+            mesh.indices.append(corner + 1)
+            mesh.indices.append(corner + cell_steps + 1)
+            mesh.indices.append(corner + 1)
+            mesh.indices.append(corner + cell_steps + 2)
+            mesh.indices.append(corner + cell_steps + 1)
+            column = column + 1
+        }
+        row = row + 1
+    }
+    var index_count = mesh.indices.count()
+    mesh.add_section(0, index_count, "")
+    var pack = Pack<Asset.Mesh>()
+    var bytes = Asset.Bytes()
+    pack.encode(mesh, bytes)
+    cache.put("foliage.check.cell.{cell_x}_{cell_z}", fingerprint, bytes)
+}
+
+func build_clump(id: String, fingerprint: String, tall: Float, wide: Float, texture: String) {
+    var mesh = Asset.Mesh()
+    var card = 0
+    while card < 3 {
+        var turn: Float = card
+        var angle = turn * 1.0471976
+        var along_x = scalar.cosine(angle) * wide * 0.5
+        var along_z = scalar.sine(angle) * wide * 0.5
+        var first = mesh.vertices.count() / 8
+        add_corner(mesh, 0.0 - along_x, 0.0, 0.0 - along_z, 0.0, 1.0)
+        add_corner(mesh, along_x, 0.0, along_z, 1.0, 1.0)
+        add_corner(mesh, along_x, tall, along_z, 1.0, 0.0)
+        add_corner(mesh, 0.0 - along_x, tall, 0.0 - along_z, 0.0, 0.0)
+        mesh.indices.append(first)
+        mesh.indices.append(first + 1)
+        mesh.indices.append(first + 2)
+        mesh.indices.append(first)
+        mesh.indices.append(first + 2)
+        mesh.indices.append(first + 3)
+        card = card + 1
+    }
+    var index_count = mesh.indices.count()
+    mesh.add_section(0, index_count, texture)
+    mesh.masked_materials.append(0)
+    var pack = Pack<Asset.Mesh>()
+    var bytes = Asset.Bytes()
+    pack.encode(mesh, bytes)
+    cache.put(id, fingerprint, bytes)
+}
+
+func add_corner(mesh: Asset.Mesh, corner_x: Float, corner_y: Float, corner_z: Float, across: Float, down: Float) {
+    mesh.vertices.append(corner_x)
+    mesh.vertices.append(corner_y)
+    mesh.vertices.append(corner_z)
+    mesh.vertices.append(0.0)
+    mesh.vertices.append(1.0)
+    mesh.vertices.append(0.0)
+    mesh.vertices.append(across)
+    mesh.vertices.append(down)
+}
+
+func build_layers(fingerprint: String) {
+    var array = Asset.TextureArray()
+    array.width = 16
+    array.height = 16
+    array.layers = 1
+    var index = 0
+    while index < 256 {
+        var speckle = index * 37 % 23
+        var texel = pack_texel(150 + speckle, 122 + speckle, 86 + speckle / 2, 255)
+        array.pixels.append(texel)
+        index = index + 1
+    }
+    var pack = Pack<Asset.TextureArray>()
+    var bytes = Asset.Bytes()
+    pack.encode(array, bytes)
+    cache.put("foliage.check.layers", fingerprint, bytes)
+}
+
+func pack_texel(red: Integer, green: Integer, blue: Integer, alpha: Integer): Integer {
+    var alpha_part = alpha.shifted_left(24)
+    var blue_part = blue.shifted_left(16)
+    var green_part = green.shifted_left(8)
+    return red.bits_or(green_part).bits_or(blue_part).bits_or(alpha_part)
+}
+
+func empty_texel(_column: Integer, _row: Integer, _size: Integer): Integer {
+    return 0
+}
+
+func scale_texel(_column: Integer, _row: Integer, _size: Integer): Integer {
+    return pack_texel(26, 26, 26, 26)
+}
+
+func density_texel(column: Integer, row: Integer, _size: Integer): Integer {
+    var grass = 0
+    var flowers = 0
+    if column < 32 {
+        grass = 255
+        if row >= 16 {
+            flowers = 255
+        }
+    }
+    return pack_texel(grass, flowers, 0, 255)
+}
+
+func blade_texel(column: Integer, row: Integer, _size: Integer): Integer {
+    var rise = 63 - row
+    var blade = 0
+    var covered = false
+    while blade < 6 {
+        var center = 3 + blade * 5 + blade * blade % 3
+        var top = 40 + blade * 7 % 24
+        var reach = (top - rise) * 3 / top
+        var offset = column - center
+        if offset < 0 {
+            offset = 0 - offset
+        }
+        if rise <= top and offset <= reach {
+            covered = true
+        }
+        blade = blade + 1
+    }
+    if not covered {
+        return pack_texel(70, 120, 40, 0)
+    }
+    var red = 38 + rise
+    var green = 92 + rise * 3 / 2
+    var blue = 22 + rise / 3
+    return pack_texel(red, green, blue, 255)
+}
+
+func flower_texel(column: Integer, row: Integer, _size: Integer): Integer {
+    var across = column - 16
+    var down = row - 8
+    if across * across + down * down <= 40 {
+        return pack_texel(240, 200, 40, 255)
+    }
+    if row > 8 and column >= 15 and column <= 16 {
+        return pack_texel(60, 120, 40, 255)
+    }
+    return pack_texel(60, 120, 40, 0)
+}
+
+func put_texture(
+    id: String,
+    fingerprint: String,
+    width: Integer,
+    height: Integer,
+    texel_at: Spite.Function<Integer, Integer, Integer, Integer>,
+) {
+    var texture = Asset.Texture()
+    texture.width = width
+    texture.height = height
+    var row = 0
+    while row < height {
+        var column = 0
+        while column < width {
+            var texel = texel_at(column, row, width)
+            texture.pixels.append(texel)
+            column = column + 1
+        }
+        row = row + 1
+    }
+    var pack = Pack<Asset.Texture>()
+    var bytes = Asset.Bytes()
+    pack.encode(texture, bytes)
+    cache.put(id, fingerprint, bytes)
+}

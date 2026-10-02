@@ -1,0 +1,9 @@
+var mesh = ""
+var density: Float = 1.0
+var scale_minimum: Float = 1.0
+var scale_maximum: Float = 1.0
+var placement_jitter: Float = 1.0
+var start_cull_distance: Float = 50.0
+var end_cull_distance: Float = 90.0
+var wind_strength: Float = 0.0
+var wind_speed: Float = 0.25

@@ -1,0 +1,30 @@
+type Surface {
+    entity: Entity
+    body: Water.Component.WaterBody
+    transform: Transform.Component.Transform
+}
+
+var water = Scene.Water()
+var world = World()
+
+func render_each(surface: Surface) {
+    var body = surface.body
+    var at = surface.transform
+    var gathered = water.next_body(surface.entity.id)
+    gathered.center_x = at.position_x
+    gathered.height = at.position_y
+    gathered.center_z = at.position_z
+    gathered.extent_x = body.extent_x
+    gathered.extent_z = body.extent_z
+    gathered.albedo_red = body.albedo_red
+    gathered.albedo_green = body.albedo_green
+    gathered.albedo_blue = body.albedo_blue
+    gathered.scattering = body.scattering
+    gathered.absorption_red = body.absorption_red
+    gathered.absorption_green = body.absorption_green
+    gathered.absorption_blue = body.absorption_blue
+    gathered.roughness = body.roughness
+    gathered.specular = body.specular
+    var now: Float = world.now()
+    water.time_seconds = now / 1000.0
+}

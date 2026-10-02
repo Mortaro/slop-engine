@@ -1,0 +1,561 @@
+var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
+var color_format = 97
+var depth_format = 126
+var depth_compare = 4
+var depth_write = 1
+var cull_mode = 0
+var mesh_vertices = true
+
+func graphics(
+    renderer: RenderVulkan.Renderer,
+    meshes: SceneVulkan.MeshRenderer,
+    vertex: Long,
+    fragment: Long,
+    pipeline_layout_handle: Long,
+): Long {
+    var formats = RenderVulkan.Structure(4)
+    formats.append_integer(color_format)
+    var rendering = RenderVulkan.Structure(40)
+    rendering.append_integer(1000044002)
+    rendering.append_long(0)
+    rendering.append_integer(0)
+    rendering.append_integer(1)
+    rendering.append_pointer(formats)
+    rendering.append_integer(depth_format)
+    rendering.append_integer(0)
+    var stages = RenderVulkan.Structure(96)
+    stages.append_integer(18)
+    stages.append_long(0)
+    stages.append_integer(0)
+    stages.append_integer(1)
+    stages.append_long(vertex)
+    stages.append_text("main")
+    stages.append_long(0)
+    stages.append_integer(18)
+    stages.append_long(0)
+    stages.append_integer(0)
+    stages.append_integer(16)
+    stages.append_long(fragment)
+    stages.append_text("main")
+    stages.append_long(0)
+    var vertex_input = no_vertex_input()
+    if mesh_vertices {
+        vertex_input = meshes.vertex_input_state()
+    }
+    var assembly = RenderVulkan.Structure(32)
+    assembly.append_integer(20)
+    assembly.append_long(0)
+    assembly.append_integer(0)
+    assembly.append_integer(3)
+    assembly.append_integer(0)
+    var viewport = RenderVulkan.Structure(48)
+    viewport.append_integer(22)
+    viewport.append_long(0)
+    viewport.append_integer(0)
+    viewport.append_integer(1)
+    viewport.append_long(0)
+    viewport.append_integer(1)
+    viewport.append_long(0)
+    var rasterization = RenderVulkan.Structure(64)
+    rasterization.append_integer(23)
+    rasterization.append_long(0)
+    rasterization.append_integer(0)
+    rasterization.append_integer(0)
+    rasterization.append_integer(0)
+    rasterization.append_integer(0)
+    rasterization.append_integer(cull_mode)
+    rasterization.append_integer(0)
+    rasterization.append_integer(0)
+    rasterization.append_float(0.0)
+    rasterization.append_float(0.0)
+    rasterization.append_float(0.0)
+    rasterization.append_float(1.0)
+    var multisample = RenderVulkan.Structure(48)
+    multisample.append_integer(24)
+    multisample.append_long(0)
+    multisample.append_integer(0)
+    multisample.append_integer(1)
+    multisample.append_integer(0)
+    multisample.append_float(0.0)
+    multisample.append_long(0)
+    multisample.append_integer(0)
+    multisample.append_integer(0)
+    var depth = RenderVulkan.Structure(104)
+    depth.append_integer(25)
+    depth.append_long(0)
+    depth.append_integer(0)
+    depth.append_integer(1)
+    depth.append_integer(depth_write)
+    depth.append_integer(depth_compare)
+    var field = 0
+    while field < 16 {
+        depth.append_integer(0)
+        field = field + 1
+    }
+    depth.append_float(0.0)
+    depth.append_float(1.0)
+    var blend = blend_state()
+    var dynamic_states = RenderVulkan.Structure(8)
+    dynamic_states.append_integer(0)
+    dynamic_states.append_integer(1)
+    var dynamic = RenderVulkan.Structure(32)
+    dynamic.append_integer(27)
+    dynamic.append_long(0)
+    dynamic.append_integer(0)
+    dynamic.append_integer(2)
+    dynamic.append_pointer(dynamic_states)
+    var description = RenderVulkan.Structure(160)
+    description.append_integer(28)
+    description.append_pointer(rendering)
+    description.append_integer(0)
+    description.append_integer(2)
+    description.append_pointer(stages)
+    description.append_pointer(vertex_input)
+    description.append_pointer(assembly)
+    description.append_long(0)
+    description.append_pointer(viewport)
+    description.append_pointer(rasterization)
+    description.append_pointer(multisample)
+    description.append_pointer(depth)
+    description.append_pointer(blend)
+    description.append_pointer(dynamic)
+    description.append_long(pipeline_layout_handle)
+    description.append_long(0)
+    description.append_integer(0)
+    description.append_long(0)
+    description.append_integer(-1)
+    var no_cache: Long = 0
+    var no_allocator: Long = 0
+    var made = RenderVulkan.Structure(8)
+    var result = vulkan.vkCreateGraphicsPipelines(
+        renderer.device,
+        no_cache,
+        1,
+        description.address,
+        no_allocator,
+        made.address,
+    )
+    crash result == 0
+    return made.read_long(0)
+}
+
+func blend_state(): RenderVulkan.Structure {
+    var blending = RenderVulkan.Structure(32)
+    blending.append_integer(0)
+    blending.append_integer(1)
+    blending.append_integer(0)
+    blending.append_integer(0)
+    blending.append_integer(1)
+    blending.append_integer(0)
+    blending.append_integer(0)
+    var all_channels = 15
+    blending.append_integer(all_channels)
+    var state = RenderVulkan.Structure(64)
+    state.append_integer(26)
+    state.append_long(0)
+    state.append_integer(0)
+    state.append_integer(0)
+    state.append_integer(0)
+    state.append_integer(1)
+    state.append_pointer(blending)
+    state.append_float(0.0)
+    state.append_float(0.0)
+    state.append_float(0.0)
+    state.append_float(0.0)
+    return state
+}
+
+func no_vertex_input(): RenderVulkan.Structure {
+    var state = RenderVulkan.Structure(48)
+    state.append_integer(19)
+    state.append_long(0)
+    state.append_integer(0)
+    state.append_integer(0)
+    state.append_long(0)
+    state.append_integer(0)
+    state.append_long(0)
+    return state
+}
+
+func compute(renderer: RenderVulkan.Renderer, shader: Long, pipeline_layout_handle: Long): Long {
+    var description = RenderVulkan.Structure(96)
+    description.append_integer(29)
+    description.append_long(0)
+    description.append_integer(0)
+    description.append_integer(0)
+    description.append_integer(18)
+    description.append_long(0)
+    description.append_integer(0)
+    var compute_stage = 32
+    description.append_integer(compute_stage)
+    description.append_long(shader)
+    description.append_text("main")
+    description.append_long(0)
+    description.append_long(pipeline_layout_handle)
+    description.append_long(0)
+    description.append_integer(-1)
+    var no_cache: Long = 0
+    var no_allocator: Long = 0
+    var made = RenderVulkan.Structure(8)
+    var result = vulkan.vkCreateComputePipelines(
+        renderer.device,
+        no_cache,
+        1,
+        description.address,
+        no_allocator,
+        made.address,
+    )
+    crash result == 0
+    return made.read_long(0)
+}
+
+func pipeline_layout(
+    renderer: RenderVulkan.Renderer,
+    set_layouts: List<Long>,
+    push_bytes: Integer,
+    push_stages: Integer,
+): Long {
+    var no_allocator: Long = 0
+    var count = set_layouts.count()
+    var layouts = RenderVulkan.Structure(count * 8)
+    var index = 0
+    while index < count {
+        var each = set_layouts[index]
+        layouts.append_long(each)
+        index = index + 1
+    }
+    var push_range = RenderVulkan.Structure(12)
+    push_range.append_integer(push_stages)
+    push_range.append_integer(0)
+    push_range.append_integer(push_bytes)
+    var creation = RenderVulkan.Structure(48)
+    creation.append_integer(30)
+    creation.append_long(0)
+    creation.append_integer(0)
+    creation.append_integer(count)
+    creation.append_pointer(layouts)
+    creation.append_integer(1)
+    creation.append_pointer(push_range)
+    var made = RenderVulkan.Structure(8)
+    var result = vulkan.vkCreatePipelineLayout(renderer.device, creation.address, no_allocator, made.address)
+    crash result == 0
+    return made.read_long(0)
+}
+
+func set_layout(renderer: RenderVulkan.Renderer, kinds: List<Integer>, stages: Integer): Long {
+    var no_allocator: Long = 0
+    var count = kinds.count()
+    var bindings = RenderVulkan.Structure(count * 24)
+    var binding = 0
+    while binding < count {
+        var kind = kinds[binding]
+        bindings.append_integer(binding)
+        bindings.append_integer(kind)
+        bindings.append_integer(1)
+        bindings.append_integer(stages)
+        bindings.append_long(0)
+        binding = binding + 1
+    }
+    var creation = RenderVulkan.Structure(32)
+    creation.append_integer(32)
+    creation.append_long(0)
+    creation.append_integer(0)
+    creation.append_integer(count)
+    creation.append_pointer(bindings)
+    var made = RenderVulkan.Structure(8)
+    var result = vulkan.vkCreateDescriptorSetLayout(renderer.device, creation.address, no_allocator, made.address)
+    crash result == 0
+    return made.read_long(0)
+}
+
+func sampler(renderer: RenderVulkan.Renderer, filter: Integer): Long {
+    var no_allocator: Long = 0
+    var creation = RenderVulkan.Structure(80)
+    creation.append_integer(31)
+    creation.append_long(0)
+    creation.append_integer(0)
+    creation.append_integer(filter)
+    creation.append_integer(filter)
+    creation.append_integer(0)
+    var clamp_to_edge = 2
+    creation.append_integer(clamp_to_edge)
+    creation.append_integer(clamp_to_edge)
+    creation.append_integer(clamp_to_edge)
+    creation.append_float(0.0)
+    creation.append_integer(0)
+    creation.append_float(1.0)
+    creation.append_integer(0)
+    creation.append_integer(0)
+    creation.append_float(0.0)
+    creation.append_float(0.0)
+    creation.append_integer(0)
+    creation.append_integer(0)
+    var made = RenderVulkan.Structure(8)
+    var result = vulkan.vkCreateSampler(renderer.device, creation.address, no_allocator, made.address)
+    crash result == 0
+    return made.read_long(0)
+}
+
+func pool(renderer: RenderVulkan.Renderer, sets: Integer): Long {
+    var no_allocator: Long = 0
+    var sizes = RenderVulkan.Structure(16)
+    sizes.append_integer(1)
+    sizes.append_integer(sets * 3)
+    sizes.append_integer(7)
+    sizes.append_integer(sets * 5)
+    var creation = RenderVulkan.Structure(40)
+    creation.append_integer(33)
+    creation.append_long(0)
+    var free_descriptor_set = 1
+    creation.append_integer(free_descriptor_set)
+    creation.append_integer(sets)
+    creation.append_integer(2)
+    creation.append_pointer(sizes)
+    var made = RenderVulkan.Structure(8)
+    var result = vulkan.vkCreateDescriptorPool(renderer.device, creation.address, no_allocator, made.address)
+    crash result == 0
+    return made.read_long(0)
+}
+
+func allocate_set(renderer: RenderVulkan.Renderer, pool_handle: Long, layout_handle: Long): Long {
+    var layouts = RenderVulkan.Structure(8)
+    layouts.append_long(layout_handle)
+    var allocation = RenderVulkan.Structure(40)
+    allocation.append_integer(34)
+    allocation.append_long(0)
+    allocation.append_long(pool_handle)
+    allocation.append_integer(1)
+    allocation.append_pointer(layouts)
+    var made = RenderVulkan.Structure(8)
+    var result = vulkan.vkAllocateDescriptorSets(renderer.device, allocation.address, made.address)
+    var descriptor_pool_has_room = result == 0
+    crash descriptor_pool_has_room
+    return made.read_long(0)
+}
+
+func image_information(sampler_handle: Long, view: Long, image_layout: Integer): RenderVulkan.Structure {
+    var information = RenderVulkan.Structure(24)
+    information.append_long(sampler_handle)
+    information.append_long(view)
+    information.append_integer(image_layout)
+    return information
+}
+
+func append_image_write(
+    writes: RenderVulkan.Structure,
+    set: Long,
+    binding: Integer,
+    information: RenderVulkan.Structure,
+) {
+    writes.append_integer(35)
+    writes.append_long(0)
+    writes.append_long(set)
+    writes.append_integer(binding)
+    writes.append_integer(0)
+    writes.append_integer(1)
+    writes.append_integer(1)
+    writes.append_pointer(information)
+    writes.append_long(0)
+    writes.append_long(0)
+}
+
+func append_buffer_write(
+    writes: RenderVulkan.Structure,
+    set: Long,
+    binding: Integer,
+    information: RenderVulkan.Structure,
+) {
+    writes.append_integer(35)
+    writes.append_long(0)
+    writes.append_long(set)
+    writes.append_integer(binding)
+    writes.append_integer(0)
+    writes.append_integer(1)
+    writes.append_integer(7)
+    writes.append_long(0)
+    writes.append_pointer(information)
+    writes.append_long(0)
+}
+
+func memory_barrier(
+    renderer: RenderVulkan.Renderer,
+    source_stage: Integer,
+    source_access: Integer,
+    destination_stage: Integer,
+    destination_access: Integer,
+) {
+    var description = RenderVulkan.Structure(24)
+    description.append_integer(46)
+    description.append_long(0)
+    description.append_integer(source_access)
+    description.append_integer(destination_access)
+    var no_barriers: Long = 0
+    vulkan.vkCmdPipelineBarrier(
+        renderer.frame.command_buffer,
+        source_stage,
+        destination_stage,
+        0,
+        1,
+        description.address,
+        0,
+        no_barriers,
+        0,
+        no_barriers,
+    )
+}
+
+func image_barrier(
+    renderer: RenderVulkan.Renderer,
+    image: Long,
+    aspect: Integer,
+    old_layout: Integer,
+    new_layout: Integer,
+    source_stage: Integer,
+    source_access: Integer,
+    destination_stage: Integer,
+    destination_access: Integer,
+) {
+    var description = RenderVulkan.Structure(72)
+    description.append_integer(45)
+    description.append_long(0)
+    description.append_integer(source_access)
+    description.append_integer(destination_access)
+    description.append_integer(old_layout)
+    description.append_integer(new_layout)
+    description.append_integer(-1)
+    description.append_integer(-1)
+    description.append_long(image)
+    description.append_integer(aspect)
+    description.append_integer(0)
+    description.append_integer(1)
+    description.append_integer(0)
+    description.append_integer(1)
+    var no_barriers: Long = 0
+    vulkan.vkCmdPipelineBarrier(
+        renderer.frame.command_buffer,
+        source_stage,
+        destination_stage,
+        0,
+        0,
+        no_barriers,
+        0,
+        no_barriers,
+        1,
+        description.address,
+    )
+}
+
+func create_image(
+    renderer: RenderVulkan.Renderer,
+    width: Integer,
+    height: Integer,
+    format: Integer,
+    usage: Integer,
+): Long {
+    var no_allocator: Long = 0
+    var creation = RenderVulkan.Structure(96)
+    creation.append_integer(14)
+    creation.append_long(0)
+    creation.append_integer(0)
+    creation.append_integer(1)
+    creation.append_integer(format)
+    creation.append_integer(width)
+    creation.append_integer(height)
+    creation.append_integer(1)
+    creation.append_integer(1)
+    creation.append_integer(1)
+    creation.append_integer(1)
+    creation.append_integer(0)
+    creation.append_integer(usage)
+    creation.append_integer(0)
+    creation.append_integer(0)
+    creation.append_long(0)
+    creation.append_integer(0)
+    var made = RenderVulkan.Structure(8)
+    var result = vulkan.vkCreateImage(renderer.device, creation.address, no_allocator, made.address)
+    crash result == 0
+    return made.read_long(0)
+}
+
+func bind_image_memory(renderer: RenderVulkan.Renderer, image: Long): Long {
+    var requirements = RenderVulkan.Structure(24)
+    vulkan.vkGetImageMemoryRequirements(renderer.device, image, requirements.address)
+    var device_local = 1
+    var memory = renderer.allocate_memory(requirements, device_local)
+    var no_offset: Long = 0
+    var result = vulkan.vkBindImageMemory(renderer.device, image, memory, no_offset)
+    crash result == 0
+    return memory
+}
+
+func create_view(renderer: RenderVulkan.Renderer, image: Long, format: Integer, aspect: Integer): Long {
+    var no_allocator: Long = 0
+    var creation = RenderVulkan.Structure(80)
+    creation.append_integer(15)
+    creation.append_long(0)
+    creation.append_integer(0)
+    creation.append_long(image)
+    creation.append_integer(1)
+    creation.append_integer(format)
+    var component = 0
+    while component < 4 {
+        creation.append_integer(0)
+        component = component + 1
+    }
+    creation.append_integer(aspect)
+    creation.append_integer(0)
+    creation.append_integer(1)
+    creation.append_integer(0)
+    creation.append_integer(1)
+    var made = RenderVulkan.Structure(8)
+    var result = vulkan.vkCreateImageView(renderer.device, creation.address, no_allocator, made.address)
+    crash result == 0
+    return made.read_long(0)
+}
+
+func attachment(
+    view: Long,
+    image_layout: Integer,
+    load_operation: Integer,
+    store_operation: Integer,
+): RenderVulkan.Structure {
+    var description = RenderVulkan.Structure(72)
+    description.append_integer(1000044001)
+    description.append_long(0)
+    description.append_long(view)
+    description.append_integer(image_layout)
+    description.append_integer(0)
+    description.append_long(0)
+    description.append_integer(0)
+    description.append_integer(load_operation)
+    description.append_integer(store_operation)
+    description.append_float(0.0)
+    description.append_float(0.0)
+    description.append_float(0.0)
+    description.append_float(0.0)
+    return description
+}
+
+func begin_rendering(
+    renderer: RenderVulkan.Renderer,
+    width: Integer,
+    height: Integer,
+    color: RenderVulkan.Structure,
+    depth: RenderVulkan.Structure,
+) {
+    var rendering = RenderVulkan.Structure(80)
+    rendering.append_integer(1000044000)
+    rendering.append_long(0)
+    rendering.append_integer(0)
+    rendering.append_integer(0)
+    rendering.append_integer(0)
+    rendering.append_integer(width)
+    rendering.append_integer(height)
+    rendering.append_integer(1)
+    rendering.append_integer(0)
+    rendering.append_integer(1)
+    rendering.append_pointer(color)
+    rendering.append_pointer(depth)
+    rendering.append_long(0)
+    vulkan.vkCmdBeginRendering(renderer.frame.command_buffer, rendering.address)
+}

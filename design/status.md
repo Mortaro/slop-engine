@@ -132,6 +132,24 @@ and the click test passed for 5 and 12 clicks.
   millisecond.
 - `props_bench` history: a frame went from 60.6 ms to 13.9 ms with instancing and the ECS gather, with `DrawScene`
   from 26.8 ms to 2.2 ms.
+- Grass (built 2026-10-02 for a game's alert A57), not built yet:
+  - grass casting shadows (Unreal's `bCastDynamicShadow`; the game's types all have it off);
+  - the density map is the only weight: no terrain layer weight drives a type, nor the game's slope gate and slope
+    noise from its grass material (it exports those as a material, `grass.json`), nor its far-density thinning;
+  - per-distance mesh LODs (the game's grass meshes have three), which the LOD work would bring;
+  - the ground capture sees only the terrain cells in view, so grass on a cell just outside the view cone is not placed
+    even when its blades would reach into view;
+  - the instance buffer holds a slot for every grid point of every type's square (`(2 · end / spacing)²`, 32 bytes
+    each): the game's tiny grass (12 per m² to 90 m) takes 12 MB.
+- Grass cost (foliage_check, optimized, 1920x1080, RTX 3090, 2026-10-02): scatter 52 µs, draw 714 µs at 8 + 1.5
+  instances per m²; at three times the density 62 µs and 1.82 ms. The draw scales with pixels (212 µs at 960x540),
+  so it is shading; a depth prepass made it slower (957 µs).
+- Water (built 2026-10-02 for alert A57), not built yet: reflections of the scene (only the sky is reflected; Unreal
+  uses screen-space reflections), spline-shaped bodies (a body is a rectangle and the terrain's depth draws the
+  shore), seeing from under the surface, foam, caustics, rivers and flow maps, waves masked near the shore (Unreal's
+  "Water Depth to Mask Waves"), and reading the wave height on the CPU for floating objects.
+- `foliage_check`'s frame shows about twenty single black pixels along the terrain's silhouette at the basin's rim,
+  with or without the water and away from the grass; cause not found yet.
 - Not built yet, from the previous Kal renderer: the ray-marched atmosphere and sky; shadow cascades and contact
   shadows; GTAO; image-based sky lighting; bloom; 4× MSAA; automatic exposure from a histogram; Blender's custom
   split normals (`custom_normal` is ignored and normals are recomputed); blending between clips.
