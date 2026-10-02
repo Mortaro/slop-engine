@@ -13,6 +13,9 @@ var command_pool: Long = 0
 var frames = List<RenderVulkan.Frame>()
 var frame = RenderVulkan.Frame()
 var frame_number = 0
+var gpu_timings = RenderVulkan.GpuTimings()
+var frame_timing = -1
+var timestamp_period: Float = 1.0
 var frames_in_flight = 2
 var upload_budget_bytes = 4194304
 var frame_staged = 0
@@ -64,6 +67,7 @@ func ensure(chosen: RenderVulkan.Component.Device) {
     choose_physical_device(chosen)
     create_device(chosen)
     create_commands()
+    gpu_timings.create(device, frames_in_flight, timestamp_period)
     create_descriptors(chosen)
     console.print("vulkan: {chosen.name}, validation {validated}")
 }
@@ -137,6 +141,8 @@ func choose_physical_device(chosen: RenderVulkan.Component.Device) {
     vulkan.vkGetPhysicalDeviceProperties(physical_device, properties.address)
     var name_address = properties.address + 20
     chosen.name = raw.terminated_text(name_address)
+    var timestamp_period_offset = 720
+    timestamp_period = properties.read_float(timestamp_period_offset)
 }
 
 func device_score(candidate: Long): Integer {
@@ -294,6 +300,7 @@ func begin_frame() {
     var wait_result = vulkan.vkWaitForFences(device, 1, fences.address, 1, forever)
     crash wait_result == 0
     vulkan.vkResetFences(device, 1, fences.address)
+    gpu_timings.collect(device, slot)
     release_in_flight(frame)
 }
 
@@ -1442,6 +1449,7 @@ func record_rectangles(draw_list: Render.Component.DrawList) {
     var rectangles_fit = draw_list.count <= frame.rectangle_capacity
     crash rectangles_fit
     raw.copy(draw_list.rectangles, frame.rectangle_mapped, bytes)
+    var timing = gpu_timings.begin("ui")
     var load_operation = 0
     if not frame.scene_drawn {
         barrier(frame.target_image, 0, 256, 0, 2, 1, 1024)
@@ -1485,6 +1493,7 @@ func record_rectangles(draw_list: Render.Component.DrawList) {
         first = record_run(draw_list, first)
     }
     vulkan.vkCmdEndRendering(frame.command_buffer)
+    gpu_timings.end(timing)
     barrier(frame.target_image, 256, 2048, 2, 6, 1024, 4096)
 }
 
@@ -1547,9 +1556,14 @@ func begin_commands() {
     begin.append_long(0)
     var result = vulkan.vkBeginCommandBuffer(frame.command_buffer, begin.address)
     crash result == 0
+    var slot = (frame_number - 1) % frames_in_flight
+    gpu_timings.start(frame.command_buffer, slot)
+    frame_timing = gpu_timings.begin("frame")
 }
 
 func submit(wait_for_image: Boolean, frame_done: Long) {
+    gpu_timings.end(frame_timing)
+    frame_timing = -1
     var end_result = vulkan.vkEndCommandBuffer(frame.command_buffer)
     crash end_result == 0
     var buffers = Structure(8)
@@ -1880,6 +1894,7 @@ func release_device() {
     release_frames()
     release_presentation()
     release_textures()
+    gpu_timings.release(device)
     vulkan.vkDestroyPipeline(device, pipeline, no_allocator)
     vulkan.vkDestroyPipelineLayout(device, pipeline_layout, no_allocator)
     vulkan.vkDestroyShaderModule(device, shader_vertex, no_allocator)

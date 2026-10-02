@@ -1,0 +1,47 @@
+type Captured {
+    capture: Added<Component.Capture>
+}
+
+var environment = Environment()
+var world = World()
+
+func last_each(captured: Captured) {
+    var capture = captured.capture.value
+    var row_bytes = capture.width * 3
+    var padding = (4 - row_bytes % 4) % 4
+    var data_bytes = (row_bytes + padding) * capture.height
+    var image = Asset.Bytes()
+    image.write_byte(66)
+    image.write_byte(77)
+    image.write_integer(54 + data_bytes)
+    image.write_integer(0)
+    image.write_integer(54)
+    image.write_integer(40)
+    image.write_integer(capture.width)
+    image.write_integer(capture.height)
+    image.write_byte(1)
+    image.write_byte(0)
+    image.write_byte(24)
+    image.write_byte(0)
+    image.write_integer(0)
+    image.write_integer(data_bytes)
+    image.write_integer(2835)
+    image.write_integer(2835)
+    image.write_integer(0)
+    image.write_integer(0)
+    var row = 0
+    while row < capture.height {
+        var start = capture.pixels.address + row * row_bytes
+        image.write_bytes(start, row_bytes)
+        var pad = 0
+        while pad < padding {
+            image.write_byte(0)
+            pad = pad + 1
+        }
+        row = row + 1
+    }
+    image.save(environment.capture)
+    var quit = Component.Quit()
+    var owner = world.as_entity()
+    owner.add_component(quit)
+}

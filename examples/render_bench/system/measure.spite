@@ -1,0 +1,86 @@
+type Checked {
+    entity: Entity
+    view: Scene.Component.View
+    draw_list: Render.Component.DrawList
+}
+
+type Quitting {
+    frame: Component.Frame
+    running: Without<Component.Quit>
+}
+
+var renderer = RenderVulkan.Renderer()
+var textures = Render.Textures()
+var draws = Scene.Draws()
+var console = Console()
+var world = World()
+var environment = Environment()
+var captured_frames = Lookup<RenderVulkan.Component.Captured>()
+var last_draws = -1
+var steady_ticks = 0
+var measured = 0
+var finished = false
+
+func last_each(checked: Checked, _quitting: Quitting) {
+    assert not finished
+    var drawn = draws.of(checked.entity.id).draws.count()
+    assert drawn > 0
+    assert measured != 0 or settled(drawn)
+    if measured == 0 {
+        renderer.gpu_timings.clear()
+    }
+    measured = measured + 1
+    if measured == environment.measured_frames {
+        console.print("draws", drawn)
+        var timings = renderer.gpu_timings.describe()
+        console.print(timings)
+        var request = RenderVulkan.Component.CaptureRequested()
+        checked.entity.add_component(request)
+    }
+    assert captured_frames.has(checked.entity.id)
+    finished = true
+    if environment.capture.is_empty() {
+        var quit = Component.Quit()
+        world.as_entity().add_component(quit)
+        return
+    }
+    keep_capture(checked.draw_list.width, checked.draw_list.height)
+}
+
+func settled(drawn: Integer): Boolean {
+    var resident = not renderer.uploads_pending(textures)
+    if drawn == last_draws and resident {
+        steady_ticks = steady_ticks + 1
+    } else {
+        steady_ticks = 0
+    }
+    last_draws = drawn
+    return steady_ticks >= 30
+}
+
+func keep_capture(width: Integer, height: Integer) {
+    var capture = Component.Capture()
+    capture.width = width
+    capture.height = height
+    var row = height - 1
+    while row >= 0 {
+        write_row(capture.pixels, row, width)
+        row = row - 1
+    }
+    var holder = world.create_entity()
+    holder.add_component(capture)
+}
+
+func write_row(image: Asset.Bytes, row: Integer, width: Integer) {
+    var column = 0
+    while column < width {
+        var texel = renderer.pixel_at(column, row)
+        var blue = texel.bits_and(255)
+        var green = texel.shifted_right(8).bits_and(255)
+        var red = texel.shifted_right(16).bits_and(255)
+        image.write_byte(blue)
+        image.write_byte(green)
+        image.write_byte(red)
+        column = column + 1
+    }
+}

@@ -151,7 +151,10 @@ The whole page is Claude's proposal, unconfirmed; Mortaro decides the API. It is
 
 ## [performance.md](../docs/performance.md)
 
-GPU timestamps per pass are not built yet. There is no parallel iteration inside one system. Rows a system only
+GPU timings (`renderer.gpu_timings`) are Claude's proposal, unconfirmed. They are not yet in `app.profile()`, and
+passes of several windows add into one average per name.
+
+There is no parallel iteration inside one system. Rows a system only
 reads are no longer written back (2026-10-02, from `function.accesses`); skipping unread fields and scheduling by
 field instead of by class need accesses per piece rather than per argument.
 

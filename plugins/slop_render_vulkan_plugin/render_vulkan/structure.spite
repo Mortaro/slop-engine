@@ -82,6 +82,10 @@ func read_long(at: Long): Long {
     return raw.read_long(address, at)
 }
 
+func read_float(at: Integer): Float {
+    return floats.read_value(address + at, 0)
+}
+
 func drop() {
     var index = 0
     while index < owned.count() {

@@ -117,3 +117,6 @@ parts are Claude's proposals. Mortaro decides the API; a proposal stays marked h
   blocking, we cant have unreal engine like stutters".
 - Each stage runs on the program's one thread pool (D191); `Row<T>` is guarded as a singleton with per-iteration
   state (D183).
+- GPU timings (a proposal by Claude, 2026-10-02, unconfirmed): `renderer.gpu_timings` with `begin(name)` answering
+  a query index and `end(index)`, averages per name until `clear()`, read two frames later at the frame's fence.
+  Named after the common engine practice of per-pass timestamp scopes; Mortaro decides the API.

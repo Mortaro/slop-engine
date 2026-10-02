@@ -118,7 +118,11 @@ func record(
     crash storage_sets[slot]
     storage.append_long(storage_sets[slot])
     var no_offsets: Long = 0
+    var timings = renderer.gpu_timings
+    var shadow_timing = timings.begin("shadows")
     record_shadows(renderer, drawn, storage)
+    timings.end(shadow_timing)
+    var scene_timing = timings.begin("scene")
     renderer.barrier(high_dynamic_range_image, 0, 256, 0, 2, 1, 1024)
     depth_barrier(renderer)
     begin_rendering(renderer, view)
@@ -130,8 +134,11 @@ func record(
     record_runs(renderer, drawn, view_projection)
     record_terrain(renderer, drawn, terrain_materials, storage, view_projection)
     vulkan.vkCmdEndRendering(frame.command_buffer)
+    timings.end(scene_timing)
     renderer.barrier(high_dynamic_range_image, 256, 32, 2, 5, 1024, 128)
+    var tone_timing = timings.begin("tone map")
     record_tone_map(renderer)
+    timings.end(tone_timing)
     frame.scene_drawn = true
 }
 

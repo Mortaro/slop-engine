@@ -30,9 +30,9 @@ spite healing --debug-memory                 # headless systems, a parallel stag
 spite stress --optimized                     # 200,000 entities, timings
 ```
 
-`--debug-memory` prints the program's allocation balance at the end; every example above ends balanced. Arguments
-after `--` are the program's own `Environment` settings. Arguments before it that aren't the compiler's are `Build`
-fields, decided at compile time.
+`--debug-memory` prints the program's allocation balance at the end; every example above ends balanced. A
+program's own `Environment` settings are given beside the compiler's flags, kebab-case like them
+(`spite render_bench --measured-frames=400`); `Build` fields are decided at compile time.
 
 ## A program
 
