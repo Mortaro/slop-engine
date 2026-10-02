@@ -1,0 +1,15 @@
+type Ringing {
+    entity: Entity
+    alarm: Component.Alarm
+    rang: Component.Rang
+}
+
+var world = World()
+var console = Console()
+
+func update_each(ringing: Ringing) {
+    var rung = Component.Rung()
+    rung.at = world.now()
+    ringing.entity.add_component(rung)
+    console.print("server's alarm rang at", rung.at)
+}

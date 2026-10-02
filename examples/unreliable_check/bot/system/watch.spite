@@ -1,0 +1,57 @@
+type Peer {
+    connection: Network.Component.Connection
+}
+
+type Drifted {
+    drift: Component.Drift
+    mirrored: Network.Component.Mirrored
+}
+
+type Ended {
+    stopped: Component.Stopped
+    drift: Component.Drift
+    mirrored: Network.Component.Mirrored
+}
+
+type Running {
+    frame: Component.Frame
+    running: Without<Component.Quit>
+}
+
+var console = Console()
+var world = World()
+var asked = false
+var highest = 0
+
+func update_all(runs: List<Running>, peers: List<Peer>, drifts: List<Drifted>, ends: List<Ended>) {
+    var peer = peers.first()
+    assert peer
+    var stream = peer.connection.stream
+    note_highest(drifts)
+    var ended = ends.first()
+    assert ended and ended.drift.position == ended.stopped.at
+    if not asked {
+        asked = true
+        console.print("bot saw the drift settle at", ended.drift.position, "after", stream.datagrams_read, "datagrams")
+        var settled = Component.Settled()
+        settled.at = ended.drift.position
+        var request = world.create_entity()
+        request.add_component(settled)
+    }
+    assert stream.stale_datagrams > 0
+    console.print("bot dropped", stream.stale_datagrams, "stale datagram and still sees", ended.drift.position)
+    crash ended.drift.position == 60 and highest == 60
+    var datagrams_carried_the_drift = stream.datagrams_read > 1
+    crash datagrams_carried_the_drift
+    console.print("passed true")
+    var quit = Component.Quit()
+    world.as_entity().add_component(quit)
+}
+
+func note_highest(drifts: List<Drifted>) {
+    var drifted = drifts.first()
+    assert drifted
+    var position = drifted.drift.position
+    crash position >= highest
+    highest = position
+}

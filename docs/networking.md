@@ -97,7 +97,8 @@ func sent_from(environment: String): Boolean {
 ```
 
 - **`mirrored_from`**: state. In an environment where it answers true, every entity with the component is sent to
-  every peer whenever its bytes change, and in full to a peer that has just connected. That is how a new client
+  every peer whenever a system writes it ([`Changed<T>`](ecs.md#change-tracking)) and its bytes differ from what the
+  peer holds, and in full to a peer that has just connected. That is how a new client
   sees the counter where the server left it. The receiver keeps a mirror: the sender's world entity maps to its own
   world entity, and any other entity to a local one marked `Network.Component.Mirrored` (holding the sender's
   id).
@@ -106,6 +107,31 @@ func sent_from(environment: String): Boolean {
   lives until a handler consumes it (below). A message is the whole entity: every `sent_from` component it holds
   travels together and arrives on one entity (see [A message is an entity](#a-message-is-an-entity)).
 - Both are predicates on the environment's name, so one declaration can cover one environment or many.
+- **`sent_unreliably`**: a mirrored component whose value a system writes nearly every tick (a position, an aim)
+  answers true, and its changes travel by datagram instead of TCP ([below](#unreliable-delivery)).
+
+```gdscript
+# component/drift.spite: written every tick by the server, superseded by the next write
+var position = 0
+
+func mirrored_from(environment: String): Boolean {
+    return environment == "server"
+}
+
+func sent_unreliably(): Boolean {
+    return true
+}
+```
+
+An engine component is mirrored the same way: a file at the same path in the game's own folder reopens the class
+and adds the function, as `examples/clock_check/component/ticking.spite` does for `Component.Ticking`:
+
+```gdscript
+# component/ticking.spite, beside the game's entry file: every Ticking the server holds is mirrored
+func mirrored_from(environment: String): Boolean {
+    return environment == "server"
+}
+```
 
 ### Entity fields travel as the receiver's entities
 
@@ -166,11 +192,17 @@ which entities the peer knows (a `Network.Known` table inside the system, keyed 
 It cannot be links, because a despawned entity's id is still needed to tell the peer to drop its mirror,
 and a link to it is gone in the same flush). An entity that becomes observed is sent in full, one that stays is sent
 only the frames that changed since the last tick, and one that stops being observed or is despawned is sent a
-removal frame (message `-3`), on which the receiver despawns its mirror. Each tick every replicated component is
-encoded once into a per-entity buffer and compared, component by component, with the last tick (`Network.Frames`),
-so an observer costs one copy per observed entity, not an encode. A component removed from an entity that lives on
-(a buff ending, an item unequipped) becomes a component-removal frame (message `-4`, carrying the component's
-message id) in that entity's changes, and the receiver removes it from its mirror.
+removal frame (message `-3`), on which the receiver despawns its mirror. `Network.Frames` keeps, per entity, the
+last frame of each of its mirrored components. Each tick only the values whose column stamped a write since the last
+tick (and every value of an entity that has just appeared) are encoded; a frame whose bytes differ from the kept one
+replaces it and joins that entity's changes. An entity nobody wrote costs a stamp check and nothing else, and an
+observer costs one copy per observed entity, never an encode. A component removed from an entity that lives on (a
+buff ending, an item unequipped) becomes a component-removal frame (message `-4`, carrying the component's message
+id) in that entity's changes, and the receiver removes it from its mirror.
+
+`replication_check` proves it across two processes: a gauge the server writes reaches the bot on every write, while
+one no system writes (a system reads it every tick) arrives exactly once. `replication_bench` measures it: 10,000
+mirrored entities of which 1% move each tick cost 2,000 bytes and about 1.3 ms of `Send` a tick (optimized).
 
 ### Area of interest
 
@@ -233,13 +265,21 @@ Connections are entities. Settings and state are components on the world entity:
 | `Network.Component.Sender` | an arrived message | link: the connection entity it came from |
 | `Network.Component.Arrived` | an arrived message | despawned once its request component is removed, or its connection closes |
 | `Network.Component.Mirrored` | a mirrored entity | the sender's entity id |
+| `Network.Component.Greeted` | a connection | marker: the peer's hello matched, so state and messages flow; a game waits for `Added<Network.Component.Greeted>` to start serving a peer |
+| `Network.Component.Refused` | world | the dialer's: the server's build differs (`protocol`, `schema`, `environment` of the peer); `Dial` stops redialling |
+| `Network.Component.ServerClock` | world | the dialer's estimate of the server's game clock: `offset` (milliseconds to add to its own), `round_trip`, `samples` |
+| `Network.Component.FollowServerClock` | world | marker: this process's game clock follows the server's ([below](#the-server-owns-the-clock)) |
+| `Network.Component.DropDatagrams` | world | for tests: drop every `every`th outgoing datagram that carries frames |
 
 | Phase | System | Does |
 |---|---|---|
-| `input` | `Accept` | opens the listener and adds `Listening`, accepts every waiting connection |
+| `input` | `CheckSchema` | on the first tick, hashes every replicated component and crashes if two share a message id |
+| `input` | `Accept` | opens the listener (and the datagram socket, when a component is sent unreliably) and adds `Listening`, accepts every waiting connection |
 | `input` | `Dial` | while there is no `Connected`: starts a connect on the thread pool (adding `Dialing`) and takes its socket once done; a failed dial waits 60 ticks |
-| `after_input` | `Receive` | reads every socket, decodes each frame, mirrors state and spawns arrived messages |
-| `last` | `Send` | encodes mirrored state once, picks each peer's frames by its area of interest, writes to every peer |
+| `input` | `ReadDatagrams` | reads every waiting datagram and hands it to the connection its token names |
+| `input` | `FollowServerClock` | moves the game clock by the `ServerClock` offset, where `FollowServerClock` is set |
+| `after_input` | `Receive` | checks the peer's hello, reads every socket and datagram, decodes each frame, mirrors state, spawns arrived messages, answers pings |
+| `last` | `Send` | sends the hello, encodes what was written, picks each peer's frames by its area of interest, writes to every peer, and sends unreliable changes by datagram |
 | `last` | `ForgetArrived` | despawns consumed messages; closes a connection with more than 256 unhandled |
 | `last` | `ForgetOrphanedMessages` | despawns messages whose connection closed (their `Sender` went with it) |
 | `last` | `ForgetObservations` | despawns an observation whose connection closed (its `Observer` went with it) |
@@ -286,6 +326,62 @@ For several events of one type in one tick (two `Grant`s to one player), make ea
 a child of its target (`player.create_entity()`), and let the handler despawn it once applied; a component on the
 target holds only one value per type.
 
+### The handshake
+
+Two builds of one program agree on every replicated component only when they were compiled from the same source,
+so each side's first frame is a hello: the protocol version and a hash of every replicated component, its class
+name, whether it is mirrored, sent or sent unreliably, and each field's name and type in order (nested classes
+walked the same way), combined so the order classes are found in does not matter. Nothing else is read before the
+peer's hello, and nothing is sent to a peer before its hello matched:
+
+- a match adds `Network.Component.Greeted` to the connection, and state and messages start to flow (a message
+  spawned while no peer is greeted reaches nobody);
+- a mismatch, or any other first frame, closes the connection on both sides with an error naming both hashes and
+  the peer's environment, and the dialer's world entity gets `Network.Component.Refused`, so it stops redialling.
+  A build never misreads another's bytes.
+
+Message ids are hashes of the class names, so two classes can collide. `CheckSchema` hashes every replicated
+component on the first tick and crashes, naming both classes and
+`no_two_replicated_components_share_a_message_id`, when two share an id: rename one.
+
+`handshake_check` runs a server, a "stranger" built with one more mirrored component (refused by both sides, having
+mirrored nothing), then a matching bot, which the server still serves; a fourth build holding `Component.Moon` and
+`Component.NPon`, whose names hash alike, crashes at startup.
+
+### Unreliable delivery
+
+TCP delivers every frame in order, so a lost packet holds back everything after it. For a value superseded every
+tick that is the wrong trade, so a component that answers `sent_unreliably()` has its changes sent by UDP datagram,
+while everything else (new entities in full, removals, messages, the handshake) stays on TCP:
+
+- An acceptor opens a datagram socket on its listening port, and gives each connection a token in its hello. A
+  dialer opens one on any port and knocks (a datagram holding only the token) every ten ticks until the acceptor
+  says it heard it, which also tells the acceptor where the dialer's datagrams come from; the acceptor knocks back
+  the same way. Until a side knows its datagrams arrive, its unreliable changes go by TCP.
+- Every datagram carries the sender's tick, and every tick's TCP batch begins with the same tick. A datagram older
+  than the newest tick seen on either channel is dropped, so a late packet never moves a value backwards.
+- A value that stops changing is sent once more by TCP the first tick nobody writes it, so its final value arrives
+  even when the datagram carrying it was lost.
+
+`unreliable_check` drives a value up by one each tick for 60 ticks: the first half arrives by datagram, the second
+half is dropped on purpose (`DropDatagrams`) and the final 60 still arrives, by TCP; a forged datagram stamped with
+an old tick, moving the value to -999, is counted as stale and ignored.
+
+### The server owns the clock
+
+Each process has its own game clock (`Component.Frame.elapsed_milliseconds`), which timers read
+([ecs.md](ecs.md#timers)). A dialer measures the acceptor's clock: it pings when the hello matched and every
+60 ticks, the acceptor answers with its game time, and the dialer keeps the offset (smoothed over the samples) and
+the round trip in `Network.Component.ServerClock` on its world entity. A process whose world entity has
+`Network.Component.FollowServerClock` moves its own game clock by that offset, so its game time is the server's.
+
+That is what mirroring a timer needs: a `Ticking` holds the game time it ends at, so a client following the server's
+clock reads a mirrored `Ticking` as the server does, and its own `TickTimers` rings it at the same game time. A
+running timer changes only when it starts, pauses, resumes or rings, so a mirrored one costs nothing on the wire
+while it runs. `clock_check` starts the server's clock 1,000 seconds ahead and mirrors `Timer` and `Ticking` (by
+reopening them, above); the bot, following the server's clock, sees the alarm ring within a few milliseconds of the
+server's game time.
+
 ### The wire
 
 Binary, little-endian, one frame per component value:
@@ -297,12 +393,18 @@ i32  entity      the sender's entity id, -1 for its world entity, -2 - id for a 
 ...  payload     the fields in declaration order, written by the engine's derived codec (Pack<T>)
 ```
 
+Negative message ids are the plugin's own: `-3` despawn a mirror, `-4` remove one component (its message id
+follows), `-5` the hello (protocol, schema hash, token, datagram port, environment), `-6` the tick that follows,
+`-7` "your datagrams arrive", `-8` a ping (the dialer's clock) and `-9` its answer (that clock and the acceptor's
+game time). A datagram is the connection's token and the sender's tick (two `i32`), then frames as above, at most
+about 1,200 bytes.
+
 The codec is generated per class at compile time from its attributes: numbers as their bytes, `Boolean` as one
 byte, `String` as a length and its bytes, lists as a count and their items, nested classes inline. It is the same
 codec the asset cache uses.
 
-State is compared as encoded bytes, so an unchanged component costs its encoding and nothing on the wire. A
-fresh peer gets the last frame of every mirrored value.
+State is encoded only where it was written, and sent only where its bytes changed. A fresh peer gets the last frame
+of every mirrored value.
 
 **Validation.** Everything received is untrusted. A frame is copied out of the socket buffer only once it has fully
 arrived, and decoded from an `Asset.Bytes` marked `untrusted`: a read past its end marks it failed instead of
@@ -311,7 +413,9 @@ crashing, and a list's count must fit in what is left. A connection is closed on
 buffer stops reading at 1 MiB, so a peer that floods is slowed by TCP.
 
 **Transport.** TCP through the library's `Socket` and its non-blocking calls (`accept_client_now`,
-`read_bytes_now`, `write_bytes_now`, `closed`), so the plugin has no code of its own for any operating system.
+`read_bytes_now`, `write_bytes_now`, `closed`), and UDP through its `UdpSocket` (`receive_now`, `send_to`), so the
+plugin has no code of its own for any operating system. A datagram whose token names no connection, or whose frames
+fail to decode, is dropped without closing anything, since anyone can send one.
 
 ---
 

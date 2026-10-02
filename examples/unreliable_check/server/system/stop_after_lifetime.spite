@@ -1,0 +1,21 @@
+type Running {
+    frame: Component.Frame
+    running: Without<Component.Quit>
+}
+
+var environment = Environment()
+var clock = Clock()
+var started = -1
+var world = World()
+
+func last_each(_running: Running) {
+    assert environment.lifetime_seconds > 0
+    var now = clock.elapsed_milliseconds()
+    if started < 0 {
+        started = now
+    }
+    if now - started >= environment.lifetime_seconds * 1000 {
+        var quit = Component.Quit()
+        world.as_entity().add_component(quit)
+    }
+}

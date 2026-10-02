@@ -29,6 +29,7 @@ timings only on a production build ([performance.md](performance.md#measure-a-pr
 | `resize_check` | a hidden window resized, minimised and restored: the swapchain is rebuilt to the new client size, minimised frames are skipped, and presenting resumes at full size |
 | `without_check` | a system over `Health` and `Without<Frozen>` heals only entities without `Frozen`, and heals one once its `Frozen` is removed |
 | `tracking` | `Added<T>` and `Removed<T>` are each seen exactly once by a system before the change and one after it |
+| `changed_check` | `Changed<T>` is seen once by a system before the writes and one after them for a write through a one-row system, a `Lookup`, a replacing `add_component` and a list system; an unwritten component is seen only when it was added, and a system writing what it watches never sees its own write |
 | `use_potion` | two linked rows: each potion heals only the hero its `Owner` names, only if that hero is `Alive`, and a replaced component is written back |
 | `healing` | headless systems, entity ids in rows, and two independent systems sharing a parallel stage |
 | `parallel_check/test.sh` | two systems that only read `Velocity` share a stage, and five parallel runs of 20,000 movers over 30 ticks (spawning, despawning, list systems, lookups) end with the same checksum as a serial run |
@@ -39,6 +40,11 @@ timings only on a production build ([performance.md](performance.md#measure-a-pr
 | `relations_check` | `Parent` links set, changed and removed at run time; a two-row system follows 10,000 items' `Parent` to their 1,000 players; a despawn cascades to children; despawning a hunter's prey removes its `Target` in that flush, and a `Removed<Component.Target>` row sees it |
 | `list_component_refused/test.sh` | a component holding a `List`, a `Dictionary` or a `Parallel` fails to compile, each error naming the rule and the component |
 | `dead_link_refused/test.sh` | adding a link component whose entity is despawned, or left at `Entity()`, crashes naming the rule |
+| `replication_check/test.sh` | replication by write across two processes: a gauge the server writes on each of the bot's acknowledgements arrives on every write, one no system writes (but a system reads every tick) arrives once |
+| `handshake_check/test.sh` | a build with one more mirrored component is refused by both sides before anything is read, a matching bot is served after it, and two components whose names hash to one message id crash at startup |
+| `unreliable_check/test.sh` | a value written every tick travels by datagram, its final value arrives by TCP although datagrams are dropped on purpose, and a forged datagram with an old tick is ignored |
+| `clock_check/test.sh` | a bot following the server's clock (1,000 seconds ahead of its own) sees a mirrored `Timer` and `Ticking` ring within 100 ms of the server's game time |
+| `replication_bench` | 10,000 mirrored entities, 1% moving each tick, one bot: bytes and `Send` microseconds per tick (`--environment=server` and `--environment=bot`, `--optimized`) |
 | `wire_probe` | an `Entity` naming a mirror goes on the wire as the remote id, and the other side reads its own id back; through a link component's codec, a mirror arrives as the receiver's own entity and a sender's own entity arrives as a new mirror |
 | `timers_check` | timers ring on the right ticks and a one-shot is seen with its `Timer` on its ring tick; a paused timer (a `Timer` without `Ticking`) holds, then rings three ticks after it resumes; an `Expires` cooldown child is despawned and the link naming it goes; a list system's writes to inline components stick, a list system whose first list is empty never runs, and `run`'s fixed-rate pacing holds 25 ms ticks |
 | `server_bench` | 5,000 players and 10,000 monsters moving on a 4 km square: spatial grid, aggro and area-of-interest queries, timers, and the profile; a grid query is checked against brute force. Run with `--optimized` |

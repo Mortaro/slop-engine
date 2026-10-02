@@ -1,0 +1,19 @@
+type Started {
+    frame: Added<Component.Frame>
+}
+
+var world = World()
+var environment = Environment()
+var console = Console()
+var frames = Lookup<Component.Frame>()
+var long_ago = 1000000
+
+func update_each(started: Started) {
+    var listen = Network.Component.Listen()
+    listen.port = environment.port
+    world.as_entity().add_component(listen)
+    var frame = frames.of(world.entity)
+    crash frame
+    frame.elapsed_milliseconds = frame.elapsed_milliseconds + long_ago
+    console.print("server listening on port", environment.port, "with its game clock at", frame.elapsed_milliseconds)
+}

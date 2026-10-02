@@ -158,8 +158,12 @@ func read_datagram(peer: Peer, inbox: Asset.Bytes, start: Integer, size: Integer
     var stream = peer.connection.stream
     assert size >= 8 and size <= inbox.length - start and stream.greeted
     var tick = raw.read_integer(inbox.address, start + 4)
-    assert tick >= stream.highest_tick
+    if tick < stream.highest_tick {
+        stream.stale_datagrams = stream.stale_datagrams + 1
+        return
+    }
     stream.highest_tick = tick
+    stream.datagrams_read = stream.datagrams_read + 1
     if not stream.hears_peer {
         stream.hears_peer = true
         stream.queue_control(-7)

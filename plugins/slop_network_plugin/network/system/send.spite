@@ -20,6 +20,8 @@ var datagram = Asset.Bytes()
 var datagram_limit = 1200
 var ping_ticks = 60
 var hurrying = false
+var drops = Lookup<Network.Component.DropDatagrams>()
+var drop_count = 0
 var columns = Columns()
 var since = -1
 var frames = Network.Frames()
@@ -276,8 +278,20 @@ func send_datagram(stream: Network.Stream) {
 }
 
 func send_datagram_always(stream: Network.Stream) {
-    datagrams.send(stream.datagram_host, stream.datagram_port, datagram)
+    if not dropped() {
+        datagrams.send(stream.datagram_host, stream.datagram_port, datagram)
+    }
     begin_datagram(stream)
+}
+
+func dropped(): Boolean {
+    if datagram.length <= 8 or not drops.has(world.entity) {
+        return false
+    }
+    var drop = drops.of(world.entity)
+    crash drop
+    drop_count = drop_count + 1
+    return drop.every > 0 and drop_count % drop.every == 0
 }
 
 func hurry(stream: Network.Stream, hurried: Asset.Bytes) {

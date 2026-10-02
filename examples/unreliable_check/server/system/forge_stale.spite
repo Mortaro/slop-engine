@@ -1,0 +1,41 @@
+type Asked {
+    entity: Entity
+    settled: Component.Settled
+    sender: Network.Component.Sender
+}
+
+type Drifted {
+    entity: Entity
+    drift: Component.Drift
+}
+
+var connections = Lookup<Network.Component.Connection>()
+var forger = UdpSocket()
+var bytes = Asset.Bytes()
+var console = Console()
+
+func update_each(drifted: Drifted, asked: Asked) {
+    asked.entity.remove_component(Component.Settled)
+    var connection = connections.of(asked.sender.entity.id)
+    crash connection
+    var stream = connection.stream
+    crash stream.datagram_port > 0
+    var stale = Component.Drift()
+    stale.position = -999
+    var codec = Network.Codec<Component.Drift>()
+    bytes.clear()
+    bytes.write_integer(stream.token)
+    bytes.write_integer(1)
+    var message = codec.id()
+    codec.write_frame(bytes, message, drifted.entity.id, stale)
+    crash forger.open()
+    var sent = List<Byte>()
+    var index = 0
+    while index < bytes.length {
+        var value: Byte = bytes.byte_at(index)
+        sent.append(value)
+        index = index + 1
+    }
+    crash forger.send_to(stream.datagram_host, stream.datagram_port, sent)
+    console.print("server forged a stale datagram moving the drift to -999")
+}

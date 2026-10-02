@@ -1,0 +1,13 @@
+type Joined {
+    joined: Added<Network.Component.Greeted>
+}
+
+var world = World()
+
+func update_each(_joined: Joined) {
+    var drift = Component.Drift()
+    var drifter = world.create_entity()
+    drifter.add_component(drift)
+    var drifting = Component.Drifting()
+    drifter.add_component(drifting)
+}
