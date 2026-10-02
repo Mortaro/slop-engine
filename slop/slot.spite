@@ -20,6 +20,16 @@ func tracked_key(current: $slot_type): String {
     return ""
 }
 
+func pinned(current: $slot_type): Boolean {
+    if $slot_type.has_function("tracked_pinned") {
+        return current.tracked_pinned()
+    }
+    if $slot_type.has_function("pinned_to_creating_thread") {
+        return current.pinned_to_creating_thread()
+    }
+    return false
+}
+
 func fetch(entity: Integer, current: $slot_type, column_header: Long, row: Integer): $slot_type {
     if $slot_type.has_function("fill_from") {
         current.fill_from(column_header, row)

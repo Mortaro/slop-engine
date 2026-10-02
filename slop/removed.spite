@@ -11,6 +11,12 @@ func tracked_key(): String {
     return column.own_key
 }
 
+func tracked_pinned(): Boolean {
+    var slot = Slot<$tracked_type>()
+    var probe = $tracked_type()
+    return slot.pinned(probe)
+}
+
 func fill_from(column_header: Long, row: Integer) {
     assert column_header != 0 and row >= 0
 }

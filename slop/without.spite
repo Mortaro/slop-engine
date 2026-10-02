@@ -10,4 +10,10 @@ func tracked_key(): String {
     return columns.key($excluded_type)
 }
 
+func tracked_pinned(): Boolean {
+    var slot = Slot<$excluded_type>()
+    var probe = $excluded_type()
+    return slot.pinned(probe)
+}
+
 func fill_from(_column_header: Long, _row: Integer) {}

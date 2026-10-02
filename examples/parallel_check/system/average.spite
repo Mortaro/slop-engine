@@ -1,0 +1,18 @@
+type Placed {
+    velocity: Component.Velocity
+    position: Component.Position
+}
+
+var world = World()
+var spreads = Lookup<Component.Spread>()
+
+func update_all(placed: List<Placed>) {
+    var spread = spreads.of(world.entity)
+    crash spread
+    var index = 0
+    while index < placed.count() {
+        spread.total = spread.total + placed[index].position.left * placed[index].velocity.down
+        index = index + 1
+    }
+    spread.runs = spread.runs + 1
+}

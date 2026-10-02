@@ -1,0 +1,7 @@
+type Aging {
+    age: Component.Age
+}
+
+func prepare_each(aging: Aging) {
+    aging.age.ticks = aging.age.ticks + 1
+}

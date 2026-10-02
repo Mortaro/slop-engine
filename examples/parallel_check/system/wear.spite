@@ -1,0 +1,12 @@
+type Armored {
+    armor: Component.Armor
+    velocity: Component.Velocity
+}
+
+func update_each(armored: Armored) {
+    var worn = armored.velocity.across.absolute() + armored.velocity.down.absolute()
+    armored.armor.value = armored.armor.value - worn
+    if armored.armor.value % 50 == 0 {
+        armored.velocity.across = 0 - armored.velocity.across
+    }
+}

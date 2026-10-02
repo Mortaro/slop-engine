@@ -15,7 +15,11 @@ enum Phase {
 var system: $system_type = $system_type()
 var name = ""
 var placed_in = ""
-var accesses = List<String>()
+var reads = List<String>()
+var writes = List<String>()
+var written_names = List<String>()
+var writing = List<Boolean>()
+var pinned = false
 var columns = Columns()
 var candidates = List<List<Integer>>()
 var chosen = List<Integer>()
@@ -47,17 +51,52 @@ var clock = Clock()
 func Runner() {
     name = columns.key(system.class)
     buffer = world.register_runner()
+    note_written_names()
     classify_attributes(system)
     place_phases_each()
     place_phases_all()
     crash placed_in != ""
 }
 
-func classify_attribute(attribute: Symbol<$system_type>, _system: $system_type) {
+func note_written_names() {
+    var phases = $system_type.functions.filter_name_ends_with("_each")
+    phases.each(note_function)
+    var lists = $system_type.functions.filter_name_ends_with("_all")
+    lists.each(note_function)
+}
+
+func note_function(function: Spite.Function) {
+    function.accesses.each(note_access)
+}
+
+func note_access(access: Spite.Access) {
+    if access.is_written {
+        written_names.append(access.target.name)
+    }
+}
+
+func classify_attribute(attribute: Symbol<$system_type>, owner: $system_type) {
+    var looked_up = LookedUp<attribute.class>()
+    var looked_up_key = looked_up.key(owner.attributes[attribute])
+    if looked_up_key != "" {
+        writes.append(looked_up_key)
+        if looked_up.pinned(owner.attributes[attribute]) {
+            pinned = true
+        }
+        return
+    }
     var key = columns.key(attribute.class)
     var is_singleton = attribute.class.is_singleton()
     assert is_singleton and key != "World"
-    accesses.append(key)
+    writes.append(key)
+}
+
+func note_access_to(key: String, written: Boolean) {
+    if written {
+        writes.append(key)
+    } else {
+        reads.append(key)
+    }
 }
 
 func place_phase_each(phase: Symbol<$system_type.phase_each>) {
@@ -76,8 +115,15 @@ func prepare_argument(argument: Symbol<$system_type.phase_each>) {
     if argument_count == 0 {
         leading_relation = row.relation >= 0
     }
-    var keys = row.component_keys()
-    note_accesses(keys)
+    var written = written_names.contains(argument.name)
+    writing.append(written)
+    if argument.class == GameClock {
+        writes.append("GameClock")
+    }
+    note_row(row.keys, row.kinds, written)
+    if row.pinned {
+        pinned = true
+    }
     argument_count = argument_count + 1
 }
 
@@ -90,16 +136,29 @@ func place_phase_all(phase: Symbol<$system_type.phase_all>) {
 func prepare_every_argument(argument: Symbol<$system_type.phase_all>) {
     var row = Row<argument.class.element_type>()
     row.prepare()
-    var keys = row.component_keys()
-    note_accesses(keys)
+    var written = written_names.contains(argument.name)
+    writing.append(written)
+    note_row(row.keys, row.kinds, written)
+    if row.pinned {
+        pinned = true
+    }
 }
 
-func note_accesses(keys: List<String>) {
+func note_row(keys: List<String>, kinds: List<Integer>, written: Boolean) {
     var index = 0
     while index < keys.count() {
-        accesses.append(keys[index])
+        crash kinds[index]
+        var kind = kinds[index]
+        if keys[index] != "" {
+            note_access_to(keys[index], written and (kind == 0 or kind == 1))
+        }
         index = index + 1
     }
+}
+
+func writes_argument(index: Integer): Boolean {
+    crash index < writing.count()
+    return writing[index]
 }
 
 func run_once() {
@@ -309,7 +368,7 @@ func fill_outer_argument(argument: Symbol<$system_type.phase_each>) {
 }
 
 func store_outer_argument(argument: Symbol<$system_type.phase_each>) {
-    assert argument.index == pair_outer
+    assert argument.index == pair_outer and writes_argument(argument.index)
     var row = Row<argument.class>()
     row.store(pair_entity)
 }
@@ -324,7 +383,8 @@ func begin_inner_argument(argument: Symbol<$system_type.phase_each>) {
 func advance_inner_argument(argument: Symbol<$system_type.phase_each>) {
     assert argument.index != pair_outer
     var row = Row<argument.class>()
-    streamed = row.advance()
+    var written = writes_argument(argument.index)
+    streamed = row.advance(written)
 }
 
 func run_related(phase: Symbol<$system_type.phase_each>) {
@@ -386,8 +446,10 @@ func store_argument(argument: Symbol<$system_type.phase_each>) {
     var row = Row<argument.class>()
     crash chosen[position]
     var entity = chosen[position]
-    row.store(entity)
     position = position + 1
+    if writes_argument(argument.index) {
+        row.store(entity)
+    }
 }
 
 func run_phase_all(phase: Symbol<$system_type.phase_all>) {
@@ -410,7 +472,8 @@ func gate_argument(argument: Symbol<$system_type.phase_all>) {
 
 func store_every_argument(argument: Symbol<$system_type.phase_all>) {
     var row = Row<argument.class.element_type>()
-    row.store_every()
+    var written = writes_argument(argument.index)
+    row.store_every(written)
 }
 
 func every_argument(argument: Symbol<$system_type.phase_all>): argument.class {
@@ -452,14 +515,17 @@ func begin_stream_argument(argument: Symbol<$system_type.phase_each>) {
 
 func advance_stream_argument(argument: Symbol<$system_type.phase_each>) {
     var row = Row<argument.class>()
-    streamed = row.advance()
+    var written = writes_argument(argument.index)
+    streamed = row.advance(written)
 }
 
 func run_clocked_argument(argument: Symbol<$system_type.phase_each>) {
     if argument.class == GameClock {
         clock_row.fill(world.entity)
         stream_clocked_arguments()
-        clock_row.store(world.entity)
+        if writes_argument(argument.index) {
+            clock_row.store(world.entity)
+        }
         clocked = true
     }
 }

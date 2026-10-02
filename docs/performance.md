@@ -31,7 +31,7 @@ and are not in the report.
 ## Where the time goes
 
 - Every matched entity fills a row: each field is a typed read through `Slot<T>`, and a replaced component is written
-  back.
+  back if the system writes that row.
 - Every field counts, whether or not the system reads it; only markers are skipped. Ask only for the components a
   system uses.
 - Each system in a stage runs on the program's one thread pool; one system's rows are walked on one thread.
@@ -70,10 +70,10 @@ compiler, or for a lock, and no single frame takes on an unbounded amount of wor
 
 ## Thread affinity
 
-None. Windows belong to a dedicated window thread (`Windows.Owner`), which also keeps pumping messages when a frame
-runs long; systems exchange requests and events with it through raw memory behind an SRW lock. Vulkan has no thread
-affinity. So every system can run on any thread, and a stage runs its last system on the calling thread instead of
-leaving it idle.
+Only where the data says so. A component that declares `pinned_to_creating_thread()` (the window's `Handle`) keeps
+the systems that touch it on the app's thread; Vulkan has no thread affinity, so drawing runs on the pool. Every
+other system runs on the thread pool, and when no system of a stage is pinned, the app's thread runs one of them
+instead of waiting idle ([ecs.md](ecs.md#components-pinned-to-a-thread)).
 
 ---
 

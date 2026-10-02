@@ -1,0 +1,15 @@
+generic $looked_type
+
+func key(value: $looked_type): String {
+    if $looked_type.has_function("looked_up_key") {
+        return value.looked_up_key()
+    }
+    return ""
+}
+
+func pinned(value: $looked_type): Boolean {
+    if $looked_type.has_function("looked_up_key") {
+        return value.pinned()
+    }
+    return false
+}

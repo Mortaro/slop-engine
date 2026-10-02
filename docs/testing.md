@@ -31,6 +31,7 @@ timings only on a production build ([performance.md](performance.md#measure-a-pr
 | `tracking` | `Added<T>` and `Removed<T>` are each seen exactly once by a system before the change and one after it |
 | `use_potion` | two linked rows: each potion heals only the hero its `Owner` names, only if that hero is `Alive`, and a replaced component is written back |
 | `healing` | headless systems, entity ids in rows, and two independent systems sharing a parallel stage |
+| `parallel_check/test.sh` | two systems that only read `Velocity` share a stage, and five parallel runs of 20,000 movers over 30 ticks (spawning, despawning, list systems, lookups) end with the same checksum as a serial run |
 | `stress` | 200,000 entities through two systems; prints the tick time |
 | `asset_round_trip` | an asset class with every kind of field saved and read back through its derived codec |
 | `psd_probe` | `buttons.psd`'s layer tree and sizes |

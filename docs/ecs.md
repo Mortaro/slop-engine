@@ -208,7 +208,7 @@ holds indexes and bookkeeping, never the items themselves, which are entities:
 | `Network.Dials` | the dial jobs in flight, keyed by the entity marked `Dialing` |
 
 A system that binds a resource names it in what it touches, so two systems binding the same one never share a stage
-(the runner counts every singleton a system holds, `World` aside). Each resource chosen over entities says why where
+(the runner counts every singleton a system holds as written, `World` aside). Each resource chosen over entities says why where
 it is documented.
 
 `World` is the engine's central singleton: `var world = World()` at the top of a file.
@@ -268,7 +268,8 @@ func update_each(potion: Potion, target: Target) {
 | `Removed<T>` | `T` was removed (or its entity despawned) since this system last ran; the component itself is gone, so there is no `.value` to read |
 | `Without<T>` | the entity does not have `T`: a system skips entities in a state by the absence of a component, never by a flag in a field (name the field without a leading `_`, since private fields are not walked) |
 
-Replacing a component in the row (`target.health = target.health + ...`) is written back after the call.
+Replacing a component in the row (`target.health = target.health + ...`) is written back after the call. A row the
+system only reads is never written back.
 
 ### Following a link
 
@@ -299,14 +300,50 @@ its `Target` in that flush, which a `Removed<Component.Target>` row sees.
 
 ### What decides where a system runs
 
-Nothing in a system says how it is scheduled; the runner derives it at compile time:
+Nothing in a system says how it is scheduled; the runner derives it at compile time from the phase function's
+`function.accesses`, which say for every argument and attribute whether the function writes it or only reads it:
 
-- **what it touches**: the component classes in its rows. Systems that share none can run at the same time.
-- **no thread affinity**: every system can run on any thread. Win32 delivers a window's messages only to the thread
-  that created it, so windows belong to a dedicated window thread (`Windows.Owner`), not to any system; systems
-  request windows and read input from it through a lock-guarded buffer in raw memory. Vulkan has no thread
-  affinity at all.
+- **what it reads and what it writes**: a row the function writes (any field of it, or anything reached through it)
+  writes every component class in the row; a row it only reads reads them. Markers, `Without<T>` and `Removed<T>`
+  are always reads. A `Lookup<T>` attribute and a resource (any singleton but `World`) always count as written,
+  since what a lookup lends can be written in place. Two systems conflict when one writes a
+  class the other reads or writes, so systems that only read the same classes run at the same time.
+- **which thread**: any thread, unless it touches a component pinned to its thread ([below](#components-pinned-to-a-thread)).
 - **changing the world** costs nothing in scheduling: each runner queues into its own buffer (above).
+
+`app.describe_accesses()` prints what the runner derived, one line per system:
+
+```
+System.Average reads [Component.Velocity, Component.Position] writes [Component.Spread]
+System.Census reads [Component.Velocity] writes [Component.Tally]
+System.Drift reads [] writes [Component.Position, Component.Velocity]
+```
+
+### Components pinned to a thread
+
+Some data belongs to the operating-system thread that made it: Win32 delivers a window's messages only to the thread
+that created the window. A component class says so with a function, the way a class says how it is networked with
+`mirrored_from`:
+
+```gdscript
+# plugins/slop_window_plugin/window/component/handle.spite
+var value: Long = 0
+
+func pinned_to_creating_thread(): Boolean {
+    return true
+}
+```
+
+A pinned component belongs to the thread that created it, so every system that touches its class (in a row, as
+`Added`, `Removed` or `Without`, or through a `Lookup` attribute) runs on that thread: the app's own thread, the one
+that calls `app.tick()`. Every other system runs on the thread pool. A pinned system declares nothing and is
+scheduled like any other: it shares a stage with every system it does not conflict with, and `app.describe()` marks
+it `(pinned)`. Ticking the app from a different thread than the first tick crashes
+(`pinned_components_stay_on_the_thread_that_created_them`), since the components were created on that one.
+
+Vulkan has no thread affinity, so nothing of it is pinned; a system is pinned only by what its own rows and lookups
+touch, so `RenderVulkan.System.CreateRenderer`, which reads the window's `Handle` to make a surface, runs on the
+app's thread and the systems that draw do not.
 
 ## Freeing
 
@@ -332,16 +369,24 @@ The engine owns the phases, in order:
 
 `input` → `after_input` → `update` → `prepare` → `layout` → `render` → `after_render` → `present` → `last`
 
-Inside a phase, systems run in the order of their dotted names. Consecutive systems that share no component class
-form a stage, and a stage's systems run on separate `Parallel` threads, the last of them on the calling thread. A system holding `World` always has a stage of its own. Queued
-changes are applied after each stage. `app.describe()` prints the stages:
+Inside a phase, systems run in the order of their dotted names. Consecutive systems that do not conflict
+([above](#what-decides-where-a-system-runs)) form a stage, and a stage's systems run at the same time: each on the
+thread pool, except the pinned ones, which run on the app's thread (and when none is pinned, the app's thread runs
+the last system instead of waiting idle). Queued changes are applied after each stage, in runner order, so a stage
+gives the same result however its threads interleave: `examples/parallel_check` compares parallel runs with a
+serial one. `app.describe()` prints the stages:
 
 ```
-stage 0 (input): Windows.System.OpenWindow
-stage 1 (input): Windows.System.PumpMessages
-stage 2 (after_input): Ui.System.Interact
-...
+stage 0 (input): System.Recook, System.RefreshCatalog, System.TickTimers
+stage 1 (update): System.Average, System.Census
+stage 2 (update): System.Drift, System.Retire
+stage 3 (update): System.Wear
+stage 4 (prepare): System.Grow
+stage 5 (last): System.CountFrames, System.SilenceTimers
 ```
+
+`Average` and `Census` both only read `Component.Velocity`, so they share a stage; `Drift` writes it, so it starts
+the next one.
 
 Ordering inside a phase is by name, not by data. The finer phase names carry the ordering that matters today.
 
@@ -355,6 +400,7 @@ Ordering inside a phase is by name, not by data. The finer phase names carry the
 | `app.tick()` | one tick: every stage in order, changes applied after each |
 | `app.parallel = false` | runs every stage's systems one after another |
 | `app.describe()` | the stages, as text |
+| `app.describe_accesses()` | what each system reads and writes, as text |
 
 ## Timers
 
@@ -539,7 +585,7 @@ A system with one row and no `Added` or `Removed` field runs on the fast path, `
 walks the driver column and fills each row straight from the columns: inline items are borrowed and written
 in place, with no copy and no reference counting, and references are handed over as they are. The runner picks
 it with `phase.argument_count() == 1`, so systems with several rows still compile and use the combination
-path. Other rows get a copy of inline items, which is written back after the system runs.
+path. Other rows get a copy of inline items, which is written back after the system runs if it writes that row.
 
 A system with two rows (and no link in the first) takes the smaller row as the outer loop and streams the larger one
 inside it: `render_each(target: Target, modeled: Modeled)` fills the one window's row once and walks every model,
@@ -556,7 +602,7 @@ may add to them, as `Animate` and `FollowBones` may, so the runner builds the st
 The other row may not have `Added` or `Removed` fields; with them, the pair path runs.
 
 A `_all` system's rows are written back after it runs, like a single row's, so writing a field of an inline
-component in a list sticks. Its row objects are kept between runs and refilled, and each entity is matched once
+component in a list sticks; a list the system only reads is not written back. Its row objects are kept between runs and refilled, and each entity is matched once
 while the list is built, so a list system allocates its list and nothing per row.
 
 ## IO systems

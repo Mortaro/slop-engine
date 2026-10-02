@@ -1,6 +1,7 @@
 generic $component_type
 
 var column = Column<$component_type>()
+var columns = Columns()
 
 func of(entity: Integer): $component_type? {
     var row = column.row_of_entity(entity)
@@ -13,4 +14,14 @@ func of(entity: Integer): $component_type? {
 
 func has(entity: Integer): Boolean {
     return column.row_of_entity(entity) >= 0
+}
+
+func looked_up_key(): String {
+    return columns.key($component_type)
+}
+
+func pinned(): Boolean {
+    var slot = Slot<$component_type>()
+    var probe = $component_type()
+    return slot.pinned(probe)
 }

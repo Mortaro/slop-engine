@@ -1,0 +1,21 @@
+type Moving {
+    velocity: Component.Velocity
+}
+
+var world = World()
+var tallies = Lookup<Component.Tally>()
+
+func update_all(movers: List<Moving>) {
+    var tally = tallies.of(world.entity)
+    crash tally
+    var index = 0
+    while index < movers.count() {
+        tally.total = tally.total + movers[index].velocity.across * 3 + movers[index].velocity.down
+        index = index + 1
+    }
+    tally.runs = tally.runs + 1
+    if tally.runs % 3 == 0 {
+        var mover = Bundle.Mover(tally.runs)
+        world.create_entity_from_bundle(mover)
+    }
+}

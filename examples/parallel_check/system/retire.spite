@@ -1,0 +1,12 @@
+type Aging {
+    entity: Entity
+    age: Component.Age
+}
+
+var world = World()
+
+func update_each(aging: Aging) {
+    if aging.age.ticks >= 10 and aging.entity.id % 4 == 0 {
+        world.despawn(aging.entity.id)
+    }
+}

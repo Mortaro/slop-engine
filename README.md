@@ -113,19 +113,21 @@ func update_each(potion: Potion, target: Target) {
 - There are no resources. State is a component on an entity: program-wide state (`Component.Quit`,
   `Component.Frame`) on the world entity, per-window state (`Input.Component.Mouse`, the draw list, the renderer)
   on the window, reached through rows like any other data. `World` is the only singleton a system holds.
-- No system is tied to a thread: windows belong to a dedicated window thread, and structural changes go into a
-  per-runner buffer, so any system can run in parallel with any other that shares no component.
+- No system declares how it is scheduled: the runner reads what each system's function reads and writes, and runs
+  systems that do not conflict at the same time on the thread pool. Structural changes go into a per-runner buffer.
+  A component the OS ties to one thread (a window's `Handle`) declares `pinned_to_creating_thread()`, and the
+  systems that touch it run on the app's thread.
 
 The engine's phases, in order:
 
 `input` → `after_input` → `update` → `prepare` → `layout` → `render` → `after_render` → `present` → `last`
 
-Inside a phase, systems run in dotted-name order, and consecutive systems that share no component
-class share a stage and run on separate `Parallel` threads. `app.describe()` prints the stages:
+Inside a phase, systems run in dotted-name order, and consecutive systems that do not conflict (neither writes a
+class the other reads or writes) share a stage and run at the same time on the thread pool. `app.describe()` prints the stages:
 
 ```
-stage 0 (input): Windows.System.OpenWindow
-stage 1 (input): Windows.System.PumpMessages
+stage 0 (input): Windows.System.OpenWindow (pinned)
+stage 1 (input): Windows.System.PumpMessages (pinned)
 stage 2 (after_input): Ui.System.Interact
 stage 3 (update): ClickTest.System.DriveClicks, System.CountClicks
 stage 4 (update): System.SpawnCounter

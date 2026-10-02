@@ -1,0 +1,11 @@
+var velocity = Component.Velocity()
+var position = Component.Position()
+var armor = Component.Armor()
+var age = Component.Age()
+
+func Mover(seed: Integer) {
+    velocity.across = seed % 7 - 3
+    velocity.down = seed % 5 - 2
+    position.left = seed % 101
+    position.top = seed % 97
+}

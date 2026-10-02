@@ -1,0 +1,69 @@
+var world = World()
+var environment = Environment()
+var console = Console()
+var positions = Lookup<Component.Position>()
+var armors = Lookup<Component.Armor>()
+var ages = Lookup<Component.Age>()
+var tallies = Lookup<Component.Tally>()
+var spreads = Lookup<Component.Spread>()
+var last_seed = 0
+
+func ParallelCheck() {
+    load "../../slop"
+    var app = App()
+    app.parallel = environment.parallel
+    var described = app.describe()
+    console.print(described)
+    var accessed = app.describe_accesses()
+    console.print(accessed)
+    var readers_share_a_stage = described.contains("(update): System.Average, System.Census\n")
+    crash readers_share_a_stage
+    var tally = Component.Tally()
+    world.as_entity().add_component(tally)
+    var spread = Component.Spread()
+    world.as_entity().add_component(spread)
+    var seed = 0
+    while seed < environment.movers {
+        var mover = Bundle.Mover(seed)
+        world.create_entity_from_bundle(mover)
+        seed = seed + 1
+    }
+    world.flush()
+    var tick = 0
+    while tick < environment.ticks {
+        app.tick()
+        tick = tick + 1
+    }
+    var spawned = world.create_entity()
+    last_seed = spawned.id
+    report(app.parallel)
+}
+
+func report(parallel: Boolean) {
+    var sum: Long = 0
+    var alive = 0
+    var id = 1
+    while id < last_seed {
+        if positions.has(id) {
+            sum = sum + mixed(id)
+            alive = alive + 1
+        }
+        id = id + 1
+    }
+    var tally = tallies.of(world.entity)
+    var spread = spreads.of(world.entity)
+    crash tally
+    crash spread
+    console.print("parallel", parallel, "alive", alive, "tally", tally.total, "spread", spread.total, "checksum", sum)
+}
+
+func mixed(id: Integer): Long {
+    var position = positions.of(id)
+    var armor = armors.of(id)
+    var age = ages.of(id)
+    crash position
+    crash armor
+    crash age
+    var value: Long = id * 31 + position.left * 7 + position.top * 13 + armor.value * 17 + age.ticks * 19
+    return value % 1000003
+}
