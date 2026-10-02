@@ -117,3 +117,7 @@ parts are Claude's proposals. Mortaro decides the API; a proposal stays marked h
   blocking, we cant have unreal engine like stutters".
 - Each stage runs on the program's one thread pool (D191); `Row<T>` is guarded as a singleton with per-iteration
   state (D183).
+- A flush that applies 4,096 changes or more settles the allocator's freed blocks before it returns, and a spawn
+  copies inline components straight from the bundle (proposals by Claude, 2026-10-02): `stress` showed glibc merging
+  the 1.2 million blocks a 200,000-entity spawn freed in whichever later tick first allocated or freed a large
+  block, about 20 ms (INSIGHTS, "a tick that paid for the spawn").

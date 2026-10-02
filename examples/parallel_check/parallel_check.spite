@@ -6,6 +6,8 @@ var armors = Lookup<Component.Armor>()
 var ages = Lookup<Component.Age>()
 var tallies = Lookup<Component.Tally>()
 var spreads = Lookup<Component.Spread>()
+var weights = Lookup<Component.Weight>()
+var witnesses = Lookup<Component.Witnessed>()
 var last_seed = 0
 
 func ParallelCheck() {
@@ -18,10 +20,18 @@ func ParallelCheck() {
     console.print(accessed)
     var readers_share_a_stage = described.contains("(update): System.Average, System.Census\n")
     crash readers_share_a_stage
+    var a_writer_stands_alone = described.contains("(update): System.Wear\n")
+    crash a_writer_stands_alone
+    var a_reader_after_a_writer_starts_a_stage = described.contains("(update): System.Weigh")
+    crash a_reader_after_a_writer_starts_a_stage
     var tally = Component.Tally()
     world.as_entity().add_component(tally)
     var spread = Component.Spread()
     world.as_entity().add_component(spread)
+    var weight = Component.Weight()
+    world.as_entity().add_component(weight)
+    var witnessed = Component.Witnessed()
+    world.as_entity().add_component(witnessed)
     var seed = 0
     while seed < environment.movers {
         var mover = Bundle.Mover(seed)
@@ -52,9 +62,28 @@ func report(parallel: Boolean) {
     }
     var tally = tallies.of(world.entity)
     var spread = spreads.of(world.entity)
+    var weight = weights.of(world.entity)
+    var seen = witnesses.of(world.entity)
     crash tally
     crash spread
-    console.print("parallel", parallel, "alive", alive, "tally", tally.total, "spread", spread.total, "checksum", sum)
+    crash weight
+    crash seen
+    console.print(
+        "parallel",
+        parallel,
+        "alive",
+        alive,
+        "tally",
+        tally.total,
+        "spread",
+        spread.total,
+        "weight",
+        weight.total,
+        "witnessed",
+        seen.total,
+        "checksum",
+        sum,
+    )
 }
 
 func mixed(id: Integer): Long {

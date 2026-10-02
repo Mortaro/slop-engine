@@ -15,6 +15,9 @@ var columns = Columns()
 var spawned_typed = false
 var parents = Link<Component.Parent>()
 var frames = Lookup<Component.Frame>()
+var heap = Memory.Heap()
+var applied = 0
+var settling_threshold = 4096
 
 func prepare() {
     assert buffers.count() == 0
@@ -118,7 +121,11 @@ func despawn(despawned: Integer) {
 
 func flush() {
     prepare()
+    applied = 0
     buffers.each(apply_buffer)
+    if applied >= settling_threshold {
+        settle_freed_memory()
+    }
     var despawned = List<Integer>()
     var index = 0
     while index < despawn_buffers.count() {
@@ -141,7 +148,13 @@ func apply_buffer(commands: List<Command>) {
         commands[index].apply()
         index = index + 1
     }
+    applied = applied + commands.count()
     commands.clear()
+}
+
+func settle_freed_memory() {
+    var block = heap.allocate(4096)
+    heap.free(block)
 }
 
 func take_despawns(pending: List<Integer>, despawned: List<Integer>) {

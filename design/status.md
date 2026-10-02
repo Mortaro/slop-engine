@@ -29,31 +29,48 @@ and the click test passed for 5 and 12 clicks.
 - The runner (D362, D363, 2026-10-02), known gaps:
   - `function.accesses` answers per whole argument, so a row that writes one component counts as writing every
     component in it (`parallel_check`'s `Drift` "writes" the `Velocity` it only reads). Scheduling by field needs
-    per-piece accesses, which D335 left for `Changed<T>`.
+    per-piece accesses, which D335 left for `Changed<T>`. Re-checked on Spite master on 2026-10-02: not answered;
+    the repro is in INSIGHTS ("what the runner's gaps need from the compiler").
   - A `Lookup<T>` attribute always counts as a write of `T`, because `accesses` does not count a write through
     what `of` lends (it comes from the `Column<T>` singleton; INSIGHTS bug 51), and a resource always counts as
-    written, because `accesses` does not count a call that changes a singleton (bug 52). Both can switch to
-    `access.is_written` once the compiler answers them.
+    written, because `accesses` does not count a call that changes a singleton, nor an assignment to its fields
+    (bug 52). Both still hold on master (2026-10-02); the cause is one rule in the compiler's write study, named in
+    INSIGHTS. Holding the column's storage in `Lookup` itself would make `accesses` right, but D230 lends an inline
+    item only from a singleton's storage, so that path is closed. When the compiler answers, the runner's
+    `classify_attribute` notes the lookup's key and the resource's key with `written_names.contains(attribute.name)`
+    instead of always as writes, and `parallel_check` gains the stage assertions: `Weigh` (reads `Armor` in a row)
+    and `Witness` (reads `Armor` through a lookup) then share a stage.
+  - Question for Mortaro: wait for the compiler, or give readers a way to say so now? Options: (a) wait (the fix is
+    small and also serves `Changed<T>`); (b) a read-only lookup class, for example `Peek<T>`, whose `of` answers a
+    copy, which the runner counts as a read; (c) a resource declaring itself read-only by a function, the way a
+    component declares `pinned_to_creating_thread()`. Recommendation: (a); (b) and (c) add API that the compiler
+    makes unnecessary, and (c) cannot be checked, so a wrong declaration would race silently.
   - A `Lookup<T>()` made inside a function body, or a column reached through another class (the flex layout's
     lookups), is invisible to the runner, as before: such a system can share a stage with a writer of that class.
   - Two systems of one stage that both create entities get ids in the order their threads ask, so ids (never the
     components, which commands apply in runner order) can differ between parallel runs.
   - A pinned system runs on the app's thread. A thread of its own per pinned class would need Spite's thread pool to
     take work for one chosen thread, which it does not offer.
-  - Measured on Linux (4-core cloud machine, `--optimized`, 9 interleaved runs of the binaries before and after,
-    medians, microseconds per tick):
+  - Measured on Linux (4-core cloud machine, `--optimized`, interleaved runs of the binaries, medians, microseconds
+    per tick):
 
-    | Benchmark | Before | After |
-    |---|---|---|
-    | `relations_check` | 9,042 | 7,734 |
-    | `server_bench` | 9,749 | 9,977 |
-    | `stress` | 17,386 | 18,244 |
+    | Benchmark | Before the runner (`13e5890` with the operator rewrite) | Runner (`0a82f42`) | Runner plus settling after a large flush |
+    |---|---|---|---|
+    | `relations_check` | 10,677 | 7,992 | 7,499 |
+    | `server_bench` | 10,967 | 11,423 | 10,972 |
+    | `stress` | 18,613 | 19,314 | 17,655 |
 
-    `relations_check` gains from rows that are only read no longer being written back. `server_bench`'s stages are
-    unchanged (its rows are written whole). `stress`'s stages and systems take the same time; the difference is one
-    tick of each parallel run losing about 19 ms between stages, in `Columns.release_buried` with nothing buried, no
-    system call and no page fault (total CPU time is the same), which the build before never shows: to look into on
-    Windows before trusting either number.
+    9 interleaved rounds of the three builds on 2026-10-02, load average about 0.6 to 1.1 (other streams idle).
+    `relations_check` gains from rows that are only read no longer being written back. The `stress` and
+    `server_bench` losses were not the runner: glibc keeps the small blocks a spawn frees (1.2 million for
+    `stress`'s 200,000 bundles) in its fastbins and merges them all at once, about 20 ms for `stress`, at the first
+    later malloc of 1 KB or more or free that leaves a 64 KB block. Before the runner that happened to fall after
+    the timed ticks (in the profile's JSON); after it, in one tick (`Columns.release_buried` freeing its key list).
+    With `GLIBC_TUNABLES=glibc.malloc.mxfast=0` the three builds tie. `World.flush` now settles the allocator after
+    applying 4,096 changes or more (one 4 KB allocation, freed), so the merge lands in the spawn's flush, and a spawn
+    no longer deep-copies inline components before copying them into the column. Whether Windows' heap defers its
+    merging the same way is not measured yet.
+
 - Which bundle class a value is cannot yet be asked reliably at run time (both forms are language bugs, D237), so a
   bundle the typed spawn path does not recognise takes the reflective path (`attribute.value` walked at run time),
   which is correct and slower: 200,000 bodies of four components in about 650 ms, against about 190 ms typed.
@@ -170,6 +187,7 @@ field instead of by class need accesses per piece rather than per argument.
 | short strings inline (D203), production builds without debug machinery | 42 ms parallel; spawning 200,000 bodies 510 ms |
 | stress components stored inline, single-row systems on the `Stream` fast path (2026-09-26, D221) | about 8 ms |
 | Spite's reader-side singleton locks, lock skipped when no `Parallel` runs (2026-09-28) | 11.7 to 9.7 ms |
+| runner on `function.accesses`, then a large flush settles the allocator (2026-10-02, Linux 4-core cloud machine, so not comparable with the rows above) | 19.3 to 17.7 ms |
 
 ### Where the time went (estimated, 2026-09-25)
 

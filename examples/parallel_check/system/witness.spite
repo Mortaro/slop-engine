@@ -1,0 +1,21 @@
+type Aged {
+    entity: Entity
+    age: Component.Age
+}
+
+var world = World()
+var armors = Lookup<Component.Armor>()
+var witnessed = Lookup<Component.Witnessed>()
+
+func update_all(aged: List<Aged>) {
+    var seen = witnessed.of(world.entity)
+    crash seen
+    var index = 0
+    while index < aged.count() {
+        var armor = armors.of(aged[index].entity.id)
+        crash armor
+        seen.total = (seen.total + armor.value * (aged[index].age.ticks + 1)) % 1000003
+        index = index + 1
+    }
+    seen.runs = seen.runs + 1
+}
