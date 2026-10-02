@@ -24,6 +24,12 @@ var material_faces = -1
 var images = List<String>()
 var image_bytes = List<Asset.Bytes>()
 var image_paths = List<String>()
+var map_images = List<String>()
+var map_image_bytes = List<Asset.Bytes>()
+var map_image_paths = List<String>()
+var material_view = Blend.View()
+var tree_links = List<Blend.View>()
+var found_channel = 0
 
 func read(source: Blend.File, object: Blend.View, bone_names: List<String>): Asset.Mesh {
     file = source
@@ -67,6 +73,7 @@ func read(source: Blend.File, object: Blend.View, bone_names: List<String>): Ass
         material = material + 1
     }
     read_materials(data, material_count)
+    mesh.compute_tangents()
     return mesh
 }
 
@@ -459,6 +466,8 @@ func read_materials(data: Blend.View, material_count: Integer) {
         image_bytes.append(empty)
         image_paths.append("")
         mesh.textures.append("")
+        var painted = Asset.Material()
+        mesh.materials.append(painted)
         read_material(materials_offset, material)
         material = material + 1
     }
@@ -470,66 +479,299 @@ func read_material(materials_offset: Integer, material: Integer) {
     assert material_address != 0
     var found = file.view_at(material_address)
     crash found
+    material_view = found
     file.enter(found)
+    crash mesh.materials[material]
+    var settings = mesh.materials[material]
+    var flags = found.small_integer("blend_flag")
+    settings.two_sided = flags.bits_and(4) == 0
+    settings.translucent = found.small_integer("surface_render_method") == 1
     var tree_address = found.pointer("nodetree")
     assert tree_address != 0
     var tree = file.view_at(tree_address)
     crash tree
     var links_list = tree.inner("links")
-    var links = file.list_views(links_list)
-    var index = 0
-    while index < links.count() {
-        read_link(links[index], material)
-        index = index + 1
-    }
-}
-
-func read_link(link: Blend.View, material: Integer) {
-    var to_address = link.pointer("tonode")
-    var to_socket_address = link.pointer("tosock")
-    var to = file.view_at(to_address)
-    var to_socket = file.view_at(to_socket_address)
-    crash to
-    crash to_socket
-    assert to.text("idname") == "ShaderNodeBsdfPrincipled"
-    var socket = to_socket.text("identifier")
-    if socket == "Alpha" {
-        mesh.masked_materials.append(material)
+    tree_links = file.list_views(links_list)
+    var surface_address = surface_node()
+    assert surface_address != 0
+    var surface = file.view_at(surface_address)
+    crash surface
+    var kind = surface.text("idname")
+    if kind == "ShaderNodeEmission" {
+        read_emission(surface_address, surface, material, settings)
         return
     }
-    assert socket == "Base Color"
-    var from_address = link.pointer("fromnode")
-    var from = file.view_at(from_address)
+    var surface_is_a_principled_bsdf_or_an_emission = kind == "ShaderNodeBsdfPrincipled"
+    crash surface_is_a_principled_bsdf_or_an_emission
+    read_principled(surface_address, surface, material, settings)
+}
+
+func surface_node(): Long {
+    var index = 0
+    while index < tree_links.count() {
+        var link = tree_links[index]
+        var to = link.follow("tonode")
+        var socket = link.follow("tosock")
+        crash to
+        crash socket
+        if to.text("idname") == "ShaderNodeOutputMaterial" and socket.text("identifier") == "Surface" {
+            return link.pointer("fromnode")
+        }
+        index = index + 1
+    }
+    index = 0
+    while index < tree_links.count() {
+        var into = tree_links[index].follow("tonode")
+        crash into
+        if into.text("idname") == "ShaderNodeBsdfPrincipled" {
+            return tree_links[index].pointer("tonode")
+        }
+        index = index + 1
+    }
+    return 0
+}
+
+func link_into(node_address: Long, identifier: String): Blend.View? {
+    var index = 0
+    while index < tree_links.count() {
+        var link = tree_links[index]
+        if link.pointer("tonode") == node_address {
+            var socket = link.follow("tosock")
+            crash socket
+            if socket.text("identifier") == identifier {
+                return link
+            }
+        }
+        index = index + 1
+    }
+    return null
+}
+
+func socket_value(node: Blend.View, identifier: String, component: Integer): Float {
+    var inputs = node.inner("inputs")
+    var sockets = file.list_views(inputs)
+    var index = 0
+    while index < sockets.count() {
+        var socket = sockets[index]
+        if socket.text("identifier") == identifier {
+            var value = socket.follow("default_value")
+            crash value
+            return value.float_at("value", component)
+        }
+        index = index + 1
+    }
+    var socket_is_on_the_node = identifier == ""
+    crash socket_is_on_the_node
+    return 0.0
+}
+
+func read_principled(address: Long, node: Blend.View, material: Integer, settings: Asset.Material) {
+    var base = link_into(address, "Base Color")
+    if base {
+        var from = base.follow("fromnode")
+        crash from
+        var base_color_is_an_image = from.text("idname") == "ShaderNodeTexImage"
+        crash base_color_is_an_image
+        read_image_node(from, material)
+    } else {
+        settings.base_red = socket_value(node, "Base Color", 0)
+        settings.base_green = socket_value(node, "Base Color", 1)
+        settings.base_blue = socket_value(node, "Base Color", 2)
+    }
+    read_alpha(address, node, material, settings)
+    var roughness = link_into(address, "Roughness")
+    if roughness {
+        settings.roughness_map = map_source(roughness)
+        settings.roughness_channel = found_channel
+    } else {
+        settings.roughness = socket_value(node, "Roughness", 0)
+    }
+    var metallic = link_into(address, "Metallic")
+    if metallic {
+        settings.metallic_map = map_source(metallic)
+        settings.metallic_channel = found_channel
+    } else {
+        settings.metallic = socket_value(node, "Metallic", 0)
+    }
+    settings.specular = socket_value(node, "Specular IOR Level", 0)
+    read_normal(address, settings)
+    read_emission_color(address, node, settings)
+}
+
+func read_alpha(address: Long, node: Blend.View, material: Integer, settings: Asset.Material) {
+    var alpha = link_into(address, "Alpha")
+    if not alpha {
+        settings.opacity = socket_value(node, "Alpha", 0)
+        return
+    }
+    if not settings.translucent {
+        mesh.masked_materials.append(material)
+    }
+    var from = alpha.follow("fromnode")
     crash from
-    var from_kind = from.text("idname")
-    var base_color_is_an_image = from_kind == "ShaderNodeTexImage"
-    crash base_color_is_an_image
-    read_image_node(from, material)
+    crash images[material]
+    var base_name = images[material]
+    var from_image = from.text("idname") == "ShaderNodeTexImage"
+    if from_image {
+        var name = image_name(from)
+        if name == base_name {
+            settings.opacity_from_base = true
+            settings.opacity_channel = channel_of_image_output(alpha)
+            return
+        }
+    }
+    settings.opacity_map = map_source(alpha)
+    settings.opacity_channel = found_channel
+}
+
+func read_normal(address: Long, settings: Asset.Material) {
+    var normal = link_into(address, "Normal")
+    assert normal
+    var from = normal.follow("fromnode")
+    crash from
+    var normal_is_a_normal_map_node = from.text("idname") == "ShaderNodeNormalMap"
+    crash normal_is_a_normal_map_node
+    var storage = from.follow("storage")
+    crash storage
+    var normal_map_is_in_tangent_space = storage.integer("space") == 0
+    crash normal_map_is_in_tangent_space
+    settings.normal_strength = socket_value(from, "Strength", 0)
+    var mapping_address = normal.pointer("fromnode")
+    var color = link_into(mapping_address, "Color")
+    crash color
+    settings.normal = map_source(color)
+}
+
+func read_emission_color(address: Long, node: Blend.View, settings: Asset.Material) {
+    var strength = socket_value(node, "Emission Strength", 0)
+    var color = link_into(address, "Emission Color")
+    if color {
+        settings.emissive_map = map_source(color)
+        settings.emissive_red = strength
+        settings.emissive_green = strength
+        settings.emissive_blue = strength
+        return
+    }
+    settings.emissive_red = socket_value(node, "Emission Color", 0) * strength
+    settings.emissive_green = socket_value(node, "Emission Color", 1) * strength
+    settings.emissive_blue = socket_value(node, "Emission Color", 2) * strength
+}
+
+func read_emission(address: Long, node: Blend.View, material: Integer, settings: Asset.Material) {
+    settings.unlit = true
+    var strength = socket_value(node, "Strength", 0)
+    settings.emissive_red = strength
+    settings.emissive_green = strength
+    settings.emissive_blue = strength
+    var color = link_into(address, "Color")
+    if color {
+        var from = color.follow("fromnode")
+        crash from
+        var emission_color_is_an_image = from.text("idname") == "ShaderNodeTexImage"
+        crash emission_color_is_an_image
+        read_image_node(from, material)
+        return
+    }
+    settings.base_red = socket_value(node, "Color", 0)
+    settings.base_green = socket_value(node, "Color", 1)
+    settings.base_blue = socket_value(node, "Color", 2)
+}
+
+func channel_of_image_output(link: Blend.View): Integer {
+    var socket = link.follow("fromsock")
+    crash socket
+    if socket.text("identifier") == "Alpha" {
+        return 3
+    }
+    return 0
+}
+
+func map_source(link: Blend.View): String {
+    var from = link.follow("fromnode")
+    crash from
+    var kind = from.text("idname")
+    if kind == "ShaderNodeTexImage" {
+        found_channel = channel_of_image_output(link)
+        return map_image(from)
+    }
+    var socket = link.follow("fromsock")
+    crash socket
+    var output = socket.text("identifier")
+    var map_is_an_image_or_a_separated_channel = kind == "ShaderNodeSeparateColor" or kind == "ShaderNodeSeparateRGB"
+    crash map_is_an_image_or_a_separated_channel
+    var channel = 0
+    if output == "Green" or output == "G" {
+        channel = 1
+    }
+    if output == "Blue" or output == "B" {
+        channel = 2
+    }
+    var input = "Color"
+    if kind == "ShaderNodeSeparateRGB" {
+        input = "Image"
+    }
+    var separator_address = link.pointer("fromnode")
+    var source = link_into(separator_address, input)
+    crash source
+    var image = source.follow("fromnode")
+    crash image
+    var separated_channel_is_of_an_image = image.text("idname") == "ShaderNodeTexImage"
+    crash separated_channel_is_of_an_image
+    found_channel = channel
+    return map_image(image)
+}
+
+func image_name(node: Blend.View): String {
+    var image_address = node.pointer("id")
+    var image_node_has_an_image = image_address != 0
+    crash image_node_has_an_image
+    var image = file.view_at(image_address)
+    crash image
+    var name = file.id_name(image)
+    return name
+}
+
+func map_image(node: Blend.View): String {
+    var name = image_name(node)
+    if map_images.contains(name) {
+        return name
+    }
+    map_images.append(name)
+    var bytes = Asset.Bytes()
+    var path = copy_image(node, bytes)
+    map_image_bytes.append(bytes)
+    map_image_paths.append(path)
+    return name
+}
+
+func copy_image(node: Blend.View, bytes: Asset.Bytes): String {
+    var image_address = node.pointer("id")
+    var image = file.view_at(image_address)
+    crash image
+    file.enter(image)
+    var packed_address = image.pointer("packedfile")
+    if packed_address == 0 {
+        var external = image.text("name")
+        file.enter(material_view)
+        return external
+    }
+    var packed = file.view_at(packed_address)
+    crash packed
+    var size = packed.integer("size")
+    var data_address = packed.pointer("data")
+    var data_offset = block_offset(data_address)
+    var packed_data_is_in_the_file = data_offset >= 0
+    crash packed_data_is_in_the_file
+    bytes.write_bytes(file.bytes.address + data_offset, size)
+    file.enter(material_view)
+    return ""
 }
 
 func read_image_node(node: Blend.View, material: Integer) {
     crash images[material]
     var one_base_color = images[material].is_empty()
     crash one_base_color
-    var image_address = node.pointer("id")
-    assert image_address != 0
-    var image = file.view_at(image_address)
-    crash image
-    file.enter(image)
-    var name = file.id_name(image)
-    images[material] = name
-    var packed_address = image.pointer("packedfile")
-    if packed_address == 0 {
-        var external = image.text("name")
-        image_paths[material] = external
-        return
-    }
-    var packed = file.view_at(packed_address)
-    crash packed
-    var size = packed.integer("size")
-    var data_address_3 = packed.pointer("data")
-    var data_offset = block_offset(data_address_3)
-    assert data_offset >= 0
+    images[material] = image_name(node)
     crash image_bytes[material]
-    image_bytes[material].write_bytes(file.bytes.address + data_offset, size)
+    image_paths[material] = copy_image(node, image_bytes[material])
 }

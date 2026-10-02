@@ -42,7 +42,7 @@ renderer.gpu_timings.end(timing)
 A frame's results are read when its fence is waited on, two frames later, so timing never stalls the GPU. Each
 name's average accumulates until `renderer.gpu_timings.clear()`; `average_milliseconds(name)` reads one and
 `describe()` lists every pass in microseconds. The engine times `frame` (the whole command buffer), `shadows`,
-`scene`, `tone map` and `ui`. `examples/render_bench` prints them for a fixed scene (optimized, 1920x1080, RTX 3090):
+`scene`, `decals` and `translucent` (each only on a frame that has some), `tone map` and `ui`. `examples/render_bench` prints them for a fixed scene (optimized, 1920x1080, RTX 3090):
 
 ```
 frame 527 us

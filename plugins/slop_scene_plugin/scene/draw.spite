@@ -6,3 +6,6 @@ var first_index = 0
 var index_count = 0
 var section = 0
 var masked = false
+var material = 0
+var translucent = false
+var fade: Float = 1.0

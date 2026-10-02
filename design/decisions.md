@@ -94,6 +94,21 @@ parts are Claude's proposals. Mortaro decides the API; a proposal stays marked h
 ## [scene.md](../docs/scene.md)
 
 - `mesh.add_section` (a proposal by Claude).
+- Materials (game alerts A54, A90, A49, A70; a proposal by Claude, unconfirmed): an `Asset.Material` per slot beside
+  `Asset.Mesh.textures`, which stays the base image so older recipes still cook; maps are named by image until the
+  recipe calls `rename_map`; Blender's Backface Culling decides one-sided and its Render Method decides translucent,
+  since Blender is the editor; an Emission surface is Unreal's unlit shading model; emission is in nits and exposed
+  like the sun, as Unreal's is with physical lighting; time-driven parameters are pushed per frame in double
+  precision instead of a time uniform, so they never wrap.
+- Two-sided is the default for meshes that name no material, as every mesh was drawn before; Unreal's default is
+  one-sided, and Blender's (Backface Culling off) is two-sided (a proposal by Claude).
+- `Scene.Component.DitherFade { opacity }`, default 0.65 as Unreal's occluder fade, a 4x4 Bayer screen door with no
+  temporal jitter since there is no TAA yet (a proposal by Claude).
+- Decals are box entities projecting along local y with the transform as the box, Unreal's deferred decal done as a
+  forward pass over the depth buffer; `Scene.Component.Unlit` on a decal keeps only its emission (a proposal by
+  Claude).
+- The lean and full scene shader variants (a specialisation constant) keep plain materials as cheap as the one-image
+  shader (a proposal by Claude).
 - Bone attachments (a proposal by Claude, for Mortaro to decide).
 - The terrain shader is a port of the first game's Unreal `M_Terrain`, whose roughness and specular are 1 and 0.
 

@@ -1,0 +1,105 @@
+type Started {
+    frame: Added<Component.Frame>
+}
+
+var world = World()
+var environment = Environment()
+var placed = [
+    "plain"
+    "bumpright"
+    "bumpleft"
+    "metal"
+    "glow"
+    "unlit"
+    "onesided"
+    "twosided"
+    "backdrop"
+    "glass"
+    "scroll"
+]
+
+func update_each(_started: Started) {
+    var window_bundle = Window.Bundle.Window()
+    window_bundle.window.title = "Materials check"
+    window_bundle.window.width = environment.width
+    window_bundle.window.height = environment.height
+    var window_entity = world.create_entity_from_bundle(window_bundle)
+    if not environment.show_window {
+        var hidden = Window.Component.Hidden()
+        window_entity.add_component(hidden)
+    }
+    var dusk = Lighting.Bundle.Daylight()
+    dusk.sun.direction_x = -0.7071068
+    dusk.sun.direction_y = -0.7071068
+    dusk.sun.direction_z = 0.0
+    dusk.sun.illuminance = 3.0
+    dusk.sky.luminance = 0.2
+    dusk.sky.ground_luminance = 0.1
+    dusk.fog.density = 0.0
+    dusk.exposure.value = 0.0
+    world.create_entity_from_bundle(dusk)
+    var camera_entity = world.create_entity()
+    var camera = Camera.Component.Camera()
+    camera.eye_x = 0.0
+    camera.eye_y = 14.0
+    camera.eye_z = 3.5
+    camera.target_x = 0.0
+    camera.target_y = 0.0
+    camera.target_z = 0.75
+    camera_entity.add_component(camera)
+    var index = 0
+    while index < placed.count() {
+        model(placed[index], 0.0, 0.0, 0.0)
+        index = index + 1
+    }
+    model("glass_pulse", 3.0, 0.0, 0.0)
+    model("backdrop", 3.0, 0.0, 0.0)
+    var faded = model("box", 0.0, 0.5, 1.5)
+    var fade = Scene.Component.DitherFade()
+    fade.opacity = 0.5
+    faded.add_component(fade)
+    var slab = model("box", 2.25, -0.05, 1.5)
+    var slab_transform = Transform.Component.Transform()
+    slab_transform.position_x = 2.25
+    slab_transform.position_y = -0.05
+    slab_transform.position_z = 1.5
+    slab_transform.scale_x = 1.5
+    slab_transform.scale_y = 0.1
+    slab_transform.scale_z = 1.2
+    slab.add_component(slab_transform)
+    add_decal()
+}
+
+func model(name: String, at_x: Float, at_y: Float, at_z: Float): Entity {
+    var entity = world.create_entity()
+    var drawn = Scene.Component.Model()
+    drawn.mesh = "materials.{name}"
+    entity.add_component(drawn)
+    var transform = Transform.Component.Transform()
+    transform.position_x = at_x
+    transform.position_y = at_y
+    transform.position_z = at_z
+    entity.add_component(transform)
+    return entity
+}
+
+func add_decal() {
+    var entity = world.create_entity()
+    var decal = Scene.Component.Decal()
+    decal.texture = "materials.texture.glow"
+    decal.red = 1.0
+    decal.green = 1.0
+    decal.blue = 1.0
+    decal.emissive = 1.0
+    entity.add_component(decal)
+    var unlit = Scene.Component.Unlit()
+    entity.add_component(unlit)
+    var transform = Transform.Component.Transform()
+    transform.position_x = 2.0
+    transform.position_y = 0.0
+    transform.position_z = 1.5
+    transform.scale_x = 0.6
+    transform.scale_y = 1.0
+    transform.scale_z = 0.6
+    entity.add_component(transform)
+}

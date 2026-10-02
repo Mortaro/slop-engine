@@ -7,6 +7,8 @@ func build() {
     glsl.compile(root, "shader.scene.fragment", "frag")
     glsl.compile(root, "shader.scene.terrain", "frag")
     glsl.compile(root, "shader.shadow.fragment", "frag")
+    glsl.compile(root, "shader.decal.vertex", "vert")
+    glsl.compile(root, "shader.decal.fragment", "frag")
     glsl.compile(root, "shader.tone_map.vertex", "vert")
     glsl.compile(root, "shader.tone_map.fragment", "frag")
 }

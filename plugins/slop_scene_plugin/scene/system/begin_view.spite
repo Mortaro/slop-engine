@@ -9,12 +9,15 @@ type Viewing {
 
 var cameras = Lookup<Component.ViewCamera>()
 var draws = Scene.Draws()
+var world = World()
 
 func prepare_each(target: Target, viewing: Viewing) {
     var view = target.view
     var owner = target.entity
     var drawn = draws.of(owner.id)
     drawn.begin()
+    var milliseconds: Double = world.now()
+    drawn.seconds = milliseconds / 1000.0
     var existing = cameras.of(owner.id)
     if existing {
         existing.look_through(viewing.camera)

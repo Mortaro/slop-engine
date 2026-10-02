@@ -1,10 +1,15 @@
 var draws = List<Scene.Draw>()
+var translucent_draws = List<Scene.Draw>()
 var terrain_draws = List<Scene.TerrainDraw>()
+var decals = List<Scene.DecalDraw>()
 var palettes = List<Math.Matrix4>()
+var seconds: Double = 0.0
 
 func begin() {
     draws.clear()
+    translucent_draws.clear()
     terrain_draws.clear()
+    decals.clear()
     palettes.clear()
     var identity = Math.Matrix4()
     palettes.append(identity)

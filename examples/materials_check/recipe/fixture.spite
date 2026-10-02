@@ -1,0 +1,175 @@
+var cache = Recipes.Cache()
+var cookbook = Recipes.Cookbook()
+var decoder = Png.Decoder()
+var version = "materials 1"
+var objects = [
+    "Plain"
+    "BumpRight"
+    "BumpLeft"
+    "Metal"
+    "Glow"
+    "Unlit"
+    "OneSided"
+    "TwoSided"
+    "Backdrop"
+    "Glass"
+    "Scroll"
+]
+var cooked_textures = List<String>()
+
+func build() {
+    var folder = class.source_folder()
+    var path = "{folder}/../materials.blend"
+    cookbook.note_source(path)
+    var source = File(path)
+    var size = source.size()
+    var modified = source.modified()
+    crash size
+    crash modified
+    var fingerprint = cache.fingerprint("{version} {size} {modified}")
+    assert not all_current(fingerprint)
+    var file = Blend.File()
+    file.open(path)
+    var index = 0
+    while index < objects.count() {
+        cook_object(file, objects[index], fingerprint)
+        index = index + 1
+    }
+    cook_box(fingerprint)
+}
+
+func all_current(fingerprint: String): Boolean {
+    var current = cache.is_current("materials.box", fingerprint)
+    current = current and cache.is_current("materials.glass_pulse", fingerprint)
+    var index = 0
+    while index < objects.count() {
+        var name = objects[index].lower_case()
+        current = current and cache.is_current("materials.{name}", fingerprint)
+        index = index + 1
+    }
+    return current
+}
+
+func cook_object(file: Blend.File, name: String, fingerprint: String) {
+    var object = object_named(file, name)
+    var reader = Blend.MeshReader()
+    var bones = List<String>()
+    var mesh = reader.read(file, object, bones)
+    var slot = 0
+    while slot < reader.images.count() {
+        crash reader.image_bytes[slot]
+        var image = reader.images[slot]
+        if not image.is_empty() {
+            var id = "materials.texture.{image}"
+            mesh.textures[slot] = id
+            cook_texture(id, reader.image_bytes[slot], fingerprint)
+        }
+        slot = slot + 1
+    }
+    var map = 0
+    while map < reader.map_images.count() {
+        crash reader.map_image_bytes[map]
+        var map_image = reader.map_images[map]
+        var map_id = "materials.texture.{map_image}"
+        mesh.rename_map(map_image, map_id)
+        cook_texture(map_id, reader.map_image_bytes[map], fingerprint)
+        map = map + 1
+    }
+    var lower = name.lower_case()
+    if name == "Scroll" {
+        crash mesh.materials[0]
+        mesh.materials[0].scroll_across = 0.5
+    }
+    put(mesh, "materials.{lower}", fingerprint)
+    if name == "Glass" {
+        crash mesh.materials[0]
+        mesh.materials[0].pulse_speed = 0.5
+        mesh.materials[0].pulse_minimum = 0.0
+        put(mesh, "materials.glass_pulse", fingerprint)
+    }
+}
+
+func put(mesh: Asset.Mesh, id: String, fingerprint: String) {
+    var bytes = Asset.Bytes()
+    var pack = Pack<Asset.Mesh>()
+    pack.encode(mesh, bytes)
+    cache.put(id, fingerprint, bytes)
+}
+
+func cook_texture(id: String, png: Asset.Bytes, fingerprint: String) {
+    assert not cooked_textures.contains(id)
+    cooked_textures.append(id)
+    var texture = decoder.decode(png)
+    crash texture
+    var bytes = Asset.Bytes()
+    var pack = Pack<Asset.Texture>()
+    pack.encode(texture, bytes)
+    cache.put(id, fingerprint, bytes)
+}
+
+func cook_box(fingerprint: String) {
+    var mesh = Asset.Mesh()
+    face(mesh, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0)
+    face(mesh, 0.0, 0.0, -1.0, -1.0, 0.0, 0.0, 0.0, 1.0, 0.0)
+    face(mesh, 1.0, 0.0, 0.0, 0.0, 0.0, -1.0, 0.0, 1.0, 0.0)
+    face(mesh, -1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0)
+    face(mesh, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, -1.0)
+    face(mesh, 0.0, -1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0)
+    var index_count = mesh.indices.count()
+    mesh.add_section(0, index_count, "materials.texture.grey")
+    put(mesh, "materials.box", fingerprint)
+}
+
+func face(
+    mesh: Asset.Mesh,
+    normal_x: Float,
+    normal_y: Float,
+    normal_z: Float,
+    side_x: Float,
+    side_y: Float,
+    side_z: Float,
+    up_x: Float,
+    up_y: Float,
+    up_z: Float,
+) {
+    var first = mesh.vertices.count() / 8
+    var corners = [-0.5, -0.5, 0.5, -0.5, 0.5, 0.5, -0.5, 0.5]
+    var corner = 0
+    while corner < 4 {
+        crash corners[corner * 2]
+        crash corners[corner * 2 + 1]
+        var across = corners[corner * 2]
+        var rise = corners[corner * 2 + 1]
+        mesh.vertices.append(normal_x * 0.5 + side_x * across + up_x * rise)
+        mesh.vertices.append(normal_y * 0.5 + side_y * across + up_y * rise)
+        mesh.vertices.append(normal_z * 0.5 + side_z * across + up_z * rise)
+        mesh.vertices.append(normal_x)
+        mesh.vertices.append(normal_y)
+        mesh.vertices.append(normal_z)
+        mesh.vertices.append(across + 0.5)
+        mesh.vertices.append(0.5 - rise)
+        corner = corner + 1
+    }
+    mesh.indices.append(first)
+    mesh.indices.append(first + 1)
+    mesh.indices.append(first + 2)
+    mesh.indices.append(first)
+    mesh.indices.append(first + 2)
+    mesh.indices.append(first + 3)
+}
+
+func object_named(file: Blend.File, name: String): Blend.View {
+    var blocks = file.blocks_coded("OB")
+    var found = -1
+    var index = 0
+    while index < blocks.count() {
+        var view = file.view_of(blocks[index])
+        if file.id_name(view) == name {
+            found = index
+        }
+        index = index + 1
+    }
+    var block = blocks[found]
+    crash block
+    return file.view_of(block)
+}

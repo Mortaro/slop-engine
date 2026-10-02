@@ -1,0 +1,42 @@
+type Target {
+    entity: Entity
+    view: Component.View
+    camera: Component.ViewCamera
+}
+
+type Projected {
+    entity: Entity
+    decal: Component.Decal
+    transform: Transform.Component.Transform
+}
+
+var textures = Render.Textures()
+var draws = Scene.Draws()
+var unlit = Lookup<Component.Unlit>()
+var scalar = Math.Scalar()
+
+func render_each(target: Target, projected: Projected) {
+    var transform = projected.transform
+    var reach = scalar.absolute(transform.scale_x)
+    var tall = scalar.absolute(transform.scale_y)
+    var deep = scalar.absolute(transform.scale_z)
+    reach = scalar.maximum(reach, tall)
+    reach = scalar.maximum(reach, deep)
+    target.view.cone.place_point(transform.position_x, transform.position_y, transform.position_z)
+    assert target.view.cone.contains(reach * 0.8660254)
+    var decal = projected.decal
+    var drawn = draws.of(target.entity.id)
+    var draw = Scene.DecalDraw()
+    draw.model = transform.matrix()
+    draw.inverse = draw.model.inverted()
+    if not decal.texture.is_empty() {
+        draw.texture_slot = textures.request(decal.texture)
+    }
+    draw.red = decal.red
+    draw.green = decal.green
+    draw.blue = decal.blue
+    draw.opacity = decal.opacity
+    draw.emissive = decal.emissive
+    draw.unlit = unlit.has(projected.entity.id)
+    drawn.decals.append(draw)
+}

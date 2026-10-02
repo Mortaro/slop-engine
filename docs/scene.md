@@ -11,15 +11,15 @@ with `spite kal_character --kal-assets=<folder>`.
 |---|---|---|
 | `slop_transform_plugin` | `Transform` | `Transform.Component.Transform`: position, a rotation quaternion and scale |
 | `slop_camera_plugin` | `Camera` | `Camera.Component.Camera` (eye, target, field of view, near, far) and `Camera.Component.Orbit` with the `AimOrbit` system |
-| `slop_scene_plugin` | `Scene` | `Scene.Component.Model` (a mesh id) and, on an animated model, `Scene.Component.Skin` (its `Scene.Pose`: the bone palette and each bone's pose, asset data rewritten every frame); `Scene.Component.View` on each window, whose draws, terrain draws and palettes for the frame live in the `Scene.Draws` resource (`draws.of(view)`, a `Scene.DrawSet` per view); the `Scene.Meshes` and `Scene.TerrainMaterials` resources, which give each mesh and terrain material an entity (`Scene.Component.Mesh`, `Scene.Component.TerrainMaterial`, marked `Component.Loading` while a job runs and `TerrainTexturesRequested` once its control textures are asked for); and `Scene.Component.ViewCamera` (the view matrix, field of view, near, far, eye and shadow centre) while a camera exists; `Gather` collects the camera, the models and the lighting every frame |
-| `slop_scene_vulkan_plugin` | `SceneVulkan` | the Vulkan passes: sun shadow map, lit scene into HDR, tone map into the frame, then the UI draws on top; `SceneVulkan.MeshRenderer` is a resource (singleton) holding the passes and the per-frame buffers; each mesh's entity gets `SceneVulkan.Component.GpuMesh` (its vertex and index buffers) and each texture's `SceneVulkan.Component.SceneTexture` (its scene-sampler descriptor set); `SceneVulkan.Component.MeshRendererCreated` marks the world entity once the passes are built |
+| `slop_scene_plugin` | `Scene` | `Scene.Component.Model` (a mesh id), `Scene.Component.DitherFade`, `Scene.Component.Decal` and `Scene.Component.Unlit` (see [Materials](#materials)) and, on an animated model, `Scene.Component.Skin` (its `Scene.Pose`: the bone palette and each bone's pose, asset data rewritten every frame); `Scene.Component.View` on each window, whose draws, terrain draws and palettes for the frame live in the `Scene.Draws` resource (`draws.of(view)`, a `Scene.DrawSet` per view); the `Scene.Meshes` and `Scene.TerrainMaterials` resources, which give each mesh and terrain material an entity (`Scene.Component.Mesh`, `Scene.Component.TerrainMaterial`, marked `Component.Loading` while a job runs and `TerrainTexturesRequested` once its control textures are asked for); and `Scene.Component.ViewCamera` (the view matrix, field of view, near, far, eye and shadow centre) while a camera exists; `Gather` collects the camera, the models and the lighting every frame |
+| `slop_scene_vulkan_plugin` | `SceneVulkan` | the Vulkan passes: sun shadow map, lit scene into HDR, decals and translucent sections over it, tone map into the frame, then the UI draws on top; `SceneVulkan.MeshRenderer` is a resource (singleton) holding the passes and the per-frame buffers; each mesh's entity gets `SceneVulkan.Component.GpuMesh` (its vertex and index buffers) and each texture's `SceneVulkan.Component.SceneTexture` (its scene-sampler descriptor set); `SceneVulkan.Component.MeshRendererCreated` marks the world entity once the passes are built |
 | `slop_animation_plugin` | `Animation` | `Animation.Component.Animator` (skeleton, clip, time, speed), looping unless the entity has the marker `Animation.Component.PlayOnce`; `Animate` samples the clip into the model's `Skin`, adding one the first time |
 | `slop_lighting_plugin` | `Lighting` | `Sun`, `Sky`, `HeightFog` and `Exposure` components and a `Daylight` bundle, written into each view; `PointLight` and `SpotLight` components gathered into `Scene.Lights` |
 | `slop_blend_plugin` | `Blend` | `MeshReader`, `SkeletonReader` and `ActionReader`: what a recipe needs from a `.blend` |
 | `slop_png_plugin` | `Png` | a PNG decoder, pixel-exact against Pillow, for the images packed in a `.blend` |
 
 `slop/` itself gains only neutral pieces:
-- the assets: `Asset.Mesh`, `Asset.Skeleton` and `Asset.Animation`;
+- the assets: `Asset.Mesh` (with an `Asset.Material` per slot), `Asset.Skeleton` and `Asset.Animation`;
 - `Recipes.AssetSlots<T>`, which loads any cooked asset on the thread pool;
 - the maths: `Math.Scalar`, `Math.Matrix4`, `Math.Pose` and `Math.Vector3`.
 
@@ -51,14 +51,24 @@ What the readers do:
   - Faces are grouped by their `material_index`, one section per material slot. `Asset.Mesh.sections` holds
     three numbers per section (first index, index count, material slot), and `Asset.Mesh.textures` one texture
     id per material slot, which the recipe fills.
-  - Each material's image is the image-texture node linked to the Principled BSDF's Base Color. A Base Color
-    fed by anything but an image node crashes the cook, so a material the reader does not understand is never drawn
-    wrong in silence. `MeshReader.images` has the image's name per slot,
-    `image_bytes` its packed file, and `image_paths` the file path when the image is not packed (an external
-    `.psd`, for example), so the recipe can cook it. The path is Blender's own form, the SDNA field `name`:
-    relative to the `.blend` with a leading `//`, and backslashes on Windows. Only the Base Color image is read. A
-    hand-built mesh adds a section with `mesh.add_section(first, count, texture)`.
-  - The renderer draws each section on its own, with its own texture.
+  - Each material's base image is the image-texture node linked to the Principled BSDF's Base Color.
+    `MeshReader.images` has the image's name per slot, `image_bytes` its packed file, and `image_paths` the file
+    path when the image is not packed (an external `.psd`, for example), so the recipe can cook it. The path is
+    Blender's own form, the SDNA field `name`: relative to the `.blend` with a leading `//`, and backslashes on
+    Windows.
+  - The rest of each material goes into `Asset.Mesh.materials`, one `Asset.Material` per slot (see
+    [Materials](#materials)). Every other image a material uses (normal, roughness, metallic, emission and opacity
+    maps) is listed once in `MeshReader.map_images`, with `map_image_bytes` and `map_image_paths`; the material
+    names it by its image name until the recipe cooks it and calls `mesh.rename_map(image, id)`.
+  - A socket fed by a node the reader does not understand crashes the cook, so a material is never drawn wrong in
+    silence.
+  - Tangents are computed for every vertex the MikkTSpace way, as Blender bakes normal maps: per triangle from the
+    texture coordinates, weighted by the corner's angle, made perpendicular to the normal, with the bitangent's sign
+    in `w`. A vertex whose triangles disagree on that sign is split. They are in `Asset.Mesh.tangents`, four floats
+    per vertex; a mesh without them gets a tangent perpendicular to its normal when it loads.
+  - A hand-built mesh adds a section with `mesh.add_section(first, count, texture)`, or with its material with
+    `mesh.add_material_section(first, count, texture, material)`.
+  - The renderer draws each section on its own, with its own material.
 - **Skeletons.** Bones are ordered so parents come first. The inverse bind is
   `(to_target · armature_world · arm_mat · to_source)⁻¹`.
 - **Actions.** Layered actions (layers, strips, channel bags) and legacy `curves` are both read.
@@ -127,7 +137,7 @@ with four bones per vertex.
 The scene pass writes pre-exposed radiance into an RGBA16F image. The maths:
 - **Specular:** GGX distribution, height-correlated Smith visibility, Schlick Fresnel with grazing reflectance.
 - **Diffuse:** Lambert.
-- **Material:** a painted default of roughness 0.7, specular 0.5, metallic 0.
+- **Material:** each section's own, below; a mesh that names none gets roughness 0.7, specular 0.5, metallic 0.
 - **Ambient:** a sky and ground hemisphere.
 - **Fog:** exponential height fog by its optical depth along the view ray.
 - **Exposure:** `1 / (1.2 · 2^EV100)`, with EV100 15 by default.
@@ -140,13 +150,101 @@ The sun casts a 2048² shadow map:
 - a slope-scaled depth bias against acne;
 - 3×3 PCF when sampling.
 
+### Materials
+
+`Asset.Material` is what the reader takes from a Principled BSDF (the node feeding the Material Output's Surface):
+
+| Field | From the `.blend` | Default |
+|---|---|---|
+| `base_red`, `base_green`, `base_blue` | Base Color when no image feeds it (linear) | 1 (the image alone) |
+| `normal`, `normal_strength` | a Normal Map node in tangent space feeding Normal: its Color image and Strength | none |
+| `roughness`, or `roughness_map` and `roughness_channel` | Roughness: its value, or the image (or one channel of it) feeding it | 0.7 |
+| `metallic`, or `metallic_map` and `metallic_channel` | Metallic, the same way | 0 |
+| `specular` | Specular IOR Level | 0.5 |
+| `emissive_red`, `emissive_green`, `emissive_blue`, `emissive_map` | Emission Color times Emission Strength, or the image feeding Emission Color times the strength | 0 |
+| `opacity`, or `opacity_map` and `opacity_channel`, or `opacity_from_base` | Alpha: its value, an image, or the base image's own alpha | 1 |
+| `two_sided` | off when the material's Backface Culling is on | on |
+| `translucent` | the material's Render Method is Blended | off |
+| `unlit` | the Surface is an Emission node: its Color (an image, read as the base image, or a colour) times its Strength | off |
+| `scroll_across`, `scroll_down`, `pulse_speed`, `pulse_minimum` | set by the recipe | none |
+
+A map's channel is 0 to 3: an image's Color reads red (a greyscale map), its Alpha reads alpha, and a Separate Color
+(or Separate RGB) node picks one channel, so one packed occlusion, roughness and metallic image feeds both maps.
+
+How the scene shader uses it:
+
+- **Normal maps** are tangent space, green up, as Blender's: the bitangent is `w · (N × T)`, and the strength mixes
+  the mapped normal with the surface's.
+- **Emission** is luminance in nits, exposed like the sun and sky, and added to the lit colour. An **unlit**
+  material is its base colour times its emission, with fog and nothing else.
+- **One-sided** sections cull their back faces in the scene pass; two-sided ones are lit on both sides. The shadow
+  pass draws both faces of everything.
+- **Translucent** sections are blended over the opaque scene after it, sorted back to front by their model's
+  origin, with depth test and no depth write. Their colour is lit like an opaque one and covers by its opacity.
+  They cast no shadow.
+- **Time:** the texture coordinates move by `scroll_across` and `scroll_down` texture widths per second, and the
+  opacity is multiplied by `pulse_minimum + (1 - pulse_minimum) · (0.5 + 0.5 · sin(2π · pulse_speed · t))`, `t`
+  being the game clock (`world.now()`). Both are computed per frame in double precision, so they never jump.
+
+A material with no maps and not unlit is drawn by a lean variant of the scene shader (a specialisation constant
+leaves the map code out), so plain materials cost what a one-texture shader does.
+
 ### Masked materials
 
-A material is masked when its Principled BSDF's Alpha is linked; the reader lists its slot in
-`Asset.Mesh.masked_materials`. A masked section's texels with alpha below 0.3333 are discarded in every pass, as
-Unreal's masked materials clip; every other section is opaque and never discards, whatever its texture's alpha.
-Mipmapping averages a cut-out's alpha, so at a distance chain mail and straps read as solid, as they do in Unreal.
-Nothing dithers.
+A material is masked when its Principled BSDF's Alpha is linked and it is not translucent; the reader lists its slot
+in `Asset.Mesh.masked_materials`. A masked section's pixels whose opacity is below 0.3333 are discarded in every
+pass, as Unreal's masked materials clip; every other section is opaque and never discards, whatever its texture's
+alpha. A hand-built masked section with no opacity source clips on its base image's alpha. Mipmapping averages a
+cut-out's alpha, so at a distance chain mail and straps read as solid, as they do in Unreal.
+
+### Dither fade
+
+`Scene.Component.DitherFade { opacity }` on a model's entity fades it the way Unreal's occluder dither does: a 4×4
+ordered (Bayer) pattern keeps a pixel when its threshold is under the opacity, in the scene and the shadow pass
+alike, so the model and its shadow thin out together. The default opacity is 0.65, Unreal's occluder fade. Remove
+the component to draw the model whole again.
+
+```gdscript
+var fade = Scene.Component.DitherFade()
+fade.opacity = 0.65
+wall.add_component(fade)
+```
+
+### Decals
+
+A decal is an entity with a `Transform` and a `Scene.Component.Decal`; its box is the unit cube scaled, turned
+and placed by the transform, and it projects along its local y (down, unturned). After the opaque scene, the decal
+pass draws each box's back faces and, for every pixel, finds the surface behind it from the depth buffer; a surface
+inside the box takes the decal, with the box's local x and z (from −0.5 to 0.5) as its texture coordinates.
+
+| Field | Means |
+|---|---|
+| `texture` | the image id; empty for plain colour |
+| `red`, `green`, `blue` | the tint, multiplying the image |
+| `opacity` | multiplies the image's alpha; the result covers the surface |
+| `emissive` | luminance in nits of the tinted image, added to it |
+
+The tinted image is lit like an opaque surface (sun and its shadow, lights, sky), with the surface's normal taken
+from the depth buffer. A decal entity with the marker `Scene.Component.Unlit` adds only its emission: an unlit,
+translucent, emissive decal such as a selection ring under a target. Emission is exposed like daylight, so under the
+default EV100 of 15 it takes about 20,000 nits to read as bright as a sunlit white surface.
+
+```gdscript
+var ring = world.create_entity()
+var decal = Scene.Component.Decal()
+decal.texture = "texture.select_ring"
+decal.red = 1.0
+decal.green = 0.05
+decal.blue = 0.05
+decal.emissive = 20000.0
+ring.add_component(decal)
+var unlit = Scene.Component.Unlit()
+ring.add_component(unlit)
+```
+
+A decal is culled against the view like a model, by the sphere around its box. `Scene.LoadedMesh` keeps the
+bind pose's half extents (`half_x`, `half_y`, `half_z`) beside its bounding sphere, so a decal can be sized to a
+mesh's footprint.
 
 **Texture filtering.** Every texture is uploaded with a full mip chain, made on the GPU by blitting each level from the
 one above. Scene textures sample trilinearly with 16× anisotropic filtering (when the device has it) and repeat
