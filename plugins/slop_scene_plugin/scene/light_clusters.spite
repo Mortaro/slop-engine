@@ -17,8 +17,7 @@ var index_count = 0
 var spans = List<Integer>()
 var cursors = List<Integer>()
 var boundaries = List<Float>()
-var scalar = Math.Scalar()
-var eye = Math.Vector3()
+var eye = Vector3(0.0, 0.0, 0.0)
 var ints = TypedMemory<Integer>()
 
 func assign(camera: Scene.Component.ViewCamera, lights: Scene.Lights, aspect: Float) {
@@ -86,14 +85,14 @@ func prepare(camera: Scene.Component.ViewCamera, aspect: Float) {
         far = near * 2.0
     }
     var slice_count: Float = slices
-    slice_scale = slice_count / scalar.logarithm_two(far / near)
-    var tangent = scalar.tangent(camera.field_of_view * 0.5)
+    slice_scale = slice_count / (far / near).logarithm_base_2()
+    var tangent = (camera.field_of_view * 0.5).tangent()
     down_scale = 1.0 / tangent
     across_scale = 1.0 / (tangent * aspect)
     down_tangent = tangent
     across_tangent = tangent * aspect
-    down_norm = scalar.square_root(1.0 + down_tangent * down_tangent)
-    across_norm = scalar.square_root(1.0 + across_tangent * across_tangent)
+    down_norm = (1.0 + down_tangent * down_tangent).square_root()
+    across_norm = (1.0 + across_tangent * across_tangent).square_root()
     visible.clear()
     spans.clear()
     while counts.count() < cluster_count {
@@ -109,7 +108,7 @@ func prepare(camera: Scene.Component.ViewCamera, aspect: Float) {
     var slice = 0
     while slice <= slices {
         var step: Float = slice
-        var growth = scalar.power_of_two(step / slice_scale)
+        var growth = 2.0.power(step / slice_scale)
         boundaries.append(near * growth)
         slice = slice + 1
     }
@@ -120,7 +119,7 @@ func slice_of(depth: Float): Integer {
     if depth <= near {
         return 0
     }
-    var position: Integer = scalar.logarithm_two(depth / near) * slice_scale
+    var position: Integer = (depth / near).logarithm_base_2() * slice_scale
     if position >= slices {
         return slices - 1
     }
@@ -133,13 +132,17 @@ func place_light(camera: Scene.Component.ViewCamera, floats: List<Float>, at: In
     crash floats[at + 1]
     crash floats[at + 2]
     crash floats[at]
-    camera.view.transform_point(eye, floats[at], floats[at + 1], floats[at + 2])
-    var depth = 0.0 - eye.z_value
+    var light_position = Vector3(floats[at], floats[at + 1], floats[at + 2])
+    var from_eye = camera.view.transform_point(light_position)
+    eye.x = from_eye.x
+    eye.y = from_eye.y
+    eye.z = from_eye.z
+    var depth = 0.0 - eye.z
     assert depth + range > 0.0 and depth - range < far
     var side = depth * across_tangent
     var rise = depth * down_tangent
-    var beside = eye.x_value - side < range * across_norm and 0.0 - eye.x_value - side < range * across_norm
-    var within = eye.y_value - rise < range * down_norm and 0.0 - eye.y_value - rise < range * down_norm
+    var beside = eye.x - side < range * across_norm and 0.0 - eye.x - side < range * across_norm
+    var within = eye.y - rise < range * down_norm and 0.0 - eye.y - rise < range * down_norm
     assert beside and within
     var slot = visible.count()
     var first_slice = slice_of(depth - range)
@@ -170,10 +173,10 @@ func place_slice(slot: Integer, slice: Integer, depth: Float, range: Float): Boo
     if farthest > slice_far {
         farthest = slice_far
     }
-    var left = screen_low(eye.x_value - range, closest, farthest) * across_scale
-    var right = screen_high(eye.x_value + range, closest, farthest) * across_scale
-    var bottom = screen_low(eye.y_value - range, closest, farthest) * down_scale
-    var top = screen_high(eye.y_value + range, closest, farthest) * down_scale
+    var left = screen_low(eye.x - range, closest, farthest) * across_scale
+    var right = screen_high(eye.x + range, closest, farthest) * across_scale
+    var bottom = screen_low(eye.y - range, closest, farthest) * down_scale
+    var top = screen_high(eye.y + range, closest, farthest) * down_scale
     if right < -1.0 or left > 1.0 or top < -1.0 or bottom > 1.0 {
         return false
     }

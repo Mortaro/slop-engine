@@ -4,7 +4,7 @@ var height = Ui.Component.Height()
 var shrink = Ui.Component.FlexShrink()
 var background = Ui.Component.BackgroundColor()
 var text = Ui.Component.Text()
-var row = Component.Row()
+var row = Component.ListRow()
 
 func ListRow(panel: Entity, index: Integer) {
     parent.entity = panel

@@ -57,6 +57,12 @@ parts are Claude's proposals. Mortaro decides the API; a proposal stays marked h
 - A component tied to an OS thread declares `pinned_to_creating_thread()` (D363), replacing the rule that no system
   has thread affinity and that OS-bound state gets a thread of its own.
 - Program code never reads raw addresses (D178).
+- A class name means one class: Spite's D374 and D387 (a class may not hide one in an enclosing namespace or share
+  a standard library class's name). The renames this forced on 2026-10-02 are proposals by Claude, for Mortaro to
+  decide: `Blend.File` to `Blend.Document`, `Blend.Field` to `Blend.ShapeField`, `Input.Key` to `Input.KeyCode`,
+  `Network.Stream` to `Network.Channel`, `Mongo.Component.Client` to `Mongo.Component.Connection`, and in the
+  examples `System.OpenWindow` to `System.SpawnWindow`, `Component.Row` to `Component.ListRow`, `Component.Field`
+  to `Component.InputField` and `Stopwatch` to `TickClock`.
 
 ## [plugins.md](../docs/plugins.md)
 
@@ -117,6 +123,11 @@ parts are Claude's proposals. Mortaro decides the API; a proposal stays marked h
 
 ## [scene.md](../docs/scene.md)
 
+- The standard library's maths replace the engine's (2026-10-02, Spite's one way to do a thing and D387): `Matrix4`,
+  `Vector3`, `Quaternion` and the number functions. What it lacks stays engine-side, as small as it goes (a
+  proposal by Claude): `Matrix4` reopened in `slop/matrix4.spite` (`set_product`, `copy_from`,
+  `set_reversed_perspective`, `value_at`, `set_value`, `write_to(floats, address)`) and `Math.Pose` (`compose`,
+  `decompose`).
 - `mesh.add_section` (a proposal by Claude).
 - Bone attachments (a proposal by Claude, for Mortaro to decide).
 - Animation as a headless plugin (a proposal by Claude, 2026-10-02, for Mortaro to decide): the pose is

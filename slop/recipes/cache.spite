@@ -36,7 +36,28 @@ func is_current(id: String, input_fingerprint: String): Boolean {
     if cooked {
         point_index(id, expected)
     }
-    return cooked
+    return cooked and schemas_current(input_fingerprint)
+}
+
+func schemas_current(input_fingerprint: String): Boolean {
+    var prefix = "{input_fingerprint}#"
+    var stamps = fingerprints.values()
+    var index = 0
+    while index < stamps.count() {
+        var stamp = stamps[index]
+        if stamp.starts_with(prefix) {
+            var parts = stamp.split("#")
+            if parts.count() != 3 {
+                return false
+            }
+            var kind = parts[1]
+            if parts[2] != schema_of(kind).to_string() {
+                return false
+            }
+        }
+        index = index + 1
+    }
+    return true
 }
 
 func schema_of(kind: String): Long {

@@ -1,7 +1,7 @@
 var world = World()
 var environment = Environment()
 var console = Console()
-var clock = Stopwatch()
+var clock = TickClock()
 
 func Stress() {
     load "../../slop"

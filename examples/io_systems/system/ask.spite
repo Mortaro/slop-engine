@@ -1,5 +1,5 @@
 type Connected {
-    connected: Added<Mongo.Component.Client>
+    connected: Added<Mongo.Component.Connection>
 }
 
 var world = World()

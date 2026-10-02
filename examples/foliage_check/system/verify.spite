@@ -81,24 +81,24 @@ func settled(): Boolean {
     return steady_ticks >= 30
 }
 
-func view_projection_of(camera: Scene.Component.ViewCamera, width: Integer, height: Integer): Math.Matrix4 {
+func view_projection_of(camera: Scene.Component.ViewCamera, width: Integer, height: Integer): Matrix4 {
     var across: Float = width
     var down: Float = height
     var projection = camera.projection(across / down)
-    return projection.multiplied(camera.view)
+    return projection * camera.view
 }
 
 func color_at(
-    matrix: Math.Matrix4,
+    matrix: Matrix4,
     point_x: Float,
     point_y: Float,
     point_z: Float,
     width: Integer,
     height: Integer,
 ): Integer {
-    var clip_x = matrix.m0 * point_x + matrix.m4 * point_y + matrix.m8 * point_z + matrix.m12
-    var clip_y = matrix.m1 * point_x + matrix.m5 * point_y + matrix.m9 * point_z + matrix.m13
-    var clip_w = matrix.m3 * point_x + matrix.m7 * point_y + matrix.m11 * point_z + matrix.m15
+    var clip_x = matrix.column_0_row_0 * point_x + matrix.column_1_row_0 * point_y + matrix.column_2_row_0 * point_z + matrix.column_3_row_0
+    var clip_y = matrix.column_0_row_1 * point_x + matrix.column_1_row_1 * point_y + matrix.column_2_row_1 * point_z + matrix.column_3_row_1
+    var clip_w = matrix.column_0_row_3 * point_x + matrix.column_1_row_3 * point_y + matrix.column_2_row_3 * point_z + matrix.column_3_row_3
     var across: Float = width
     var down: Float = height
     var left: Integer = (clip_x / clip_w * 0.5 + 0.5) * across

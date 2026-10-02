@@ -138,7 +138,9 @@ naming both if not (`store_entry_at_its_offset_is_the_key_asked_for`), so a dama
 `SLOP` header, and `decode` refuses bytes whose schema differs instead of misreading them. `put` stamps each
 record as `id#fingerprint#kind#schema`, and `is_current` compares that stamp with the schema of the kind as the
 program is compiled now; the cache knows every schema by walking the classes in `asset/` folders. So adding a field
-to `Asset.Mesh` makes every mesh stale on the next run and it re-cooks, with no version string to bump. Bytes not
+to `Asset.Mesh` makes every mesh stale on the next run and it re-cooks, with no version string to bump. A step
+that cooks several assets from one input fingerprint is current only while every one of them still has its kind's
+schema, so a texture whose format changed re-cooks its step even when the step asks only about its mesh. Bytes not
 written by `Pack` (compiled shaders, for example) are stamped with an empty kind and schema 0. Stale records stay
 in the append-only store.
 
@@ -189,7 +191,7 @@ the revision each slot was loaded at; a slot whose id moved since
 is loaded again in the background and swapped in, its `generation` moves, and the renderer re-uploads a mesh
 whose generation moved. A slot still loading waits for the next pass, so an older load never lands over a newer one.
 
-**Sources a recipe reads are recorded.** `Blend.File.open`, `Psd.Layers.open` and `Recipes.Glsl.compile` note their
+**Sources a recipe reads are recorded.** `Blend.Document.open`, `Psd.Layers.open` and `Recipes.Glsl.compile` note their
 files; a recipe that opens a file itself calls `cookbook.note_source(path)`. A source's stamp is its modification
 time in nanoseconds and its size: a stamp to the second missed a same-size edit saved within the same second.
 

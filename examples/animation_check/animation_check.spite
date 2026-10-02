@@ -1,7 +1,6 @@
 var cookbook = Recipes.Cookbook()
 var world = World()
 var console = Console()
-var scalar = Math.Scalar()
 var placement = Math.Pose()
 var animators = Lookup<Animation.Component.Animator>()
 var poses = Lookup<Animation.Component.Pose>()
@@ -59,7 +58,7 @@ func AnimationCheck() {
     app.tick()
     var blended = check_blend(half, quarter)
     var start_x = root_x(fading)
-    var start_is_the_first_clip = scalar.absolute(start_x) < 0.0001
+    var start_is_the_first_clip = start_x.absolute() < 0.0001
     crash start_is_the_first_clip
     var fade_ticks = check_crossfade(app, fading)
     var loop_ok = check_loop(app, looping, intro)
@@ -135,7 +134,7 @@ func read_root(entity: Integer) {
     crash pose
     var bones = pose.matrices.bones
     crash bones[0]
-    bones[0].decompose(placement)
+    placement.decompose(bones[0])
 }
 
 func root_x(entity: Integer): Float {
@@ -144,7 +143,7 @@ func root_x(entity: Integer): Float {
 }
 
 func close(value: Float, wanted: Float): Boolean {
-    return scalar.absolute(value - wanted) < 0.0001
+    return (value - wanted).absolute() < 0.0001
 }
 
 func check_blend(half: Integer, quarter: Integer): Boolean {
@@ -310,10 +309,10 @@ func check_unseen(hidden: Integer): Float {
 }
 
 func same_walk_time(first: Float, second: Float): Boolean {
-    var apart = scalar.absolute(first - second)
+    var apart = (first - second).absolute()
     var walk_period: Float = 0.8
-    apart = apart - scalar.floor(apart / walk_period + 0.5) * walk_period
-    return scalar.absolute(apart) < 0.0001
+    apart = apart - (apart / walk_period + 0.5).floor() * walk_period
+    return apart.absolute() < 0.0001
 }
 
 func clips_ready(): Boolean {

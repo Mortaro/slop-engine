@@ -187,7 +187,7 @@ func deliver(peer: Peer, place: Integer) {
     }
 }
 
-func queue_hello(stream: Network.Stream) {
+func queue_hello(stream: Network.Channel) {
     hello.clear()
     hello.write_integer(0)
     hello.write_integer(-5)
@@ -207,7 +207,7 @@ func queue_hello(stream: Network.Stream) {
     stream.queue(hello)
 }
 
-func deliver_state(peer: Peer, stream: Network.Stream, place: Integer) {
+func deliver_state(peer: Peer, stream: Network.Channel, place: Integer) {
     var known = known_of(peer.entity)
     removals.clear()
     hurrying = datagrams_ready(stream) and stream.heard_by_peer
@@ -231,17 +231,17 @@ func deliver_state(peer: Peer, stream: Network.Stream, place: Integer) {
     }
 }
 
-func datagrams_ready(stream: Network.Stream): Boolean {
+func datagrams_ready(stream: Network.Channel): Boolean {
     return datagrams.opened and stream.datagram_port > 0 and stream.datagram_host != "" and schema.uses_datagrams()
 }
 
-func knock(stream: Network.Stream) {
+func knock(stream: Network.Channel) {
     assert datagrams_ready(stream) and not stream.heard_by_peer and frames.tick % 10 == 0
     begin_datagram(stream)
     send_datagram_always(stream)
 }
 
-func ping(stream: Network.Stream) {
+func ping(stream: Network.Channel) {
     assert stream.dialed
     if stream.ping_wait > 0 {
         stream.ping_wait = stream.ping_wait - 1
@@ -257,7 +257,7 @@ func ping(stream: Network.Stream) {
     stream.queue(control)
 }
 
-func queue_tick(stream: Network.Stream) {
+func queue_tick(stream: Network.Channel) {
     control.clear()
     control.write_integer(12)
     control.write_integer(-6)
@@ -266,18 +266,18 @@ func queue_tick(stream: Network.Stream) {
     stream.queue(control)
 }
 
-func begin_datagram(stream: Network.Stream) {
+func begin_datagram(stream: Network.Channel) {
     datagram.clear()
     datagram.write_integer(stream.token)
     datagram.write_integer(frames.tick)
 }
 
-func send_datagram(stream: Network.Stream) {
+func send_datagram(stream: Network.Channel) {
     assert datagram.length > 8
     send_datagram_always(stream)
 }
 
-func send_datagram_always(stream: Network.Stream) {
+func send_datagram_always(stream: Network.Channel) {
     if not dropped() {
         datagrams.send(stream.datagram_host, stream.datagram_port, datagram)
     }
@@ -294,7 +294,7 @@ func dropped(): Boolean {
     return drop.every > 0 and drop_count % drop.every == 0
 }
 
-func hurry(stream: Network.Stream, hurried: Asset.Bytes) {
+func hurry(stream: Network.Channel, hurried: Asset.Bytes) {
     var at = 0
     while at < hurried.length {
         var size = raw.read_integer(hurried.address, at) + 4
@@ -306,7 +306,7 @@ func hurry(stream: Network.Stream, hurried: Asset.Bytes) {
     }
 }
 
-func send_all(stream: Network.Stream, known: Network.Known, entities: List<Integer>, first: Integer, end: Integer) {
+func send_all(stream: Network.Channel, known: Network.Known, entities: List<Integer>, first: Integer, end: Integer) {
     var index = first
     while index < end {
         crash entities[index]
@@ -315,7 +315,7 @@ func send_all(stream: Network.Stream, known: Network.Known, entities: List<Integ
     }
 }
 
-func send_entity(stream: Network.Stream, known: Network.Known, entity: Integer) {
+func send_entity(stream: Network.Channel, known: Network.Known, entity: Integer) {
     assert frames.encoded(entity)
     var ticks = known.ticks
     while ticks.count() <= entity {
@@ -334,7 +334,7 @@ func send_entity(stream: Network.Stream, known: Network.Known, entity: Integer) 
     ticks[entity] = frames.tick
 }
 
-func send_hurried(stream: Network.Stream, entity: Integer) {
+func send_hurried(stream: Network.Channel, entity: Integer) {
     var hurried = frames.hurried(entity)
     assert hurried.length > 0
     if hurrying {

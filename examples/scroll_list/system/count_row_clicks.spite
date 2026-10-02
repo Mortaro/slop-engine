@@ -1,6 +1,6 @@
 type ClickedRow {
     clicked: Ui.Component.Clicked
-    row: Component.Row
+    row: Component.ListRow
     text: Ui.Component.Text
 }
 

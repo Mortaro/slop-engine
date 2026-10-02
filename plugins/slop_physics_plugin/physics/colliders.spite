@@ -30,7 +30,6 @@ var built = Physics.Shape()
 var target = Physics.Shape()
 var probe = Physics.Shape()
 var candidates = List<Integer>()
-var corner = Math.Vector3()
 var world = World()
 var hit_slot = -1
 var hit_fraction: Float = 0.0
@@ -268,40 +267,34 @@ func place_mesh(entity: Integer, transform: Transform.Component.Transform, mesh:
         crash first_corner + 2 < mesh.positions.count()
         crash second_corner + 2 < mesh.positions.count()
         crash third_corner + 2 < mesh.positions.count()
-        matrix.transform_point(
-            corner,
+        var source_a = Vector3(
             mesh.positions[first_corner],
             mesh.positions[first_corner + 1],
             mesh.positions[first_corner + 2],
         )
-        var corner_a_x = corner.x_value
-        var corner_a_y = corner.y_value
-        var corner_a_z = corner.z_value
-        matrix.transform_point(
-            corner,
+        var corner_a = matrix.transform_point(source_a)
+        var source_b = Vector3(
             mesh.positions[second_corner],
             mesh.positions[second_corner + 1],
             mesh.positions[second_corner + 2],
         )
-        var corner_b_x = corner.x_value
-        var corner_b_y = corner.y_value
-        var corner_b_z = corner.z_value
-        matrix.transform_point(
-            corner,
+        var corner_b = matrix.transform_point(source_b)
+        var source_c = Vector3(
             mesh.positions[third_corner],
             mesh.positions[third_corner + 1],
             mesh.positions[third_corner + 2],
         )
+        var corner_c = matrix.transform_point(source_c)
         built.set_triangle(
-            corner_a_x,
-            corner_a_y,
-            corner_a_z,
-            corner_b_x,
-            corner_b_y,
-            corner_b_z,
-            corner.x_value,
-            corner.y_value,
-            corner.z_value,
+            corner_a.x,
+            corner_a.y,
+            corner_a.z,
+            corner_b.x,
+            corner_b.y,
+            corner_b.z,
+            corner_c.x,
+            corner_c.y,
+            corner_c.z,
         )
         var slot = new_slot(entity, solid)
         store(slot, built, 0.0, 0.0)

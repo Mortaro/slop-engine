@@ -100,7 +100,7 @@ holding `Input.Component.Key`, so a system asks for keys held or pressed with a 
 | `Input.Component.GamepadConnected` | marker on a gamepad: its controller answered this tick; removed when it stops answering |
 | `Input.Button` | platform-neutral button names: `south`, `east`, `west`, `north`, the d-pad, `start`, `select`, shoulders, stick clicks |
 | `Input.Component.Keyboard` | marker on a window: it takes keys |
-| `Input.Key` | names for virtual keys (`backspace`, `left`, `delete`, ...) |
+| `Input.KeyCode` | names for virtual keys (`backspace`, `left`, `delete`, ...) |
 | `Input.Component.Mouse` | on a window: `left`, `top` (pixels in the window) and `wheel` (notches), for the current tick |
 | `Input.Component.LeftDown`, `LeftPressed`, `LeftReleased`, `DoubleClicked` | markers on a window: the left button is held, went down this tick, went up this tick, was double-clicked this tick; `Right…` and `Middle…` are the same for the other buttons |
 
@@ -227,8 +227,8 @@ loads the network and spatial plugins. See [networking.md](networking.md#area-of
 The engine side of MongoDB. The driver itself (BSON, OP_MSG, `Mongo.Client`, `Mongo.Collection`,
 `Mongo.TypedCollection<T>`, the compile-time `Mongo.Codec<T>`) is its own package, `spite_mongodb_driver`, beside
 this repository, so programs that are not games use it too. The plugin loads it
-(`load "../../../../spite_mongodb_driver@df985e6/mongodb"`, a pinned commit) and adds `Mongo.Component.Database` (host, port, database
-name) and `Mongo.Component.Client` (a connection pool and the database it names), which `database.connect()` makes;
+(`load "../../../../spite_mongodb_driver@fd2aa14/mongodb"`, a pinned commit) and adds `Mongo.Component.Database` (host, port, database
+name) and `Mongo.Component.Connection` (a connection pool and the database it names), which `database.connect()` makes;
 `Mongo.System.ConnectDatabases` (`input`) adds one beside every database that has none. Queries run in
 [IO systems](ecs.md#io-systems), between frames.
 

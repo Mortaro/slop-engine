@@ -5,7 +5,6 @@ type Started {
 var world = World()
 var environment = Environment()
 var facing: Float = 2.2
-var scalar = Math.Scalar()
 var parts = ["chest", "boots", "gloves", "shorts_part_1", "shorts_part_2", "face_1", "hair_1"]
 
 func update_each(_started: Started) {
@@ -46,8 +45,8 @@ func spawn_part(part: String) {
     entity.add_component(model)
     var transform = Transform.Component.Transform()
     var half = 0.0 - facing * 0.5
-    transform.rotation_y = scalar.sine(half)
-    transform.rotation_w = scalar.cosine(half)
+    transform.rotation_y = half.sine()
+    transform.rotation_w = half.cosine()
     entity.add_component(transform)
     var animator = Animation.Component.Animator()
     animator.skeleton = "archer.skeleton"

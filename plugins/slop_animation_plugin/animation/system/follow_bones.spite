@@ -22,10 +22,10 @@ func prepare_each(attached: Attached, carrier: Carrier) {
     crash bone_is_on_the_skeleton
     crash bones[index]
     var carried = carrier.transform.matrix()
-    var posed = carried.multiplied(bones[index])
+    var posed = carried * bones[index]
     var offset = attached.attachment.offset()
-    var placed = posed.multiplied(offset)
-    placed.decompose(placement)
+    var placed = posed * offset
+    placement.decompose(placed)
     var transform = attached.transform
     transform.position_x = placement.position_x
     transform.position_y = placement.position_y

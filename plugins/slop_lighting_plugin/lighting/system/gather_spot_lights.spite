@@ -7,8 +7,6 @@ type Spotted {
 var light = Scene.Light()
 var lights = Scene.Lights()
 var shadowing = Lookup<Lighting.Component.CastsShadows>()
-var scalar = Math.Scalar()
-var axis = Math.Vector3()
 
 func render_each(spotted: Spotted) {
     var spot = spotted.light
@@ -18,18 +16,20 @@ func render_each(spotted: Spotted) {
     light.position_z = at.position_z
     light.range = spot.range
     var rotation = at.matrix()
-    rotation.transform_direction(axis, 0.0, 0.0, -1.0)
-    light.toward_x = axis.x_value
-    light.toward_y = axis.y_value
-    light.toward_z = axis.z_value
+    var forward = Vector3(0.0, 0.0, -1.0)
+    var turned = rotation.transform_direction(forward)
+    var axis = turned.normalized()
+    light.toward_x = axis.x
+    light.toward_y = axis.y
+    light.toward_z = axis.z
     light.red = spot.red
     light.green = spot.green
     light.blue = spot.blue
     light.intensity = spot.intensity
     light.owner = spotted.entity.id
     light.casts_shadows = shadowing.has(spotted.entity.id)
-    var cosine_inner = scalar.cosine(spot.inner_angle)
-    var cosine_outer = scalar.cosine(spot.outer_angle)
+    var cosine_inner = spot.inner_angle.cosine()
+    var cosine_outer = spot.outer_angle.cosine()
     var spread = cosine_inner - cosine_outer
     if spread < 0.001 {
         spread = 0.001

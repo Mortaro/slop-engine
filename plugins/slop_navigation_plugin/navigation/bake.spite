@@ -105,25 +105,25 @@ func add_mesh(mesh: Asset.Mesh, transform: Transform.Component.Transform) {
     }
 }
 
-func placed_x(matrix: Math.Matrix4, vertices: List<Float>, at: Integer): Float {
+func placed_x(matrix: Matrix4, vertices: List<Float>, at: Integer): Float {
     crash vertices[at]
     crash vertices[at + 1]
     crash vertices[at + 2]
-    return matrix.m0 * vertices[at] + matrix.m4 * vertices[at + 1] + matrix.m8 * vertices[at + 2] + matrix.m12
+    return matrix.column_0_row_0 * vertices[at] + matrix.column_1_row_0 * vertices[at + 1] + matrix.column_2_row_0 * vertices[at + 2] + matrix.column_3_row_0
 }
 
-func placed_y(matrix: Math.Matrix4, vertices: List<Float>, at: Integer): Float {
+func placed_y(matrix: Matrix4, vertices: List<Float>, at: Integer): Float {
     crash vertices[at]
     crash vertices[at + 1]
     crash vertices[at + 2]
-    return matrix.m1 * vertices[at] + matrix.m5 * vertices[at + 1] + matrix.m9 * vertices[at + 2] + matrix.m13
+    return matrix.column_0_row_1 * vertices[at] + matrix.column_1_row_1 * vertices[at + 1] + matrix.column_2_row_1 * vertices[at + 2] + matrix.column_3_row_1
 }
 
-func placed_z(matrix: Math.Matrix4, vertices: List<Float>, at: Integer): Float {
+func placed_z(matrix: Matrix4, vertices: List<Float>, at: Integer): Float {
     crash vertices[at]
     crash vertices[at + 1]
     crash vertices[at + 2]
-    return matrix.m2 * vertices[at] + matrix.m6 * vertices[at + 1] + matrix.m10 * vertices[at + 2] + matrix.m14
+    return matrix.column_0_row_2 * vertices[at] + matrix.column_1_row_2 * vertices[at + 1] + matrix.column_2_row_2 * vertices[at + 2] + matrix.column_3_row_2
 }
 
 func add_heightfield(

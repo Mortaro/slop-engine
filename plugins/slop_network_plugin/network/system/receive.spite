@@ -90,7 +90,7 @@ func refuse(peer: Peer, protocol: Integer, hash: Long, environment: String) {
     world.as_entity().add_component(refused)
 }
 
-func control(stream: Network.Stream, message: Integer) {
+func control(stream: Network.Channel, message: Integer) {
     if message == -6 {
         var tick = frame.read_integer()
         if tick > stream.highest_tick {
@@ -106,7 +106,7 @@ func control(stream: Network.Stream, message: Integer) {
     understood = not frame.failed and frame.remaining() == 0 and message >= -9
 }
 
-func answer_ping(stream: Network.Stream) {
+func answer_ping(stream: Network.Channel) {
     var sent_at = frame.read_long()
     var now = world.now()
     reply.clear()

@@ -1,7 +1,6 @@
 var cookbook = Recipes.Cookbook()
 var world = World()
 var console = Console()
-var scalar = Math.Scalar()
 var program = Program()
 
 func AttachmentCheck() {
@@ -62,8 +61,8 @@ func near(entity: Integer, want_x: Float, want_y: Float, want_z: Float): Boolean
     var transforms = Lookup<Transform.Component.Transform>()
     var transform = transforms.of(entity)
     crash transform
-    var off = scalar.absolute(transform.position_x - want_x) + scalar.absolute(transform.position_y - want_y)
-    off = off + scalar.absolute(transform.position_z - want_z)
+    var off = (transform.position_x - want_x).absolute() + (transform.position_y - want_y).absolute()
+    off = off + (transform.position_z - want_z).absolute()
     console.print("entity", entity, "at", transform.position_x, transform.position_y, transform.position_z)
     return off < 0.001
 }
@@ -72,6 +71,6 @@ func turned_quarter(entity: Integer): Boolean {
     var transforms = Lookup<Transform.Component.Transform>()
     var transform = transforms.of(entity)
     crash transform
-    var turn = scalar.absolute(transform.rotation_y) - 0.7071068
-    return scalar.absolute(turn) < 0.001 and scalar.absolute(transform.rotation_x) < 0.001
+    var turn = transform.rotation_y.absolute() - 0.7071068
+    return turn.absolute() < 0.001 and transform.rotation_x.absolute() < 0.001
 }

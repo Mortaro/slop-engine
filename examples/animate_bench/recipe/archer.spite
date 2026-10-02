@@ -21,7 +21,7 @@ func build() {
     var fingerprint = cache.fingerprint("{version} {path} {size} {modified}")
     assert not all_current(fingerprint)
     var started = clock.elapsed_milliseconds()
-    var file = Blend.File()
+    var file = Blend.Document()
     file.open(path)
     var rig = object_named(file, "rig")
     var skeleton_reader = Blend.SkeletonReader()
@@ -59,7 +59,7 @@ func all_current(fingerprint: String): Boolean {
     return current
 }
 
-func cook_part(file: Blend.File, part: String, skeleton: Asset.Skeleton, fingerprint: String) {
+func cook_part(file: Blend.Document, part: String, skeleton: Asset.Skeleton, fingerprint: String) {
     var object = object_named(file, "Body - {part}")
     var reader = Blend.MeshReader()
     var mesh = reader.read(file, object, skeleton.names)
@@ -98,7 +98,7 @@ func cook_texture(reader: Blend.MeshReader, mesh: Asset.Mesh, material: Integer,
 }
 
 func cook_clip(
-    file: Blend.File,
+    file: Blend.Document,
     name: String,
     skeleton: Asset.Skeleton,
     skeleton_reader: Blend.SkeletonReader,
@@ -121,11 +121,11 @@ func put(skeleton: Asset.Skeleton, id: String, fingerprint: String) {
     cache.put(id, fingerprint, bytes)
 }
 
-func object_named(file: Blend.File, name: String): Blend.View {
+func object_named(file: Blend.Document, name: String): Blend.View {
     return block_named(file, "OB", name)
 }
 
-func block_named(file: Blend.File, code: String, name: String): Blend.View {
+func block_named(file: Blend.Document, code: String, name: String): Blend.View {
     var blocks = file.blocks_coded(code)
     var found = -1
     var index = 0

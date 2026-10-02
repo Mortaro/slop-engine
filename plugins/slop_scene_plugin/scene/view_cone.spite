@@ -1,5 +1,4 @@
-var scalar = Math.Scalar()
-var view = Math.Matrix4()
+var view = Matrix4()
 var near: Float = 0.1
 var far: Float = 500.0
 var across_tangent: Float = 1.0
@@ -9,9 +8,7 @@ var down_norm: Float = 1.0
 var eye_x: Float = 0.0
 var eye_y: Float = 0.0
 var eye_z: Float = 0.0
-var seen = Math.Vector3()
-var placed = Math.Vector3()
-var posed = Math.Vector3()
+var placed = Vector3(0.0, 0.0, 0.0)
 var spread: Float = 0.0
 
 func prepare(source: Scene.Component.ViewCamera) {
@@ -21,18 +18,22 @@ func prepare(source: Scene.Component.ViewCamera) {
     eye_x = source.eye_x
     eye_y = source.eye_y
     eye_z = source.eye_z
-    down_tangent = scalar.tangent(source.field_of_view * 0.5)
+    down_tangent = (source.field_of_view * 0.5).tangent()
     across_tangent = down_tangent * source.aspect
-    down_norm = scalar.square_root(1.0 + down_tangent * down_tangent)
-    across_norm = scalar.square_root(1.0 + across_tangent * across_tangent)
+    down_norm = (1.0 + down_tangent * down_tangent).square_root()
+    across_norm = (1.0 + across_tangent * across_tangent).square_root()
 }
 
-func place(model: Math.Matrix4, mesh: Scene.LoadedMesh) {
-    model.transform_point(placed, mesh.bound_x, mesh.bound_y, mesh.bound_z)
+func place(model: Matrix4, mesh: Scene.LoadedMesh) {
+    var bound = Vector3(mesh.bound_x, mesh.bound_y, mesh.bound_z)
+    var moved = model.transform_point(bound)
+    placed.x = moved.x
+    placed.y = moved.y
+    placed.z = moved.z
     spread = 0.0
 }
 
-func place_posed(model: Math.Matrix4, mesh: Scene.LoadedMesh, palette: List<Math.Matrix4>) {
+func place_posed(model: Matrix4, mesh: Scene.LoadedMesh, palette: List<Matrix4>) {
     var count = mesh.used_joints.count()
     var palette_covers_the_joints = mesh.joint_limit <= palette.count()
     crash palette_covers_the_joints
@@ -42,42 +43,59 @@ func place_posed(model: Math.Matrix4, mesh: Scene.LoadedMesh, palette: List<Math
     }
     crash mesh.used_joints[0]
     var first_joint = mesh.used_joints[0]
-    pose_center(mesh, palette, first_joint)
-    var low_x = posed.x_value
-    var low_y = posed.y_value
-    var low_z = posed.z_value
+    var first_center = pose_center(mesh, palette, first_joint)
+    var low_x = first_center.x
+    var low_y = first_center.y
+    var low_z = first_center.z
     var high_x = low_x
     var high_y = low_y
     var high_z = low_z
     var index = 1
     while index < count {
         var joint = mesh.used_joints[index]
-        pose_center(mesh, palette, joint)
-        low_x = scalar.minimum(low_x, posed.x_value)
-        low_y = scalar.minimum(low_y, posed.y_value)
-        low_z = scalar.minimum(low_z, posed.z_value)
-        high_x = scalar.maximum(high_x, posed.x_value)
-        high_y = scalar.maximum(high_y, posed.y_value)
-        high_z = scalar.maximum(high_z, posed.z_value)
+        var center = pose_center(mesh, palette, joint)
+        if center.x < low_x {
+            low_x = center.x
+        }
+        if center.x > high_x {
+            high_x = center.x
+        }
+        if center.y < low_y {
+            low_y = center.y
+        }
+        if center.y > high_y {
+            high_y = center.y
+        }
+        if center.z < low_z {
+            low_z = center.z
+        }
+        if center.z > high_z {
+            high_z = center.z
+        }
         index = index + 1
     }
     var half_x = (high_x - low_x) * 0.5
     var half_y = (high_y - low_y) * 0.5
     var half_z = (high_z - low_z) * 0.5
-    model.transform_point(placed, low_x + half_x, low_y + half_y, low_z + half_z)
-    spread = scalar.square_root(half_x * half_x + half_y * half_y + half_z * half_z)
+    var middle = Vector3(low_x + half_x, low_y + half_y, low_z + half_z)
+    var moved = model.transform_point(middle)
+    placed.x = moved.x
+    placed.y = moved.y
+    placed.z = moved.z
+    spread = (half_x * half_x + half_y * half_y + half_z * half_z).square_root()
 }
 
-func pose_center(mesh: Scene.LoadedMesh, palette: List<Math.Matrix4>, bone: Integer) {
+func pose_center(mesh: Scene.LoadedMesh, palette: List<Matrix4>, bone: Integer): Vector3<Float> {
     crash palette[bone]
     var skinning = palette[bone]
-    skinning.transform_point(posed, mesh.bound_x, mesh.bound_y, mesh.bound_z)
+    var bound = Vector3(mesh.bound_x, mesh.bound_y, mesh.bound_z)
+    return skinning.transform_point(bound)
 }
 
 func radius_of(mesh: Scene.LoadedMesh, transform: Transform.Component.Transform): Float {
-    var scale = scalar.absolute(transform.scale_x)
-    var scale_y = scalar.absolute(transform.scale_y)
-    var scale_z = scalar.absolute(transform.scale_z)
+    var scale = transform.scale_x.absolute()
+    var scale_y = transform.scale_y.absolute()
+    var scale_z = transform.scale_z.absolute()
     if scale_y > scale {
         scale = scale_y
     }
@@ -88,37 +106,37 @@ func radius_of(mesh: Scene.LoadedMesh, transform: Transform.Component.Transform)
 }
 
 func contains(radius: Float): Boolean {
-    view.transform_point(seen, placed.x_value, placed.y_value, placed.z_value)
-    var depth = 0.0 - seen.z_value
+    var seen = view.transform_point(placed)
+    var depth = 0.0 - seen.z
     if depth + radius < near or depth - radius > far {
         return false
     }
     var side = depth * across_tangent
     var rise = depth * down_tangent
-    var beside = seen.x_value - side < radius * across_norm and 0.0 - seen.x_value - side < radius * across_norm
-    var within = seen.y_value - rise < radius * down_norm and 0.0 - seen.y_value - rise < radius * down_norm
+    var beside = seen.x - side < radius * across_norm and 0.0 - seen.x - side < radius * across_norm
+    var within = seen.y - rise < radius * down_norm and 0.0 - seen.y - rise < radius * down_norm
     return beside and within
 }
 
 func distance_to_eye(): Float {
-    var along_x = placed.x_value - eye_x
-    var along_y = placed.y_value - eye_y
-    var along_z = placed.z_value - eye_z
-    return scalar.square_root(along_x * along_x + along_y * along_y + along_z * along_z)
+    var along_x = placed.x - eye_x
+    var along_y = placed.y - eye_y
+    var along_z = placed.z - eye_z
+    return (along_x * along_x + along_y * along_y + along_z * along_z).square_root()
 }
 
 func shades_view(radius: Float, toward_x: Float, toward_y: Float, toward_z: Float): Boolean {
-    var height = scalar.clamp(toward_y, 0.25, 1.0)
+    var height = toward_y.clamp(0.25, 1.0)
     var half_reach = radius / height
-    var center_x = placed.x_value
-    var center_y = placed.y_value
-    var center_z = placed.z_value
-    placed.x_value = center_x - toward_x * half_reach
-    placed.y_value = center_y - toward_y * half_reach
-    placed.z_value = center_z - toward_z * half_reach
+    var center_x = placed.x
+    var center_y = placed.y
+    var center_z = placed.z
+    placed.x = center_x - toward_x * half_reach
+    placed.y = center_y - toward_y * half_reach
+    placed.z = center_z - toward_z * half_reach
     var shaded = contains(radius + half_reach)
-    placed.x_value = center_x
-    placed.y_value = center_y
-    placed.z_value = center_z
+    placed.x = center_x
+    placed.y = center_y
+    placed.z = center_z
     return shaded
 }

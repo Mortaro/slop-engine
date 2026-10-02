@@ -6,7 +6,7 @@ type Panel {
 }
 
 type RowView {
-    row: Component.Row
+    row: Component.ListRow
     layout: Ui.Component.ComputedLayout
 }
 

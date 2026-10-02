@@ -16,7 +16,6 @@ var console = Console()
 var world = World()
 var environment = Environment()
 var stage = Stage()
-var scalar = Math.Scalar()
 var captured_frames = Lookup<RenderVulkan.Component.Captured>()
 var cameras = Lookup<Camera.Component.Camera>()
 var suns = Lookup<Lighting.Component.Sun>()
@@ -77,7 +76,7 @@ func frame_level(width: Integer, height: Integer): Float {
 }
 
 func pixels_steady(level: Float): Boolean {
-    var change = scalar.absolute(level - last_level)
+    var change = (level - last_level).absolute()
     last_level = level
     if change <= 0.25 {
         steady_captures = steady_captures + 1
@@ -126,7 +125,7 @@ func check_step(checked: Checked) {
     if stage.step == 1 {
         var moved = edge_brightness(checked.camera, width, height)
         console.print("shadow edge", edge, "after the camera moved", moved)
-        var difference = scalar.absolute(moved - edge)
+        var difference = (moved - edge).absolute()
         expect(difference <= 1.5, "the shadow edge holds still while the camera moves")
         aim(-60.0, 70.0, -50.0, -5.0, 0.0, 50.0)
         stage.step = 2
@@ -149,10 +148,10 @@ func check_step(checked: Checked) {
 }
 
 func edge_brightness(camera: Scene.Component.ViewCamera, width: Integer, height: Integer): Float {
-    var flat = scalar.square_root(stage.sun_x * stage.sun_x + stage.sun_z * stage.sun_z)
+    var flat = (stage.sun_x * stage.sun_x + stage.sun_z * stage.sun_z).square_root()
     var across_x = stage.sun_x / flat
     var across_z = stage.sun_z / flat
-    var side = 0.5 * (scalar.absolute(across_x) + scalar.absolute(across_z))
+    var side = 0.5 * (across_x.absolute() + across_z.absolute())
     edge_x = -1.5 + across_x * 1.5 - across_z * side
     edge_z = 6.0 + across_z * 1.5 + across_x * side
     return brightness_at(camera, width, height, edge_x, 0.0, edge_z)
@@ -185,13 +184,13 @@ func check_box(
     tall: Float,
     touching: Boolean,
 ) {
-    var flat = scalar.square_root(stage.sun_x * stage.sun_x + stage.sun_z * stage.sun_z)
+    var flat = (stage.sun_x * stage.sun_x + stage.sun_z * stage.sun_z).square_root()
     var across_x = stage.sun_x / flat
     var across_z = stage.sun_z / flat
     var reach = tall * flat / (0.0 - stage.sun_y)
-    var size_x = scalar.absolute(across_x)
-    var size_z = scalar.absolute(across_z)
-    var leave = half / scalar.maximum(size_x, size_z)
+    var size_x = across_x.absolute()
+    var size_z = across_z.absolute()
+    var leave = half / size_x.maximum(size_z)
     var shaded_at = reach * 0.5
     var contact_at = leave + 0.12
     var lit_at = 0.0 - leave - 2.0
@@ -249,14 +248,14 @@ func brightness_at(
     at_z: Float,
 ): Float {
     var projection = camera.projection(camera.aspect)
-    var both = projection.multiplied(camera.view)
-    var clip_x = both.m0 * at_x + both.m4 * at_y + both.m8 * at_z + both.m12
-    var clip_y = both.m1 * at_x + both.m5 * at_y + both.m9 * at_z + both.m13
-    var clip_w = both.m3 * at_x + both.m7 * at_y + both.m11 * at_z + both.m15
+    var both = projection * camera.view
+    var clip_x = both.column_0_row_0 * at_x + both.column_1_row_0 * at_y + both.column_2_row_0 * at_z + both.column_3_row_0
+    var clip_y = both.column_0_row_1 * at_x + both.column_1_row_1 * at_y + both.column_2_row_1 * at_z + both.column_3_row_1
+    var clip_w = both.column_0_row_3 * at_x + both.column_1_row_3 * at_y + both.column_2_row_3 * at_z + both.column_3_row_3
     var wide: Float = width
     var high: Float = height
-    var column_at = scalar.floor((clip_x / clip_w * 0.5 + 0.5) * wide)
-    var row_at = scalar.floor((clip_y / clip_w * 0.5 + 0.5) * high)
+    var column_at = ((clip_x / clip_w * 0.5 + 0.5) * wide).floor()
+    var row_at = ((clip_y / clip_w * 0.5 + 0.5) * high).floor()
     var column = column_at.to_integer()
     var row = row_at.to_integer()
     var inside = column > 1 and row > 1 and column < width - 2 and row < height - 2 and clip_w > 0.0

@@ -1,7 +1,6 @@
 var cookbook = Recipes.Cookbook()
 var world = World()
 var console = Console()
-var scalar = Math.Scalar()
 var environment = Environment()
 var parts = 7
 var poses = Lookup<Animation.Component.Pose>()
@@ -73,8 +72,8 @@ func spawn_character(character: Integer): Integer {
     var around: Float = character % 40
     var angle = around * 0.15708
     var distance: Float = 4.0 + 10.0 * ring
-    var along_x = scalar.cosine(angle) * distance
-    var along_z = scalar.sine(angle) * distance
+    var along_x = angle.cosine() * distance
+    var along_z = angle.sine() * distance
     var first = -1
     var part = 0
     while part < parts {

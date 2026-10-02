@@ -503,9 +503,14 @@ The benchmarks to race are ecs_bench_suite's: `add_remove` and `schedule` look w
   695 us of `Send` a tick).
   Two examples building at once can collide checking out the same pinned package (`<package>.index.lock` exists);
   the second build fails and passes when run again.
-- Spite master `a0b22a7` (2026-10-02) refuses the engine: folders became namespaces and a class may not hide a
-  standard library class, so `slop/math/matrix4.spite` (`Math.Matrix4` against `Matrix4`) fails every build. The
-  suite above still runs on `2d84122` until the engine moves to the new rule.
+- On Spite master `8e971f26` (2026-10-02), after moving to the standard library's maths and renaming the classes
+  D374 refuses (the MongoDB driver pinned at `fd2aa14`): every program in testing.md passes balanced under
+  `--debug-memory` (benches `--optimized`), `render_parity` at 0 of 256,000 pixels, with the extras above.
+  Medians of three against Spite `2d84122` and the engine before the move, run back to back on a loaded machine
+  (optimized, RTX 3090): `render_bench` frame 1,665 against 1,674 us, `animate_bench` frame 23.8 against 23.5 ms,
+  `props_bench` frame 15.6 against 14.2 ms, `stress` tick 10.9 against 12.0 ms. Built with Spite `2d84122`, the
+  moved engine matches the old one (`props_bench` `GatherModels` 8.5 against 8.7 ms); the rest of `props_bench`'s
+  gap, `GatherModels` about 1.3 ms slower, came with Spite's seed `bad39937` and is reported to the language.
 - `render_bench` with everything on (2026-10-02, optimized, RTX 3090, `--shadowed-lights=8`, levels of detail,
   occlusion culling and BC textures): frame 1,428 us at 100% and 982 us at `--screen-percentage=67`; the per-pass
   table is in performance.md. Before the animation plugin's pose moved out of the scene, `render_bench` did not load

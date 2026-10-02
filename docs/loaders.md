@@ -55,7 +55,7 @@ standard-library decoder on a 261 MB archer file, in 0.86 s.
 Blender 5.2's format (`BLENDER17-01`): a 17-byte header, then blocks with 32-byte headers (code, SDNA index, old
 address, 64-bit length and count).
 
-- `Blend.File.open(path)` decompresses when needed, reads every block, maps old addresses to blocks, and parses the
+- `Blend.Document.open(path)` decompresses when needed, reads every block, maps old addresses to blocks, and parses the
   `DNA1` block: names, types, sizes and structs, with each field's offset computed from its type and array
   dimensions.
 - `Blend.View` reads any field by name (`integer`, `short_integer`, `small_integer`, `float_at`, `pointer`, `text`),

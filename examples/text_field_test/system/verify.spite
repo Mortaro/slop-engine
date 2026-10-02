@@ -1,6 +1,6 @@
 type FieldView {
     entity: Entity
-    field: Component.Field
+    field: Component.InputField
     input: Ui.Component.TextInput
     caret: Ui.Component.Caret
     text: Ui.Component.Text

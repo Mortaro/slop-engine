@@ -1,7 +1,6 @@
 var cache = Recipes.Cache()
 var console = Console()
 var clock = Clock()
-var scalar = Math.Scalar()
 var details = Recipes.DetailLevels()
 var mesh = Asset.Mesh()
 var petals = 12
@@ -42,9 +41,9 @@ func build() {
 
 func add_petal(petal: Integer) {
     var turn: Float = petal
-    turn = turn / petals * scalar.two_pi
-    var out_x = scalar.cosine(turn)
-    var out_z = scalar.sine(turn)
+    turn = turn / petals * Float.tau
+    var out_x = turn.cosine()
+    var out_z = turn.sine()
     var first = mesh.vertices.count() / 8
     var along = 0
     while along <= petal_steps {
@@ -63,11 +62,11 @@ func add_petal_vertex(out_x: Float, out_z: Float, along: Integer, across: Intege
     length = length / petal_steps
     var side: Float = across
     side = side / petal_steps * 2.0 - 1.0
-    var width = 0.09 * scalar.sine(scalar.pi * (0.1 + 0.85 * length))
+    var width = 0.09 * (Float.pi * (0.1 + 0.85 * length)).sine()
     var reach = 0.06 + length * 0.25
     var rise = 0.5 + 0.12 * length * length - 0.02 * side * side
     var slope = 0.24 * length
-    var lift = 1.0 / scalar.square_root(1.0 + slope * slope)
+    var lift = 1.0 / (1.0 + slope * slope).square_root()
     mesh.vertices.append(out_x * reach - out_z * side * width)
     mesh.vertices.append(rise)
     mesh.vertices.append(out_z * reach + out_x * side * width)
@@ -117,9 +116,9 @@ func add_stem_vertex(ring: Integer, segment: Integer) {
     height = height / stem_rings
     var around: Float = segment
     around = around / stem_segments
-    var angle = around * scalar.two_pi
-    var normal_x = scalar.cosine(angle)
-    var normal_z = scalar.sine(angle)
+    var angle = around * Float.tau
+    var normal_x = angle.cosine()
+    var normal_z = angle.sine()
     mesh.vertices.append(normal_x * 0.015)
     mesh.vertices.append(height * 0.5)
     mesh.vertices.append(normal_z * 0.015)
@@ -149,12 +148,12 @@ func add_head_vertex(ring: Integer, segment: Integer) {
     down = down / head_rings
     var around: Float = segment
     around = around / head_segments
-    var polar = down * scalar.pi
-    var azimuth = around * scalar.two_pi
-    var ring_radius = scalar.sine(polar)
-    var normal_x = ring_radius * scalar.cosine(azimuth)
-    var normal_y = scalar.cosine(polar)
-    var normal_z = ring_radius * scalar.sine(azimuth)
+    var polar = down * Float.pi
+    var azimuth = around * Float.tau
+    var ring_radius = polar.sine()
+    var normal_x = ring_radius * azimuth.cosine()
+    var normal_y = polar.cosine()
+    var normal_z = ring_radius * azimuth.sine()
     mesh.vertices.append(normal_x * 0.07)
     mesh.vertices.append(normal_y * 0.07 + 0.52)
     mesh.vertices.append(normal_z * 0.07)

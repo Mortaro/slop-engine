@@ -1,7 +1,6 @@
 var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
 var raw = Raw()
 var floats = TypedMemory<Float>()
-var scalar = Math.Scalar()
 var builder = SceneVulkan.PipelineBuilder()
 var water = Scene.Water()
 var created = false
@@ -72,7 +71,7 @@ func record(
     renderer: RenderVulkan.Renderer,
     mesh_renderer: SceneVulkan.MeshRenderer,
     camera: Scene.Component.ViewCamera,
-    view_projection: Math.Matrix4,
+    view_projection: Matrix4,
     storage: RenderVulkan.Structure,
 ) {
     release_retired(renderer)
@@ -265,13 +264,14 @@ func ensure_copy(renderer: RenderVulkan.Renderer, width: Integer, height: Intege
 func frame_data(
     mesh_renderer: SceneVulkan.MeshRenderer,
     camera: Scene.Component.ViewCamera,
-    view_projection: Math.Matrix4,
+    view_projection: Matrix4,
 ): RenderVulkan.Structure {
     var data = RenderVulkan.Structure(frame_bytes + water.count * body_bytes)
-    view_projection.write_to(data.address)
-    var inverse = view_projection.inverted()
-    inverse.write_to(data.address + 64)
-    var reach = scalar.minimum(camera.far, 4000.0)
+    view_projection.write_to(floats, data.address)
+    var inverse = view_projection.inverse()
+    crash inverse
+    inverse.write_to(floats, data.address + 64)
+    var reach = camera.far.minimum(4000.0)
     write_floats(data, 128, camera.eye_x, camera.eye_z, reach, water.time_seconds)
     var width: Float = mesh_renderer.post.render_width
     var height: Float = mesh_renderer.post.render_height
@@ -340,15 +340,15 @@ func write_wave(data: RenderVulkan.Structure, written: Integer, index: Integer) 
     crash stored[from + 4]
     var direction_x = stored[from]
     var direction_z = stored[from + 1]
-    var length = scalar.square_root(direction_x * direction_x + direction_z * direction_z)
+    var length = (direction_x * direction_x + direction_z * direction_z).square_root()
     if length < 0.000001 {
         direction_x = 1.0
         direction_z = 0.0
         length = 1.0
     }
-    var wavelength = scalar.maximum(stored[from + 2], 0.01)
+    var wavelength = stored[from + 2].maximum(0.01)
     var wave_number = 2.0 * pi / wavelength
-    var angular_frequency = scalar.square_root(gravity * wave_number)
+    var angular_frequency = (gravity * wave_number).square_root()
     var horizontal = stored[from + 4] / wave_number
     var at = written * wave_bytes
     write_floats(data, at, direction_x / length, direction_z / length, wave_number, stored[from + 3])

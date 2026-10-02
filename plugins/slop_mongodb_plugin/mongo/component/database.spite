@@ -2,8 +2,8 @@ var host = "127.0.0.1"
 var port = 27017
 var name = ""
 
-func connect(): Mongo.Component.Client {
-    var opened = Mongo.Component.Client()
+func connect(): Mongo.Component.Connection {
+    var opened = Mongo.Component.Connection()
     opened.pool = Mongo.Client(host, port)
     opened.database = name
     return opened

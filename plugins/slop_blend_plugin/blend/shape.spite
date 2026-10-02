@@ -1,3 +1,3 @@
 var name = ""
 var size = 0
-var fields = Dictionary<Blend.Field>()
+var fields = Dictionary<Blend.ShapeField>()

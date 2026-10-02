@@ -1,0 +1,156 @@
+func set_product(left: Matrix4, right: Matrix4) {
+    var product_0 = left.column_0_row_0 * right.column_0_row_0 + left.column_1_row_0 * right.column_0_row_1 + left.column_2_row_0 * right.column_0_row_2 + left.column_3_row_0 * right.column_0_row_3
+    var product_1 = left.column_0_row_1 * right.column_0_row_0 + left.column_1_row_1 * right.column_0_row_1 + left.column_2_row_1 * right.column_0_row_2 + left.column_3_row_1 * right.column_0_row_3
+    var product_2 = left.column_0_row_2 * right.column_0_row_0 + left.column_1_row_2 * right.column_0_row_1 + left.column_2_row_2 * right.column_0_row_2 + left.column_3_row_2 * right.column_0_row_3
+    var product_3 = left.column_0_row_3 * right.column_0_row_0 + left.column_1_row_3 * right.column_0_row_1 + left.column_2_row_3 * right.column_0_row_2 + left.column_3_row_3 * right.column_0_row_3
+    var product_4 = left.column_0_row_0 * right.column_1_row_0 + left.column_1_row_0 * right.column_1_row_1 + left.column_2_row_0 * right.column_1_row_2 + left.column_3_row_0 * right.column_1_row_3
+    var product_5 = left.column_0_row_1 * right.column_1_row_0 + left.column_1_row_1 * right.column_1_row_1 + left.column_2_row_1 * right.column_1_row_2 + left.column_3_row_1 * right.column_1_row_3
+    var product_6 = left.column_0_row_2 * right.column_1_row_0 + left.column_1_row_2 * right.column_1_row_1 + left.column_2_row_2 * right.column_1_row_2 + left.column_3_row_2 * right.column_1_row_3
+    var product_7 = left.column_0_row_3 * right.column_1_row_0 + left.column_1_row_3 * right.column_1_row_1 + left.column_2_row_3 * right.column_1_row_2 + left.column_3_row_3 * right.column_1_row_3
+    var product_8 = left.column_0_row_0 * right.column_2_row_0 + left.column_1_row_0 * right.column_2_row_1 + left.column_2_row_0 * right.column_2_row_2 + left.column_3_row_0 * right.column_2_row_3
+    var product_9 = left.column_0_row_1 * right.column_2_row_0 + left.column_1_row_1 * right.column_2_row_1 + left.column_2_row_1 * right.column_2_row_2 + left.column_3_row_1 * right.column_2_row_3
+    var product_10 = left.column_0_row_2 * right.column_2_row_0 + left.column_1_row_2 * right.column_2_row_1 + left.column_2_row_2 * right.column_2_row_2 + left.column_3_row_2 * right.column_2_row_3
+    var product_11 = left.column_0_row_3 * right.column_2_row_0 + left.column_1_row_3 * right.column_2_row_1 + left.column_2_row_3 * right.column_2_row_2 + left.column_3_row_3 * right.column_2_row_3
+    var product_12 = left.column_0_row_0 * right.column_3_row_0 + left.column_1_row_0 * right.column_3_row_1 + left.column_2_row_0 * right.column_3_row_2 + left.column_3_row_0 * right.column_3_row_3
+    var product_13 = left.column_0_row_1 * right.column_3_row_0 + left.column_1_row_1 * right.column_3_row_1 + left.column_2_row_1 * right.column_3_row_2 + left.column_3_row_1 * right.column_3_row_3
+    var product_14 = left.column_0_row_2 * right.column_3_row_0 + left.column_1_row_2 * right.column_3_row_1 + left.column_2_row_2 * right.column_3_row_2 + left.column_3_row_2 * right.column_3_row_3
+    var product_15 = left.column_0_row_3 * right.column_3_row_0 + left.column_1_row_3 * right.column_3_row_1 + left.column_2_row_3 * right.column_3_row_2 + left.column_3_row_3 * right.column_3_row_3
+    column_0_row_0 = product_0
+    column_0_row_1 = product_1
+    column_0_row_2 = product_2
+    column_0_row_3 = product_3
+    column_1_row_0 = product_4
+    column_1_row_1 = product_5
+    column_1_row_2 = product_6
+    column_1_row_3 = product_7
+    column_2_row_0 = product_8
+    column_2_row_1 = product_9
+    column_2_row_2 = product_10
+    column_2_row_3 = product_11
+    column_3_row_0 = product_12
+    column_3_row_1 = product_13
+    column_3_row_2 = product_14
+    column_3_row_3 = product_15
+}
+
+func copy_from(other: Matrix4) {
+    column_0_row_0 = other.column_0_row_0
+    column_0_row_1 = other.column_0_row_1
+    column_0_row_2 = other.column_0_row_2
+    column_0_row_3 = other.column_0_row_3
+    column_1_row_0 = other.column_1_row_0
+    column_1_row_1 = other.column_1_row_1
+    column_1_row_2 = other.column_1_row_2
+    column_1_row_3 = other.column_1_row_3
+    column_2_row_0 = other.column_2_row_0
+    column_2_row_1 = other.column_2_row_1
+    column_2_row_2 = other.column_2_row_2
+    column_2_row_3 = other.column_2_row_3
+    column_3_row_0 = other.column_3_row_0
+    column_3_row_1 = other.column_3_row_1
+    column_3_row_2 = other.column_3_row_2
+    column_3_row_3 = other.column_3_row_3
+}
+
+func set_reversed_perspective(field_of_view: Float, aspect: Float, near: Float, far: Float) {
+    var half_angle = field_of_view * 0.5
+    var focal = 1.0 / half_angle.tangent()
+    set_identity()
+    column_0_row_0 = focal / aspect
+    column_1_row_1 = 0.0 - focal
+    column_2_row_2 = near / (far - near)
+    column_2_row_3 = -1.0
+    column_3_row_2 = near * far / (far - near)
+    column_3_row_3 = 0.0
+}
+
+func value_at(index: Integer): Float {
+    switch index {
+        0: return column_0_row_0
+        1: return column_0_row_1
+        2: return column_0_row_2
+        3: return column_0_row_3
+        4: return column_1_row_0
+        5: return column_1_row_1
+        6: return column_1_row_2
+        7: return column_1_row_3
+        8: return column_2_row_0
+        9: return column_2_row_1
+        10: return column_2_row_2
+        11: return column_2_row_3
+        12: return column_3_row_0
+        13: return column_3_row_1
+        14: return column_3_row_2
+        _: return column_3_row_3
+    }
+}
+
+func set_value(index: Integer, value: Float) {
+    if index == 0 {
+        column_0_row_0 = value
+    }
+    if index == 1 {
+        column_0_row_1 = value
+    }
+    if index == 2 {
+        column_0_row_2 = value
+    }
+    if index == 3 {
+        column_0_row_3 = value
+    }
+    if index == 4 {
+        column_1_row_0 = value
+    }
+    if index == 5 {
+        column_1_row_1 = value
+    }
+    if index == 6 {
+        column_1_row_2 = value
+    }
+    if index == 7 {
+        column_1_row_3 = value
+    }
+    if index == 8 {
+        column_2_row_0 = value
+    }
+    if index == 9 {
+        column_2_row_1 = value
+    }
+    if index == 10 {
+        column_2_row_2 = value
+    }
+    if index == 11 {
+        column_2_row_3 = value
+    }
+    if index == 12 {
+        column_3_row_0 = value
+    }
+    if index == 13 {
+        column_3_row_1 = value
+    }
+    if index == 14 {
+        column_3_row_2 = value
+    }
+    if index == 15 {
+        column_3_row_3 = value
+    }
+}
+
+func write_to(floats: TypedMemory<Float>, address: Long) {
+    floats.write_value(address, 0, column_0_row_0)
+    floats.write_value(address, 1, column_0_row_1)
+    floats.write_value(address, 2, column_0_row_2)
+    floats.write_value(address, 3, column_0_row_3)
+    floats.write_value(address, 4, column_1_row_0)
+    floats.write_value(address, 5, column_1_row_1)
+    floats.write_value(address, 6, column_1_row_2)
+    floats.write_value(address, 7, column_1_row_3)
+    floats.write_value(address, 8, column_2_row_0)
+    floats.write_value(address, 9, column_2_row_1)
+    floats.write_value(address, 10, column_2_row_2)
+    floats.write_value(address, 11, column_2_row_3)
+    floats.write_value(address, 12, column_3_row_0)
+    floats.write_value(address, 13, column_3_row_1)
+    floats.write_value(address, 14, column_3_row_2)
+    floats.write_value(address, 15, column_3_row_3)
+}

@@ -1,4 +1,4 @@
-var file = Blend.File()
+var file = Blend.Document()
 var positions = 0
 var corner_vertices = 0
 var corner_edges = 0
@@ -43,11 +43,11 @@ var edge_two_corners = 2
 var edge_sharp = 3
 var threshold: Float = 0.9999
 var tau: Float = Float.pi * 2.0
-var normal = Math.Vector3()
-var reference = Math.Vector3()
-var other = Math.Vector3()
-var ortho = Math.Vector3()
-var result = Math.Vector3()
+var normal = Vector3(0.0, 0.0, 0.0)
+var reference = Vector3(0.0, 0.0, 0.0)
+var other = Vector3(0.0, 0.0, 0.0)
+var ortho = Vector3(0.0, 0.0, 0.0)
+var result = Vector3(0.0, 0.0, 0.0)
 
 func compute() {
     compute_face_normals()
@@ -147,19 +147,19 @@ func compute_face_normals() {
         newell(first, last)
         var length = normalize_scaled(normal)
         if length == 0.0 {
-            normal.z_value = 1.0
+            normal.z = 1.0
         }
-        face_normals.append(normal.x_value)
-        face_normals.append(normal.y_value)
-        face_normals.append(normal.z_value)
+        face_normals.append(normal.x)
+        face_normals.append(normal.y)
+        face_normals.append(normal.z)
         face = face + 1
     }
 }
 
 func newell(first: Integer, last: Integer) {
-    normal.x_value = 0.0
-    normal.y_value = 0.0
-    normal.z_value = 0.0
+    normal.x = 0.0
+    normal.y = 0.0
+    normal.z = 0.0
     var before = corner_vertex(last - 1)
     var corner = first
     while corner < last {
@@ -170,9 +170,9 @@ func newell(first: Integer, last: Integer) {
         var here_x = position(here, 0)
         var here_y = position(here, 1)
         var here_z = position(here, 2)
-        normal.x_value = normal.x_value + (before_y - here_y) * (before_z + here_z)
-        normal.y_value = normal.y_value + (before_z - here_z) * (before_x + here_x)
-        normal.z_value = normal.z_value + (before_x - here_x) * (before_y + here_y)
+        normal.x = normal.x + (before_y - here_y) * (before_z + here_z)
+        normal.y = normal.y + (before_z - here_z) * (before_x + here_x)
+        normal.z = normal.z + (before_x - here_x) * (before_y + here_y)
         before = here
         corner = corner + 1
     }
@@ -215,47 +215,47 @@ func map_vertex_faces() {
     }
 }
 
-func cross(target: Math.Vector3, left: Math.Vector3, right: Math.Vector3) {
-    var cross_x = left.y_value * right.z_value - left.z_value * right.y_value
-    var cross_y = left.z_value * right.x_value - left.x_value * right.z_value
-    var cross_z = left.x_value * right.y_value - left.y_value * right.x_value
-    target.x_value = cross_x
-    target.y_value = cross_y
-    target.z_value = cross_z
+func cross(target: Vector3<Float>, left: Vector3<Float>, right: Vector3<Float>) {
+    var cross_x = left.y * right.z - left.z * right.y
+    var cross_y = left.z * right.x - left.x * right.z
+    var cross_z = left.x * right.y - left.y * right.x
+    target.x = cross_x
+    target.y = cross_y
+    target.z = cross_z
 }
 
-func dot(left: Math.Vector3, right: Math.Vector3): Float {
-    return left.x_value * right.x_value + left.y_value * right.y_value + left.z_value * right.z_value
+func dot(left: Vector3<Float>, right: Vector3<Float>): Float {
+    return left.x * right.x + left.y * right.y + left.z * right.z
 }
 
-func normalize_scaled(target: Math.Vector3): Float {
+func normalize_scaled(target: Vector3<Float>): Float {
     var squared = dot(target, target)
     if squared > 0.0 {
         var length = squared.square_root()
         var inverse = 1.0 / length
-        target.x_value = target.x_value * inverse
-        target.y_value = target.y_value * inverse
-        target.z_value = target.z_value * inverse
+        target.x = target.x * inverse
+        target.y = target.y * inverse
+        target.z = target.z * inverse
         return length
     }
-    target.x_value = 0.0
-    target.y_value = 0.0
-    target.z_value = 0.0
+    target.x = 0.0
+    target.y = 0.0
+    target.z = 0.0
     return 0.0
 }
 
-func normalize(target: Math.Vector3): Float {
+func normalize(target: Vector3<Float>): Float {
     var squared = dot(target, target)
     if squared > 0.0 {
         var length = squared.square_root()
-        target.x_value = target.x_value / length
-        target.y_value = target.y_value / length
-        target.z_value = target.z_value / length
+        target.x = target.x / length
+        target.y = target.y / length
+        target.z = target.z / length
         return length
     }
-    target.x_value = 0.0
-    target.y_value = 0.0
-    target.z_value = 0.0
+    target.x = 0.0
+    target.y = 0.0
+    target.z = 0.0
     return 0.0
 }
 
@@ -276,10 +276,10 @@ func arc_cosine(cosine: Float): Float {
     return angle
 }
 
-func append_normal(value: Math.Vector3) {
-    normals.append(value.x_value)
-    normals.append(value.y_value)
-    normals.append(value.z_value)
+func append_normal(value: Vector3<Float>) {
+    normals.append(value.x)
+    normals.append(value.y)
+    normals.append(value.z)
 }
 
 func copy_face_normals() {
@@ -290,9 +290,9 @@ func copy_face_normals() {
     var corner = 0
     while corner < corner_faces.count() {
         var face = corner_faces[corner]
-        result.x_value = face_normal(face, 0)
-        result.y_value = face_normal(face, 1)
-        result.z_value = face_normal(face, 2)
+        result.x = face_normal(face, 0)
+        result.y = face_normal(face, 1)
+        result.z = face_normal(face, 2)
         append_normal(result)
         corner = corner + 1
     }
@@ -307,9 +307,9 @@ func read_custom(domain: Integer) {
         } else if domain == face_domain {
             element = corner_faces[corner]
         }
-        result.x_value = file.float_at(custom + element * 12)
-        result.y_value = file.float_at(custom + element * 12 + 4)
-        result.z_value = file.float_at(custom + element * 12 + 8)
+        result.x = file.float_at(custom + element * 12)
+        result.y = file.float_at(custom + element * 12 + 4)
+        result.z = file.float_at(custom + element * 12 + 8)
         normalize(result)
         append_normal(result)
         corner = corner + 1
@@ -325,9 +325,9 @@ func compute_vertex_normals() {
     var vertex = 0
     while vertex < vertex_count {
         vertex_normal(vertex)
-        sums.append(normal.x_value)
-        sums.append(normal.y_value)
-        sums.append(normal.z_value)
+        sums.append(normal.x)
+        sums.append(normal.y)
+        sums.append(normal.z)
         vertex = vertex + 1
     }
     var corner = 0
@@ -336,9 +336,9 @@ func compute_vertex_normals() {
         crash sums[corner_vertex_index * 3]
         crash sums[corner_vertex_index * 3 + 1]
         crash sums[corner_vertex_index * 3 + 2]
-        result.x_value = sums[corner_vertex_index * 3]
-        result.y_value = sums[corner_vertex_index * 3 + 1]
-        result.z_value = sums[corner_vertex_index * 3 + 2]
+        result.x = sums[corner_vertex_index * 3]
+        result.y = sums[corner_vertex_index * 3 + 1]
+        result.z = sums[corner_vertex_index * 3 + 2]
         append_normal(result)
         corner = corner + 1
     }
@@ -346,9 +346,9 @@ func compute_vertex_normals() {
 
 func vertex_normal(vertex: Integer) {
     collect_corners(vertex)
-    normal.x_value = 0.0
-    normal.y_value = 0.0
-    normal.z_value = 0.0
+    normal.x = 0.0
+    normal.y = 0.0
+    normal.z = 0.0
     var index = 0
     while index < around_faces.count() {
         var face = around_faces[index]
@@ -360,18 +360,18 @@ func vertex_normal(vertex: Integer) {
         direction_to(other, vertex, after)
         var cosine = dot(reference, other)
         var weight = arc_cosine(cosine)
-        normal.x_value = normal.x_value + face_normal(face, 0) * weight
-        normal.y_value = normal.y_value + face_normal(face, 1) * weight
-        normal.z_value = normal.z_value + face_normal(face, 2) * weight
+        normal.x = normal.x + face_normal(face, 0) * weight
+        normal.y = normal.y + face_normal(face, 1) * weight
+        normal.z = normal.z + face_normal(face, 2) * weight
         index = index + 1
     }
     normalize(normal)
 }
 
-func direction_to(target: Math.Vector3, from: Integer, to: Integer) {
-    target.x_value = position(to, 0) - position(from, 0)
-    target.y_value = position(to, 1) - position(from, 1)
-    target.z_value = position(to, 2) - position(from, 2)
+func direction_to(target: Vector3<Float>, from: Integer, to: Integer) {
+    target.x = position(to, 0) - position(from, 0)
+    target.y = position(to, 1) - position(from, 1)
+    target.z = position(to, 2) - position(from, 2)
     normalize(target)
 }
 
@@ -462,10 +462,10 @@ func is_visited(local: Integer): Boolean {
     return visited[local]
 }
 
-func set_corner(corner: Integer, value: Math.Vector3) {
-    normals[corner * 3] = value.x_value
-    normals[corner * 3 + 1] = value.y_value
-    normals[corner * 3 + 2] = value.z_value
+func set_corner(corner: Integer, value: Vector3<Float>) {
+    normals[corner * 3] = value.x
+    normals[corner * 3 + 1] = value.y
+    normals[corner * 3 + 2] = value.z
 }
 
 func map_local_edges(vertex: Integer) {
@@ -496,9 +496,9 @@ func map_local_edges(vertex: Integer) {
         edge_second_corners.append(0)
         edge_towards.append(false)
         direction_to(reference, vertex, edge_ends[index])
-        edge_directions.append(reference.x_value)
-        edge_directions.append(reference.y_value)
-        edge_directions.append(reference.z_value)
+        edge_directions.append(reference.x)
+        edge_directions.append(reference.y)
+        edge_directions.append(reference.z)
         index = index + 1
     }
 }
@@ -646,13 +646,13 @@ func rotate_to_lowest_corner() {
     }
 }
 
-func edge_direction(target: Math.Vector3, edge: Integer) {
+func edge_direction(target: Vector3<Float>, edge: Integer) {
     crash edge_directions[edge * 3]
     crash edge_directions[edge * 3 + 1]
     crash edge_directions[edge * 3 + 2]
-    target.x_value = edge_directions[edge * 3]
-    target.y_value = edge_directions[edge * 3 + 1]
-    target.z_value = edge_directions[edge * 3 + 2]
+    target.x = edge_directions[edge * 3]
+    target.y = edge_directions[edge * 3 + 1]
+    target.z = edge_directions[edge * 3 + 2]
 }
 
 func fan_normal() {
@@ -660,13 +660,13 @@ func fan_normal() {
     crash first
     crash around_faces[first]
     var first_face = around_faces[first]
-    normal.x_value = face_normal(first_face, 0)
-    normal.y_value = face_normal(first_face, 1)
-    normal.z_value = face_normal(first_face, 2)
+    normal.x = face_normal(first_face, 0)
+    normal.y = face_normal(first_face, 1)
+    normal.z = face_normal(first_face, 2)
     if fan.count() > 1 {
-        normal.x_value = 0.0
-        normal.y_value = 0.0
-        normal.z_value = 0.0
+        normal.x = 0.0
+        normal.y = 0.0
+        normal.z = 0.0
         var index = 0
         while index < fan.count() {
             var local = fan[index]
@@ -678,16 +678,16 @@ func fan_normal() {
             edge_direction(other, after_edge)
             var cosine = dot(reference, other)
             var weight = arc_cosine(cosine)
-            normal.x_value = normal.x_value + face_normal(face, 0) * weight
-            normal.y_value = normal.y_value + face_normal(face, 1) * weight
-            normal.z_value = normal.z_value + face_normal(face, 2) * weight
+            normal.x = normal.x + face_normal(face, 0) * weight
+            normal.y = normal.y + face_normal(face, 1) * weight
+            normal.z = normal.z + face_normal(face, 2) * weight
             index = index + 1
         }
         normalize(normal)
     }
-    result.x_value = normal.x_value
-    result.y_value = normal.y_value
-    result.z_value = normal.z_value
+    result.x = normal.x
+    result.y = normal.y
+    result.z = normal.z
 }
 
 func decode_fan() {
@@ -730,10 +730,10 @@ func decode_fan() {
     decode_custom(alpha_code, beta_code)
 }
 
-func append_direction(vector: Math.Vector3) {
-    fan_directions.append(vector.x_value)
-    fan_directions.append(vector.y_value)
-    fan_directions.append(vector.z_value)
+func append_direction(vector: Vector3<Float>) {
+    fan_directions.append(vector.x)
+    fan_directions.append(vector.y)
+    fan_directions.append(vector.z)
 }
 
 func signed_short(offset: Integer): Integer {
@@ -775,9 +775,9 @@ func decode_custom(alpha_code: Integer, beta_code: Integer) {
     alpha = alpha * alpha_factor
     var alpha_cosine = alpha.cosine()
     var alpha_sine = alpha.sine()
-    result.x_value = normal.x_value * alpha_cosine
-    result.y_value = normal.y_value * alpha_cosine
-    result.z_value = normal.z_value * alpha_cosine
+    result.x = normal.x * alpha_cosine
+    result.y = normal.y * alpha_cosine
+    result.z = normal.z * alpha_cosine
     var along_reference = alpha_sine
     var along_ortho: Float = 0.0
     if beta_factor != 0.0 {
@@ -789,9 +789,9 @@ func decode_custom(alpha_code: Integer, beta_code: Integer) {
         along_reference = alpha_sine * beta.cosine()
         along_ortho = alpha_sine * beta.sine()
     }
-    result.x_value = result.x_value + reference.x_value * along_reference + ortho.x_value * along_ortho
-    result.y_value = result.y_value + reference.y_value * along_reference + ortho.y_value * along_ortho
-    result.z_value = result.z_value + reference.z_value * along_reference + ortho.z_value * along_ortho
+    result.x = result.x + reference.x * along_reference + ortho.x * along_ortho
+    result.y = result.y + reference.y * along_reference + ortho.y * along_ortho
+    result.z = result.z + reference.z * along_reference + ortho.z * along_ortho
 }
 
 func mean_alpha(reference_cosine: Float, other_cosine: Float): Float {
@@ -804,8 +804,8 @@ func mean_alpha(reference_cosine: Float, other_cosine: Float): Float {
     var total: Float = 0.0
     var index = 0
     while index + 2 < fan_directions.count() {
-        var cosine = fan_directions[index] * normal.x_value + fan_directions[index + 1] * normal.y_value
-        cosine = cosine + fan_directions[index + 2] * normal.z_value
+        var cosine = fan_directions[index] * normal.x + fan_directions[index + 1] * normal.y
+        cosine = cosine + fan_directions[index + 2] * normal.z
         total = total + arc_cosine(cosine)
         index = index + 3
     }
@@ -813,9 +813,9 @@ func mean_alpha(reference_cosine: Float, other_cosine: Float): Float {
     return total / divisor
 }
 
-func project(target: Math.Vector3, along: Float) {
-    target.x_value = target.x_value - normal.x_value * along
-    target.y_value = target.y_value - normal.y_value * along
-    target.z_value = target.z_value - normal.z_value * along
+func project(target: Vector3<Float>, along: Float) {
+    target.x = target.x - normal.x * along
+    target.y = target.y - normal.y * along
+    target.z = target.z - normal.z * along
     normalize(target)
 }

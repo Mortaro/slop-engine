@@ -1,7 +1,7 @@
 var space = Blend.Space()
-var file = Blend.File()
+var file = Blend.Document()
 var mesh = Asset.Mesh()
-var placement = Math.Matrix4()
+var placement = Matrix4()
 var attribute_names = List<String>()
 var attribute_offsets = List<Integer>()
 var single_names = List<String>()
@@ -18,24 +18,25 @@ var attribute_kinds = List<Integer>()
 var attribute_domains = List<Integer>()
 var corner_normals = Blend.CornerNormals()
 var polygon = Blend.PolygonFill()
-var normal_matrix = Math.Matrix4()
-var projection_across = Math.Vector3()
-var projection_up = Math.Vector3()
+var normal_matrix = Matrix4()
+var projection_across = Vector3(0.0, 0.0, 0.0)
+var projection_up = Vector3(0.0, 0.0, 0.0)
 var group_bones = List<Integer>()
 var welded = Dictionary<Integer>()
-var point = Math.Vector3()
-var direction = Math.Vector3()
+var direction = Vector3(0.0, 0.0, 0.0)
 var material_faces = -1
 var images = List<String>()
 var image_bytes = List<Asset.Bytes>()
 var image_paths = List<String>()
 
-func read(source: Blend.File, object: Blend.View, bone_names: List<String>): Asset.Mesh {
+func read(source: Blend.Document, object: Blend.View, bone_names: List<String>): Asset.Mesh {
     file = source
     var world = space.object_world(file, object)
     var target = space.to_target()
-    placement = target.multiplied(world)
-    normal_matrix = placement.inverted()
+    placement = target * world
+    var inverted_placement = placement.inverse()
+    crash inverted_placement
+    normal_matrix = inverted_placement
     var data_address_2 = object.pointer("data")
     var data = file.view_at(data_address_2)
     crash data
@@ -337,10 +338,10 @@ func emit_polygon(face: Integer, first: Integer, last: Integer) {
         var vertex_x = position(vertex, 0)
         var vertex_y = position(vertex, 1)
         var vertex_z = position(vertex, 2)
-        var along = projection_across.x_value * vertex_x + projection_across.y_value * vertex_y
-        along = along + projection_across.z_value * vertex_z
-        var upward = projection_up.x_value * vertex_x + projection_up.y_value * vertex_y
-        upward = upward + projection_up.z_value * vertex_z
+        var along = projection_across.x * vertex_x + projection_across.y * vertex_y
+        along = along + projection_across.z * vertex_z
+        var upward = projection_up.x * vertex_x + projection_up.y * vertex_y
+        upward = upward + projection_up.z * vertex_z
         polygon.add(along, upward)
         corner = corner + 1
     }
@@ -362,24 +363,24 @@ func project_onto_face(face: Integer) {
     var flat = away_x * away_x + away_y * away_y
     if flat > 0.00000011920929 {
         var inverse = 1.0 / flat.square_root()
-        projection_across.x_value = away_y * inverse
-        projection_across.y_value = 0.0 - away_x * inverse
-        projection_across.z_value = 0.0
-        projection_up.x_value = 0.0 - away_z * projection_across.y_value
-        projection_up.y_value = away_z * projection_across.x_value
-        var up_z = away_x * projection_across.y_value - away_y * projection_across.x_value
-        projection_up.z_value = up_z
+        projection_across.x = away_y * inverse
+        projection_across.y = 0.0 - away_x * inverse
+        projection_across.z = 0.0
+        projection_up.x = 0.0 - away_z * projection_across.y
+        projection_up.y = away_z * projection_across.x
+        var up_z = away_x * projection_across.y - away_y * projection_across.x
+        projection_up.z = up_z
         return
     }
-    projection_across.x_value = 1.0
+    projection_across.x = 1.0
     if away_z < 0.0 {
-        projection_across.x_value = -1.0
+        projection_across.x = -1.0
     }
-    projection_across.y_value = 0.0
-    projection_across.z_value = 0.0
-    projection_up.x_value = 0.0
-    projection_up.y_value = 1.0
-    projection_up.z_value = 0.0
+    projection_across.y = 0.0
+    projection_across.z = 0.0
+    projection_up.x = 0.0
+    projection_up.y = 1.0
+    projection_up.z = 0.0
 }
 
 func emit_corner(corner: Integer) {
@@ -404,13 +405,14 @@ func emit_corner(corner: Integer) {
     var position_x = position(vertex, 0)
     var position_y = position(vertex, 1)
     var position_z = position(vertex, 2)
-    placement.transform_point(point, position_x, position_y, position_z)
-    mesh.vertices.append(point.x_value)
-    mesh.vertices.append(point.y_value)
-    mesh.vertices.append(point.z_value)
-    mesh.vertices.append(direction.x_value)
-    mesh.vertices.append(direction.y_value)
-    mesh.vertices.append(direction.z_value)
+    var source = Vector3(position_x, position_y, position_z)
+    var point = placement.transform_point(source)
+    mesh.vertices.append(point.x)
+    mesh.vertices.append(point.y)
+    mesh.vertices.append(point.z)
+    mesh.vertices.append(direction.x)
+    mesh.vertices.append(direction.y)
+    mesh.vertices.append(direction.z)
     mesh.vertices.append(across)
     mesh.vertices.append(down)
     append_skin(vertex)
@@ -424,20 +426,20 @@ func transform_normal(corner: Integer) {
     var normal_x = normals[corner * 3]
     var normal_y = normals[corner * 3 + 1]
     var normal_z = normals[corner * 3 + 2]
-    var along_x = normal_matrix.m0 * normal_x + normal_matrix.m1 * normal_y + normal_matrix.m2 * normal_z
-    var along_y = normal_matrix.m4 * normal_x + normal_matrix.m5 * normal_y + normal_matrix.m6 * normal_z
-    var along_z = normal_matrix.m8 * normal_x + normal_matrix.m9 * normal_y + normal_matrix.m10 * normal_z
+    var along_x = normal_matrix.column_0_row_0 * normal_x + normal_matrix.column_0_row_1 * normal_y + normal_matrix.column_0_row_2 * normal_z
+    var along_y = normal_matrix.column_1_row_0 * normal_x + normal_matrix.column_1_row_1 * normal_y + normal_matrix.column_1_row_2 * normal_z
+    var along_z = normal_matrix.column_2_row_0 * normal_x + normal_matrix.column_2_row_1 * normal_y + normal_matrix.column_2_row_2 * normal_z
     var squared = along_x * along_x + along_y * along_y + along_z * along_z
     var length = squared.square_root()
-    direction.x_value = along_x / length
-    direction.y_value = along_y / length
-    direction.z_value = along_z / length
+    direction.x = along_x / length
+    direction.y = along_y / length
+    direction.z = along_z / length
 }
 
 func weld_key(vertex: Integer, across: Float, down: Float): String {
-    var normal_x: Integer = direction.x_value * 10000.0
-    var normal_y: Integer = direction.y_value * 10000.0
-    var normal_z: Integer = direction.z_value * 10000.0
+    var normal_x: Integer = direction.x * 10000.0
+    var normal_y: Integer = direction.y * 10000.0
+    var normal_z: Integer = direction.z * 10000.0
     var coordinate_across: Integer = across * 100000.0
     var coordinate_down: Integer = down * 100000.0
     return "{vertex} {normal_x} {normal_y} {normal_z} {coordinate_across} {coordinate_down}"

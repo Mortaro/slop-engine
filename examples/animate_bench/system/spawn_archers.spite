@@ -4,7 +4,6 @@ type Started {
 
 var world = World()
 var environment = Environment()
-var scalar = Math.Scalar()
 var parts = ["chest", "boots", "gloves", "shorts_part_1", "shorts_part_2", "face_1", "hair_1"]
 
 func update_each(_started: Started) {
@@ -40,8 +39,8 @@ func spawn_archer(archer: Integer) {
     var around: Float = archer % 40
     var angle = around * 0.15708
     var distance: Float = 4.0 + 4.0 * ring
-    var along_x = scalar.cosine(angle) * distance
-    var along_z = scalar.sine(angle) * distance
+    var along_x = angle.cosine() * distance
+    var along_z = angle.sine() * distance
     var index = 0
     while index < parts.count() {
         var part = parts[index]

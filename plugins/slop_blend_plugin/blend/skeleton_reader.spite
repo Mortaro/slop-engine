@@ -1,11 +1,11 @@
 var space = Blend.Space()
-var file = Blend.File()
+var file = Blend.Document()
 var skeleton = Asset.Skeleton()
 var addresses = List<Long>()
-var rests = List<Math.Matrix4>()
-var armature_world = Math.Matrix4()
+var rests = List<Matrix4>()
+var armature_world = Matrix4()
 
-func read(source: Blend.File, armature_object: Blend.View): Asset.Skeleton {
+func read(source: Blend.Document, armature_object: Blend.View): Asset.Skeleton {
     file = source
     armature_world = space.object_world(file, armature_object)
     var data_address = armature_object.pointer("data")
@@ -29,9 +29,10 @@ func add_bone_tree(address: Long) {
     skeleton.parents.append(parent_index)
     var rest = space.matrix_field(bone, "arm_mat")
     rests.append(rest)
-    var placed = armature_world.multiplied(rest)
+    var placed = armature_world * rest
     var bind = space.to_engine(placed)
-    var inverse_bind = bind.inverted()
+    var inverse_bind = bind.inverse()
+    crash inverse_bind
     var index = 0
     while index < 16 {
         var value = inverse_bind.value_at(index)
@@ -54,7 +55,7 @@ func index_of(address: Long): Integer {
     return -1
 }
 
-func rest_of(index: Integer): Math.Matrix4 {
+func rest_of(index: Integer): Matrix4 {
     crash rests[index]
     return rests[index]
 }

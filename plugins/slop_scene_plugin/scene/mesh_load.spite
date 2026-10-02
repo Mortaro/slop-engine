@@ -4,7 +4,6 @@ var length: Long = 0
 var key = ""
 var vertex_floats = 8
 var joint_limit = 0
-var scalar = Math.Scalar()
 
 func MeshLoad(found: Recipes.Record) {
     path = found.path
@@ -121,7 +120,7 @@ func measure_bounds(loaded: Scene.LoadedMesh, mesh: Asset.Mesh, count: Integer) 
     var half_x = (high_x - low_x) * 0.5
     var half_y = (high_y - low_y) * 0.5
     var half_z = (high_z - low_z) * 0.5
-    var radius = scalar.square_root(half_x * half_x + half_y * half_y + half_z * half_z)
+    var radius = (half_x * half_x + half_y * half_y + half_z * half_z).square_root()
     loaded.bound_radius = radius
 }
 

@@ -193,7 +193,7 @@ carry several frames' worth of input), so Backspace, Delete, Left, Right, Home a
 where they were typed, and it mirrors the value into the element's `Text`. `DrawUi` draws the
 focused element's caret after its text. Keyboard state is key entities, children of the window: `Input.Component.Key`
 (`code`, a virtual key) while it is held, marked `JustPressed` on the tick it went down; characters arrive as
-`character_typed` events (from `WM_CHAR`). `Input.Key` names the virtual keys.
+`character_typed` events (from `WM_CHAR`). `Input.KeyCode` names the virtual keys.
 
 `examples/text_field` is a form with two fields. `examples/text_field_test` clicks the first, types "HELLO",
 presses Backspace and Left twice, types "X", presses Tab, types "Y", and checks "HEXLL" (caret 3) in the first and

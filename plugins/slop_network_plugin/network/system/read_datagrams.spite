@@ -26,7 +26,7 @@ func deliver(received: List<Byte>, peers: List<Peer>) {
     }
 }
 
-func take(stream: Network.Stream, received: List<Byte>) {
+func take(stream: Network.Channel, received: List<Byte>) {
     if not stream.dialed and stream.datagram_port == 0 {
         stream.datagram_host = datagrams.socket.sender_host()
         stream.datagram_port = datagrams.socket.sender_port()

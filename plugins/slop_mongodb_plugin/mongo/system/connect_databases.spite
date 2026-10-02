@@ -1,7 +1,7 @@
 type Unconnected {
     entity: Entity
     database: Mongo.Component.Database
-    unconnected: Without<Mongo.Component.Client>
+    unconnected: Without<Mongo.Component.Connection>
 }
 
 func input_each(unconnected: Unconnected) {

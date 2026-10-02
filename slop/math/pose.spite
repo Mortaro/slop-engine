@@ -8,3 +8,27 @@ var rotation_w: Float = 1.0
 var scale_x: Float = 1.0
 var scale_y: Float = 1.0
 var scale_z: Float = 1.0
+
+func decompose(matrix: Matrix4) {
+    var translation = matrix.translation_part()
+    var rotation = matrix.rotation_part()
+    var scale = matrix.scale_part()
+    position_x = translation.x
+    position_y = translation.y
+    position_z = translation.z
+    rotation_x = rotation.x
+    rotation_y = rotation.y
+    rotation_z = rotation.z
+    rotation_w = rotation.w
+    scale_x = scale.x
+    scale_y = scale.y
+    scale_z = scale.z
+}
+
+func compose(matrix: Matrix4) {
+    var translation = Vector3(position_x, position_y, position_z)
+    var rotation = Quaternion()
+    rotation.set_parts(rotation_x, rotation_y, rotation_z, rotation_w)
+    var scale = Vector3(scale_x, scale_y, scale_z)
+    matrix.set_transform(translation, rotation, scale)
+}

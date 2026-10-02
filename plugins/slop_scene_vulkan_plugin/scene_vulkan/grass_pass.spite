@@ -1,7 +1,6 @@
 var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
 var raw = Raw()
 var floats = TypedMemory<Float>()
-var scalar = Math.Scalar()
 var builder = SceneVulkan.PipelineBuilder()
 var grass = Scene.Grass()
 var meshes = Scene.Meshes()
@@ -132,7 +131,7 @@ func prepare(
     mesh_renderer: SceneVulkan.MeshRenderer,
     drawn: Scene.DrawSet,
     camera: Scene.Component.ViewCamera,
-    view_projection: Math.Matrix4,
+    view_projection: Matrix4,
     storage: RenderVulkan.Structure,
 ) {
     active.clear()
@@ -186,11 +185,11 @@ func plan_kinds(
         crash kind
         if kind_ready(renderer, mesh_renderer, kind) {
             var loaded = meshes.mesh_at(kind.mesh_slot)
-            var density = scalar.maximum(kind.density, 0.0001)
-            var spacing = 1.0 / scalar.square_root(density)
+            var density = kind.density.maximum(0.0001)
+            var spacing = 1.0 / density.square_root()
             var end = kind.end_cull_distance
-            var first_column: Integer = scalar.floor((camera.eye_x - end) / spacing)
-            var first_row: Integer = scalar.floor((camera.eye_z - end) / spacing)
+            var first_column: Integer = ((camera.eye_x - end) / spacing).floor()
+            var first_row: Integer = ((camera.eye_z - end) / spacing).floor()
             var span: Integer = 2.0 * end / spacing
             var columns = span + 3
             var capacity = columns * columns
@@ -239,8 +238,8 @@ func plan_kinds(
     }
     var texel = 2.0 * (farthest + 4.0) / 1024.0
     ground_half = farthest + 4.0
-    ground_center_x = scalar.floor(camera.eye_x / texel) * texel
-    ground_center_z = scalar.floor(camera.eye_z / texel) * texel
+    ground_center_x = (camera.eye_x / texel).floor() * texel
+    ground_center_z = (camera.eye_z / texel).floor() * texel
     return data
 }
 
@@ -307,13 +306,41 @@ func command_data(mesh_renderer: SceneVulkan.MeshRenderer): RenderVulkan.Structu
     return data
 }
 
-func frame_data(camera: Scene.Component.ViewCamera, view_projection: Math.Matrix4): RenderVulkan.Structure {
+func frame_data(camera: Scene.Component.ViewCamera, view_projection: Matrix4): RenderVulkan.Structure {
     var data = RenderVulkan.Structure(frame_bytes)
     var matrix = view_projection
-    write_plane(data, 0, matrix.m3 + matrix.m0, matrix.m7 + matrix.m4, matrix.m11 + matrix.m8, matrix.m15 + matrix.m12)
-    write_plane(data, 16, matrix.m3 - matrix.m0, matrix.m7 - matrix.m4, matrix.m11 - matrix.m8, matrix.m15 - matrix.m12)
-    write_plane(data, 32, matrix.m3 + matrix.m1, matrix.m7 + matrix.m5, matrix.m11 + matrix.m9, matrix.m15 + matrix.m13)
-    write_plane(data, 48, matrix.m3 - matrix.m1, matrix.m7 - matrix.m5, matrix.m11 - matrix.m9, matrix.m15 - matrix.m13)
+    write_plane(
+        data,
+        0,
+        matrix.column_0_row_3 + matrix.column_0_row_0,
+        matrix.column_1_row_3 + matrix.column_1_row_0,
+        matrix.column_2_row_3 + matrix.column_2_row_0,
+        matrix.column_3_row_3 + matrix.column_3_row_0,
+    )
+    write_plane(
+        data,
+        16,
+        matrix.column_0_row_3 - matrix.column_0_row_0,
+        matrix.column_1_row_3 - matrix.column_1_row_0,
+        matrix.column_2_row_3 - matrix.column_2_row_0,
+        matrix.column_3_row_3 - matrix.column_3_row_0,
+    )
+    write_plane(
+        data,
+        32,
+        matrix.column_0_row_3 + matrix.column_0_row_1,
+        matrix.column_1_row_3 + matrix.column_1_row_1,
+        matrix.column_2_row_3 + matrix.column_2_row_1,
+        matrix.column_3_row_3 + matrix.column_3_row_1,
+    )
+    write_plane(
+        data,
+        48,
+        matrix.column_0_row_3 - matrix.column_0_row_1,
+        matrix.column_1_row_3 - matrix.column_1_row_1,
+        matrix.column_2_row_3 - matrix.column_2_row_1,
+        matrix.column_3_row_3 - matrix.column_3_row_1,
+    )
     write_floats(data, 64, camera.eye_x, camera.eye_y, camera.eye_z, grass.time_seconds)
     var texels: Float = ground_size
     write_floats(data, 80, ground_center_x, ground_center_z, ground_half, texels)
@@ -328,7 +355,7 @@ func write_plane(
     normal_z: Float,
     offset: Float,
 ) {
-    var length = scalar.square_root(normal_x * normal_x + normal_y * normal_y + normal_z * normal_z)
+    var length = (normal_x * normal_x + normal_y * normal_y + normal_z * normal_z).square_root()
     write_floats(data, at, normal_x / length, normal_y / length, normal_z / length, offset / length)
 }
 
@@ -425,18 +452,19 @@ func capture_ground(
     )
 }
 
-func ground_view_projection(): Math.Matrix4 {
-    var matrix = Math.Matrix4()
+func ground_view_projection(): Matrix4 {
+    var matrix = Matrix4()
     var top: Float = 5000.0
     var depth_range: Float = 10000.0
-    matrix.clear()
-    matrix.m0 = 1.0 / ground_half
-    matrix.m12 = 0.0 - ground_center_x / ground_half
-    matrix.m9 = 1.0 / ground_half
-    matrix.m13 = 0.0 - ground_center_z / ground_half
-    matrix.m6 = -1.0 / depth_range
-    matrix.m14 = top / depth_range
-    matrix.m15 = 1.0
+    matrix.column_0_row_0 = 1.0 / ground_half
+    matrix.column_1_row_1 = 0.0
+    matrix.column_2_row_2 = 0.0
+    matrix.column_3_row_0 = 0.0 - ground_center_x / ground_half
+    matrix.column_2_row_1 = 1.0 / ground_half
+    matrix.column_3_row_1 = 0.0 - ground_center_z / ground_half
+    matrix.column_1_row_2 = -1.0 / depth_range
+    matrix.column_3_row_2 = top / depth_range
+    matrix.column_3_row_3 = 1.0
     return matrix
 }
 
@@ -533,7 +561,7 @@ func draw(
     renderer: RenderVulkan.Renderer,
     mesh_renderer: SceneVulkan.MeshRenderer,
     storage: RenderVulkan.Structure,
-    view_projection: Math.Matrix4,
+    view_projection: Matrix4,
 ) {
     assert active.count() > 0
     var command_buffer = renderer.frame.command_buffer
@@ -561,7 +589,7 @@ func draw_kind(
     kind: Scene.GrassKind,
     place: Integer,
     first_command: Integer,
-    view_projection: Math.Matrix4,
+    view_projection: Matrix4,
 ) {
     var command_buffer = renderer.frame.command_buffer
     var loaded = meshes.mesh_at(kind.mesh_slot)
@@ -591,7 +619,7 @@ func draw_kind(
             masked = 1
         }
         var push = RenderVulkan.Structure(72)
-        view_projection.write_to(push.address)
+        view_projection.write_to(floats, push.address)
         raw.write_integer(push.address, 64, place)
         raw.write_integer(push.address, 68, masked)
         var vertex_stage = 1

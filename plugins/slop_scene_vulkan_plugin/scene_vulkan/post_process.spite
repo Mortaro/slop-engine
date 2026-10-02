@@ -1,6 +1,5 @@
 var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
 var floats = TypedMemory<Float>()
-var scalar = Math.Scalar()
 var clock = Clock()
 var set_layout: Long = 0
 var layout: Long = 0
@@ -66,7 +65,7 @@ var history_frames = 0
 var metered_frames = 0
 var jitter_x: Float = 0.0
 var jitter_y: Float = 0.0
-var previous_view_projection = Math.Matrix4()
+var previous_view_projection = Matrix4()
 var pre_exposure: Float = 1.0
 var previous_pre_exposure: Float = 1.0
 var last_nanoseconds: Long = 0
@@ -456,7 +455,7 @@ func create_buffers(renderer: RenderVulkan.Renderer) {
 
 func prepare(renderer: RenderVulkan.Renderer, view: Scene.Component.View, metered: Boolean) {
     var frame = renderer.frame
-    var percent = scalar.clamp(view.screen_percentage, 10.0, 100.0)
+    var percent = view.screen_percentage.clamp(10.0, 100.0)
     var scale = percent / 100.0
     var full_width: Float = frame.target_width
     var full_height: Float = frame.target_height
@@ -489,12 +488,12 @@ func measure_time() {
     var passed = now - last_nanoseconds
     last_nanoseconds = now
     var nanoseconds: Float = passed
-    seconds = scalar.clamp(nanoseconds / 1000000000.0, 0.0, 0.25)
+    seconds = (nanoseconds / 1000000000.0).clamp(0.0, 0.25)
 }
 
 func read_exposure(renderer: RenderVulkan.Renderer, view: Scene.Component.View, metered: Boolean) {
     previous_pre_exposure = pre_exposure
-    var manual_power = scalar.power_of_two(view.exposure_value)
+    var manual_power = 2.0.power(view.exposure_value)
     pre_exposure = 1.0 / (1.2 * manual_power)
     if metered {
         metered_frames = metered_frames + 1
@@ -508,7 +507,7 @@ func read_exposure(renderer: RenderVulkan.Renderer, view: Scene.Component.View, 
     var valid = floats.read_value(at, 1)
     assert valid > 0.5
     var adapted = floats.read_value(at, 0)
-    var power = scalar.power_of_two(adapted)
+    var power = 2.0.power(adapted)
     pre_exposure = 1.0 / (1.2 * power)
 }
 
@@ -533,13 +532,13 @@ func halton(index: Integer, base: Integer): Float {
     return result
 }
 
-func jittered(projection: Math.Matrix4): Math.Matrix4 {
-    var result = Math.Matrix4()
+func jittered(projection: Matrix4): Matrix4 {
+    var result = Matrix4()
     result.copy_from(projection)
     var width: Float = render_width
     var height: Float = render_height
-    result.m8 = result.m8 - 2.0 * jitter_x / width
-    result.m9 = result.m9 - 2.0 * jitter_y / height
+    result.column_2_row_0 = result.column_2_row_0 - 2.0 * jitter_x / width
+    result.column_2_row_1 = result.column_2_row_1 - 2.0 * jitter_y / height
     return result
 }
 
@@ -790,8 +789,8 @@ func record(
     renderer: RenderVulkan.Renderer,
     view: Scene.Component.View,
     metered: Boolean,
-    projection: Math.Matrix4,
-    view_projection: Math.Matrix4,
+    projection: Matrix4,
+    view_projection: Matrix4,
     depth_image: Long,
 ) {
     write_sets(renderer)
@@ -847,13 +846,20 @@ func start_fresh(renderer: RenderVulkan.Renderer) {
     memory_barrier(renderer, 4096, 32 + 64, 4096, reads)
 }
 
-func record_occlusion(renderer: RenderVulkan.Renderer, view: Scene.Component.View, projection: Math.Matrix4) {
+func record_occlusion(renderer: RenderVulkan.Renderer, view: Scene.Component.View, projection: Matrix4) {
     var push = RenderVulkan.Structure(48)
     var fade_start = view.ambient_occlusion_fade_distance - view.ambient_occlusion_fade_radius
     var width: Float = render_width
     var height: Float = render_height
     var noise: Float = frame_index % 64
-    put(push.address, 0, projection.m0, projection.m5, projection.m10, projection.m14)
+    put(
+        push.address,
+        0,
+        projection.column_0_row_0,
+        projection.column_1_row_1,
+        projection.column_2_row_2,
+        projection.column_3_row_2,
+    )
     put(
         push.address,
         4,
@@ -866,17 +872,18 @@ func record_occlusion(renderer: RenderVulkan.Renderer, view: Scene.Component.Vie
     render_pass(renderer, lit_image, lit_view, render_width, render_height, occlusion_pipeline, occlusion_set, push, 48)
 }
 
-func record_temporal(renderer: RenderVulkan.Renderer, view_projection: Math.Matrix4) {
+func record_temporal(renderer: RenderVulkan.Renderer, view_projection: Matrix4) {
     crash history_images[parity]
     crash history_views[parity]
     crash temporal_sets[parity]
     if history_frames == 0 {
         previous_view_projection.copy_from(view_projection)
     }
-    var inverse = view_projection.inverted()
-    var reprojection = previous_view_projection.multiplied(inverse)
+    var inverse = view_projection.inverse()
+    crash inverse
+    var reprojection = previous_view_projection * inverse
     var push = RenderVulkan.Structure(96)
-    reprojection.write_to(push.address)
+    reprojection.write_to(floats, push.address)
     var has_history = 0.0
     if history_frames > 0 {
         has_history = 1.0
@@ -992,9 +999,9 @@ func record_bloom(renderer: RenderVulkan.Renderer, view: Scene.Component.View) {
         var width: Float = level_widths[level]
         var height: Float = level_heights[level]
         var radius = width * stage_sizes[level] * view.bloom_size_scale * 0.005
-        radius = scalar.clamp(radius, 0.5, 128.0)
+        radius = radius.clamp(0.5, 128.0)
         var sigma = radius * 0.5
-        var reach = scalar.clamp(sigma * 3.0, 1.0, 192.0)
+        var reach = (sigma * 3.0).clamp(1.0, 192.0)
         var across = RenderVulkan.Structure(32)
         put(across.address, 0, 1.0 / width, 0.0, reach, sigma)
         put(across.address, 4, 1.0, 0.0, 0.0, 0.0)

@@ -1,5 +1,4 @@
 var simplifier = Recipes.MeshSimplifier()
-var scalar = Math.Scalar()
 var reduction: Float = 0.5
 var level_limit = 8
 var minimum_triangles = 16
@@ -55,10 +54,10 @@ func add_level(mesh: Asset.Mesh, radius: Float) {
     } else if error > 0.0 {
         size = 2.0 * radius * pixel_error / (error * reference_height)
     }
-    size = scalar.minimum(size, largest_screen_size)
+    size = size.minimum(largest_screen_size)
     var last = mesh.detail_screen_sizes.last()
     if last {
-        size = scalar.minimum(size, last)
+        size = size.minimum(last)
     }
     mesh.detail_screen_sizes.append(size)
 }

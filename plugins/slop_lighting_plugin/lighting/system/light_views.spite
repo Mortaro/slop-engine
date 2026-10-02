@@ -10,15 +10,12 @@ type Target {
     view: Scene.Component.View
 }
 
-var scalar = Math.Scalar()
 var shadowing = Lookup<Lighting.Component.CastsShadows>()
 
 func render_each(lit: Lit, target: Target) {
     var view = target.view
     var sun = lit.sun
-    var length = scalar.square_root(
-        sun.direction_x * sun.direction_x + sun.direction_y * sun.direction_y + sun.direction_z * sun.direction_z,
-    )
+    var length = (sun.direction_x * sun.direction_x + sun.direction_y * sun.direction_y + sun.direction_z * sun.direction_z).square_root()
     view.sun_toward_x = 0.0 - sun.direction_x / length
     view.sun_toward_y = 0.0 - sun.direction_y / length
     view.sun_toward_z = 0.0 - sun.direction_z / length

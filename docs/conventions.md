@@ -29,6 +29,10 @@ An engine plugin lives in `plugins/slop_<feature>_plugin/<feature>/`, so loading
   `Vector2`/`Vector3`: `Position2D` and `Position3D`, not two `Position` classes told apart by namespace. A
   component with only one dimension keeps its plain name until a second one arrives.
 - A system is named after what it does: `CountClicks`, `OpenWindow`, `DrawUi`.
+- A class name means one class (Spite's rule): no class shares its last name with a standard library class, or
+  with a class whose namespace encloses its own. A game's `System.OpenWindow` is refused beside
+  `Windows.System.OpenWindow`, and `Input.Component.Key` beside an `Input.Key`, so each is named after what it is:
+  `System.SpawnWindow`, `Input.KeyCode`.
 - A system's function is named after its phase: `update_each`, `render_all`, `after_input_each`.
 - **No other function may end in `_each` or `_all`**: the runner finds phase functions by that suffix, so a helper
   called `drag_all` becomes a phase named `drag`. Name helpers `drag_every`, `interact_pointer`, and so on.

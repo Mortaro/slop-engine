@@ -113,9 +113,9 @@ func record(
     var no_offsets: Long = 0
     var timings = renderer.gpu_timings
     var projection = camera.projection(aspect)
-    var steady = projection.multiplied(camera.view)
+    var steady = projection * camera.view
     var jittered = post.jittered(projection)
-    var view_projection = jittered.multiplied(camera.view)
+    var view_projection = jittered * camera.view
     var grass_scatter_timing = timings.begin("grass scatter")
     grass.prepare(renderer, this, drawn, camera, view_projection, storage)
     timings.end(grass_scatter_timing)
@@ -160,7 +160,7 @@ func write_lighting(view: Scene.Component.View, camera: Scene.Component.ViewCame
     put(at, 24, view.roughness, view.specular, view.metallic, exposure)
     shadows.write_lighting(at)
     var view_at = at + 176
-    camera.view.write_to(view_at)
+    camera.view.write_to(floats, view_at)
     put(at, 60, clusters.near, clusters.slice_scale, clusters.across_scale, clusters.down_scale)
 }
 
@@ -251,12 +251,7 @@ func put(at: Long, index: Integer, first: Float, second: Float, third: Float, fo
     floats.write_value(at, index + 3, fourth)
 }
 
-func record_runs(
-    renderer: RenderVulkan.Renderer,
-    drawn: Scene.DrawSet,
-    view_projection: Math.Matrix4,
-    shadows: Boolean,
-) {
+func record_runs(renderer: RenderVulkan.Renderer, drawn: Scene.DrawSet, view_projection: Matrix4, shadows: Boolean) {
     var run = 0
     while run < run_starts.count() {
         crash run_draws[run]
@@ -270,7 +265,7 @@ func record_runs(
     }
 }
 
-func record_run(renderer: RenderVulkan.Renderer, draw: Scene.Draw, run: Integer, view_projection: Math.Matrix4) {
+func record_run(renderer: RenderVulkan.Renderer, draw: Scene.Draw, run: Integer, view_projection: Matrix4) {
     crash run_starts[run]
     crash run_counts[run]
     record_instances(
@@ -292,7 +287,7 @@ func record_mesh(
     index_count: Integer,
     set_index: Integer,
     index: Integer,
-    view_projection: Math.Matrix4,
+    view_projection: Matrix4,
 ) {
     record_instances(renderer, mesh_slot, first_index, index_count, set_index, index, 1, view_projection)
 }
@@ -305,7 +300,7 @@ func record_instances(
     set_index: Integer,
     index: Integer,
     instances: Integer,
-    view_projection: Math.Matrix4,
+    view_projection: Matrix4,
 ) {
     var command_buffer = renderer.frame.command_buffer
     assert mesh_uploaded(mesh_slot)
@@ -324,12 +319,12 @@ func push_and_draw(
     index_count: Integer,
     index: Integer,
     instances: Integer,
-    view_projection: Math.Matrix4,
+    view_projection: Matrix4,
     layout: Long,
 ) {
     var command_buffer = renderer.frame.command_buffer
     var push = RenderVulkan.Structure(68)
-    view_projection.write_to(push.address)
+    view_projection.write_to(floats, push.address)
     raw.write_integer(push.address, 64, index)
     vulkan.vkCmdPushConstants(command_buffer, layout, 1, 0, 68, push.address)
     var buffers = RenderVulkan.Structure(8)
@@ -351,7 +346,7 @@ func record_terrain(
     drawn: Scene.DrawSet,
     terrain_materials: Scene.TerrainMaterials,
     storage: RenderVulkan.Structure,
-    view_projection: Math.Matrix4,
+    view_projection: Matrix4,
 ) {
     assert drawn.terrain_draws.count() > 0
     var command_buffer = renderer.frame.command_buffer
@@ -981,7 +976,7 @@ func write_frame_data(renderer: RenderVulkan.Renderer, drawn: Scene.DrawSet, slo
         var position = key_counts[key]
         key_counts[key] = position + 1
         var record_at = draws_at + position * draw_stride
-        draw.model.write_to(record_at)
+        draw.model.write_to(floats, record_at)
         raw.write_integer(record_at, 64, draw.palette_first)
         var masked = 0
         if draw.masked {
@@ -1000,7 +995,7 @@ func write_frame_data(renderer: RenderVulkan.Renderer, drawn: Scene.DrawSet, slo
     while index < terrain_count {
         var cell = drawn.terrain_draws[index]
         var cell_at = draws_at + (draw_count + index) * draw_stride
-        cell.model.write_to(cell_at)
+        cell.model.write_to(floats, cell_at)
         raw.write_integer(cell_at, 64, 0)
         raw.write_integer(cell_at, 68, 0)
         index = index + 1
@@ -1009,7 +1004,7 @@ func write_frame_data(renderer: RenderVulkan.Renderer, drawn: Scene.DrawSet, slo
     index = 0
     while index < palette_count {
         var palette_at = palettes_at + index * palette_stride
-        drawn.palettes[index].write_to(palette_at)
+        drawn.palettes[index].write_to(floats, palette_at)
         index = index + 1
     }
 }

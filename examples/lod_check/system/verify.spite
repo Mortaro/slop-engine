@@ -19,7 +19,6 @@ var transforms = Lookup<Transform.Component.Transform>()
 var captured_frames = Lookup<RenderVulkan.Component.Captured>()
 var console = Console()
 var world = World()
-var scalar = Math.Scalar()
 var phase = 0
 var ticks = 0
 var steady = 0
@@ -124,8 +123,8 @@ func find_sphere(drawn: Scene.DrawSet, at_x: Float, at_z: Float): Scene.Draw? {
     var index = 0
     while index < drawn.draws.count() {
         var draw = drawn.draws[index]
-        var across = scalar.absolute(draw.model.m12 - at_x)
-        var along = scalar.absolute(draw.model.m14 - at_z)
+        var across = (draw.model.column_3_row_0 - at_x).absolute()
+        var along = (draw.model.column_3_row_2 - at_z).absolute()
         if draw.mesh_slot == slot and across < 0.01 and along < 0.01 {
             return draw
         }
@@ -164,13 +163,13 @@ func turn(drawn: Scene.DrawSet, angle: Float, direction: Integer) {
     never_hidden(drawn, -9.0, 20.0, "beside")
     never_hidden(drawn, 30.0, 10.0, "aside")
     var progress: Float = ticks
-    progress = scalar.minimum(progress / 40.0, 1.0)
+    progress = (progress / 40.0).minimum(1.0)
     var start_angle = 1.2490458 - angle
     var heading = start_angle + (angle - start_angle) * progress
     var camera = cameras.of(placed.camera)
     crash camera
-    camera.target_x = camera.eye_x + scalar.sine(heading) * 20.0
-    camera.target_z = camera.eye_z + scalar.cosine(heading) * 20.0
+    camera.target_x = camera.eye_x + heading.sine() * 20.0
+    camera.target_z = camera.eye_z + heading.cosine() * 20.0
     assert ticks >= 50
     if direction > 0 {
         var aside = find_sphere(drawn, 30.0, 10.0)
@@ -224,7 +223,7 @@ func walk(drawn: Scene.DrawSet, view_camera: Scene.Component.ViewCamera, factor:
     var along_x = view_camera.eye_x
     var along_y = view_camera.eye_y - 1.0
     var along_z = view_camera.eye_z - 20.0
-    var seen = scalar.square_root(along_x * along_x + along_y * along_y + along_z * along_z)
+    var seen = (along_x * along_x + along_y * along_y + along_z * along_z).square_root()
     var hidden = find_sphere(drawn, 0.0, 20.0)
     crash hidden
     var level = hidden.detail_level
@@ -260,7 +259,7 @@ func walk(drawn: Scene.DrawSet, view_camera: Scene.Component.ViewCamera, factor:
 func check_transition(view_camera: Scene.Component.ViewCamera, level: Integer, seen: Float) {
     var slot = sphere_slot()
     var loaded = meshes.mesh_at(slot)
-    var tangent = scalar.tangent(view_camera.field_of_view * 0.5)
+    var tangent = (view_camera.field_of_view * 0.5).tangent()
     var radius = loaded.bound_radius * 2.0
     var going_out = level > last_level
     var crossed = level
@@ -274,8 +273,8 @@ func check_transition(view_camera: Scene.Component.ViewCamera, level: Integer, s
     crash loaded.detail_screen_sizes[crossed - 1]
     var threshold = loaded.detail_screen_sizes[crossed - 1] * factor
     var expected = radius / (threshold * tangent)
-    var low = scalar.minimum(last_distance, seen) * 0.999
-    var high = scalar.maximum(last_distance, seen) * 1.001
+    var low = last_distance.minimum(seen) * 0.999
+    var high = last_distance.maximum(seen) * 1.001
     console.print("level", last_level, "to", level, "between", last_distance, "and", seen, "expected", expected)
     var where_expected = expected >= low and expected <= high
     crash where_expected

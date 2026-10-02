@@ -1,5 +1,4 @@
 var cache = Recipes.Cache()
-var scalar = Math.Scalar()
 var bone_count = 65
 var frame_count = 31
 
@@ -32,12 +31,12 @@ func build() {
         bone = 0
         while bone < bone_count {
             var phase: Float = 0.2 * frame + 0.1 * bone
-            var half_angle = scalar.sine(phase) * 0.3
+            var half_angle = phase.sine() * 0.3
             clip.keys.append(0.0)
             clip.keys.append(0.1)
             clip.keys.append(0.0)
-            var sine = scalar.sine(half_angle)
-            var cosine = scalar.cosine(half_angle)
+            var sine = half_angle.sine()
+            var cosine = half_angle.cosine()
             clip.keys.append(sine)
             clip.keys.append(0.0)
             clip.keys.append(0.0)

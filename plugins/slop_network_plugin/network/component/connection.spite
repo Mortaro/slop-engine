@@ -1,1 +1,1 @@
-var stream = Network.Stream()
+var stream = Network.Channel()

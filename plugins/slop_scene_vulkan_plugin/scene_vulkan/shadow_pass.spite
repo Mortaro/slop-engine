@@ -1,7 +1,6 @@
 var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
 var raw = Raw()
 var floats = TypedMemory<Float>()
-var scalar = Math.Scalar()
 var pipeline: Long = 0
 var shader_fragment: Long = 0
 var image: Long = 0
@@ -30,11 +29,11 @@ var cascades = 0
 var fade_start: Float = 0.0
 var fade_end: Float = 0.0
 var transition: Float = 0.1
-var cascade_matrices = List<Math.Matrix4>()
+var cascade_matrices = List<Matrix4>()
 var cascade_splits = List<Float>()
 var cascade_texels = List<Float>()
 var cascade_depths = List<Float>()
-var view_matrices = List<Math.Matrix4>()
+var view_matrices = List<Matrix4>()
 var view_lefts = List<Integer>()
 var view_tops = List<Integer>()
 var view_sizes = List<Integer>()
@@ -59,7 +58,7 @@ var kept_tile_counts = List<Integer>()
 var kept_rendered = List<Boolean>()
 var kept_signatures = List<Float>()
 var kept_states = List<Float>()
-var kept_bases = List<Math.Matrix4>()
+var kept_bases = List<Matrix4>()
 var kept_focals = List<Float>()
 var kept_fars = List<Float>()
 var state_floats = 8
@@ -76,16 +75,16 @@ var signature: Float = 0.0
 var moving = false
 var face_forward = [1.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, -1.0]
 var face_up = [0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0]
-var right = Math.Vector3()
-var up = Math.Vector3()
-var forward = Math.Vector3()
+var right = Vector3(0.0, 0.0, 0.0)
+var up = Vector3(0.0, 0.0, 0.0)
+var forward = Vector3(0.0, 0.0, 0.0)
 
 func create(renderer: RenderVulkan.Renderer, owner: SceneVulkan.MeshRenderer) {
     shader_fragment = renderer.create_shader("shader.shadow.fragment")
     create_atlas(renderer)
     pipeline = create_pipeline(renderer, owner)
     while cascade_matrices.count() < most_cascades {
-        var matrix = Math.Matrix4()
+        var matrix = Matrix4()
         cascade_matrices.append(matrix)
         cascade_splits.append(0.0)
         cascade_texels.append(0.0)
@@ -130,7 +129,7 @@ func plan_cascades(view: Scene.Component.View, camera: Scene.Component.ViewCamer
         wanted = most_cascades
     }
     var near = camera.near
-    var far = scalar.minimum(view.shadow_distance, camera.far)
+    var far = view.shadow_distance.minimum(camera.far)
     assert wanted > 0 and far > near
     sun_basis(view)
     transition = view.cascade_transition_fraction
@@ -166,56 +165,56 @@ func plan_cascades(view: Scene.Component.View, camera: Scene.Component.ViewCamer
 }
 
 func sun_basis(view: Scene.Component.View) {
-    forward.x_value = 0.0 - view.sun_toward_x
-    forward.y_value = 0.0 - view.sun_toward_y
-    forward.z_value = 0.0 - view.sun_toward_z
+    forward.x = 0.0 - view.sun_toward_x
+    forward.y = 0.0 - view.sun_toward_y
+    forward.z = 0.0 - view.sun_toward_z
     basis_around_forward()
 }
 
 func basis_around_forward() {
     var hint_y: Float = 1.0
     var hint_z: Float = 0.0
-    if scalar.absolute(forward.y_value) > 0.99 {
+    if forward.y.absolute() > 0.99 {
         hint_y = 0.0
         hint_z = 1.0
     }
-    var right_x = forward.y_value * hint_z - forward.z_value * hint_y
-    var right_y = forward.z_value * 0.0 - forward.x_value * hint_z
-    var right_z = forward.x_value * hint_y - forward.y_value * 0.0
-    var length = scalar.square_root(right_x * right_x + right_y * right_y + right_z * right_z)
-    right.x_value = right_x / length
-    right.y_value = right_y / length
-    right.z_value = right_z / length
-    up.x_value = right.y_value * forward.z_value - right.z_value * forward.y_value
-    up.y_value = right.z_value * forward.x_value - right.x_value * forward.z_value
-    up.z_value = right.x_value * forward.y_value - right.y_value * forward.x_value
+    var right_x = forward.y * hint_z - forward.z * hint_y
+    var right_y = forward.z * 0.0 - forward.x * hint_z
+    var right_z = forward.x * hint_y - forward.y * 0.0
+    var length = (right_x * right_x + right_y * right_y + right_z * right_z).square_root()
+    right.x = right_x / length
+    right.y = right_y / length
+    right.z = right_z / length
+    up.x = right.y * forward.z - right.z * forward.y
+    up.y = right.z * forward.x - right.x * forward.z
+    up.z = right.x * forward.y - right.y * forward.x
 }
 
 func aim_cascade(camera: Scene.Component.ViewCamera, drawn: Scene.DrawSet, cascade: Integer, start: Float, end: Float) {
-    var down_tangent = scalar.tangent(camera.field_of_view * 0.5)
+    var down_tangent = (camera.field_of_view * 0.5).tangent()
     var across_tangent = down_tangent * camera.aspect
     var spread = down_tangent * down_tangent + across_tangent * across_tangent
     var along = (start + end) * 0.5 * (1.0 + spread)
     var radius: Float = 0.0
     if along >= end {
         along = end
-        radius = end * scalar.square_root(spread)
+        radius = end * spread.square_root()
     } else {
-        radius = scalar.square_root((end - along) * (end - along) + end * end * spread)
+        radius = ((end - along) * (end - along) + end * end * spread).square_root()
     }
-    radius = scalar.floor(radius) + 1.0
+    radius = radius.floor() + 1.0
     var size: Float = cascade_size
     var half = radius * size / (size - 2.0 * filter_guard)
     var texel = half * 2.0 / size
     var eye_view = camera.view
-    var center_x = camera.eye_x - eye_view.m2 * along
-    var center_y = camera.eye_y - eye_view.m6 * along
-    var center_z = camera.eye_z - eye_view.m10 * along
+    var center_x = camera.eye_x - eye_view.column_0_row_2 * along
+    var center_y = camera.eye_y - eye_view.column_1_row_2 * along
+    var center_z = camera.eye_z - eye_view.column_2_row_2 * along
     var across = dot_right(center_x, center_y, center_z)
     var rise = dot_up(center_x, center_y, center_z)
     var deep = dot_forward(center_x, center_y, center_z)
-    var snapped_across = scalar.floor(across / texel) * texel
-    var snapped_rise = scalar.floor(rise / texel) * texel
+    var snapped_across = (across / texel).floor() * texel
+    var snapped_rise = (rise / texel).floor() * texel
     var farthest = deep + radius
     var nearest = deep - radius
     picked.clear()
@@ -228,10 +227,10 @@ func aim_cascade(camera: Scene.Component.ViewCamera, drawn: Scene.DrawSet, casca
         var off_across = dot_right(draw.center_x, draw.center_y, draw.center_z) - snapped_across
         var off_rise = dot_up(draw.center_x, draw.center_y, draw.center_z) - snapped_rise
         var caster_deep = dot_forward(draw.center_x, draw.center_y, draw.center_z) - draw.radius
-        var inside = scalar.absolute(off_across) < reach and scalar.absolute(off_rise) < reach
+        var inside = off_across.absolute() < reach and off_rise.absolute() < reach
         if inside and caster_deep < farthest and large_enough(camera, draw) {
             picked.append(index)
-            nearest = scalar.minimum(nearest, caster_deep)
+            nearest = nearest.minimum(caster_deep)
         }
         index = index + 1
     }
@@ -242,31 +241,31 @@ func aim_cascade(camera: Scene.Component.ViewCamera, drawn: Scene.DrawSet, casca
         var cell_across = dot_right(cell.center_x, cell.center_y, cell.center_z) - snapped_across
         var cell_rise = dot_up(cell.center_x, cell.center_y, cell.center_z) - snapped_rise
         var cell_deep = dot_forward(cell.center_x, cell.center_y, cell.center_z) - cell.radius
-        if scalar.absolute(cell_across) < cell_reach and scalar.absolute(cell_rise) < cell_reach and cell_deep < farthest {
+        if cell_across.absolute() < cell_reach and cell_rise.absolute() < cell_reach and cell_deep < farthest {
             picked_cells.append(index)
-            nearest = scalar.minimum(nearest, cell_deep)
+            nearest = nearest.minimum(cell_deep)
         }
         index = index + 1
     }
     var depth = farthest - nearest
     crash cascade_matrices[cascade]
     var matrix = cascade_matrices[cascade]
-    matrix.m0 = right.x_value / half
-    matrix.m4 = right.y_value / half
-    matrix.m8 = right.z_value / half
-    matrix.m12 = 0.0 - snapped_across / half
-    matrix.m1 = up.x_value / half
-    matrix.m5 = up.y_value / half
-    matrix.m9 = up.z_value / half
-    matrix.m13 = 0.0 - snapped_rise / half
-    matrix.m2 = forward.x_value / depth
-    matrix.m6 = forward.y_value / depth
-    matrix.m10 = forward.z_value / depth
-    matrix.m14 = 0.0 - nearest / depth
-    matrix.m3 = 0.0
-    matrix.m7 = 0.0
-    matrix.m11 = 0.0
-    matrix.m15 = 1.0
+    matrix.column_0_row_0 = right.x / half
+    matrix.column_1_row_0 = right.y / half
+    matrix.column_2_row_0 = right.z / half
+    matrix.column_3_row_0 = 0.0 - snapped_across / half
+    matrix.column_0_row_1 = up.x / half
+    matrix.column_1_row_1 = up.y / half
+    matrix.column_2_row_1 = up.z / half
+    matrix.column_3_row_1 = 0.0 - snapped_rise / half
+    matrix.column_0_row_2 = forward.x / depth
+    matrix.column_1_row_2 = forward.y / depth
+    matrix.column_2_row_2 = forward.z / depth
+    matrix.column_3_row_2 = 0.0 - nearest / depth
+    matrix.column_0_row_3 = 0.0
+    matrix.column_1_row_3 = 0.0
+    matrix.column_2_row_3 = 0.0
+    matrix.column_3_row_3 = 1.0
     cascade_texels[cascade] = texel
     cascade_depths[cascade] = depth
     var left = cascade % 2 * cascade_size
@@ -283,15 +282,15 @@ func large_enough(camera: Scene.Component.ViewCamera, draw: Scene.Draw): Boolean
 }
 
 func dot_right(x_value: Float, y_value: Float, z_value: Float): Float {
-    return right.x_value * x_value + right.y_value * y_value + right.z_value * z_value
+    return right.x * x_value + right.y * y_value + right.z * z_value
 }
 
 func dot_up(x_value: Float, y_value: Float, z_value: Float): Float {
-    return up.x_value * x_value + up.y_value * y_value + up.z_value * z_value
+    return up.x * x_value + up.y * y_value + up.z * z_value
 }
 
 func dot_forward(x_value: Float, y_value: Float, z_value: Float): Float {
-    return forward.x_value * x_value + forward.y_value * y_value + forward.z_value * z_value
+    return forward.x * x_value + forward.y * y_value + forward.z * z_value
 }
 
 func draw_of(drawn: Scene.DrawSet, index: Integer): Scene.Draw {
@@ -307,7 +306,7 @@ func key_of(draw: Scene.Draw): Integer {
     return (draw.mesh_slot * sections_per_mesh + draw.section) * detail_levels_per_section + draw.detail_level
 }
 
-func add_view(drawn: Scene.DrawSet, matrix: Math.Matrix4, left: Integer, top: Integer, size: Integer) {
+func add_view(drawn: Scene.DrawSet, matrix: Matrix4, left: Integer, top: Integer, size: Integer) {
     view_matrices.append(matrix)
     view_lefts.append(left)
     view_tops.append(top)
@@ -417,8 +416,8 @@ func rank_candidates(camera: Scene.Component.ViewCamera, lights: Scene.Lights, c
             var along_x = source[from] - camera.eye_x
             var along_y = source[from + 1] - camera.eye_y
             var along_z = source[from + 2] - camera.eye_z
-            var distance = scalar.square_root(along_x * along_x + along_y * along_y + along_z * along_z)
-            var importance = source[from + 3] / scalar.maximum(distance, 0.01)
+            var distance = (along_x * along_x + along_y * along_y + along_z * along_z).square_root()
+            var importance = source[from + 3] / distance.maximum(0.01)
             var at = 0
             while at < importances.count() and importances[at] >= importance {
                 at = at + 1
@@ -590,7 +589,7 @@ func start_keeping(owner: Integer, first: Integer, needed: Integer): Integer {
     kept_tile_counts.append(needed)
     kept_rendered.append(false)
     kept_signatures.append(0.0)
-    var basis = Math.Matrix4()
+    var basis = Matrix4()
     kept_bases.append(basis)
     kept_focals.append(1.0)
     kept_fars.append(1.0)
@@ -656,7 +655,7 @@ func state_changed(kept: Integer): Boolean {
     while field < state_floats {
         crash state[field]
         crash kept_states[kept * state_floats + field]
-        if scalar.absolute(state[field] - kept_states[kept * state_floats + field]) > 0.0001 {
+        if (state[field] - kept_states[kept * state_floats + field]).absolute() > 0.0001 {
             return true
         }
         field = field + 1
@@ -671,8 +670,8 @@ func light_tangent(point: Boolean): Float {
         return widen
     }
     crash state[7]
-    var cosine = scalar.maximum(state[7], 0.17)
-    var sine = scalar.square_root(1.0 - cosine * cosine)
+    var cosine = state[7].maximum(0.17)
+    var sine = (1.0 - cosine * cosine).square_root()
     return sine / cosine * widen
 }
 
@@ -701,23 +700,23 @@ func aim_face(point: Boolean, face: Integer) {
         crash face_up[face * 3]
         crash face_up[face * 3 + 1]
         crash face_up[face * 3 + 2]
-        forward.x_value = face_forward[face * 3]
-        forward.y_value = face_forward[face * 3 + 1]
-        forward.z_value = face_forward[face * 3 + 2]
-        up.x_value = face_up[face * 3]
-        up.y_value = face_up[face * 3 + 1]
-        up.z_value = face_up[face * 3 + 2]
-        right.x_value = forward.y_value * up.z_value - forward.z_value * up.y_value
-        right.y_value = forward.z_value * up.x_value - forward.x_value * up.z_value
-        right.z_value = forward.x_value * up.y_value - forward.y_value * up.x_value
+        forward.x = face_forward[face * 3]
+        forward.y = face_forward[face * 3 + 1]
+        forward.z = face_forward[face * 3 + 2]
+        up.x = face_up[face * 3]
+        up.y = face_up[face * 3 + 1]
+        up.z = face_up[face * 3 + 2]
+        right.x = forward.y * up.z - forward.z * up.y
+        right.y = forward.z * up.x - forward.x * up.z
+        right.z = forward.x * up.y - forward.y * up.x
         return
     }
     crash state[4]
     crash state[5]
     crash state[6]
-    forward.x_value = state[4]
-    forward.y_value = state[5]
-    forward.z_value = state[6]
+    forward.x = state[4]
+    forward.y = state[5]
+    forward.z = state[6]
     basis_around_forward()
 }
 
@@ -732,7 +731,7 @@ func pick_in_frustum(drawn: Scene.DrawSet, tangent: Float) {
     var light_y = state[1]
     var light_z = state[2]
     var range = state[3]
-    var norm = scalar.square_root(1.0 + tangent * tangent)
+    var norm = (1.0 + tangent * tangent).square_root()
     var total = drawn.draws.count() + drawn.casters.count()
     var index = 0
     while index < total {
@@ -795,7 +794,7 @@ func sphere_in_frustum(
 func note_caster(draw: Scene.Draw) {
     var model = draw.model
     signature = signature + draw.center_x + draw.center_y * 3.0 + draw.center_z * 7.0 + draw.radius * 11.0
-    signature = signature + model.m0 * 13.0 + model.m2 * 17.0 + model.m8 * 19.0 + model.m10 * 23.0
+    signature = signature + model.column_0_row_0 * 13.0 + model.column_0_row_2 * 17.0 + model.column_2_row_0 * 19.0 + model.column_2_row_2 * 23.0
     signature = signature + draw.mesh_slot * 29 + draw.section * 31 + draw.detail_level * 37 + 1
     if draw.palette_first > 0 {
         moving = true
@@ -855,7 +854,7 @@ func render_light(drawn: Scene.DrawSet, lights: Scene.Lights, light: Integer, ke
     while face < faces {
         aim_face(point, face)
         pick_in_frustum(drawn, tangent)
-        var matrix = Math.Matrix4()
+        var matrix = Matrix4()
         perspective_view(matrix, light_x, light_y, light_z, focal, far)
         var tile = first_tile + face
         var left = local_left + tile % tiles_across * tile_size
@@ -866,22 +865,22 @@ func render_light(drawn: Scene.DrawSet, lights: Scene.Lights, light: Integer, ke
     if not point {
         crash kept_bases[kept]
         var basis = kept_bases[kept]
-        basis.m0 = right.x_value
-        basis.m4 = right.y_value
-        basis.m8 = right.z_value
-        basis.m12 = 0.0 - dot_right(light_x, light_y, light_z)
-        basis.m1 = up.x_value
-        basis.m5 = up.y_value
-        basis.m9 = up.z_value
-        basis.m13 = 0.0 - dot_up(light_x, light_y, light_z)
-        basis.m2 = forward.x_value
-        basis.m6 = forward.y_value
-        basis.m10 = forward.z_value
-        basis.m14 = 0.0 - dot_forward(light_x, light_y, light_z)
-        basis.m3 = 0.0
-        basis.m7 = 0.0
-        basis.m11 = 0.0
-        basis.m15 = 1.0
+        basis.column_0_row_0 = right.x
+        basis.column_1_row_0 = right.y
+        basis.column_2_row_0 = right.z
+        basis.column_3_row_0 = 0.0 - dot_right(light_x, light_y, light_z)
+        basis.column_0_row_1 = up.x
+        basis.column_1_row_1 = up.y
+        basis.column_2_row_1 = up.z
+        basis.column_3_row_1 = 0.0 - dot_up(light_x, light_y, light_z)
+        basis.column_0_row_2 = forward.x
+        basis.column_1_row_2 = forward.y
+        basis.column_2_row_2 = forward.z
+        basis.column_3_row_2 = 0.0 - dot_forward(light_x, light_y, light_z)
+        basis.column_0_row_3 = 0.0
+        basis.column_1_row_3 = 0.0
+        basis.column_2_row_3 = 0.0
+        basis.column_3_row_3 = 1.0
     }
     kept_rendered[kept] = true
     kept_signatures[kept] = signature
@@ -895,28 +894,28 @@ func render_light(drawn: Scene.DrawSet, lights: Scene.Lights, light: Integer, ke
     }
 }
 
-func perspective_view(matrix: Math.Matrix4, light_x: Float, light_y: Float, light_z: Float, focal: Float, far: Float) {
+func perspective_view(matrix: Matrix4, light_x: Float, light_y: Float, light_z: Float, focal: Float, far: Float) {
     var depth_scale = far / (light_near - far)
     var depth_offset = light_near * far / (light_near - far)
     var along_right = dot_right(light_x, light_y, light_z)
     var along_up = dot_up(light_x, light_y, light_z)
     var along_forward = dot_forward(light_x, light_y, light_z)
-    matrix.m0 = focal * right.x_value
-    matrix.m4 = focal * right.y_value
-    matrix.m8 = focal * right.z_value
-    matrix.m12 = 0.0 - focal * along_right
-    matrix.m1 = 0.0 - focal * up.x_value
-    matrix.m5 = 0.0 - focal * up.y_value
-    matrix.m9 = 0.0 - focal * up.z_value
-    matrix.m13 = focal * along_up
-    matrix.m2 = 0.0 - depth_scale * forward.x_value
-    matrix.m6 = 0.0 - depth_scale * forward.y_value
-    matrix.m10 = 0.0 - depth_scale * forward.z_value
-    matrix.m14 = depth_scale * along_forward + depth_offset
-    matrix.m3 = forward.x_value
-    matrix.m7 = forward.y_value
-    matrix.m11 = forward.z_value
-    matrix.m15 = 0.0 - along_forward
+    matrix.column_0_row_0 = focal * right.x
+    matrix.column_1_row_0 = focal * right.y
+    matrix.column_2_row_0 = focal * right.z
+    matrix.column_3_row_0 = 0.0 - focal * along_right
+    matrix.column_0_row_1 = 0.0 - focal * up.x
+    matrix.column_1_row_1 = 0.0 - focal * up.y
+    matrix.column_2_row_1 = 0.0 - focal * up.z
+    matrix.column_3_row_1 = focal * along_up
+    matrix.column_0_row_2 = 0.0 - depth_scale * forward.x
+    matrix.column_1_row_2 = 0.0 - depth_scale * forward.y
+    matrix.column_2_row_2 = 0.0 - depth_scale * forward.z
+    matrix.column_3_row_2 = depth_scale * along_forward + depth_offset
+    matrix.column_0_row_3 = forward.x
+    matrix.column_1_row_3 = forward.y
+    matrix.column_2_row_3 = forward.z
+    matrix.column_3_row_3 = 0.0 - along_forward
 }
 
 func assign_records() {
@@ -950,7 +949,7 @@ func write_records(drawn: Scene.DrawSet, draws_at: Long, base: Integer) {
     while index < record_draws.count() {
         var draw = draw_of(drawn, record_draws[index])
         var record_at = draws_at + (base + index) * record_stride
-        draw.model.write_to(record_at)
+        draw.model.write_to(floats, record_at)
         raw.write_integer(record_at, 64, draw.palette_first)
         var masked = 0
         if draw.masked {
@@ -971,7 +970,7 @@ func write_lighting(at: Long) {
     while cascade < most_cascades {
         crash cascade_matrices[cascade]
         var matrix_at = at + 256 + cascade * 64
-        cascade_matrices[cascade].write_to(matrix_at)
+        cascade_matrices[cascade].write_to(floats, matrix_at)
         cascade = cascade + 1
     }
     var left: Float = local_left
@@ -989,7 +988,7 @@ func write_lighting(at: Long) {
 
 func write_local_shadow(at: Long, kept: Integer) {
     crash kept_bases[kept]
-    kept_bases[kept].write_to(at)
+    kept_bases[kept].write_to(floats, at)
     var from = kept * state_floats
     crash kept_states[from]
     crash kept_states[from + 1]

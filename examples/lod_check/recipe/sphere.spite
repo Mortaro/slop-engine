@@ -1,6 +1,5 @@
 var cache = Recipes.Cache()
 var console = Console()
-var scalar = Math.Scalar()
 var details = Recipes.DetailLevels()
 var mesh = Asset.Mesh()
 var segments = 96
@@ -50,12 +49,12 @@ func add_vertex(ring: Integer, segment: Integer) {
     down = down / rings
     var around: Float = segment
     around = around / segments
-    var polar = down * scalar.pi
-    var azimuth = around * scalar.two_pi
-    var ring_radius = scalar.sine(polar)
-    var normal_x = ring_radius * scalar.cosine(azimuth)
-    var normal_y = scalar.cosine(polar)
-    var normal_z = ring_radius * scalar.sine(azimuth)
+    var polar = down * Float.pi
+    var azimuth = around * Float.tau
+    var ring_radius = polar.sine()
+    var normal_x = ring_radius * azimuth.cosine()
+    var normal_y = polar.cosine()
+    var normal_z = ring_radius * azimuth.sine()
     mesh.vertices.append(normal_x * 0.5)
     mesh.vertices.append(normal_y * 0.5)
     mesh.vertices.append(normal_z * 0.5)

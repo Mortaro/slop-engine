@@ -233,8 +233,8 @@ func read_shape(start: Integer): Integer {
     return position
 }
 
-func read_field(position: Integer, offset: Integer): Blend.Field {
-    var field = Blend.Field()
+func read_field(position: Integer, offset: Integer): Blend.ShapeField {
+    var field = Blend.ShapeField()
     var type_index = short_at(position)
     var name_index = short_at(position + 2)
     crash types[type_index]

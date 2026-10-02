@@ -19,7 +19,7 @@ func BlendMeshCheck() {
     var reader = JsonReader<Reference>(text)
     var reference = reader.read()
     crash reference
-    var file = Blend.File()
+    var file = Blend.Document()
     file.open(blend_path)
     var index = 0
     while index < reference.meshes.count() {
@@ -29,7 +29,7 @@ func BlendMeshCheck() {
     console.print("passed", passed)
 }
 
-func check_mesh(file: Blend.File, expected: ReferenceMesh) {
+func check_mesh(file: Blend.Document, expected: ReferenceMesh) {
     var object = object_named(file, expected.name)
     var mesh_reader = Blend.MeshReader()
     var bones = List<String>()
@@ -87,7 +87,7 @@ func largest_difference(values: List<Float>, start: Integer, blender: List<Float
     return largest
 }
 
-func object_named(file: Blend.File, name: String): Blend.View {
+func object_named(file: Blend.Document, name: String): Blend.View {
     var blocks = file.blocks_coded("OB")
     var found = -1
     var index = 0

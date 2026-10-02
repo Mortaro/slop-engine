@@ -4,7 +4,6 @@ type Started {
 
 var world = World()
 var environment = Environment()
-var scalar = Math.Scalar()
 
 func update_each(_started: Started) {
     var window_bundle = Window.Bundle.Window()

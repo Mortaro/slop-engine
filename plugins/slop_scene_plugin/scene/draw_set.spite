@@ -1,7 +1,7 @@
 var draws = List<Scene.Draw>()
 var casters = List<Scene.Draw>()
 var terrain_draws = List<Scene.TerrainDraw>()
-var palettes = List<Math.Matrix4>()
+var palettes = List<Matrix4>()
 var occlusion = Scene.OcclusionMap()
 var culls_occluded = false
 var camera_cut: Float = 1.0
@@ -12,6 +12,6 @@ func begin() {
     casters.clear()
     terrain_draws.clear()
     palettes.clear()
-    var identity = Math.Matrix4()
+    var identity = Matrix4()
     palettes.append(identity)
 }

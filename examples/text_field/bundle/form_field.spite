@@ -7,7 +7,7 @@ var focusable = Ui.Component.Focusable()
 var input = Ui.Component.TextInput()
 var caret = Ui.Component.Caret()
 var text = Ui.Component.Text()
-var field = Component.Field()
+var field = Component.InputField()
 
 func FormField(screen: Entity, index: Integer) {
     parent.entity = screen

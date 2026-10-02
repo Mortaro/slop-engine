@@ -7,7 +7,7 @@ type DrivenWindow {
 
 var user = DynamicLibrary("user32.dll", 'identity', "")
 var dones = Lookup<Component.Done>()
-var keys = Input.Key()
+var keys = Input.KeyCode()
 
 func update_each(driven: DrivenWindow) {
     var handle = driven.handle.value

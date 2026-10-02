@@ -3,15 +3,13 @@ type Orbiting {
     orbit: Component.Orbit
 }
 
-var scalar = Math.Scalar()
-
 func prepare_each(orbiting: Orbiting) {
     var orbit = orbiting.orbit
     var camera = orbiting.camera
-    var pitch_cosine = scalar.cosine(orbit.pitch)
-    var pitch_sine = scalar.sine(orbit.pitch)
-    var yaw_cosine = scalar.cosine(orbit.yaw)
-    var yaw_sine = scalar.sine(orbit.yaw)
+    var pitch_cosine = orbit.pitch.cosine()
+    var pitch_sine = orbit.pitch.sine()
+    var yaw_cosine = orbit.yaw.cosine()
+    var yaw_sine = orbit.yaw.sine()
     camera.target_x = orbit.target_x
     camera.target_y = orbit.target_y + orbit.target_height
     camera.target_z = orbit.target_z

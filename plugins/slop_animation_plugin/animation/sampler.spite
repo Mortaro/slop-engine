@@ -1,7 +1,6 @@
-var scalar = Math.Scalar()
 var first = Math.Pose()
 var second = Math.Pose()
-var local = Math.Matrix4()
+var local = Matrix4()
 var from_frame = 0
 var to_frame = 0
 var frame_blend: Float = 0.0
@@ -17,30 +16,30 @@ func length_of(clip: Asset.Animation): Float {
 func clip_time(clip: Asset.Animation, time: Float, loop_start: Float, looping: Boolean): Float {
     var end = length_of(clip)
     if not looping {
-        return scalar.clamp(time, 0.0, end)
+        return time.clamp(0.0, end)
     }
     if time >= 0.0 and time < end {
         return time
     }
-    var start = scalar.clamp(loop_start, 0.0, end)
+    var start = loop_start.clamp(0.0, end)
     var period = end - start
     if period <= 0.0 {
         return start
     }
     var into = time - start
-    var wrapped = start + into - scalar.floor(into / period) * period
+    var wrapped = start + into - (into / period).floor() * period
     if wrapped >= end {
         return start
     }
-    return scalar.clamp(wrapped, start, end)
+    return wrapped.clamp(start, end)
 }
 
 func sample(
     skeleton: Asset.Skeleton,
     clip: Asset.Animation,
     time: Float,
-    palette: List<Math.Matrix4>,
-    globals: List<Math.Matrix4>,
+    palette: List<Matrix4>,
+    globals: List<Matrix4>,
 ) {
     check(skeleton, clip)
     locate(clip, time)
@@ -52,7 +51,7 @@ func sample(
         read_key(clip, from_frame, bone, first)
         read_key(clip, to_frame, bone, second)
         interpolate(frame_blend)
-        local.pose = first
+        first.compose(local)
         place_bone(skeleton, bone, palette, globals)
         bone = bone + 1
     }
@@ -84,8 +83,8 @@ func compose(
     skeleton: Asset.Skeleton,
     locals: List<Float>,
     total_weight: Float,
-    palette: List<Math.Matrix4>,
-    globals: List<Math.Matrix4>,
+    palette: List<Matrix4>,
+    globals: List<Matrix4>,
 ) {
     var weights_add_up_to_more_than_zero = total_weight > 0.0
     crash weights_add_up_to_more_than_zero
@@ -108,7 +107,7 @@ func compose(
         first.scale_y = local_at(locals, start + 8) / total_weight
         first.scale_z = local_at(locals, start + 9) / total_weight
         normalize_rotation()
-        local.pose = first
+        first.compose(local)
         place_bone(skeleton, bone, palette, globals)
         bone = bone + 1
     }
@@ -124,8 +123,8 @@ func check(skeleton: Asset.Skeleton, clip: Asset.Animation) {
 
 func locate(clip: Asset.Animation, time: Float) {
     var last: Float = clip.frame_count - 1
-    var position = scalar.clamp(time * clip.frames_per_second, 0.0, last)
-    var whole = scalar.floor(position)
+    var position = (time * clip.frames_per_second).clamp(0.0, last)
+    var whole = position.floor()
     frame_blend = position - whole
     from_frame = whole
     to_frame = from_frame + 1
@@ -135,7 +134,7 @@ func locate(clip: Asset.Animation, time: Float) {
     }
 }
 
-func place_bone(skeleton: Asset.Skeleton, bone: Integer, palette: List<Math.Matrix4>, globals: List<Math.Matrix4>) {
+func place_bone(skeleton: Asset.Skeleton, bone: Integer, palette: List<Matrix4>, globals: List<Matrix4>) {
     crash skeleton.parents[bone]
     var parent = skeleton.parents[bone]
     crash globals[bone]
@@ -151,19 +150,19 @@ func place_bone(skeleton: Asset.Skeleton, bone: Integer, palette: List<Math.Matr
     }
     crash palette[bone]
     var skinning = palette[bone]
-    skinning.set_product_with_values(global, skeleton.inverse_binds, bone * 16)
-    var bone_matrix_is_finite = skinning.is_finite()
+    set_product_with_values(skinning, global, skeleton.inverse_binds, bone * 16)
+    var bone_matrix_is_finite = is_finite(skinning)
     crash skeleton.names[bone]
     var bone_name = skeleton.names[bone]
     crash bone_matrix_is_finite or bone_name == ""
 }
 
-func fit(matrices: List<Math.Matrix4>, count: Integer) {
+func fit(matrices: List<Matrix4>, count: Integer) {
     while matrices.count() > count {
         matrices.remove_last()
     }
     while matrices.count() < count {
-        var added = Math.Matrix4()
+        var added = Matrix4()
         matrices.append(added)
     }
 }
@@ -245,11 +244,11 @@ func interpolate(blend: Float) {
     var from_weight = keep
     var to_weight = blend * sign
     if dot < 0.9995 {
-        var root = scalar.square_root(1.0 - dot * dot)
-        var angle = scalar.arc_tangent2(root, dot)
-        var angle_sine = scalar.sine(angle)
-        from_weight = scalar.sine(keep * angle) / angle_sine
-        to_weight = scalar.sine(blend * angle) / angle_sine * sign
+        var root = (1.0 - dot * dot).square_root()
+        var angle = root.arc_tangent_over(dot)
+        var angle_sine = angle.sine()
+        from_weight = (keep * angle).sine() / angle_sine
+        to_weight = (blend * angle).sine() / angle_sine * sign
     }
     first.rotation_x = first.rotation_x * from_weight + second.rotation_x * to_weight
     first.rotation_y = first.rotation_y * from_weight + second.rotation_y * to_weight
@@ -259,9 +258,7 @@ func interpolate(blend: Float) {
 }
 
 func normalize_rotation() {
-    var length = scalar.square_root(
-        first.rotation_x * first.rotation_x + first.rotation_y * first.rotation_y + first.rotation_z * first.rotation_z + first.rotation_w * first.rotation_w,
-    )
+    var length = (first.rotation_x * first.rotation_x + first.rotation_y * first.rotation_y + first.rotation_z * first.rotation_z + first.rotation_w * first.rotation_w).square_root()
     if length < 0.000001 {
         first.rotation_x = 0.0
         first.rotation_y = 0.0
@@ -273,4 +270,62 @@ func normalize_rotation() {
     first.rotation_y = first.rotation_y / length
     first.rotation_z = first.rotation_z / length
     first.rotation_w = first.rotation_w / length
+}
+
+func set_product_with_values(target: Matrix4, left: Matrix4, right: List<Float>, start: Integer) {
+    var fits = start >= 0 and start + 16 <= right.count()
+    crash fits
+    crash right[start + 0]
+    crash right[start + 1]
+    crash right[start + 2]
+    crash right[start + 3]
+    var product_0 = left.column_0_row_0 * right[start + 0] + left.column_1_row_0 * right[start + 1] + left.column_2_row_0 * right[start + 2] + left.column_3_row_0 * right[start + 3]
+    var product_1 = left.column_0_row_1 * right[start + 0] + left.column_1_row_1 * right[start + 1] + left.column_2_row_1 * right[start + 2] + left.column_3_row_1 * right[start + 3]
+    var product_2 = left.column_0_row_2 * right[start + 0] + left.column_1_row_2 * right[start + 1] + left.column_2_row_2 * right[start + 2] + left.column_3_row_2 * right[start + 3]
+    var product_3 = left.column_0_row_3 * right[start + 0] + left.column_1_row_3 * right[start + 1] + left.column_2_row_3 * right[start + 2] + left.column_3_row_3 * right[start + 3]
+    crash right[start + 4]
+    crash right[start + 5]
+    crash right[start + 6]
+    crash right[start + 7]
+    var product_4 = left.column_0_row_0 * right[start + 4] + left.column_1_row_0 * right[start + 5] + left.column_2_row_0 * right[start + 6] + left.column_3_row_0 * right[start + 7]
+    var product_5 = left.column_0_row_1 * right[start + 4] + left.column_1_row_1 * right[start + 5] + left.column_2_row_1 * right[start + 6] + left.column_3_row_1 * right[start + 7]
+    var product_6 = left.column_0_row_2 * right[start + 4] + left.column_1_row_2 * right[start + 5] + left.column_2_row_2 * right[start + 6] + left.column_3_row_2 * right[start + 7]
+    var product_7 = left.column_0_row_3 * right[start + 4] + left.column_1_row_3 * right[start + 5] + left.column_2_row_3 * right[start + 6] + left.column_3_row_3 * right[start + 7]
+    crash right[start + 10]
+    crash right[start + 11]
+    crash right[start + 8]
+    crash right[start + 9]
+    var product_8 = left.column_0_row_0 * right[start + 8] + left.column_1_row_0 * right[start + 9] + left.column_2_row_0 * right[start + 10] + left.column_3_row_0 * right[start + 11]
+    var product_9 = left.column_0_row_1 * right[start + 8] + left.column_1_row_1 * right[start + 9] + left.column_2_row_1 * right[start + 10] + left.column_3_row_1 * right[start + 11]
+    var product_10 = left.column_0_row_2 * right[start + 8] + left.column_1_row_2 * right[start + 9] + left.column_2_row_2 * right[start + 10] + left.column_3_row_2 * right[start + 11]
+    var product_11 = left.column_0_row_3 * right[start + 8] + left.column_1_row_3 * right[start + 9] + left.column_2_row_3 * right[start + 10] + left.column_3_row_3 * right[start + 11]
+    crash right[start + 12]
+    crash right[start + 13]
+    crash right[start + 14]
+    crash right[start + 15]
+    var product_12 = left.column_0_row_0 * right[start + 12] + left.column_1_row_0 * right[start + 13] + left.column_2_row_0 * right[start + 14] + left.column_3_row_0 * right[start + 15]
+    var product_13 = left.column_0_row_1 * right[start + 12] + left.column_1_row_1 * right[start + 13] + left.column_2_row_1 * right[start + 14] + left.column_3_row_1 * right[start + 15]
+    var product_14 = left.column_0_row_2 * right[start + 12] + left.column_1_row_2 * right[start + 13] + left.column_2_row_2 * right[start + 14] + left.column_3_row_2 * right[start + 15]
+    var product_15 = left.column_0_row_3 * right[start + 12] + left.column_1_row_3 * right[start + 13] + left.column_2_row_3 * right[start + 14] + left.column_3_row_3 * right[start + 15]
+    target.column_0_row_0 = product_0
+    target.column_0_row_1 = product_1
+    target.column_0_row_2 = product_2
+    target.column_0_row_3 = product_3
+    target.column_1_row_0 = product_4
+    target.column_1_row_1 = product_5
+    target.column_1_row_2 = product_6
+    target.column_1_row_3 = product_7
+    target.column_2_row_0 = product_8
+    target.column_2_row_1 = product_9
+    target.column_2_row_2 = product_10
+    target.column_2_row_3 = product_11
+    target.column_3_row_0 = product_12
+    target.column_3_row_1 = product_13
+    target.column_3_row_2 = product_14
+    target.column_3_row_3 = product_15
+}
+
+func is_finite(matrix: Matrix4): Boolean {
+    var sum = matrix.column_0_row_0 + matrix.column_0_row_1 + matrix.column_0_row_2 + matrix.column_0_row_3 + matrix.column_1_row_0 + matrix.column_1_row_1 + matrix.column_1_row_2 + matrix.column_1_row_3 + matrix.column_2_row_0 + matrix.column_2_row_1 + matrix.column_2_row_2 + matrix.column_2_row_3 + matrix.column_3_row_0 + matrix.column_3_row_1 + matrix.column_3_row_2 + matrix.column_3_row_3
+    return sum == sum and sum < 1000000000000.0 and sum > -1000000000000.0
 }

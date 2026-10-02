@@ -10,7 +10,7 @@ type Stroke {
     event: Input.Component.Event
 }
 
-var keys = Input.Key()
+var keys = Input.KeyCode()
 var order = List<Integer>()
 
 func after_input_all(editing: List<Editing>, strokes: List<Stroke>) {

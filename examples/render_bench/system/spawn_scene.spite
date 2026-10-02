@@ -4,7 +4,6 @@ type Started {
 
 var world = World()
 var environment = Environment()
-var scalar = Math.Scalar()
 var parts = ["chest", "boots", "gloves", "shorts_part_1", "shorts_part_2", "face_1", "hair_1"]
 
 func update_each(_started: Started) {
@@ -85,8 +84,8 @@ func add_flower(at_x: Float, at_z: Float, yaw: Float) {
     transform.position_x = at_x
     transform.position_z = at_z
     var half = yaw * 0.5
-    transform.rotation_y = scalar.sine(half)
-    transform.rotation_w = scalar.cosine(half)
+    transform.rotation_y = half.sine()
+    transform.rotation_w = half.cosine()
     entity.add_component(transform)
 }
 
@@ -130,8 +129,8 @@ func spawn_part(part: String, along_x: Float, along_z: Float, facing: Float, arc
     transform.position_x = along_x
     transform.position_z = along_z
     var half = facing * 0.5
-    transform.rotation_y = scalar.sine(half)
-    transform.rotation_w = scalar.cosine(half)
+    transform.rotation_y = half.sine()
+    transform.rotation_w = half.cosine()
     entity.add_component(transform)
     var animator = Animation.Component.Animator()
     animator.skeleton = "archer.skeleton"

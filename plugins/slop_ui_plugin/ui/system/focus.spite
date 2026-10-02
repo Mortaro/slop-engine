@@ -26,7 +26,7 @@ type HeldKey {
 }
 
 var world = World()
-var keys = Input.Key()
+var keys = Input.KeyCode()
 
 var left_pressed = false
 

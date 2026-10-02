@@ -568,6 +568,46 @@ only what was stamped (`replication_bench`: `Send` from about 7.9 ms to 1.4 ms a
   `Socket.connect` still blocks its thread inside a `Concurrent`, so the plugin keeps polling once per tick and dials
   on the pool.
 
+## Update, 2026-10-02: the standard library's maths
+
+Spite master `a0b22a7` refused `Math.Matrix4` (and `Math.Vector3`) for sharing a standard library class's name, and
+D374's hiding rule refused eight more engine and example classes. Moving to the library's `Matrix4`, `Vector3`,
+`Quaternion` and the number functions was mostly mechanical. What the library lacked (reported to the language
+session):
+
+- **No in-place product or copy for `Matrix4`.** `a * b` answers a new matrix, which lives in the frame unless it is
+  stored; setting a matrix kept in a list or an attribute to a product or to another matrix's value makes a heap
+  object each time. The engine keeps `set_product(left, right)` and `copy_from(other)` in a reopening.
+- **No reversed-depth perspective.** `set_perspective` maps `near` to 0 and `far` to 1; reversed depth (1 at `near`)
+  is the usual choice for precision, so the engine keeps `set_reversed_perspective`.
+- **No indexed access to a matrix's parts** (`value_at(index)`, `set_value(index, value)`), for copying to and from
+  a flat `List<Float>`.
+- **No way to write a matrix's parts to foreign memory in one call.** A GPU buffer takes the 16 floats in
+  column-major order, which is the library's field order; the engine writes them one `TypedMemory<Float>` call at a
+  time (`write_to(floats, address)` in the reopening, taking the caller's `TypedMemory<Float>` because a reopening
+  may not bind a singleton as a local, and an attribute would add a part to every matrix).
+- **Handing a borrowed matrix to another object's function costs about 80 ns a call.** Written first as
+  `writer.write(draw.model, address)` on a helper object, `props_bench`'s `DrawScene` went from 1.8 to 2.7 ms for
+  11,192 draws; as `draw.model.write_to(floats, address)` it is back to 1.8 ms.
+- **`Float.minimum` and `maximum` cost more than a compare in a hot loop.** A view cone's bounds over every used
+  joint of 2,800 skinned models: with `low.minimum(value)` and `high.maximum(value)` `animate_bench`'s
+  `GatherModels` took about 0.6 ms more than with two `if` compares (the library's are the C library's, which
+  handle not-a-number), so that loop compares.
+- **`matrix.transform_point(Vector3(...))` costs about 0.4 ms more** than the same arithmetic written out, over the
+  same joints; the engine keeps the library's call and reports it.
+- **Spite `8e971f26` changed the schema hash of `Asset.Texture` and `Asset.TextureArray`**, which showed that
+  `is_current` only judged the one id a recipe asked about: a recipe whose mesh was current kept its stale
+  textures, and `Pack.decode` refused them at load. `is_current` now also requires every asset cooked from the same
+  input fingerprint to carry its kind's schema.
+- **Spite master moved to generic vectors with axis names during this work** (`Vector3<Float>`, parts `x`, `y`, `z`
+  and `w`), so the parts the engine reads are `.x` and the types it names are `Vector3<Float>`.
+- **A one-argument `set_<name>` reads as a setter**, so a function named `set_pose(pose)` or `set_from_matrix(m)` is
+  called as an assignment; the engine named them `compose` and `decompose` instead.
+- **D374 meets the engine's folder namespaces**: every plugin has its own `Component` and `System`, so a game's
+  `System.OpenWindow` is refused beside `Windows.System.OpenWindow`, and a game's `Component.Row` or
+  `Component.Field` beside the core's root `Row` and `Field`. The rule is as decided; the root names of the core are
+  the ones most likely to catch a game.
+
 ## Suggested order
 
 1. Bugs 1, 2 and 9 (in progress). They unblock `type` rows and the performance path.
