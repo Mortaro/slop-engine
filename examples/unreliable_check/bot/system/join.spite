@@ -1,0 +1,12 @@
+type Started {
+    frame: Added<Component.Frame>
+}
+
+var world = World()
+var environment = Environment()
+
+func update_each(_started: Started) {
+    var connect = Network.Component.Connect()
+    connect.port = environment.port
+    world.as_entity().add_component(connect)
+}

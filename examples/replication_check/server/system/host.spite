@@ -1,0 +1,30 @@
+type Started {
+    frame: Added<Component.Frame>
+}
+
+var world = World()
+var environment = Environment()
+var console = Console()
+
+func update_each(_started: Started) {
+    var listen = Network.Component.Listen()
+    listen.port = environment.port
+    world.as_entity().add_component(listen)
+    var written = Component.Written()
+    spawn_gauge(1, written)
+    var quiet = Component.Gauge()
+    quiet.role = 2
+    var quiet_entity = world.create_entity()
+    quiet_entity.add_component(quiet)
+    var busy = Component.Busy()
+    spawn_gauge(3, busy)
+    console.print("server listening on port", environment.port)
+}
+
+func spawn_gauge(role: Integer, marker: Anything) {
+    var gauge = Component.Gauge()
+    gauge.role = role
+    var made = world.create_entity()
+    made.add_component(gauge)
+    made.add_component(marker)
+}

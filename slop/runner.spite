@@ -255,6 +255,7 @@ func run_phase_each(phase: Symbol<$system_type.phase_each>) {
 
 func stream_argument(argument: Symbol<$system_type.phase_each>) {
     var stream = Stream<$system_type, argument.class>(system, last_run, streaming_phase)
+    stream.writing = writes_argument(argument.index)
     stream.run_phases_each()
 }
 
@@ -533,6 +534,7 @@ func run_clocked_argument(argument: Symbol<$system_type.phase_each>) {
 func stream_clocked_argument(argument: Symbol<$system_type.phase_each>) {
     if argument.class != GameClock {
         var stream = Stream<$system_type, argument.class>(system, last_run, streaming_phase)
+        stream.writing = writes_argument(argument.index)
         stream.run_phases_each()
     }
 }

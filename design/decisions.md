@@ -38,6 +38,10 @@ parts are Claude's proposals. Mortaro decides the API; a proposal stays marked h
   chosen with `argument_count` (D219); IO systems found with `function_waits` (D209); writing an inline component
   of an IO system's row is a compile error (D261).
 - The clock row is opted into by the row's class (a proposal by Claude).
+- `Changed<T>` (a proposal by Claude, 2026-10-02, building on D335 and D362): a per-entity stamp in each column,
+  set when a writing system's row is written back, when `Lookup.of` lends the item, and when `add_component` adds or
+  replaces it; a system never sees its own writes (its in-run writes fall before the tick it remembers, its flushed
+  commands after); added counts as changed, as in Bevy.
 - The runner uses no markers: what a system reads and writes comes from its phase function's `function.accesses`
   (D335), and systems that do not conflict run at the same time (Spite's D362, Mortaro, 2026-10-01, answering item
   109). Thread affinity is declared on the data, by a component class's `pinned_to_creating_thread()` (D363,
@@ -141,6 +145,24 @@ Claude (2026-10-02), for Mortaro to confirm:
   (alert A75) lost a scripted client's first `/give` that way, silently.
 - A message is an entity (a game's alert A109, Claude's proposal).
 - The dial runs on the thread pool (D191).
+- Proposals by Claude (2026-10-02), for Mortaro to confirm:
+  - replication sends what was written (`Changed<T>`) and still compares the new frame with the kept one, so a
+    system that writes a row it leaves unchanged costs an encode but no bytes;
+  - the hello carries the protocol, a hash of every replicated component's shape (class name, mode, each field's
+    name and type, nested classes walked) combined so the load order does not matter, a datagram token and port,
+    and the environment; a mismatch closes both sides and marks the dialer `Network.Component.Refused`, which stops
+    `Dial`; nothing is sent to a peer before its hello matched, marked `Network.Component.Greeted`;
+  - `CheckSchema` crashes on the first tick, naming `no_two_replicated_components_share_a_message_id`, rather than
+    at compile time, since the ids are hashed at run time from the class keys;
+  - unreliable delivery is opted into by a class function, `sent_unreliably(): Boolean`, beside `mirrored_from`
+    (the same pattern as `pinned_to_creating_thread`); new entities, removals and messages stay on TCP; datagrams
+    carry the sender's tick, a datagram older than the newest tick seen on either channel is dropped, and a value
+    that stops changing is sent once more by TCP;
+  - the server's clock: the dialer pings every 60 ticks and keeps `Network.Component.ServerClock` (offset, round
+    trip, samples) on its world entity, and the marker `Network.Component.FollowServerClock` moves its game clock
+    by the offset; an engine component is mirrored by reopening its class in the game's folder (Spite's reopening of
+    classes from a later root), which answers a game's alert A108 without the engine knowing environments;
+  - `Network.Component.DropDatagrams` for tests.
 
 ## [navigation.md](../docs/navigation.md)
 

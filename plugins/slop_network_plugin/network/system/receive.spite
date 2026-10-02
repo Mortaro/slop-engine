@@ -5,11 +5,19 @@ type Peer {
 
 var world = World()
 var mirrors = Mirrors()
+var console = Console()
+var clock = Clock()
+var schema = Network.Schema()
+var datagrams = Network.Datagrams()
+var raw = Raw()
+var server_clocks = Lookup<Network.Component.ServerClock>()
 var frame = Asset.Bytes()
+var reply = Asset.Bytes()
 var understood = false
 var letter_keys = List<Integer>()
 var letter_entities = List<Integer>()
 var letter_dropped = List<Boolean>()
+var datagram_limit = 1400
 
 func after_input_each(peer: Peer) {
     var stream = peer.connection.stream
@@ -18,10 +26,14 @@ func after_input_each(peer: Peer) {
         var message = frame.read_integer()
         var remote = frame.read_integer()
         understood = false
-        if message == -3 {
+        if not stream.greeted {
+            greet(peer, message)
+        } else if message == -3 {
             forget_mirror(remote)
         } else if message == -4 {
             strip_mirror(remote)
+        } else if message < -4 {
+            control(stream, message)
         } else {
             decode_components(message, remote, peer.entity.id)
         }
@@ -29,7 +41,156 @@ func after_input_each(peer: Peer) {
             stream.closed = true
         }
     }
+    stream.end_if_ended()
+    read_datagrams(peer)
     mark_mirrors()
+}
+
+func greet(peer: Peer, message: Integer) {
+    var stream = peer.connection.stream
+    assert message == -5
+    var protocol = frame.read_integer()
+    var hash = frame.read_long()
+    var token = frame.read_integer()
+    var port = frame.read_integer()
+    var environment = frame.read_text()
+    assert not frame.failed and frame.remaining() == 0
+    understood = true
+    schema.ensure()
+    if not schema.matches(protocol, hash) {
+        refuse(peer, protocol, hash, environment)
+        return
+    }
+    stream.greeted = true
+    var marker = Network.Component.Greeted()
+    peer.entity.add_component(marker)
+    if stream.dialed {
+        stream.token = token
+        stream.datagram_port = port
+        open_datagrams(port)
+    }
+}
+
+func open_datagrams(port: Integer) {
+    assert port > 0 and schema.uses_datagrams() and not datagrams.opened
+    datagrams.open_any()
+}
+
+func refuse(peer: Peer, protocol: Integer, hash: Long, environment: String) {
+    var stream = peer.connection.stream
+    console.error(
+        "refusing connection {peer.entity.id}: the peer ({environment}) speaks protocol {protocol} with components hashing to {hash}, this build protocol {schema.protocol} with {schema.hash}: build both from the same source",
+    )
+    stream.closed = true
+    assert stream.dialed
+    var refused = Network.Component.Refused()
+    refused.protocol = protocol
+    refused.schema = hash
+    refused.environment = environment
+    world.as_entity().add_component(refused)
+}
+
+func control(stream: Network.Stream, message: Integer) {
+    if message == -6 {
+        var tick = frame.read_integer()
+        if tick > stream.highest_tick {
+            stream.highest_tick = tick
+        }
+    } else if message == -7 {
+        stream.heard_by_peer = true
+    } else if message == -8 {
+        answer_ping(stream)
+    } else if message == -9 {
+        note_pong()
+    }
+    understood = not frame.failed and frame.remaining() == 0 and message >= -9
+}
+
+func answer_ping(stream: Network.Stream) {
+    var sent_at = frame.read_long()
+    var now = world.now()
+    reply.clear()
+    reply.write_integer(24)
+    reply.write_integer(-9)
+    reply.write_integer(0)
+    reply.write_long(sent_at)
+    reply.write_long(now)
+    stream.queue(reply)
+}
+
+func note_pong() {
+    var sent_at = frame.read_long()
+    var server_now = frame.read_long()
+    assert not frame.failed
+    var round_trip = clock.elapsed_milliseconds() - sent_at
+    var local_now = world.now()
+    var sample = server_now + round_trip / 2 - local_now
+    var narrow_trip: Integer = round_trip
+    if not server_clocks.has(world.entity) {
+        var made = Network.Component.ServerClock()
+        made.offset = sample
+        made.round_trip = narrow_trip
+        made.samples = 1
+        world.as_entity().add_component(made)
+        return
+    }
+    var known = server_clocks.of(world.entity)
+    crash known
+    known.offset = known.offset + (sample - known.offset) / 2
+    known.round_trip = narrow_trip
+    known.samples = known.samples + 1
+}
+
+func read_datagrams(peer: Peer) {
+    var stream = peer.connection.stream
+    var inbox = stream.datagrams_in
+    assert inbox.length > 0
+    inbox.position = 0
+    while not stream.closed and inbox.remaining() >= 4 {
+        var size = inbox.read_integer()
+        var start = inbox.position
+        read_datagram(peer, inbox, start, size)
+        inbox.position = start + size
+    }
+    inbox.clear()
+}
+
+func read_datagram(peer: Peer, inbox: Asset.Bytes, start: Integer, size: Integer) {
+    var stream = peer.connection.stream
+    assert size >= 8 and size <= inbox.length - start and stream.greeted
+    var tick = raw.read_integer(inbox.address, start + 4)
+    if tick < stream.highest_tick {
+        stream.stale_datagrams = stream.stale_datagrams + 1
+        return
+    }
+    stream.highest_tick = tick
+    stream.datagrams_read = stream.datagrams_read + 1
+    if not stream.hears_peer {
+        stream.hears_peer = true
+        stream.queue_control(-7)
+    }
+    var at = start + 8
+    var end = start + size
+    understood = true
+    while understood and at + 12 <= end {
+        var frame_size = raw.read_integer(inbox.address, at)
+        understood = frame_size >= 8 and at + 4 + frame_size <= end
+        if understood {
+            decode_datagram_frame(peer, inbox.address + at + 4, frame_size)
+        }
+        at = at + 4 + frame_size
+    }
+}
+
+func decode_datagram_frame(peer: Peer, address: Long, frame_size: Integer) {
+    frame.clear()
+    frame.untrusted = true
+    frame.write_bytes(address, frame_size)
+    var message = frame.read_integer()
+    var remote = frame.read_integer()
+    understood = false
+    assert remote > -2 and message >= 0
+    decode_components(message, remote, peer.entity.id)
 }
 
 func decode_component(component: Symbol<Component>, message: Integer, remote: Integer, connection: Integer) {

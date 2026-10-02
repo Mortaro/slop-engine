@@ -1,0 +1,5 @@
+var text = ""
+
+func mirrored_from(environment: String): Boolean {
+    return environment == "server"
+}

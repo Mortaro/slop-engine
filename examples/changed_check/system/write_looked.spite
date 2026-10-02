@@ -1,0 +1,18 @@
+type Looked {
+    entity: Entity
+    due: Component.Due
+    looked: Component.Looked
+}
+
+var gauges = Lookup<Component.Gauge>()
+var echoes = Lookup<Component.Echo>()
+var world = World()
+
+func update_each(looked: Looked) {
+    var gauge = gauges.of(looked.entity.id)
+    crash gauge
+    gauge.amount = gauge.amount + 1
+    var echo = echoes.of(world.entity)
+    crash echo
+    echo.heard = echo.heard + 100
+}

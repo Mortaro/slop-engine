@@ -544,6 +544,28 @@ medium, the engine's physics uses both on its hot path):
   better for it. The one that cost real time is the argument rule on chained maths (`a.minimum(b).minimum(c)` must
   be two statements).
 
+## Update, 2026-10-02: `Changed<T>` and networking on the same accesses
+
+`Changed<T>` stamps a column per entity whenever a writing system's row is written back, and replication encodes
+only what was stamped (`replication_bench`: `Send` from about 7.9 ms to 1.4 ms a tick for 10,000 mirrored entities,
+1% moving). What it taught:
+
+- **`accesses` answers what a function may write, not what a run wrote.** A system that writes a row in one branch
+  stamps every entity it visits. Bevy learns this at run time from each mutable dereference; Spite knows it at
+  compile time per path. An answer per branch (or a cheap run-time write flag per borrowed row the compiler sets on
+  the writing path) would make `Changed<T>` exact; until then the engine keeps comparing the encoded frame before
+  sending, so a visited-but-unchanged value costs an encode and no bytes.
+- **Reopening a class from a later root** (Spite's monkey patching) is what lets a game mirror an engine component:
+  a `component/ticking.spite` beside the game's entry adds `mirrored_from` to `Component.Ticking`, and the engine
+  never learns about environments. It worked on the first try.
+- **`BinaryWriter<T>.schema()` cannot describe a component holding an `Entity`** (it walks `Entity` into `World`,
+  whose `Command` list it refuses), so the handshake hashes its own walk of the fields (`Network.Shape<T>`), which
+  stops at `Entity`. A way to tell the schema walk where a value ends (as the codec does with `Field<Entity>`) would
+  let it reuse the library's hash.
+- **D378 (IO concurrent by default) is not in master yet**: `UdpSocket` has only blocking and polling calls, and
+  `Socket.connect` still blocks its thread inside a `Concurrent`, so the plugin keeps polling once per tick and dials
+  on the pool.
+
 ## Suggested order
 
 1. Bugs 1, 2 and 9 (in progress). They unblock `type` rows and the performance path.

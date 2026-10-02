@@ -3,6 +3,21 @@ var socket = Socket()
 var inbound = Asset.Bytes()
 var outbound = Asset.Bytes()
 var closed = false
+var ended = false
+var sent_bytes: Long = 0
+var hello_sent = false
+var greeted = false
+var dialed = false
+var token = 0
+var datagram_host = ""
+var datagram_port = 0
+var hears_peer = false
+var heard_by_peer = false
+var highest_tick = -1
+var ping_wait = 0
+var datagrams_in = Asset.Bytes()
+var datagrams_read = 0
+var stale_datagrams = 0
 var chunk = 4096
 var inbound_limit = 1048576
 var frame_limit = 65536
@@ -21,6 +36,12 @@ func receive_all() {
         reading = received > 0
     }
     if socket.closed {
+        ended = true
+    }
+}
+
+func end_if_ended() {
+    if ended {
         closed = true
     }
 }
@@ -59,6 +80,23 @@ func keep_partial() {
     inbound = rest
 }
 
+func queue_control(message: Integer) {
+    outbound.write_integer(8)
+    outbound.write_integer(message)
+    outbound.write_integer(0)
+}
+
+func take_datagram(bytes: List<Byte>) {
+    var count = bytes.count()
+    datagrams_in.write_integer(count)
+    bytes.each(take_byte)
+}
+
+func take_byte(value: Byte) {
+    var widened: Integer = value
+    datagrams_in.write_byte(widened)
+}
+
 func queue(frames: Asset.Bytes) {
     if frames.length > 0 {
         outbound.write_bytes(frames.address, frames.length)
@@ -71,6 +109,7 @@ func flush() {
     var start = outbound.address + outbound.position
     var sent = socket.write_bytes_now(start, left)
     outbound.position = outbound.position + sent
+    sent_bytes = sent_bytes + sent
     if outbound.remaining() == 0 {
         outbound.clear()
     }

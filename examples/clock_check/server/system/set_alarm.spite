@@ -1,0 +1,19 @@
+type Joined {
+    joined: Added<Network.Component.Greeted>
+}
+
+var world = World()
+var console = Console()
+
+func update_each(_joined: Joined) {
+    var alarm = world.create_entity()
+    var marker = Component.Alarm()
+    alarm.add_component(marker)
+    var timer = Component.Timer()
+    timer.start(1500)
+    alarm.add_component(timer)
+    var now = world.now()
+    var ticking = timer.resume(now)
+    alarm.add_component(ticking)
+    console.print("server set an alarm for", ticking.ends_at)
+}

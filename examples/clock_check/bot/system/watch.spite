@@ -1,0 +1,69 @@
+type Alarmed {
+    entity: Entity
+    alarm: Component.Alarm
+    mirrored: Network.Component.Mirrored
+}
+
+type Reported {
+    rung: Component.Rung
+    mirrored: Network.Component.Mirrored
+}
+
+type Synced {
+    clock: Network.Component.ServerClock
+}
+
+var console = Console()
+var world = World()
+var tickings = Lookup<Component.Ticking>()
+var rangs = Lookup<Component.Rang>()
+var saw_ticking = false
+var ring_at: Long = -1
+var how = ""
+var tolerance = 100
+var finished = false
+
+func update_all(alarms: List<Alarmed>, reports: List<Reported>, clocks: List<Synced>) {
+    assert not finished
+    var alarmed = alarms.first()
+    crash alarmed
+    note_ring(alarmed.entity.id)
+    var reported = reports.first()
+    assert reported and ring_at >= 0
+    var synced = clocks.first()
+    crash synced
+    var server_at = reported.rung.at
+    var difference = ring_at - server_at
+    console.print(
+        "bot saw the alarm ring",
+        how,
+        "at game time",
+        ring_at,
+        "the server at",
+        server_at,
+        "round trip",
+        synced.clock.round_trip,
+        "ms",
+    )
+    var rang_at_the_same_game_time = difference <= tolerance and difference >= 0 - tolerance
+    crash rang_at_the_same_game_time
+    console.print("passed true")
+    finished = true
+    var quit = Component.Quit()
+    world.as_entity().add_component(quit)
+}
+
+func note_ring(alarm: Integer) {
+    assert ring_at < 0
+    var ticking = tickings.has(alarm)
+    if ticking {
+        saw_ticking = true
+    }
+    if rangs.has(alarm) {
+        ring_at = world.now()
+        how = "on its own clock"
+    } else if saw_ticking and not ticking {
+        ring_at = world.now()
+        how = "from the server"
+    }
+}

@@ -1,0 +1,5 @@
+var port = 7274
+var entities = 10000
+var moving_percent = 1
+var ticks = 300
+var lifetime_seconds = 120

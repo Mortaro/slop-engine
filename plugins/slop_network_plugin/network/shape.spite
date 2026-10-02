@@ -1,0 +1,26 @@
+generic $shape_type
+
+var parts = List<String>()
+
+func text(): String {
+    if $shape_type == Integer or $shape_type == Long or $shape_type == Float or $shape_type == Double {
+        return $shape_type.name
+    } else if $shape_type == Byte or $shape_type == Boolean or $shape_type == String or $shape_type == Entity {
+        return $shape_type.name
+    } else if $shape_type == List {
+        var element = Network.Shape<$shape_type.element_type>()
+        var inner = element.text()
+        return "List<{inner}>"
+    }
+    var probe: $shape_type = $shape_type()
+    parts.clear()
+    describe_attributes(probe)
+    var joined = parts.join(";")
+    return "{$shape_type.name}\{{joined}}"
+}
+
+func describe_attribute(attribute: Symbol<$shape_type>, _probe: $shape_type) {
+    var field = Network.Shape<attribute.class>()
+    var kind = field.text()
+    parts.append("{attribute.name}:{kind}")
+}

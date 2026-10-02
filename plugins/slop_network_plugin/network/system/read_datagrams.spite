@@ -1,0 +1,47 @@
+type Peer {
+    connection: Network.Component.Connection
+}
+
+var datagrams = Network.Datagrams()
+
+func input_all(peers: List<Peer>) {
+    assert datagrams.opened
+    var received = datagrams.receive()
+    while received {
+        deliver(received, peers)
+        received = datagrams.receive()
+    }
+}
+
+func deliver(received: List<Byte>, peers: List<Peer>) {
+    assert received.count() >= 8
+    var token = token_of(received)
+    var index = 0
+    while index < peers.count() {
+        var stream = peers[index].connection.stream
+        if stream.token == token and not stream.closed {
+            take(stream, received)
+        }
+        index = index + 1
+    }
+}
+
+func take(stream: Network.Stream, received: List<Byte>) {
+    if not stream.dialed and stream.datagram_port == 0 {
+        stream.datagram_host = datagrams.socket.sender_host()
+        stream.datagram_port = datagrams.socket.sender_port()
+    }
+    stream.take_datagram(received)
+}
+
+func token_of(received: List<Byte>): Integer {
+    var token = 0
+    var index = 3
+    while index >= 0 {
+        crash received[index]
+        var value: Integer = received[index]
+        token = token * 256 + value
+        index = index - 1
+    }
+    return token
+}

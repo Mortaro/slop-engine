@@ -19,6 +19,7 @@ var clock_row = Row<GameClock>()
 var since = -1
 var found = List<Integer>()
 var wanted = ""
+var writing = false
 
 func Stream(streamed_system: $system_type, last_run: Integer, wanted_phase: String) {
     system = streamed_system
@@ -48,8 +49,15 @@ func run_positions(phase: Symbol<$system_type.phase_each>, first: Integer, end: 
             } else {
                 system.phase_each(clocked_arguments(rows, entity))
             }
+            note_written(entity)
         }
         position = position + 1
+    }
+}
+
+func note_written(entity: Integer) {
+    if writing {
+        matcher.stamp_written(entity)
     }
 }
 

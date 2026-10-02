@@ -1,0 +1,14 @@
+var build = Build()
+
+func ReplicationCheck() {
+    load "../../slop"
+    load "../../plugins/slop_network_plugin"
+    if build.environment == "server" {
+        load "server"
+    }
+    if build.environment == "bot" {
+        load "bot"
+    }
+    var app = App()
+    app.run()
+}

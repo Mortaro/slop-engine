@@ -1,0 +1,114 @@
+var build = Build()
+var environment = Environment()
+var console = Console()
+var world = World()
+var columns = Columns()
+var clock = Clock()
+var program = Program()
+var waited = 0
+
+func ReplicationBench() {
+    load "../../slop"
+    load "../../plugins/slop_network_plugin"
+    if build.environment == "server" {
+        load "server"
+    }
+    if build.environment == "bot" {
+        load "bot"
+    }
+    var app = App()
+    if build.environment == "server" {
+        serve(app)
+    } else {
+        app.run()
+    }
+}
+
+func serve(app: App) {
+    var listen = Network.Component.Listen()
+    listen.port = environment.port
+    world.as_entity().add_component(listen)
+    var moving_every = 100 / environment.moving_percent
+    var index = 0
+    while index < environment.entities {
+        spawn(index % moving_every == 0)
+        index = index + 1
+    }
+    console.print("server listening on port", environment.port, "with", environment.entities, "mirrored entities")
+    while connected_ticks() < 60 {
+        paced_tick(app)
+    }
+    var bytes_before = sent_bytes()
+    var send_before = send_total(app)
+    var started = clock.elapsed_nanoseconds()
+    var tick = 0
+    while tick < environment.ticks {
+        paced_tick(app)
+        tick = tick + 1
+    }
+    var finished = clock.elapsed_nanoseconds()
+    var bytes = (sent_bytes() - bytes_before) / environment.ticks
+    var send_microseconds = (send_total(app) - send_before) / environment.ticks
+    var busy_microseconds = (finished - started) / environment.ticks / 1000
+    console.print(
+        "bytes per tick",
+        bytes,
+        "send microseconds per tick",
+        send_microseconds,
+        "tick microseconds with pacing",
+        busy_microseconds,
+    )
+}
+
+func spawn(moving: Boolean) {
+    var made = world.create_entity()
+    var spot = Component.Spot()
+    made.add_component(spot)
+    if moving {
+        var marker = Component.Moving()
+        made.add_component(marker)
+    }
+}
+
+func paced_tick(app: App) {
+    app.tick()
+    program.sleep(16)
+}
+
+func connected_ticks(): Integer {
+    var count = columns.count_of("Network.Component.Connection")
+    if count == 0 {
+        return 0
+    }
+    waited = waited + 1
+    return waited
+}
+
+func sent_bytes(): Long {
+    var connections = Lookup<Network.Component.Connection>()
+    var total: Long = 0
+    var count = columns.count_of("Network.Component.Connection")
+    var row = 0
+    while row < count {
+        var entity = columns.entity_at("Network.Component.Connection", row)
+        var connection = connections.of(entity)
+        crash connection
+        total = total + connection.stream.sent_bytes
+        row = row + 1
+    }
+    return total
+}
+
+func send_total(app: App): Long {
+    var report = app.profile()
+    var total: Long = 0
+    var index = 0
+    while index < report.systems.count() {
+        var entry = report.systems[index]
+        if entry.name == "Network.System.Send" {
+            total = entry.average_microseconds * entry.runs
+        }
+        index = index + 1
+    }
+    return total
+}

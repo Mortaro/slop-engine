@@ -1,0 +1,5 @@
+var amount = 0
+
+func sent_from(environment: String): Boolean {
+    return environment == "bot"
+}

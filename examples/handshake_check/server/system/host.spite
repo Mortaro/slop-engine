@@ -1,0 +1,18 @@
+type Started {
+    frame: Added<Component.Frame>
+}
+
+var world = World()
+var environment = Environment()
+var console = Console()
+
+func update_each(_started: Started) {
+    var listen = Network.Component.Listen()
+    listen.port = environment.port
+    world.as_entity().add_component(listen)
+    var banner = Component.Banner()
+    banner.text = "welcome"
+    var made = world.create_entity()
+    made.add_component(banner)
+    console.print("server listening on port", environment.port)
+}

@@ -266,6 +266,7 @@ func update_each(potion: Potion, target: Target) {
 | `entity: Entity` (named `entity`) | the entity's own id; not a filter. Each row gets an `Entity` of its own, so storing it in a link (`chase.entity = prey.entity`) keeps naming that entity after the runner moves on. An `Entity` field with any other name is a startup crash, `a_row_field_of_class_entity_is_named_entity` |
 | a link component, e.g. `parent: Component.Parent` | the entity must have it, like any component; in a system's first row it also says the next row is the entity it names ([below](#following-a-link)) |
 | `Added<T>` | `T` was added since this system last ran; `.value` is the component |
+| `Changed<T>` | `T` was written since this system last ran (below); `.value` is the component, to read |
 | `Removed<T>` | `T` was removed (or its entity despawned) since this system last ran; the component itself is gone, so there is no `.value` to read |
 | `Without<T>` | the entity does not have `T`: a system skips entities in a state by the absence of a component, never by a flag in a field (name the field without a leading `_`, since private fields are not walked) |
 
@@ -305,8 +306,8 @@ Nothing in a system says how it is scheduled; the runner derives it at compile t
 `function.accesses`, which say for every argument and attribute whether the function writes it or only reads it:
 
 - **what it reads and what it writes**: a row the function writes (any field of it, or anything reached through it)
-  writes every component class in the row; a row it only reads reads them. Markers, `Without<T>` and `Removed<T>`
-  are always reads. A `Lookup<T>` attribute and a resource (any singleton but `World`) always count as written,
+  writes every component class in the row; a row it only reads reads them. Markers, `Without<T>`, `Changed<T>` and
+  `Removed<T>` are always reads. A `Lookup<T>` attribute and a resource (any singleton but `World`) always count as written,
   since what a lookup lends can be written in place. Two systems conflict when one writes a
   class the other reads or writes, so systems that only read the same classes run at the same time.
 - **which thread**: any thread, unless it touches a component pinned to its thread ([below](#components-pinned-to-a-thread)).
@@ -355,11 +356,28 @@ then, not at the removal.
 
 ## Change tracking
 
-There are no events. Every column records the tick at which each row was added, the core keeps a short log of
-removals per column (in raw memory: a tick-ordered log, and a per-entity stamp of its last removal), and each system
-remembers the tick at which it last ran. So `Added<T>` and `Removed<T>` match each change
-exactly once for every system that asks, wherever it runs relative to the change: a system after the change sees it
-in the same tick, one before it sees it in the next. Removal records are trimmed after two ticks.
+There are no events. Every column records the tick at which each row was added and, per entity, the tick at which
+its component was last written; the core keeps a short log of removals per column (in raw memory: a tick-ordered
+log, and a per-entity stamp of its last removal), and each system remembers the tick at which it last ran. So
+`Added<T>`, `Changed<T>` and `Removed<T>` match each change exactly once for every system that asks, wherever it runs
+relative to the change: a system after the change sees it in the same tick, one before it sees it in the next.
+Removal records are trimmed after two ticks.
+
+`Changed<T>` follows writes, never values, so nothing is compared or encoded to find a change. An entity's `T` is
+written when:
+
+- a system whose phase function writes a row holding `T` visits that entity (the row is written back, on every
+  path: one row, two rows, lists and the fast path);
+- `Lookup<T>().of(entity)` lends it, since what it lends can be written in place;
+- `add_component` adds or replaces it (applied at the flush), so an added component is also a changed one.
+
+Which rows a system writes comes from its phase function's `function.accesses`, as for scheduling (below), so a
+system that writes a row writes every entity it visits, even where a branch leaves one alone. Give such a system a
+row that matches only what it changes (a marker, `Without<T>`), so its writes say what moved. A system never sees
+its own writes, which happen during the run it remembers, while every other system's writes, and its own commands
+applied at the flush, come after that run and are seen once. `examples/changed_check` writes a gauge through
+each path, reads it with `Changed<Component.Gauge>` before and after the writers, and checks that an unwritten gauge
+is seen once (when it was added) and a system writing what it watches does not see its own write.
 
 A condition that is a moment rather than a state is still a component with an owner. `Ui.Component.Clicked` is added
 by `Ui.System.Interact` on the tick a press is released over the button and removed by it on its next run.
@@ -488,9 +506,11 @@ of 25 ms take about 1,000 ms.
 
 ### Timers on the network
 
-The engine's timer components are not replicated, and the game clock is each process's own, so a server's `ends_at`
-means nothing to a client. A game mirrors a component of its own (a duration, or what remains) and the receiver
-starts a local timer from it.
+A game mirrors `Timer` and `Ticking` by reopening them with a `mirrored_from` in its own `component/` folder, and a
+client whose world entity has `Network.Component.FollowServerClock` keeps its game clock on the server's, so a
+mirrored `ends_at` means the same moment on both sides and the client's `TickTimers` rings it when the server's does
+([networking.md](networking.md#the-server-owns-the-clock)). A running timer's data changes only when it starts,
+pauses, resumes or rings, so a mirrored one costs nothing on the wire while it runs.
 
 ### Timer patterns
 
@@ -585,7 +605,7 @@ Values are stored one of two ways:
 component. A borrowed result can't be replaced: `var layout = lookup.of(entity)` followed by `layout = made` is a
 compile error, so pass the found and the new item to a small writer function instead.
 
-A system with one row and no `Added` or `Removed` field runs on the fast path, `Stream<System, Row>`. It
+A system with one row and no `Added`, `Changed` or `Removed` field runs on the fast path, `Stream<System, Row>`. It
 walks the driver column and fills each row straight from the columns: inline items are borrowed and written
 in place, with no copy and no reference counting, and references are handed over as they are. The runner picks
 it with `phase.argument_count() == 1`, so systems with several rows still compile and use the combination
@@ -603,7 +623,7 @@ per row), and the clock is written back after the walk. `TickTimers` is written 
 against 1.25 ms through the pair path. It is opted into by the row's class, not chosen for every two-row system:
 streaming a row borrows its columns for each call, which Spite refuses for a system that
 may add to them, as `Animate` and `FollowBones` may, so the runner builds the stream only where it is asked for.
-The other row may not have `Added` or `Removed` fields; with them, the pair path runs.
+The other row may not have `Added`, `Changed` or `Removed` fields; with them, the pair path runs.
 
 A `_all` system's rows are written back after it runs, like a single row's, so writing a field of an inline
 component in a list sticks; a list the system only reads is not written back. Its row objects are kept between runs and refilled, and each entity is matched once

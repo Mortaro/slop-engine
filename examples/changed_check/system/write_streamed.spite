@@ -1,0 +1,9 @@
+type Streamed {
+    gauge: Component.Gauge
+    due: Component.Due
+    streamed: Component.Streamed
+}
+
+func update_each(streamed: Streamed) {
+    streamed.gauge.amount = streamed.gauge.amount + 1
+}

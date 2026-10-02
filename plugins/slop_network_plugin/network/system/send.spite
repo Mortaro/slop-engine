@@ -9,6 +9,21 @@ type Observation {
 }
 
 var world = World()
+var build = Build()
+var clock = Clock()
+var raw = Raw()
+var schema = Network.Schema()
+var datagrams = Network.Datagrams()
+var hello = Asset.Bytes()
+var control = Asset.Bytes()
+var datagram = Asset.Bytes()
+var datagram_limit = 1200
+var ping_ticks = 60
+var hurrying = false
+var drops = Lookup<Network.Component.DropDatagrams>()
+var drop_count = 0
+var columns = Columns()
+var since = -1
 var frames = Network.Frames()
 var messages = Asset.Bytes()
 var letters = Network.Letters()
@@ -26,7 +41,9 @@ func last_all(peers: List<Peer>, observations: List<Observation>) {
     letters.begin()
     frames.begin()
     encode_components()
+    strip_components()
     frames.finish()
+    since = columns.stage_counter - 1
     letters.gather(messages)
     forget_sent()
     find_everyone()
@@ -41,8 +58,13 @@ func last_all(peers: List<Peer>, observations: List<Observation>) {
 
 func encode_component(component: Symbol<Component>) {
     var codec = Network.Codec<component.class>()
-    codec.mirror(frames)
+    codec.mirror(frames, since)
     codec.send(letters)
+}
+
+func strip_component(component: Symbol<Component>) {
+    var codec = Network.Codec<component.class>()
+    codec.strip(frames, since)
 }
 
 func forget_sent() {
@@ -149,8 +171,52 @@ func known_of(peer: Entity): Network.Known {
 func deliver(peer: Peer, place: Integer) {
     var connection = peer.connection
     var stream = connection.stream
+    if not stream.hello_sent {
+        stream.hello_sent = true
+        queue_hello(stream)
+    }
+    if stream.greeted {
+        deliver_state(peer, stream, place)
+    }
+    stream.flush()
+    if stream.closed {
+        stream.close()
+        world.despawn(peer.entity.id)
+        var key: String = peer.entity.id
+        knowledge.remove(key)
+    }
+}
+
+func queue_hello(stream: Network.Stream) {
+    hello.clear()
+    hello.write_integer(0)
+    hello.write_integer(-5)
+    hello.write_integer(0)
+    schema.ensure()
+    hello.write_integer(schema.protocol)
+    hello.write_long(schema.hash)
+    hello.write_integer(stream.token)
+    var port = 0
+    if datagrams.opened and not stream.dialed {
+        port = datagrams.port
+    }
+    hello.write_integer(port)
+    hello.write_text(build.environment)
+    var size = hello.length - 4
+    raw.write_integer(hello.address, 0, size)
+    stream.queue(hello)
+}
+
+func deliver_state(peer: Peer, stream: Network.Stream, place: Integer) {
     var known = known_of(peer.entity)
     removals.clear()
+    hurrying = datagrams_ready(stream) and stream.heard_by_peer
+    knock(stream)
+    ping(stream)
+    if hurrying {
+        queue_tick(stream)
+        begin_datagram(stream)
+    }
     var everyone_count = everyone.count()
     send_all(stream, known, everyone, 0, everyone_count)
     crash visible_starts[place]
@@ -160,12 +226,83 @@ func deliver(peer: Peer, place: Integer) {
     forget_hidden(known)
     stream.queue(removals)
     stream.queue(messages)
-    stream.flush()
-    if stream.closed {
-        stream.close()
-        world.despawn(peer.entity.id)
-        var key: String = peer.entity.id
-        knowledge.remove(key)
+    if hurrying {
+        send_datagram(stream)
+    }
+}
+
+func datagrams_ready(stream: Network.Stream): Boolean {
+    return datagrams.opened and stream.datagram_port > 0 and stream.datagram_host != "" and schema.uses_datagrams()
+}
+
+func knock(stream: Network.Stream) {
+    assert datagrams_ready(stream) and not stream.heard_by_peer and frames.tick % 10 == 0
+    begin_datagram(stream)
+    send_datagram_always(stream)
+}
+
+func ping(stream: Network.Stream) {
+    assert stream.dialed
+    if stream.ping_wait > 0 {
+        stream.ping_wait = stream.ping_wait - 1
+        return
+    }
+    stream.ping_wait = ping_ticks
+    control.clear()
+    control.write_integer(16)
+    control.write_integer(-8)
+    control.write_integer(0)
+    var now = clock.elapsed_milliseconds()
+    control.write_long(now)
+    stream.queue(control)
+}
+
+func queue_tick(stream: Network.Stream) {
+    control.clear()
+    control.write_integer(12)
+    control.write_integer(-6)
+    control.write_integer(0)
+    control.write_integer(frames.tick)
+    stream.queue(control)
+}
+
+func begin_datagram(stream: Network.Stream) {
+    datagram.clear()
+    datagram.write_integer(stream.token)
+    datagram.write_integer(frames.tick)
+}
+
+func send_datagram(stream: Network.Stream) {
+    assert datagram.length > 8
+    send_datagram_always(stream)
+}
+
+func send_datagram_always(stream: Network.Stream) {
+    if not dropped() {
+        datagrams.send(stream.datagram_host, stream.datagram_port, datagram)
+    }
+    begin_datagram(stream)
+}
+
+func dropped(): Boolean {
+    if datagram.length <= 8 or not drops.has(world.entity) {
+        return false
+    }
+    var drop = drops.of(world.entity)
+    crash drop
+    drop_count = drop_count + 1
+    return drop.every > 0 and drop_count % drop.every == 0
+}
+
+func hurry(stream: Network.Stream, hurried: Asset.Bytes) {
+    var at = 0
+    while at < hurried.length {
+        var size = raw.read_integer(hurried.address, at) + 4
+        if datagram.length + size > datagram_limit and datagram.length > 8 {
+            send_datagram(stream)
+        }
+        datagram.write_bytes(hurried.address + at, size)
+        at = at + size
     }
 }
 
@@ -188,12 +325,23 @@ func send_entity(stream: Network.Stream, known: Network.Known, entity: Integer) 
     if ticks[entity] == frames.tick - 1 {
         var changed = frames.changed(entity)
         stream.queue(changed)
+        send_hurried(stream, entity)
     } else {
-        var full = frames.full(entity)
+        var full = frames.full_of(entity)
         stream.queue(full)
         known.entities.append(entity)
     }
     ticks[entity] = frames.tick
+}
+
+func send_hurried(stream: Network.Stream, entity: Integer) {
+    var hurried = frames.hurried(entity)
+    assert hurried.length > 0
+    if hurrying {
+        hurry(stream, hurried)
+    } else {
+        stream.queue(hurried)
+    }
 }
 
 func forget_hidden(known: Network.Known) {

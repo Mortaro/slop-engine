@@ -1,0 +1,22 @@
+type Driven {
+    entity: Entity
+    drift: Component.Drift
+    drifting: Component.Drifting
+}
+
+var world = World()
+var last_position = 60
+
+func update_each(driven: Driven) {
+    var drift = driven.drift
+    drift.position = drift.position + 1
+    if drift.position == last_position / 2 {
+        var lossy = Network.Component.DropDatagrams()
+        world.as_entity().add_component(lossy)
+    }
+    assert drift.position == last_position
+    driven.entity.remove_component(Component.Drifting)
+    var stopped = Component.Stopped()
+    stopped.at = drift.position
+    driven.entity.add_component(stopped)
+}

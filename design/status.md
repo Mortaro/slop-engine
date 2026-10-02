@@ -75,10 +75,18 @@ and the click test passed for 5 and 12 clicks.
   bundle the typed spawn path does not recognise takes the reflective path (`attribute.value` walked at run time),
   which is correct and slower: 200,000 bodies of four components in about 650 ms, against about 190 ms typed.
 - There is no world pause or time scale yet (a server never pauses).
-- Timers on the network: a running timer's data changes only when it starts, pauses, resumes or rings, so a
-  mirrored timer would cost no traffic while it runs. Two things are missing for that (a game's alert A108): the
-  game clock is each process's own, so a server's `ends_at` means nothing to a client, and the engine's components
-  have no `mirrored_from`, so a game cannot mirror a `Timer` or a `Ticking`.
+- `Changed<T>` (2026-10-02), known gaps:
+  - a row counts as written per whole argument and per function, from `function.accesses`: a system that may write
+    a row stamps every entity it visits, whether or not this run's branch wrote it. Bevy detects a write per
+    mutable access at run time; here the answer is a row matching only what the system changes. Per-piece and
+    per-path answers from the compiler would narrow it.
+  - `Lookup<T>.of` always stamps, since it lends a writable item, so a system that only reads through a lookup
+    marks what it reads as changed. Proposal: a read-only `Lookup<T>.read(entity)` once `accesses` can tell the
+    two apart.
+  - An IO system's rows are snapshots and are never written back, so their writes to reference components are not
+    stamped.
+  - A system writing `T` through a lookup made inside a function body, or through a column reached another way, is
+    invisible to the runner and stamps nothing.
 - `TickTimers` history: 0.27 ms for 10,000 timers through the clock row, against 1.25 ms through the pair path (which
   copies each row) and 0.34 ms for the one-row system before it (which looked the `Frame` up for every timer and
   wrote every timer every tick).
@@ -218,15 +226,35 @@ once characters left the grids that solid queries read.
 ## [networking.md](../docs/networking.md)
 
 The whole page is Claude's proposal, unconfirmed; Mortaro decides the API. It is built and tested by
-`examples/click_counter_online` and `interest_check`. Not built yet, in rough order of need:
+`examples/click_counter_online`, `interest_check`, `replication_check`, `handshake_check`, `unreliable_check` and
+`clock_check`. Not built yet, in rough order of need:
 
 - **Values inline in columns** for the codec: copying a component's bytes instead of walking its fields.
-- **Change detection by write, not by comparing.** Encoding every mirrored value every tick to compare bytes is
-  fine for a counter and wrong for a world. It needs `Changed<T>`, which needs the compiler to say what a system
-  writes (item 109 in the language's decisions).
-- **A handshake** carrying the environment and a hash of every replicated component, so mismatched builds refuse
-  each other instead of misreading, and a compile-time check that no two components hash to the same message id.
-- **Unreliable delivery** (UDP) for state that is superseded every tick, prediction, and rates.
+- **Prediction and rates**: client-side prediction and reconciliation of what a client owns, and a send rate per
+  connection or per component.
+- **Send still walks every mirrored row and every known entity per peer each tick** (a stamp check and an empty
+  queue each), so 10,000 quiet entities still cost about 1.4 ms a tick. A per-column log of written entities and a
+  per-peer list of entities with changes would make it follow only what changed.
+- **Datagram security**: a datagram is matched to its connection by a token sent in the clear in the hello; the
+  acceptor takes the dialer's address from the first datagram with the token and never changes it. Anyone who reads
+  the TCP stream can forge datagrams. Authenticating them waits on encrypted connections (Spite's TLS, D394).
+- **Datagram reordering** is handled by dropping anything older than the newest tick seen; there is no test that
+  reorders real packets (localhost does not), only a forged stale one.
+- **IO through Spite's concurrent-by-default IO (D378)** is not built in Spite master (2026-10-02): `Socket`'s
+  blocking calls park inside a `Concurrent` only for `accept_client`, `read_line` and `read_bytes`, `connect` still
+  blocks its thread, and `UdpSocket` has no parking calls at all. The plugin keeps polling non-blocking sockets once
+  per tick and dialling on the thread pool, which never blocks a frame; it can move to plain straight-line IO once
+  D378 lands.
+- **Messages before the handshake**: a message spawned while no peer is greeted is despawned unsent, as one spawned
+  with no connection always was.
+- Measured on Linux (shared 4-core machine, `--optimized`, `replication_bench`: 10,000 mirrored entities, 100 moving
+  each tick, one bot, 300 measured ticks, five interleaved runs each, medians, 2026-10-02):
+
+  | | Before (encode and compare every value) | After (encode what was written) |
+  |---|---|---|
+  | `Send` per tick | 7,889 µs | 1,403 µs |
+  | Bytes per tick | 2,000 | 2,000 |
+  | Tick with 16 ms pacing | 24,465 µs | 17,938 µs |
 
 ## [navigation.md](../docs/navigation.md)
 

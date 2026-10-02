@@ -1,0 +1,8 @@
+type Seen {
+    changed: Changed<Component.Gauge>
+    tally: Component.Tally
+}
+
+func after_input_each(seen: Seen) {
+    seen.tally.early = seen.tally.early + 1
+}

@@ -2,6 +2,7 @@ type Joining {
     entity: Entity
     connect: Network.Component.Connect
     unconnected: Without<Network.Component.Connected>
+    welcome: Without<Network.Component.Refused>
 }
 
 var world = World()
@@ -26,6 +27,8 @@ func take_socket(dialer: Entity, connect: Network.Component.Connect) {
     if socket {
         var connection = Network.Component.Connection()
         connection.stream.adopt(socket)
+        connection.stream.dialed = true
+        connection.stream.datagram_host = connect.host
         var peer = world.create_entity()
         peer.add_component(connection)
         var connected = Network.Component.Connected()

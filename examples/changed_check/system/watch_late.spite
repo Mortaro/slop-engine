@@ -1,0 +1,8 @@
+type Seen {
+    changed: Changed<Component.Gauge>
+    tally: Component.Tally
+}
+
+func render_each(seen: Seen) {
+    seen.tally.late = seen.tally.late + 1
+}
