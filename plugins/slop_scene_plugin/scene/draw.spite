@@ -6,3 +6,5 @@ var first_index = 0
 var index_count = 0
 var section = 0
 var masked = false
+var detail_level = 0
+var occluded = false

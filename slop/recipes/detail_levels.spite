@@ -1,0 +1,64 @@
+var simplifier = Recipes.MeshSimplifier()
+var scalar = Math.Scalar()
+var reduction: Float = 0.5
+var level_limit = 8
+var minimum_triangles = 16
+var error_limit: Float = 0.25
+var pixel_error: Float = 1.0
+var reference_height: Float = 1080.0
+var largest_screen_size: Float = 4.0
+var screen_sizes = List<Float>()
+var triangle_counts = List<Integer>()
+var errors = List<Float>()
+
+func generate(mesh: Asset.Mesh) {
+    var generated_once = mesh.detail_screen_sizes.is_empty()
+    crash generated_once
+    triangle_counts.clear()
+    errors.clear()
+    assert mesh.sections.count() >= 3 and mesh.vertices.count() >= 24
+    simplifier.start(mesh)
+    var previous = simplifier.triangle_count()
+    triangle_counts.append(previous)
+    errors.append(0.0)
+    var radius = simplifier.radius
+    var limit = error_limit * error_limit
+    var going = true
+    while going and mesh.detail_level_count() < level_limit {
+        var wanted: Float = previous
+        wanted = wanted * reduction
+        var target: Integer = wanted
+        going = target >= minimum_triangles
+        if going {
+            simplifier.simplify_to(target, limit)
+            var reached = simplifier.triangle_count()
+            going = reached * 4 <= previous * 3 and reached > 0
+            if going {
+                add_level(mesh, radius)
+                previous = reached
+            }
+        }
+    }
+}
+
+func add_level(mesh: Asset.Mesh, radius: Float) {
+    simplifier.emit(mesh)
+    var level = mesh.detail_level_count()
+    var error = simplifier.error_distance()
+    var triangles = simplifier.triangle_count()
+    triangle_counts.append(triangles)
+    errors.append(error)
+    var size = largest_screen_size
+    if level <= screen_sizes.count() {
+        crash screen_sizes[level - 1]
+        size = screen_sizes[level - 1]
+    } else if error > 0.0 {
+        size = 2.0 * radius * pixel_error / (error * reference_height)
+    }
+    size = scalar.minimum(size, largest_screen_size)
+    var last = mesh.detail_screen_sizes.last()
+    if last {
+        size = scalar.minimum(size, last)
+    }
+    mesh.detail_screen_sizes.append(size)
+}

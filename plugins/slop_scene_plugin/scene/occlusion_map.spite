@@ -1,0 +1,204 @@
+var culling = Scene.Culling()
+var scalar = Math.Scalar()
+var ready = false
+var view = Math.Matrix4()
+var eye_x: Float = 0.0
+var eye_y: Float = 0.0
+var eye_z: Float = 0.0
+var near: Float = 0.1
+var far: Float = 500.0
+var down_tangent: Float = 1.0
+var across_tangent: Float = 1.0
+var screen_width = 0
+var screen_height = 0
+var block = 16
+var widths = List<Integer>()
+var heights = List<Integer>()
+var offsets = List<Integer>()
+var depths = List<Float>()
+var seen = Math.Vector3()
+var occluder: Float = 0.0
+
+func begin(camera: Scene.Component.ViewCamera, width: Integer, height: Integer, texel_block: Integer) {
+    ready = false
+    view.copy_from(camera.view)
+    eye_x = camera.eye_x
+    eye_y = camera.eye_y
+    eye_z = camera.eye_z
+    near = camera.near
+    far = camera.far
+    down_tangent = scalar.tangent(camera.field_of_view * 0.5)
+    across_tangent = down_tangent * camera.aspect
+    screen_width = width
+    screen_height = height
+    block = texel_block
+    depths.clear()
+}
+
+func columns(): Integer {
+    return (screen_width + block - 1) / block
+}
+
+func rows(): Integer {
+    return (screen_height + block - 1) / block
+}
+
+func build_pyramid() {
+    widths.clear()
+    heights.clear()
+    offsets.clear()
+    var width = columns()
+    var height = rows()
+    var complete = depths.count() == width * height
+    crash complete
+    widths.append(width)
+    heights.append(height)
+    offsets.append(0)
+    var source = 0
+    while width > 1 or height > 1 {
+        var next_width = (width + 1) / 2
+        var next_height = (height + 1) / 2
+        var next_offset = depths.count()
+        reduce_level(source, width, height, next_width, next_height)
+        widths.append(next_width)
+        heights.append(next_height)
+        offsets.append(next_offset)
+        source = next_offset
+        width = next_width
+        height = next_height
+    }
+    ready = true
+}
+
+func reduce_level(source: Integer, width: Integer, height: Integer, next_width: Integer, next_height: Integer) {
+    var row = 0
+    while row < next_height {
+        var column = 0
+        while column < next_width {
+            var left = column * 2
+            var top = row * 2
+            var right = scalar_minimum(left + 1, width - 1)
+            var bottom = scalar_minimum(top + 1, height - 1)
+            var top_left = depth_at(source + top * width + left)
+            var top_right = depth_at(source + top * width + right)
+            var bottom_left = depth_at(source + bottom * width + left)
+            var bottom_right = depth_at(source + bottom * width + right)
+            var upper = scalar.minimum(top_left, top_right)
+            var lower = scalar.minimum(bottom_left, bottom_right)
+            var farthest = scalar.minimum(upper, lower)
+            depths.append(farthest)
+            column = column + 1
+        }
+        row = row + 1
+    }
+}
+
+func scalar_minimum(first: Integer, second: Integer): Integer {
+    if second < first {
+        return second
+    }
+    return first
+}
+
+func depth_at(index: Integer): Float {
+    crash depths[index]
+    return depths[index]
+}
+
+func hides(cone: Scene.ViewCone, radius: Float): Boolean {
+    if not ready or not culling.occlusion {
+        return false
+    }
+    var moved_x = cone.eye_x - eye_x
+    var moved_y = cone.eye_y - eye_y
+    var moved_z = cone.eye_z - eye_z
+    var jump = culling.occlusion_eye_jump
+    if moved_x * moved_x + moved_y * moved_y + moved_z * moved_z > jump * jump {
+        return false
+    }
+    var center = cone.placed
+    view.transform_point(seen, center.x_value, center.y_value, center.z_value)
+    var depth = 0.0 - seen.z_value
+    var nearest = depth - radius
+    if nearest <= near {
+        return false
+    }
+    var farthest = depth + radius
+    var left = across(seen.x_value - radius, nearest, farthest)
+    var right = across(seen.x_value + radius, farthest, nearest)
+    var bottom = down(seen.y_value - radius, nearest, farthest)
+    var top = down(seen.y_value + radius, farthest, nearest)
+    if left < -1.0 or right > 1.0 or bottom < -1.0 or top > 1.0 {
+        return false
+    }
+    var first_column = texel_of(left * 0.5 + 0.5, screen_width)
+    var last_column = texel_of(right * 0.5 + 0.5, screen_width)
+    var first_row = texel_of(0.5 - top * 0.5, screen_height)
+    var last_row = texel_of(0.5 - bottom * 0.5, screen_height)
+    farthest_over(first_column, last_column, first_row, last_row)
+    var object_depth = near / (far - near) * (far / nearest - 1.0)
+    return object_depth < occluder
+}
+
+func across(side: Float, below_zero: Float, above_zero: Float): Float {
+    if side < 0.0 {
+        return side / (below_zero * across_tangent)
+    }
+    return side / (above_zero * across_tangent)
+}
+
+func down(side: Float, below_zero: Float, above_zero: Float): Float {
+    if side < 0.0 {
+        return side / (below_zero * down_tangent)
+    }
+    return side / (above_zero * down_tangent)
+}
+
+func texel_of(fraction: Float, pixels: Integer): Integer {
+    var pixel: Float = pixels
+    var place = fraction * pixel
+    var texel: Integer = place
+    texel = texel / block
+    var last = (pixels + block - 1) / block - 1
+    if texel > last {
+        return last
+    }
+    if texel < 0 {
+        return 0
+    }
+    return texel
+}
+
+func farthest_over(first_column: Integer, last_column: Integer, first_row: Integer, last_row: Integer) {
+    var level = 0
+    var wide = last_column - first_column > 1
+    var tall = last_row - first_row > 1
+    while (wide or tall) and level + 1 < offsets.count() {
+        level = level + 1
+        var left = first_column.shifted_right(level)
+        var right = last_column.shifted_right(level)
+        var high = first_row.shifted_right(level)
+        var low = last_row.shifted_right(level)
+        wide = right - left > 1
+        tall = low - high > 1
+    }
+    crash offsets[level]
+    crash widths[level]
+    var offset = offsets[level]
+    var width = widths[level]
+    var column_start = first_column.shifted_right(level)
+    var column_end = last_column.shifted_right(level)
+    var row_start = first_row.shifted_right(level)
+    var row_end = last_row.shifted_right(level)
+    occluder = 1.0
+    var row = row_start
+    while row <= row_end {
+        var column = column_start
+        while column <= column_end {
+            var texel = depth_at(offset + row * width + column)
+            occluder = scalar.minimum(occluder, texel)
+            column = column + 1
+        }
+        row = row + 1
+    }
+}

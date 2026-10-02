@@ -9,4 +9,5 @@ func build() {
     glsl.compile(root, "shader.shadow.fragment", "frag")
     glsl.compile(root, "shader.tone_map.vertex", "vert")
     glsl.compile(root, "shader.tone_map.fragment", "frag")
+    glsl.compile(root, "shader.occlusion.compute", "comp")
 }

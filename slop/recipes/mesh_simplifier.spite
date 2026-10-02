@@ -1,0 +1,927 @@
+var scalar = Math.Scalar()
+var vertex_floats = 8
+var quadric_floats = 11
+var edge_weight: Float = 10.0
+var normal_weight: Float = 0.0025
+var skin_weight: Float = 0.01
+var flip_cosine: Float = 0.25
+var source = Asset.Mesh()
+var skinned = false
+var wedge_count = 0
+var position_count = 0
+var wedge_positions = List<Integer>()
+var weld_keys = List<Float>()
+var xs = List<Float>()
+var ys = List<Float>()
+var zs = List<Float>()
+var radius: Float = 1.0
+var corners = List<Integer>()
+var triangle_sections = List<Integer>()
+var alive = List<Boolean>()
+var alive_count = 0
+var quadrics = List<Float>()
+var wedge_targets = List<Integer>()
+var worst_error: Float = 0.0
+var adjacency_first = List<Integer>()
+var adjacency = List<Integer>()
+var boundary_edges = List<Boolean>()
+var boundary_owners = List<Boolean>()
+var boundary_counts = List<Integer>()
+var locked = List<Boolean>()
+var best_targets = List<Integer>()
+var best_costs = List<Float>()
+var pass_locked = List<Boolean>()
+var mapped_from = List<Integer>()
+var mapped_to = List<Integer>()
+var mapped_penalty: Float = 0.0
+var removed_triangles = 0
+var normal_x: Float = 0.0
+var normal_y: Float = 0.0
+var normal_z: Float = 0.0
+
+func start(mesh: Asset.Mesh) {
+    source = mesh
+    wedge_count = mesh.vertices.count() / vertex_floats
+    skinned = wedge_count > 0 and mesh.joints.count() == wedge_count
+    worst_error = 0.0
+    weld()
+    normalize()
+    read_triangles()
+    build_quadrics()
+}
+
+func triangle_count(): Integer {
+    return alive_count
+}
+
+func error_distance(): Float {
+    var normalized = scalar.square_root(worst_error)
+    return normalized * radius
+}
+
+func weld() {
+    weld_keys.clear()
+    wedge_positions.clear()
+    xs.clear()
+    ys.clear()
+    zs.clear()
+    var order = List<Integer>()
+    var wedge = 0
+    while wedge < wedge_count {
+        var key = coordinate(wedge, 0) + coordinate(wedge, 1) * 1.618034 + coordinate(wedge, 2) * 2.718282
+        weld_keys.append(key)
+        order.append(wedge)
+        wedge_positions.append(-1)
+        wedge = wedge + 1
+    }
+    var sorted = order.sort_by(weld_key)
+    var run_start = 0
+    while run_start < sorted.count() {
+        var run_end = run_end_of(sorted, run_start)
+        weld_run(sorted, run_start, run_end)
+        run_start = run_end
+    }
+    position_count = xs.count()
+}
+
+func weld_key(wedge: Integer): Float {
+    crash weld_keys[wedge]
+    return weld_keys[wedge]
+}
+
+func run_end_of(sorted: List<Integer>, run_start: Integer): Integer {
+    crash sorted[run_start]
+    var key = weld_key(sorted[run_start])
+    var run_end = run_start + 1
+    while run_end < sorted.count() and weld_key(sorted[run_end]) == key {
+        run_end = run_end + 1
+    }
+    return run_end
+}
+
+func weld_run(sorted: List<Integer>, run_start: Integer, run_end: Integer) {
+    var index = run_start
+    while index < run_end {
+        crash sorted[index]
+        var wedge = sorted[index]
+        var found = same_position_before(sorted, run_start, index)
+        if found < 0 {
+            found = xs.count()
+            var x_value = coordinate(wedge, 0)
+            var y_value = coordinate(wedge, 1)
+            var z_value = coordinate(wedge, 2)
+            xs.append(x_value)
+            ys.append(y_value)
+            zs.append(z_value)
+        }
+        wedge_positions[wedge] = found
+        index = index + 1
+    }
+}
+
+func same_position_before(sorted: List<Integer>, run_start: Integer, index: Integer): Integer {
+    crash sorted[index]
+    var wedge = sorted[index]
+    var earlier = run_start
+    while earlier < index {
+        crash sorted[earlier]
+        var other = sorted[earlier]
+        var same_x = coordinate(other, 0) == coordinate(wedge, 0)
+        var same_y = coordinate(other, 1) == coordinate(wedge, 1)
+        var same_z = coordinate(other, 2) == coordinate(wedge, 2)
+        if same_x and same_y and same_z {
+            return position_of(other)
+        }
+        earlier = earlier + 1
+    }
+    return -1
+}
+
+func coordinate(wedge: Integer, axis: Integer): Float {
+    var at = wedge * vertex_floats + axis
+    crash source.vertices[at]
+    return source.vertices[at]
+}
+
+func position_of(wedge: Integer): Integer {
+    crash wedge_positions[wedge]
+    return wedge_positions[wedge]
+}
+
+func normalize() {
+    assert position_count > 0
+    crash xs[0]
+    crash ys[0]
+    crash zs[0]
+    var low_x = xs[0]
+    var low_y = ys[0]
+    var low_z = zs[0]
+    var high_x = low_x
+    var high_y = low_y
+    var high_z = low_z
+    var index = 0
+    while index < position_count {
+        crash xs[index]
+        crash ys[index]
+        crash zs[index]
+        low_x = scalar.minimum(low_x, xs[index])
+        low_y = scalar.minimum(low_y, ys[index])
+        low_z = scalar.minimum(low_z, zs[index])
+        high_x = scalar.maximum(high_x, xs[index])
+        high_y = scalar.maximum(high_y, ys[index])
+        high_z = scalar.maximum(high_z, zs[index])
+        index = index + 1
+    }
+    var center_x = (low_x + high_x) * 0.5
+    var center_y = (low_y + high_y) * 0.5
+    var center_z = (low_z + high_z) * 0.5
+    var half_x = (high_x - low_x) * 0.5
+    var half_y = (high_y - low_y) * 0.5
+    var half_z = (high_z - low_z) * 0.5
+    radius = scalar.square_root(half_x * half_x + half_y * half_y + half_z * half_z)
+    if radius <= 0.0 {
+        radius = 1.0
+    }
+    index = 0
+    while index < position_count {
+        crash xs[index]
+        crash ys[index]
+        crash zs[index]
+        xs[index] = (xs[index] - center_x) / radius
+        ys[index] = (ys[index] - center_y) / radius
+        zs[index] = (zs[index] - center_z) / radius
+        index = index + 1
+    }
+}
+
+func read_triangles() {
+    corners.clear()
+    triangle_sections.clear()
+    alive.clear()
+    var section = 0
+    while section * 3 + 2 < source.sections.count() {
+        var first = source.sections[section * 3]
+        var count = source.sections[section * 3 + 1]
+        var corner = 0
+        while corner + 2 < count {
+            add_triangle(first + corner, section)
+            corner = corner + 3
+        }
+        section = section + 1
+    }
+    alive_count = alive.count()
+    wedge_targets.clear()
+    var wedge = 0
+    while wedge < wedge_count {
+        wedge_targets.append(wedge)
+        wedge = wedge + 1
+    }
+}
+
+func add_triangle(at: Integer, section: Integer) {
+    crash source.indices[at]
+    crash source.indices[at + 1]
+    crash source.indices[at + 2]
+    var first = source.indices[at]
+    var second = source.indices[at + 1]
+    var third = source.indices[at + 2]
+    var first_position = position_of(first)
+    var second_position = position_of(second)
+    var third_position = position_of(third)
+    var distinct = first_position != second_position and second_position != third_position
+    assert distinct and first_position != third_position
+    corners.append(first)
+    corners.append(second)
+    corners.append(third)
+    triangle_sections.append(section)
+    alive.append(true)
+}
+
+func corner_position(corner: Integer): Integer {
+    crash corners[corner]
+    var wedge = corners[corner]
+    return position_of(wedge)
+}
+
+func x_of(position: Integer): Float {
+    crash xs[position]
+    return xs[position]
+}
+
+func y_of(position: Integer): Float {
+    crash ys[position]
+    return ys[position]
+}
+
+func z_of(position: Integer): Float {
+    crash zs[position]
+    return zs[position]
+}
+
+func is_alive(triangle: Integer): Boolean {
+    return alive[triangle] == true
+}
+
+func build_quadrics() {
+    quadrics.clear()
+    var index = 0
+    while index < position_count * quadric_floats {
+        quadrics.append(0.0)
+        index = index + 1
+    }
+    var triangle = 0
+    while triangle < alive.count() {
+        add_triangle_quadric(triangle)
+        triangle = triangle + 1
+    }
+    classify()
+    var corner = 0
+    while corner < boundary_owners.count() {
+        if boundary_owners[corner] == true {
+            add_edge_quadric(corner)
+        }
+        corner = corner + 1
+    }
+}
+
+func measure_normal(first: Integer, second: Integer, third: Integer): Float {
+    var along_x = x_of(second) - x_of(first)
+    var along_y = y_of(second) - y_of(first)
+    var along_z = z_of(second) - z_of(first)
+    var across_x = x_of(third) - x_of(first)
+    var across_y = y_of(third) - y_of(first)
+    var across_z = z_of(third) - z_of(first)
+    normal_x = along_y * across_z - along_z * across_y
+    normal_y = along_z * across_x - along_x * across_z
+    normal_z = along_x * across_y - along_y * across_x
+    var length = scalar.square_root(normal_x * normal_x + normal_y * normal_y + normal_z * normal_z)
+    if length > 0.0 {
+        normal_x = normal_x / length
+        normal_y = normal_y / length
+        normal_z = normal_z / length
+    }
+    return length
+}
+
+func add_triangle_quadric(triangle: Integer) {
+    var first = corner_position(triangle * 3)
+    var second = corner_position(triangle * 3 + 1)
+    var third = corner_position(triangle * 3 + 2)
+    var weight = measure_normal(first, second, third)
+    assert weight > 0.0
+    var offset = 0.0 - normal_x * x_of(first) - normal_y * y_of(first) - normal_z * z_of(first)
+    add_plane(first, offset, weight)
+    add_plane(second, offset, weight)
+    add_plane(third, offset, weight)
+}
+
+func add_edge_quadric(corner: Integer) {
+    var triangle = corner / 3
+    var from = corner_position(corner)
+    var next = triangle * 3 + (corner + 1) % 3
+    var to = corner_position(next)
+    var first = corner_position(triangle * 3)
+    var second = corner_position(triangle * 3 + 1)
+    var third = corner_position(triangle * 3 + 2)
+    measure_normal(first, second, third)
+    var face_x = normal_x
+    var face_y = normal_y
+    var face_z = normal_z
+    var edge_x = x_of(to) - x_of(from)
+    var edge_y = y_of(to) - y_of(from)
+    var edge_z = z_of(to) - z_of(from)
+    var length = scalar.square_root(edge_x * edge_x + edge_y * edge_y + edge_z * edge_z)
+    assert length > 0.0
+    normal_x = edge_y * face_z - edge_z * face_y
+    normal_y = edge_z * face_x - edge_x * face_z
+    normal_z = edge_x * face_y - edge_y * face_x
+    var size = scalar.square_root(normal_x * normal_x + normal_y * normal_y + normal_z * normal_z)
+    assert size > 0.0
+    normal_x = normal_x / size
+    normal_y = normal_y / size
+    normal_z = normal_z / size
+    var offset = 0.0 - normal_x * x_of(from) - normal_y * y_of(from) - normal_z * z_of(from)
+    var weight = length * edge_weight
+    add_plane(from, offset, weight)
+    add_plane(to, offset, weight)
+}
+
+func add_plane(position: Integer, offset: Float, weight: Float) {
+    var base = position * quadric_floats
+    add_at(base, weight * normal_x * normal_x)
+    add_at(base + 1, weight * normal_x * normal_y)
+    add_at(base + 2, weight * normal_x * normal_z)
+    add_at(base + 3, weight * normal_x * offset)
+    add_at(base + 4, weight * normal_y * normal_y)
+    add_at(base + 5, weight * normal_y * normal_z)
+    add_at(base + 6, weight * normal_y * offset)
+    add_at(base + 7, weight * normal_z * normal_z)
+    add_at(base + 8, weight * normal_z * offset)
+    add_at(base + 9, weight * offset * offset)
+    add_at(base + 10, weight)
+}
+
+func add_at(index: Integer, value: Float) {
+    crash quadrics[index]
+    quadrics[index] = quadrics[index] + value
+}
+
+func quadric_at(index: Integer): Float {
+    crash quadrics[index]
+    return quadrics[index]
+}
+
+func error_at(position: Integer, at: Integer): Float {
+    var base = position * quadric_floats
+    var weight = quadric_at(base + 10)
+    if weight <= 0.0 {
+        return 0.0
+    }
+    var x_value = x_of(at)
+    var y_value = y_of(at)
+    var z_value = z_of(at)
+    var total = quadric_at(base) * x_value * x_value
+    total = total + quadric_at(base + 1) * x_value * y_value * 2.0
+    total = total + quadric_at(base + 2) * x_value * z_value * 2.0
+    total = total + quadric_at(base + 3) * x_value * 2.0
+    total = total + quadric_at(base + 4) * y_value * y_value
+    total = total + quadric_at(base + 5) * y_value * z_value * 2.0
+    total = total + quadric_at(base + 6) * y_value * 2.0
+    total = total + quadric_at(base + 7) * z_value * z_value
+    total = total + quadric_at(base + 8) * z_value * 2.0
+    total = total + quadric_at(base + 9)
+    var magnitude = scalar.absolute(total)
+    return magnitude / weight
+}
+
+func merge_quadric(from: Integer, into: Integer) {
+    var field = 0
+    while field < quadric_floats {
+        var value = quadric_at(from * quadric_floats + field)
+        add_at(into * quadric_floats + field, value)
+        field = field + 1
+    }
+}
+
+func classify() {
+    var counts = List<Integer>()
+    var index = 0
+    while index <= position_count {
+        counts.append(0)
+        index = index + 1
+    }
+    var triangle = 0
+    while triangle < alive.count() {
+        if is_alive(triangle) {
+            count_corners(counts, triangle)
+        }
+        triangle = triangle + 1
+    }
+    adjacency_first.clear()
+    var total = 0
+    index = 0
+    while index < counts.count() {
+        var first_slot = total
+        adjacency_first.append(first_slot)
+        total = total + counts[index]
+        counts[index] = first_slot
+        index = index + 1
+    }
+    adjacency.clear()
+    index = 0
+    while index < total {
+        adjacency.append(0)
+        index = index + 1
+    }
+    triangle = 0
+    while triangle < alive.count() {
+        if is_alive(triangle) {
+            place_corners(counts, triangle)
+        }
+        triangle = triangle + 1
+    }
+    reset_flags()
+    triangle = 0
+    while triangle < alive.count() {
+        if is_alive(triangle) {
+            classify_edges(triangle)
+        }
+        triangle = triangle + 1
+    }
+    index = 0
+    while index < position_count {
+        var count = boundary_counts[index]
+        if count != 0 and count != 2 {
+            locked[index] = true
+        }
+        index = index + 1
+    }
+}
+
+func count_corners(counts: List<Integer>, triangle: Integer) {
+    var corner = 0
+    while corner < 3 {
+        var position = corner_position(triangle * 3 + corner)
+        crash counts[position]
+        counts[position] = counts[position] + 1
+        corner = corner + 1
+    }
+}
+
+func place_corners(cursors: List<Integer>, triangle: Integer) {
+    var corner = 0
+    while corner < 3 {
+        var position = corner_position(triangle * 3 + corner)
+        crash cursors[position]
+        var at = cursors[position]
+        adjacency[at] = triangle
+        cursors[position] = at + 1
+        corner = corner + 1
+    }
+}
+
+func reset_flags() {
+    boundary_edges.clear()
+    boundary_owners.clear()
+    var corner = 0
+    while corner < corners.count() {
+        boundary_edges.append(false)
+        boundary_owners.append(false)
+        corner = corner + 1
+    }
+    boundary_counts.clear()
+    locked.clear()
+    var position = 0
+    while position < position_count {
+        boundary_counts.append(0)
+        locked.append(false)
+        position = position + 1
+    }
+}
+
+func first_adjacent(position: Integer): Integer {
+    crash adjacency_first[position]
+    return adjacency_first[position]
+}
+
+func adjacent_end(position: Integer): Integer {
+    crash adjacency_first[position + 1]
+    return adjacency_first[position + 1]
+}
+
+func adjacent_at(index: Integer): Integer {
+    crash adjacency[index]
+    return adjacency[index]
+}
+
+func wedge_at(triangle: Integer, position: Integer): Integer {
+    var corner = 0
+    while corner < 3 {
+        var at = triangle * 3 + corner
+        crash corners[at]
+        var wedge = corners[at]
+        if position_of(wedge) == position {
+            return wedge
+        }
+        corner = corner + 1
+    }
+    return -1
+}
+
+func section_of(triangle: Integer): Integer {
+    crash triangle_sections[triangle]
+    return triangle_sections[triangle]
+}
+
+func classify_edges(triangle: Integer) {
+    var corner = 0
+    while corner < 3 {
+        classify_edge(triangle, corner)
+        corner = corner + 1
+    }
+}
+
+func classify_edge(triangle: Integer, corner: Integer) {
+    var at = triangle * 3 + corner
+    var next = triangle * 3 + (corner + 1) % 3
+    crash corners[at]
+    crash corners[next]
+    var from_wedge = corners[at]
+    var to_wedge = corners[next]
+    var from = position_of(from_wedge)
+    var to = position_of(to_wedge)
+    var section = section_of(triangle)
+    var others = 0
+    var smallest = true
+    var different = false
+    var index = first_adjacent(from)
+    var end = adjacent_end(from)
+    while index < end {
+        var other = adjacent_at(index)
+        var other_to = wedge_at(other, to)
+        if other != triangle and other_to >= 0 {
+            others = others + 1
+            if other < triangle {
+                smallest = false
+            }
+            var other_from = wedge_at(other, from)
+            var same_wedges = other_from == from_wedge and other_to == to_wedge
+            if not same_wedges or section_of(other) != section {
+                different = true
+            }
+        }
+        index = index + 1
+    }
+    var boundary = others != 1 or different
+    if others > 1 {
+        locked[from] = true
+        locked[to] = true
+    }
+    boundary_edges[at] = boundary
+    if boundary and smallest {
+        boundary_owners[at] = true
+        crash boundary_counts[from]
+        crash boundary_counts[to]
+        boundary_counts[from] = boundary_counts[from] + 1
+        boundary_counts[to] = boundary_counts[to] + 1
+    }
+}
+
+func simplify_to(target: Integer, limit: Float) {
+    var stalled = false
+    while alive_count > target and not stalled {
+        var applied = collapse_pass(target, limit)
+        stalled = applied == 0
+    }
+}
+
+func collapse_pass(target: Integer, limit: Float): Integer {
+    classify()
+    gather_candidates(limit)
+    var sources = List<Integer>()
+    var position = 0
+    while position < position_count {
+        if best_targets[position] != -1 {
+            sources.append(position)
+        }
+        position = position + 1
+    }
+    if sources.is_empty() {
+        return 0
+    }
+    var sorted = sources.sort_by(best_cost_of)
+    var needed = (alive_count - target) / 2 + 1
+    var pass_limit = limit
+    if needed < sorted.count() {
+        var pivot = best_cost_of(sorted[needed])
+        pass_limit = scalar.minimum(limit, pivot * 1.5)
+    }
+    pass_locked.clear()
+    position = 0
+    while position < position_count {
+        pass_locked.append(false)
+        position = position + 1
+    }
+    var remaining = alive_count
+    var applied = 0
+    var index = 0
+    var stopped = false
+    while index < sorted.count() and not stopped {
+        var source_position = sorted[index]
+        var cost = best_cost_of(source_position)
+        if cost > pass_limit {
+            stopped = true
+        } else if try_collapse(source_position, cost) {
+            remaining = remaining - removed_triangles
+            applied = applied + 1
+            stopped = remaining <= target
+        }
+        index = index + 1
+    }
+    finish_pass()
+    return applied
+}
+
+func try_collapse(from: Integer, cost: Float): Boolean {
+    crash best_targets[from]
+    var into = best_targets[from]
+    if pass_locked[from] == true or pass_locked[into] == true {
+        return false
+    }
+    var mapped = map_wedges(from, into)
+    crash mapped
+    var pair = 0
+    while pair < mapped_from.count() and pair < mapped_to.count() {
+        var wedge = mapped_from[pair]
+        wedge_targets[wedge] = mapped_to[pair]
+        pair = pair + 1
+    }
+    merge_quadric(from, into)
+    worst_error = scalar.maximum(worst_error, cost)
+    removed_triangles = 0
+    pass_locked[from] = true
+    pass_locked[into] = true
+    var index = first_adjacent(from)
+    var end = adjacent_end(from)
+    while index < end {
+        var triangle = adjacent_at(index)
+        lock_corners(triangle)
+        if wedge_at(triangle, into) >= 0 {
+            removed_triangles = removed_triangles + 1
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func lock_corners(triangle: Integer) {
+    var corner = 0
+    while corner < 3 {
+        var position = corner_position(triangle * 3 + corner)
+        pass_locked[position] = true
+        corner = corner + 1
+    }
+}
+
+func best_cost_of(position: Integer): Float {
+    crash best_costs[position]
+    return best_costs[position]
+}
+
+func gather_candidates(limit: Float) {
+    best_targets.clear()
+    best_costs.clear()
+    var position = 0
+    while position < position_count {
+        best_targets.append(-1)
+        best_costs.append(limit * 2.0 + 1.0)
+        position = position + 1
+    }
+    var triangle = 0
+    while triangle < alive.count() {
+        if is_alive(triangle) {
+            consider_triangle(triangle, limit)
+        }
+        triangle = triangle + 1
+    }
+}
+
+func consider_triangle(triangle: Integer, limit: Float) {
+    var corner = 0
+    while corner < 3 {
+        var at = triangle * 3 + corner
+        var next = triangle * 3 + (corner + 1) % 3
+        var from = corner_position(at)
+        var to = corner_position(next)
+        var along_boundary = boundary_edges[at] == true
+        consider(from, to, along_boundary, limit)
+        consider(to, from, along_boundary, limit)
+        corner = corner + 1
+    }
+}
+
+func consider(from: Integer, into: Integer, along_boundary: Boolean, limit: Float) {
+    crash boundary_counts[from]
+    var on_boundary = boundary_counts[from] > 0
+    assert locked[from] == false and (along_boundary or not on_boundary)
+    var cost = error_at(from, into)
+    var best = best_cost_of(from)
+    assert cost <= limit and cost < best
+    assert map_wedges(from, into) and not flips(from, into)
+    var total = cost + mapped_penalty
+    assert total <= limit and total < best
+    best_targets[from] = into
+    best_costs[from] = total
+}
+
+func map_wedges(from: Integer, into: Integer): Boolean {
+    mapped_from.clear()
+    mapped_to.clear()
+    mapped_penalty = 0.0
+    var index = first_adjacent(from)
+    var end = adjacent_end(from)
+    while index < end {
+        var triangle = adjacent_at(index)
+        var target = wedge_at(triangle, into)
+        if target >= 0 and not note_mapping(triangle, from, target) {
+            return false
+        }
+        index = index + 1
+    }
+    index = first_adjacent(from)
+    while index < end {
+        var triangle = adjacent_at(index)
+        var wedge = wedge_at(triangle, from)
+        if not mapped_from.contains(wedge) {
+            return false
+        }
+        index = index + 1
+    }
+    var pair = 0
+    while pair < mapped_from.count() and pair < mapped_to.count() {
+        var penalty = attribute_penalty(mapped_from[pair], mapped_to[pair])
+        mapped_penalty = scalar.maximum(mapped_penalty, penalty)
+        pair = pair + 1
+    }
+    return true
+}
+
+func note_mapping(triangle: Integer, from: Integer, target: Integer): Boolean {
+    var wedge = wedge_at(triangle, from)
+    var pair = 0
+    while pair < mapped_from.count() and pair < mapped_to.count() {
+        if mapped_from[pair] == wedge {
+            return mapped_to[pair] == target
+        }
+        pair = pair + 1
+    }
+    mapped_from.append(wedge)
+    mapped_to.append(target)
+    return true
+}
+
+func attribute_penalty(from: Integer, into: Integer): Float {
+    var facing = coordinate(from, 3) * coordinate(into, 3)
+    facing = facing + coordinate(from, 4) * coordinate(into, 4)
+    facing = facing + coordinate(from, 5) * coordinate(into, 5)
+    var penalty = (1.0 - facing) * normal_weight
+    if skinned {
+        var difference = skin_difference(from, into)
+        penalty = penalty + difference * skin_weight
+    }
+    return penalty
+}
+
+func skin_difference(from: Integer, into: Integer): Float {
+    var difference: Float = 0.0
+    var slot = 0
+    while slot < 4 {
+        var joint = joint_of(from, slot)
+        var weight = weight_of(from, slot)
+        if weight > 0.0 {
+            var other = weight_for(into, joint)
+            difference = difference + scalar.absolute(weight - other)
+        }
+        var into_joint = joint_of(into, slot)
+        var into_weight = weight_of(into, slot)
+        if into_weight > 0.0 and weight_for(from, into_joint) == 0.0 {
+            difference = difference + into_weight
+        }
+        slot = slot + 1
+    }
+    return difference
+}
+
+func joint_of(wedge: Integer, slot: Integer): Integer {
+    crash source.joints[wedge]
+    var packed = source.joints[wedge]
+    return packed.shifted_right(slot * 8).bits_and(255)
+}
+
+func weight_of(wedge: Integer, slot: Integer): Float {
+    var at = wedge * 4 + slot
+    crash source.weights[at]
+    return source.weights[at]
+}
+
+func weight_for(wedge: Integer, joint: Integer): Float {
+    var total: Float = 0.0
+    var slot = 0
+    while slot < 4 {
+        if joint_of(wedge, slot) == joint {
+            total = total + weight_of(wedge, slot)
+        }
+        slot = slot + 1
+    }
+    return total
+}
+
+func flips(from: Integer, into: Integer): Boolean {
+    var index = first_adjacent(from)
+    var end = adjacent_end(from)
+    while index < end {
+        var triangle = adjacent_at(index)
+        if wedge_at(triangle, into) < 0 and flips_triangle(triangle, from, into) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func flips_triangle(triangle: Integer, from: Integer, into: Integer): Boolean {
+    var corner = 0
+    while corner < 3 and corner_position(triangle * 3 + corner) != from {
+        corner = corner + 1
+    }
+    var second = corner_position(triangle * 3 + (corner + 1) % 3)
+    var third = corner_position(triangle * 3 + (corner + 2) % 3)
+    measure_normal(from, second, third)
+    var before_x = normal_x
+    var before_y = normal_y
+    var before_z = normal_z
+    var length = measure_normal(into, second, third)
+    if length <= 0.0 {
+        return true
+    }
+    var facing = before_x * normal_x + before_y * normal_y + before_z * normal_z
+    return facing < flip_cosine
+}
+
+func finish_pass() {
+    var triangle = 0
+    var count = 0
+    while triangle < alive.count() {
+        if is_alive(triangle) and remap_triangle(triangle) {
+            count = count + 1
+        }
+        triangle = triangle + 1
+    }
+    alive_count = count
+}
+
+func remap_triangle(triangle: Integer): Boolean {
+    var corner = 0
+    while corner < 3 {
+        var at = triangle * 3 + corner
+        crash corners[at]
+        var wedge = corners[at]
+        crash wedge_targets[wedge]
+        corners[at] = wedge_targets[wedge]
+        corner = corner + 1
+    }
+    var first = corner_position(triangle * 3)
+    var second = corner_position(triangle * 3 + 1)
+    var third = corner_position(triangle * 3 + 2)
+    var kept = first != second and second != third and first != third
+    alive[triangle] = kept
+    return kept
+}
+
+func emit(mesh: Asset.Mesh) {
+    var section = 0
+    while section * 3 + 2 < source.sections.count() {
+        var first = mesh.indices.count()
+        var triangle = 0
+        while triangle < alive.count() {
+            if is_alive(triangle) and section_of(triangle) == section {
+                append_corners(mesh, triangle)
+            }
+            triangle = triangle + 1
+        }
+        var count = mesh.indices.count() - first
+        mesh.detail_sections.append(first)
+        mesh.detail_sections.append(count)
+        section = section + 1
+    }
+}
+
+func append_corners(mesh: Asset.Mesh, triangle: Integer) {
+    var corner = 0
+    while corner < 3 {
+        var at = triangle * 3 + corner
+        crash corners[at]
+        mesh.indices.append(corners[at])
+        corner = corner + 1
+    }
+}

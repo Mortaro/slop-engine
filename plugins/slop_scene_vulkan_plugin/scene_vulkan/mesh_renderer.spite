@@ -22,6 +22,8 @@ var lighting_mapped = List<Long>()
 var lighting_bytes = 256
 var clusters = Scene.LightClusters()
 var terrain = SceneVulkan.TerrainPass()
+var occlusion = SceneVulkan.OcclusionPass()
+var detail_levels_per_section = 8
 var sections_per_mesh = 64
 var key_counts = List<Integer>()
 var used_keys = List<Integer>()
@@ -102,6 +104,7 @@ func record(
     ensure_depth(renderer)
     upload_meshes(renderer, meshes)
     var slot = (renderer.frame_number - 1) % renderer.frames_in_flight
+    occlusion.publish(renderer, slot)
     var frame = renderer.frame
     var aspect: Float = frame.target_width
     var height: Float = frame.target_height
@@ -131,7 +134,7 @@ func record(
     vulkan.vkCmdBindDescriptorSets(frame.command_buffer, 0, pipeline_layout, 1, 1, storage.address, 0, no_offsets)
     var projection = camera.projection(aspect)
     var view_projection = projection.multiplied(camera.view)
-    record_runs(renderer, drawn, view_projection)
+    record_runs(renderer, drawn, view_projection, false)
     record_terrain(renderer, drawn, terrain_materials, storage, view_projection)
     vulkan.vkCmdEndRendering(frame.command_buffer)
     timings.end(scene_timing)
@@ -139,6 +142,7 @@ func record(
     var tone_timing = timings.begin("tone map")
     record_tone_map(renderer)
     timings.end(tone_timing)
+    occlusion.record(renderer, drawn, camera, depth_image, depth_view, depth_width, depth_height, slot)
     frame.scene_drawn = true
 }
 
@@ -193,7 +197,7 @@ func record_shadows(renderer: RenderVulkan.Renderer, drawn: Scene.DrawSet, stora
     set_viewport(renderer, shadow_size, shadow_size)
     var no_offsets: Long = 0
     vulkan.vkCmdBindDescriptorSets(frame.command_buffer, 0, pipeline_layout, 1, 1, storage.address, 0, no_offsets)
-    record_runs(renderer, drawn, light_view_projection)
+    record_runs(renderer, drawn, light_view_projection, true)
     var first_terrain = drawn.draws.count()
     var index = 0
     while index < drawn.terrain_draws.count() {
@@ -621,26 +625,38 @@ func put(at: Long, index: Integer, first: Float, second: Float, third: Float, fo
     floats.write_value(at, index + 3, fourth)
 }
 
-func record_runs(renderer: RenderVulkan.Renderer, drawn: Scene.DrawSet, view_projection: Math.Matrix4) {
+func record_runs(
+    renderer: RenderVulkan.Renderer,
+    drawn: Scene.DrawSet,
+    view_projection: Math.Matrix4,
+    shadows: Boolean,
+) {
     var run = 0
     while run < run_starts.count() {
         crash run_draws[run]
-        crash run_counts[run]
         var first_draw = run_draws[run]
         crash drawn.draws[first_draw]
         var draw = drawn.draws[first_draw]
-        record_instances(
-            renderer,
-            draw.mesh_slot,
-            draw.first_index,
-            draw.index_count,
-            draw.texture_slot,
-            run_starts[run],
-            run_counts[run],
-            view_projection,
-        )
+        if shadows or not draw.occluded {
+            record_run(renderer, draw, run, view_projection)
+        }
         run = run + 1
     }
+}
+
+func record_run(renderer: RenderVulkan.Renderer, draw: Scene.Draw, run: Integer, view_projection: Math.Matrix4) {
+    crash run_starts[run]
+    crash run_counts[run]
+    record_instances(
+        renderer,
+        draw.mesh_slot,
+        draw.first_index,
+        draw.index_count,
+        draw.texture_slot,
+        run_starts[run],
+        run_counts[run],
+        view_projection,
+    )
 }
 
 func record_mesh(
@@ -756,7 +772,9 @@ func shaders_ready(renderer: RenderVulkan.Renderer): Boolean {
     var shadow_fragment = renderer.shader_ready("shader.shadow.fragment")
     var tone_vertex = renderer.shader_ready("shader.tone_map.vertex")
     var tone_fragment = renderer.shader_ready("shader.tone_map.fragment")
-    return scene_vertex and scene_fragment and terrain_fragment and shadow_fragment and tone_vertex and tone_fragment
+    var occlusion_compute = renderer.shader_ready("shader.occlusion.compute")
+    var scene_ready = scene_vertex and scene_fragment and terrain_fragment and shadow_fragment
+    return scene_ready and tone_vertex and tone_fragment and occlusion_compute
 }
 
 func create(renderer: RenderVulkan.Renderer, chosen: RenderVulkan.Component.Device) {
@@ -774,6 +792,7 @@ func create(renderer: RenderVulkan.Renderer, chosen: RenderVulkan.Component.Devi
     terrain.pipeline = build_pipeline(renderer, terrain.pipeline_layout, terrain.shader_terrain)
     shadow_pipeline = create_shadow_pipeline(renderer)
     create_tone_map(renderer)
+    occlusion.create(renderer)
     renderer.parts.append(this)
 }
 
@@ -1114,7 +1133,8 @@ func ensure_depth(renderer: RenderVulkan.Renderer) {
     creation.append_integer(1)
     creation.append_integer(1)
     creation.append_integer(0)
-    creation.append_integer(32)
+    var attachment_and_sampled = 36
+    creation.append_integer(attachment_and_sampled)
     creation.append_integer(0)
     creation.append_integer(0)
     creation.append_long(0)
@@ -1548,7 +1568,14 @@ func write_frame_data(renderer: RenderVulkan.Renderer, drawn: Scene.DrawSet, slo
 func key_of(draw: Scene.Draw): Integer {
     var section_fits = draw.section < sections_per_mesh
     crash section_fits
-    return draw.mesh_slot * sections_per_mesh + draw.section
+    var level_fits = draw.detail_level < detail_levels_per_section
+    crash level_fits
+    var occluded = 0
+    if draw.occluded {
+        occluded = 1
+    }
+    var shape = (draw.mesh_slot * sections_per_mesh + draw.section) * detail_levels_per_section + draw.detail_level
+    return shape * 2 + occluded
 }
 
 func group_draws(drawn: Scene.DrawSet) {
@@ -1947,6 +1974,7 @@ func release_part(renderer: RenderVulkan.Renderer) {
     release_all(renderer, cluster_buffers, cluster_memories)
     release_all(renderer, light_index_buffers, light_index_memories)
     terrain.release(renderer)
+    occlusion.release(renderer)
     var no_pool_allocator: Long = 0
     vulkan.vkDestroyDescriptorPool(renderer.device, scene_pool, no_pool_allocator)
     vulkan.vkDestroyPipeline(renderer.device, shadow_pipeline, no_allocator)

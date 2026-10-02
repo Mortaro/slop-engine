@@ -1,6 +1,7 @@
 var draws = List<Scene.Draw>()
 var terrain_draws = List<Scene.TerrainDraw>()
 var palettes = List<Math.Matrix4>()
+var occlusion = Scene.OcclusionMap()
 
 func begin() {
     draws.clear()

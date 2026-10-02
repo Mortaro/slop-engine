@@ -1,0 +1,4 @@
+singleton
+
+var camera = 0
+var wall = 0

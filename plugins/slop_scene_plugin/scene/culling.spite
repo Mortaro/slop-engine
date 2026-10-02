@@ -1,0 +1,6 @@
+singleton
+
+var occlusion = true
+var occlusion_eye_jump: Float = 1.0
+var forced_detail_level = -1
+var detail_hysteresis: Float = 0.1

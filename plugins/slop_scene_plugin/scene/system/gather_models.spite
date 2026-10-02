@@ -17,6 +17,7 @@ var off_views = Lookup<Component.OffView>()
 var skins = Lookup<Component.Skin>()
 var draws = Scene.Draws()
 var no_palette = List<Math.Matrix4>()
+var details = Scene.DetailPicker()
 
 func render_each(target: Target, modeled: Modeled) {
     add_draw(target, modeled)
@@ -48,6 +49,8 @@ func add_draw(target: Target, modeled: Modeled) {
         mark_view(target.view, modeled.entity, radius, in_view)
     }
     assert in_view
+    var level = details.level_for(modeled.entity, loaded, target.view.cone, radius)
+    var occluded = drawn.occlusion.hides(target.view.cone, radius)
     var palette_first = 0
     if skinned {
         palette_first = drawn.palettes.count()
@@ -63,6 +66,8 @@ func add_draw(target: Target, modeled: Modeled) {
         draw.mesh_slot = slot
         draw.model = model
         draw.palette_first = palette_first
+        draw.detail_level = level
+        draw.occluded = occluded
         add_section(drawn, loaded, draw, section)
         section = section + 1
     }
@@ -76,6 +81,9 @@ func add_section(drawn: Scene.DrawSet, loaded: Scene.LoadedMesh, draw: Scene.Dra
     draw.section = section
     draw.first_index = loaded.sections[at]
     draw.index_count = loaded.sections[at + 1]
+    var section_count = loaded.sections.count() / 3
+    details.narrow(draw, loaded, section_count)
+    assert draw.index_count > 0
     var material = loaded.sections[at + 2]
     draw.masked = loaded.masked_materials.contains(material)
     if material < loaded.textures.count() {
