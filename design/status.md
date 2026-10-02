@@ -492,16 +492,23 @@ The benchmarks to race are ecs_bench_suite's: `add_remove` and `schedule` look w
 
 - On Linux (2026-10-02, Spite master): the headless core and its examples build and run, balanced under
   `--debug-memory`; the store lock goes through `flock` there (`os/linux/`). Still Windows-only: the window, input
-  and XInput plugins, the software presenter (GDI) and Vulkan's `vulkan-1.dll`; those examples were compiled for Windows in check mode only. The UI plugin loads `spite_truetype`,
-  which must sit beside the engine, and the pinned MongoDB driver commit `ea1a143` does not compile with current
-  Spite (`map_key` must be `map_keys`, `map_to_string` `map_to_strings`): it needs a driver commit and a new pin.
-- On Windows (2026-10-02, Spite master `400b740`, with the operators migration merged in and `spite_truetype`
-  pinned at `4963d04`, its D396 fix): every example in testing.md passes balanced under `--debug-memory`, including
-  the pinned window path (the click, text field, drag and drop, combo box, scroll list and resize tests),
-  `render_parity` (0 of 256,000 pixels differ), `hot_reload_test`, `live_asset_test`, `flex_layout` (92 of 92),
-  `lights_check`, `terrain_check` and `attachment_check`. Only `io_systems` and `mongodb_check` fail, on the MongoDB
-  driver pin above. Two examples building at once can collide checking out the same pinned package
-  (`<package>.index.lock` exists); the second build fails and passes when run again.
+  and XInput plugins, the software presenter (GDI) and Vulkan's `vulkan-1.dll`; those examples were compiled for
+  Windows in check mode only. The UI plugin loads `spite_truetype`, which must sit beside the engine.
+- On Windows (2026-10-02, Spite master `2d84122`, every engine branch integrated: runner gaps, physics, navigation,
+  networking, animation, render foundation, `.blend` meshes, foliage, textures, shadows, post-processing, levels of
+  detail; the MongoDB driver pinned at `df985e6`): every program in testing.md passes balanced under
+  `--debug-memory` (benches `--optimized`), with `render_parity` at 0 of 256,000 pixels and `flex_layout` 92 of 92,
+  plus `io_systems`, `mongodb_check`, `scene_probe`, `kal_character --frames=300`, `waits_check` and
+  `template_wait_check`. `replication_bench` runs as `--environment=server` and `--environment=bot` (2,000 bytes and
+  695 us of `Send` a tick). `blend_probe` on `blend_mesh_check`'s fixture crashes on an attribute whose name block is
+  missing (`name_block is null`, the seventh attribute), though the mesh reader reads the same file; not looked into.
+  Two examples building at once can collide checking out the same pinned package (`<package>.index.lock` exists);
+  the second build fails and passes when run again.
+- `render_bench` with everything on (2026-10-02, optimized, RTX 3090, `--shadowed-lights=8`, levels of detail,
+  occlusion culling and BC textures): frame 1,428 us at 100% and 982 us at `--screen-percentage=67`; the per-pass
+  table is in performance.md. Before the animation plugin's pose moved out of the scene, `render_bench` did not load
+  `slop_scene_animation_plugin`, so its archers drew unskinned and the cached light tiles never redrew (local shadows
+  0 us).
 
 - The tests that still capture at a frame number (`scene_probe`, `lights_check`, `terrain_check`,
   `kal_character`'s `--frames`) are to move to a trigger, as `render_parity` did. `render_parity` used to capture two

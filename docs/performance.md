@@ -44,19 +44,22 @@ name's average accumulates until `renderer.gpu_timings.clear()`; `average_millis
 `describe()` lists every pass in microseconds. The engine times `frame` (the whole command buffer), `grass scatter`,
 `shadows` (the sun's cascades), `local shadows` (point and spot light tiles), `scene` (with `grass` timed inside it),
 `water`, the [post-processing](scene.md#post-processing) passes (`ambient occlusion`, `temporal aa`, `exposure` when
-metered, `bloom`, `tone map`), `occlusion depth` and `ui`. `examples/render_bench` prints them for a fixed scene with no grass and no
-water (optimized, 1920x1080, RTX 3090), here at 100% and at `--screen-percentage=67`:
+metered, `bloom`, `tone map`), `occlusion depth` and `ui`. `examples/render_bench` prints them for a fixed scene
+with no grass and no water, with levels of detail, occlusion culling and block-compressed textures (optimized,
+1920x1080, RTX 3090, `--shadowed-lights=8`), here at 100% and at `--screen-percentage=67`:
 
 ```
                      100%     67%
-frame              1030 us  703 us
-shadows              76 us   75 us
-scene               415 us  204 us
-ambient occlusion   220 us   94 us
-temporal aa          79 us  142 us
-bloom               164 us  114 us
-tone map             53 us   53 us
-ui                    0 us    0 us
+frame              1428 us  982 us
+shadows             155 us  156 us
+local shadows        80 us   80 us
+scene               610 us  337 us
+ambient occlusion   250 us   93 us
+temporal aa          92 us   79 us
+bloom               113 us  131 us
+tone map             56 us   55 us
+occlusion depth      20 us   11 us
+ui                    1 us    1 us
 ```
 
 ## Where the time goes

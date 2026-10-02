@@ -17,6 +17,7 @@ func LiveAssetTest() {
     load "../../plugins/slop_camera_plugin"
     load "../../plugins/slop_scene_plugin"
     load "../../plugins/slop_animation_plugin"
+    load "../../plugins/slop_scene_animation_plugin"
     write_source("bar", "1")
     write_source("bones", "2")
     cookbook.cook()
