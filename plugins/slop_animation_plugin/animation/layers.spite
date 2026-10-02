@@ -1,0 +1,32 @@
+singleton
+
+var of_animated = Dictionary<List<Integer>>()
+var no_layers = List<Integer>()
+
+func of(animated: Integer): List<Integer> {
+    if of_animated.count() == 0 {
+        return no_layers
+    }
+    var found = of_animated[animated]
+    if found {
+        return found
+    }
+    return no_layers
+}
+
+func gather(animated: Integer, layer: Integer) {
+    var found = of_animated[animated]
+    if found {
+        found.append(layer)
+        return
+    }
+    var made = List<Integer>()
+    made.append(layer)
+    of_animated[animated] = made
+}
+
+func forget_every() {
+    if of_animated.count() > 0 {
+        of_animated = Dictionary<List<Integer>>()
+    }
+}

@@ -206,6 +206,7 @@ holds indexes and bookkeeping, never the items themselves, which are entities:
 | `Scene.Draws`, `Scene.Lights` | this frame's draws and palettes per view, and the gathered lights (scratch, rebuilt each frame) |
 | `RenderVulkan.Renderer`, `SceneVulkan.MeshRenderer` | the Vulkan device, pipelines and per-frame GPU buffers |
 | `Network.Dials` | the dial jobs in flight, keyed by the entity marked `Dialing` |
+| `Animation.Layers` | each animated entity's blend layers, by entity (scratch, rebuilt each tick) |
 
 A system that binds a resource names it in what it touches, so two systems binding the same one never share a stage
 (the runner counts every singleton a system holds as written, `World` aside). Each resource chosen over entities says why where

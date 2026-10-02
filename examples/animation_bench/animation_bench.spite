@@ -1,0 +1,103 @@
+var cookbook = Recipes.Cookbook()
+var world = World()
+var console = Console()
+var scalar = Math.Scalar()
+var environment = Environment()
+var parts = 7
+var poses = Lookup<Animation.Component.Pose>()
+
+func AnimationBench() {
+    load "../../slop"
+    load "../../plugins/slop_transform_plugin"
+    load "../../plugins/slop_camera_plugin"
+    load "../../plugins/slop_animation_plugin"
+    cookbook.cook()
+    var app = App()
+    var looker = world.create_entity()
+    var camera = Camera.Component.Camera()
+    looker.add_component(camera)
+    var first = -1
+    var character = 0
+    while character < environment.characters {
+        var spawned = spawn_character(character)
+        if first < 0 {
+            first = spawned
+        }
+        character = character + 1
+    }
+    var waited = 0
+    while not poses.has(first) {
+        app.tick()
+        waited = waited + 1
+        var assets_load = waited < 1000
+        crash assets_load
+    }
+    var warm_runs = 0
+    var warm_total: Long = 0
+    var warm = animate_entry(app)
+    if warm {
+        warm_runs = warm.runs
+        warm_total = warm.average_microseconds * warm.runs
+    }
+    var ticks = 0
+    while ticks < environment.ticks {
+        app.tick()
+        ticks = ticks + 1
+    }
+    var measured = animate_entry(app)
+    crash measured
+    var runs = measured.runs - warm_runs
+    var total = measured.average_microseconds * measured.runs - warm_total
+    var animators = environment.characters * parts
+    var microseconds: Float = total / runs
+    var per_millisecond = 1000.0 * animators / microseconds
+    console.print(
+        "throttled",
+        environment.throttled,
+        "animators",
+        animators,
+        "animate microseconds",
+        microseconds,
+        "animators per millisecond",
+        per_millisecond,
+    )
+}
+
+func animate_entry(app: App): Profile.Entry? {
+    var report = app.profile()
+    return report.systems.find_by_name("Animation.System.Animate")
+}
+
+func spawn_character(character: Integer): Integer {
+    var ring = character / 40
+    var around: Float = character % 40
+    var angle = around * 0.15708
+    var distance: Float = 4.0 + 10.0 * ring
+    var along_x = scalar.cosine(angle) * distance
+    var along_z = scalar.sine(angle) * distance
+    var first = -1
+    var part = 0
+    while part < parts {
+        var entity = world.create_entity()
+        var transform = Transform.Component.Transform()
+        transform.position_x = along_x
+        transform.position_z = along_z
+        entity.add_component(transform)
+        var animator = Animation.Component.Animator()
+        animator.skeleton = "bench.skeleton"
+        animator.clip = "bench.idle"
+        var offset: Float = character
+        animator.time = offset * 0.037
+        entity.add_component(animator)
+        if environment.throttled {
+            var throttle = Animation.Component.Throttle()
+            throttle.phase = character
+            entity.add_component(throttle)
+        }
+        if first < 0 {
+            first = entity.id
+        }
+        part = part + 1
+    }
+    return first
+}

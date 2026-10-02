@@ -95,6 +95,21 @@ parts are Claude's proposals. Mortaro decides the API; a proposal stays marked h
 
 - `mesh.add_section` (a proposal by Claude).
 - Bone attachments (a proposal by Claude, for Mortaro to decide).
+- Animation as a headless plugin (a proposal by Claude, 2026-10-02, for Mortaro to decide): the pose is
+  `Animation.Component.Pose`, `Animate` no longer asks for a `Scene.Component.Model`, and
+  `slop_scene_animation_plugin` shares the pose with the scene's `Skin` and maps `OffView` to
+  `Animation.Component.Unseen`. The brief asked for animation that builds without the renderer, and a server needs
+  poses for hit boxes and attachments. An unseen animator now keeps its time advancing (before, `Animate` skipped it
+  whole, so it came back at the time it left).
+- Blending, crossfades, loop start and throttling (proposals by Claude, 2026-10-02): extra clips are layer entities
+  (children with `Animation.Component.Layer`) gathered into the `Animation.Layers` resource, blended as a normalised
+  weighted average with the animator's own `weight`; a crossfade is a component with its own `elapsed` and the moment
+  marker `Crossfaded`; `loop_start` is a field next to every clip name (see the question in status.md); throttling is
+  `Animation.Component.Throttle` (`interval`, `phase`) set from `ThrottleBands` by distance to cameras and
+  `Viewpoint` entities, sampling on `(frame + phase) % interval == 0` while time advances every tick.
+- A looping clip lasts from its first key to its last (a bugfix by Claude, 2026-10-02): before, it lasted one frame
+  more and interpolated from the last key back to the first, so a cycle whose last key repeats its first held that
+  pose for two frames.
 - The terrain shader is a port of the first game's Unreal `M_Terrain`, whose roughness and specular are 1 and 0.
 
 ## [networking.md](../docs/networking.md)

@@ -19,8 +19,8 @@ Read the pages in this order the first time; each page assumes the ones before i
 7. [assets-and-recipes.md](assets-and-recipes.md): asset formats as declared classes, recipes as code, the cache,
    worktrees, hot reload, background loading.
 8. [loaders.md](loaders.md): PSD, zstd and `.blend` read in pure Spite.
-9. [scene.md](scene.md): 3D: characters cooked from `.blend`, animation, bone attachments, lighting, terrain, point
-   and spot lights.
+9. [scene.md](scene.md): 3D: characters cooked from `.blend`, animation (blending, crossfades, throttling), bone
+   attachments, lighting, terrain, point and spot lights.
 10. [networking.md](networking.md): environments as folders (client, server, bot), replicated components,
     observers and area of interest, the binary wire.
 11. [performance.md](performance.md): measuring, the profile, where the time goes, how the engine avoids stutters.

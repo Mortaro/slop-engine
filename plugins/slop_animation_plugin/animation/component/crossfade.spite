@@ -1,0 +1,5 @@
+var clip = ""
+var loop_start: Float = 0.0
+var duration: Float = 0.25
+var time: Float = 0.0
+var elapsed: Float = 0.0

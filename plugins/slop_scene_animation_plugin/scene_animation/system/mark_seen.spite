@@ -1,0 +1,11 @@
+type Shown {
+    entity: Entity
+    back_in_view: Removed<Scene.Component.OffView>
+}
+
+var unseen = Lookup<Animation.Component.Unseen>()
+
+func after_input_each(shown: Shown) {
+    assert unseen.has(shown.entity.id)
+    shown.entity.remove_component(Animation.Component.Unseen)
+}

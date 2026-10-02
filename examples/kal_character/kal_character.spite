@@ -13,6 +13,7 @@ func KalCharacter() {
     load "../../plugins/slop_scene_plugin"
     load "../../plugins/slop_scene_vulkan_plugin"
     load "../../plugins/slop_animation_plugin"
+    load "../../plugins/slop_scene_animation_plugin"
     load "../../plugins/slop_lighting_plugin"
     load "../../plugins/slop_blend_plugin"
     load "../../plugins/slop_png_plugin"

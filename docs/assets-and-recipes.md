@@ -123,7 +123,7 @@ the cache's files on disk:
 **The cook watches its sources.** While `cookbook.cook()` runs a recipe, every source file it opens (`Psd.Layers.open`,
 `Recipes.Glsl.compile`, or a recipe's own `cookbook.note_source(path)`) is recorded against it in
 `Recipes.Cookbook` with its `File.modified()` and `size()`. `Recipes.Watcher` holds the OS's change notifications
-for those folders and needs no thread: each tick it checks them with a zero wait (one cheap system call), and
+(Windows' change notifications, Linux's `inotify`) for those folders and needs no thread: each tick it checks them with a zero wait (one cheap system call), and
 reports a change once they have been quiet for 100 ms, so a burst of writes is one change. `System.Recook`
 (`input`) then compares stamps and submits the stale recipes to the thread pool as a `Recipes.CookTask`; the frame
 thread only submits it and, once `finished`, drops the handle. The recipes append their new outputs to the cache binary and rewrite the program's index.

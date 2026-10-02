@@ -1,0 +1,3 @@
+var every_tick_within: Float = 20.0
+var every_second_tick_within: Float = 40.0
+var every_fourth_tick_within: Float = 80.0

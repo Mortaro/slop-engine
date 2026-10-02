@@ -22,7 +22,7 @@ items come first.
 | 8 | Profiling | CPU time per system and stage, dumped to JSON: built first, since the first server comparison needs it ([performance.md](../docs/performance.md#measuring-the-profile)); GPU timestamps per pass still to do |
 | 9 | `.blend` | ear-clipping triangulation, custom normals, several UV sets, vertex colours, LODs, `UCX_` collision, cooking external `.psd` images; several materials per mesh is built |
 | 10 | Textures | BC1/3/4/5/7 cooked offline, mips, anisotropic filtering, raw bytes, mip streaming |
-| 11 | Client | GPU-driven renderer, world streaming, terrain, foliage, materials, lighting, hierarchy and sockets, animation blending, UI, audio, particles |
+| 11 | Client | GPU-driven renderer, world streaming, terrain, foliage, materials, lighting, hierarchy and sockets, animation masks and additive layers, UI, audio, particles |
 
 ### Mortaro's decisions (2026-09-26)
 

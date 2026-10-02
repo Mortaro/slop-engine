@@ -1,0 +1,335 @@
+var cookbook = Recipes.Cookbook()
+var world = World()
+var console = Console()
+var scalar = Math.Scalar()
+var placement = Math.Pose()
+var animators = Lookup<Animation.Component.Animator>()
+var poses = Lookup<Animation.Component.Pose>()
+var fades = Lookup<Animation.Component.Crossfade>()
+var crossfaded = Lookup<Animation.Component.Crossfaded>()
+var throttles = Lookup<Animation.Component.Throttle>()
+var frames = Lookup<Component.Frame>()
+
+func AnimationCheck() {
+    load "../../slop"
+    load "../../plugins/slop_transform_plugin"
+    load "../../plugins/slop_camera_plugin"
+    load "../../plugins/slop_animation_plugin"
+    cookbook.cook()
+    var app = App()
+    app.frame_milliseconds = 50
+    var looker = world.create_entity()
+    var camera = Camera.Component.Camera()
+    looker.add_component(camera)
+    var half = spawn("anim.still_a", 0.0, 0.0)
+    add_layer(half, "anim.still_b", 1.0)
+    var quarter = spawn("anim.still_a", 0.0, 0.0)
+    set_weight(quarter, 3.0)
+    add_layer(quarter, "anim.still_b", 1.0)
+    var fading = spawn("anim.still_a", 1.0, 0.0)
+    var looping = spawn("anim.loop", 0.0, 0.0)
+    var intro = spawn("anim.intro", 0.0, 0.0)
+    var far = spawn("anim.walk", 1.0, 200.0)
+    add_throttle(far)
+    spawn("anim.still_a", 1.0, 200.0)
+    var steady = spawn("anim.walk", 1.0, 200.0)
+    var near = spawn("anim.walk", 1.0, 3.0)
+    add_throttle(near)
+    var middle = spawn("anim.walk", 1.0, 30.0)
+    add_throttle(middle)
+    var distant = spawn("anim.walk", 1.0, 60.0)
+    add_throttle(distant)
+    var hidden = spawn("anim.walk", 1.0, 0.0)
+    var unseen = Animation.Component.Unseen()
+    var hidden_entity = world.entity_of(hidden)
+    hidden_entity.add_component(unseen)
+    var waited = 0
+    while not (posed(half) and posed(quarter) and posed(fading) and posed(looping) and posed(intro) and posed(far)) {
+        app.tick()
+        waited = waited + 1
+        var assets_load = waited < 1000
+        crash assets_load
+    }
+    while not clips_ready() {
+        app.tick()
+        waited = waited + 1
+        var clips_load = waited < 1000
+        crash clips_load
+    }
+    app.tick()
+    var blended = check_blend(half, quarter)
+    var start_x = root_x(fading)
+    var start_is_the_first_clip = scalar.absolute(start_x) < 0.0001
+    crash start_is_the_first_clip
+    var fade_ticks = check_crossfade(app, fading)
+    var loop_ok = check_loop(app, looping, intro)
+    var updates = check_throttle(app, far, steady, near, middle, distant)
+    var hidden_time = check_unseen(hidden)
+    var passed = blended and fade_ticks > 0 and loop_ok and updates >= 3
+    console.print(
+        "blend",
+        blended,
+        "crossfade ticks",
+        fade_ticks,
+        "loop",
+        loop_ok,
+        "throttled updates",
+        updates,
+        "unseen time",
+        hidden_time,
+        "passed",
+        passed,
+    )
+    crash passed
+}
+
+func spawn(clip: String, speed: Float, along_x: Float): Integer {
+    var entity = world.create_entity()
+    var animator = Animation.Component.Animator()
+    animator.skeleton = "anim.skeleton"
+    animator.clip = clip
+    animator.speed = speed
+    entity.add_component(animator)
+    var transform = Transform.Component.Transform()
+    transform.position_x = along_x
+    entity.add_component(transform)
+    return entity.id
+}
+
+func add_layer(animated: Integer, clip: String, weight: Float) {
+    var parent_entity = world.entity_of(animated)
+    var layered = parent_entity.create_entity()
+    var layer = Animation.Component.Layer()
+    layer.clip = clip
+    layer.weight = weight
+    layer.speed = 0.0
+    layered.add_component(layer)
+}
+
+func set_weight(animated: Integer, weight: Float) {
+    var animator = Animation.Component.Animator()
+    animator.skeleton = "anim.skeleton"
+    animator.clip = "anim.still_a"
+    animator.speed = 0.0
+    animator.weight = weight
+    var weighted = world.entity_of(animated)
+    weighted.add_component(animator)
+}
+
+func add_throttle(animated: Integer) {
+    var throttle = Animation.Component.Throttle()
+    var throttled = world.entity_of(animated)
+    throttled.add_component(throttle)
+}
+
+func posed(entity: Integer): Boolean {
+    var pose = poses.of(entity)
+    if not pose {
+        return false
+    }
+    return pose.matrices.bones.count() == 2
+}
+
+func read_root(entity: Integer) {
+    var pose = poses.of(entity)
+    crash pose
+    var bones = pose.matrices.bones
+    crash bones[0]
+    bones[0].decompose(placement)
+}
+
+func root_x(entity: Integer): Float {
+    read_root(entity)
+    return placement.position_x
+}
+
+func close(value: Float, wanted: Float): Boolean {
+    return scalar.absolute(value - wanted) < 0.0001
+}
+
+func check_blend(half: Integer, quarter: Integer): Boolean {
+    read_root(half)
+    var half_x = placement.position_x
+    var half_turn = close(placement.rotation_y, 0.3826834) and close(placement.rotation_w, 0.9238795)
+    var quarter_x = root_x(quarter)
+    console.print("blend half x", half_x, "turned", half_turn, "quarter x", quarter_x)
+    var blend_half_is_the_midpoint = close(half_x, 1.0) and half_turn
+    crash blend_half_is_the_midpoint
+    var blend_by_weight = close(quarter_x, 0.5)
+    crash blend_by_weight
+    return true
+}
+
+func set_time(entity: Integer, time: Float) {
+    var animator = animators.of(entity)
+    crash animator
+    animator.time = time
+}
+
+func time_of(entity: Integer): Float {
+    var animator = animators.of(entity)
+    crash animator
+    return animator.time
+}
+
+func check_crossfade(app: App, fading: Integer): Integer {
+    var fade = Animation.Component.Crossfade()
+    fade.clip = "anim.still_b"
+    fade.duration = 0.2
+    var faded = world.entity_of(fading)
+    faded.add_component(fade)
+    var ticks = 0
+    var done = false
+    while not done {
+        app.tick()
+        ticks = ticks + 1
+        var crossfade_finishes = ticks < 20
+        crash crossfade_finishes
+        read_root(fading)
+        var along = placement.position_x
+        var asked = fades.of(fading)
+        if crossfaded.has(fading) {
+            var finished_on_the_second_clip = close(along, 2.0) and close(placement.rotation_y, 0.7071068)
+            crash finished_on_the_second_clip
+            var animator = animators.of(fading)
+            crash animator
+            var clip_swapped = animator.clip == "anim.still_b"
+            crash clip_swapped
+            done = true
+        } else if asked {
+            var share = asked.elapsed / asked.duration
+            var on_the_way = close(along, 2.0 * share)
+            console.print("crossfade share", share, "x", along)
+            crash on_the_way
+        }
+    }
+    app.tick()
+    var marker_cleared = not crossfaded.has(fading) and not fades.has(fading)
+    crash marker_cleared
+    return ticks
+}
+
+func check_loop(app: App, looping: Integer, intro: Integer): Boolean {
+    var times = [0.05, 0.15, 0.199, 0.2, 0.25, 0.3, 0.45]
+    var loop_wants = [0.5, 0.5, 0.01, 0.0, 0.5, 1.0, 0.5]
+    var intro_wants = [0.5, 1.5, 1.99, 2.0, 2.5, 3.0, 2.5]
+    var animator = animators.of(intro)
+    crash animator
+    animator.loop_start = 0.2
+    var index = 0
+    var passed = true
+    while index < times.count() {
+        var time = times[index]
+        var loop_want = loop_wants[index]
+        crash loop_want
+        var intro_want = intro_wants[index]
+        crash intro_want
+        set_time(looping, time)
+        set_time(intro, time)
+        app.tick()
+        var loop_x = root_x(looping)
+        var intro_x = root_x(intro)
+        console.print("time", time, "loop x", loop_x, "intro x", intro_x)
+        if not close(loop_x, loop_want) or not close(intro_x, intro_want) {
+            passed = false
+        }
+        index = index + 1
+    }
+    set_time(looping, 0.25)
+    set_time(intro, 0.65)
+    app.tick()
+    var loop_time = time_of(looping)
+    var intro_time = time_of(intro)
+    var intro_x = root_x(intro)
+    console.print("stored loop time", loop_time, "intro time", intro_time, "intro x", intro_x)
+    var wrapped = close(loop_time, 0.05) and close(intro_time, 0.25) and close(intro_x, 2.5)
+    var loops_wrap_at_the_last_key = passed and wrapped
+    crash loops_wrap_at_the_last_key
+    return true
+}
+
+func check_throttle(
+    app: App,
+    far: Integer,
+    steady: Integer,
+    near_one: Integer,
+    middle: Integer,
+    distant: Integer,
+): Integer {
+    var updates = 0
+    var skipped = 0
+    var previous_far = root_x(far)
+    while updates < 3 or skipped < 7 {
+        var frame = frames.of(world.entity)
+        crash frame
+        var count = frame.count
+        app.tick()
+        var throttle = throttles.of(far)
+        crash throttle
+        var interval = throttle.interval
+        var far_x = root_x(far)
+        var steady_x = root_x(steady)
+        var far_time = time_of(far)
+        var steady_time = time_of(steady)
+        var same_time = same_walk_time(far_time, steady_time)
+        crash same_time
+        if count % interval == 0 {
+            var throttled_matches_steady = close(far_x, steady_x)
+            crash throttled_matches_steady
+            updates = updates + 1
+        } else {
+            var skipped_tick_keeps_its_pose = close(far_x, previous_far) and not close(far_x, steady_x)
+            crash skipped_tick_keeps_its_pose
+            skipped = skipped + 1
+        }
+        previous_far = far_x
+        var throttle_finishes = updates + skipped < 100
+        crash throttle_finishes
+    }
+    var bands = [interval_of(near_one), interval_of(middle), interval_of(distant), interval_of(far)]
+    var joined = bands.join(",")
+    console.print("throttle intervals", joined, "updates", updates, "skipped", skipped)
+    var bands_by_distance = joined == "1,2,4,8"
+    crash bands_by_distance
+    return updates
+}
+
+func interval_of(entity: Integer): Integer {
+    var throttle = throttles.of(entity)
+    crash throttle
+    return throttle.interval
+}
+
+func check_unseen(hidden: Integer): Float {
+    var time = time_of(hidden)
+    var unseen_is_never_posed = not poses.has(hidden)
+    crash unseen_is_never_posed
+    var unseen_time_advances = time > 0.5
+    crash unseen_time_advances
+    return time
+}
+
+func same_walk_time(first: Float, second: Float): Boolean {
+    var apart = scalar.absolute(first - second)
+    var walk_period: Float = 0.8
+    apart = apart - scalar.floor(apart / walk_period + 0.5) * walk_period
+    return scalar.absolute(apart) < 0.0001
+}
+
+func clips_ready(): Boolean {
+    var libraries = Lookup<Animation.Component.Library>()
+    var library = libraries.of(world.entity)
+    if not library {
+        return false
+    }
+    var names = ["anim.still_a", "anim.still_b", "anim.loop", "anim.intro", "anim.walk"]
+    var index = 0
+    while index < names.count() {
+        var slot = library.clips.request(names[index])
+        if not library.clips.is_ready(slot) {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}

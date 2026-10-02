@@ -6,15 +6,15 @@ type Attached {
 
 type Carrier {
     animator: Animation.Component.Animator
-    skin: Scene.Component.Skin
+    pose: Animation.Component.Pose
     transform: Transform.Component.Transform
 }
 
 var world = World()
-var pose = Math.Pose()
+var placement = Math.Pose()
 
 func prepare_each(attached: Attached, carrier: Carrier) {
-    var bones = carrier.skin.pose.bones
+    var bones = carrier.pose.matrices.bones
     assert bones.count() > 0
     var index = bone_of(attached.attachment, carrier.animator)
     assert index >= 0
@@ -25,18 +25,18 @@ func prepare_each(attached: Attached, carrier: Carrier) {
     var posed = carried.multiplied(bones[index])
     var offset = attached.attachment.offset()
     var placed = posed.multiplied(offset)
-    placed.decompose(pose)
+    placed.decompose(placement)
     var transform = attached.transform
-    transform.position_x = pose.position_x
-    transform.position_y = pose.position_y
-    transform.position_z = pose.position_z
-    transform.rotation_x = pose.rotation_x
-    transform.rotation_y = pose.rotation_y
-    transform.rotation_z = pose.rotation_z
-    transform.rotation_w = pose.rotation_w
-    transform.scale_x = pose.scale_x
-    transform.scale_y = pose.scale_y
-    transform.scale_z = pose.scale_z
+    transform.position_x = placement.position_x
+    transform.position_y = placement.position_y
+    transform.position_z = placement.position_z
+    transform.rotation_x = placement.rotation_x
+    transform.rotation_y = placement.rotation_y
+    transform.rotation_z = placement.rotation_z
+    transform.rotation_w = placement.rotation_w
+    transform.scale_x = placement.scale_x
+    transform.scale_y = placement.scale_y
+    transform.scale_z = placement.scale_z
 }
 
 func bone_of(attachment: Animation.Component.BoneAttachment, animator: Animation.Component.Animator): Integer {

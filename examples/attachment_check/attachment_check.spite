@@ -6,14 +6,8 @@ var program = Program()
 
 func AttachmentCheck() {
     load "../../slop"
-    load "../../plugins/slop_window_plugin"
-    load "../../plugins/slop_platform_plugin"
-    load "../../plugins/slop_input_plugin"
-    load "../../plugins/slop_ui_plugin"
     load "../../plugins/slop_transform_plugin"
-    load "../../plugins/slop_render_plugin"
     load "../../plugins/slop_camera_plugin"
-    load "../../plugins/slop_scene_plugin"
     load "../../plugins/slop_animation_plugin"
     cookbook.cook()
     var app = App()
@@ -23,8 +17,6 @@ func AttachmentCheck() {
     animator.clip = "attach.clip"
     animator.speed = 0.0
     carrier.add_component(animator)
-    var model = Scene.Component.Model()
-    carrier.add_component(model)
     var standing = Transform.Component.Transform()
     standing.position_x = 5.0
     carrier.add_component(standing)

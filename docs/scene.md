@@ -11,9 +11,10 @@ with `spite kal_character --kal-assets=<folder>`.
 |---|---|---|
 | `slop_transform_plugin` | `Transform` | `Transform.Component.Transform`: position, a rotation quaternion and scale |
 | `slop_camera_plugin` | `Camera` | `Camera.Component.Camera` (eye, target, field of view, near, far) and `Camera.Component.Orbit` with the `AimOrbit` system |
-| `slop_scene_plugin` | `Scene` | `Scene.Component.Model` (a mesh id) and, on an animated model, `Scene.Component.Skin` (its `Scene.Pose`: the bone palette and each bone's pose, asset data rewritten every frame); `Scene.Component.View` on each window, whose draws, terrain draws and palettes for the frame live in the `Scene.Draws` resource (`draws.of(view)`, a `Scene.DrawSet` per view); the `Scene.Meshes` and `Scene.TerrainMaterials` resources, which give each mesh and terrain material an entity (`Scene.Component.Mesh`, `Scene.Component.TerrainMaterial`, marked `Component.Loading` while a job runs and `TerrainTexturesRequested` once its control textures are asked for); and `Scene.Component.ViewCamera` (the view matrix, field of view, near, far, eye and shadow centre) while a camera exists; `Gather` collects the camera, the models and the lighting every frame |
+| `slop_scene_plugin` | `Scene` | `Scene.Component.Model` (a mesh id) and, on a skinned model, `Scene.Component.Skin` (its `Scene.Pose`: the bone palette it is drawn with, and each bone's pose); `Scene.Component.View` on each window, whose draws, terrain draws and palettes for the frame live in the `Scene.Draws` resource (`draws.of(view)`, a `Scene.DrawSet` per view); the `Scene.Meshes` and `Scene.TerrainMaterials` resources, which give each mesh and terrain material an entity (`Scene.Component.Mesh`, `Scene.Component.TerrainMaterial`, marked `Component.Loading` while a job runs and `TerrainTexturesRequested` once its control textures are asked for); and `Scene.Component.ViewCamera` (the view matrix, field of view, near, far, eye and shadow centre) while a camera exists; `Gather` collects the camera, the models and the lighting every frame |
 | `slop_scene_vulkan_plugin` | `SceneVulkan` | the Vulkan passes: sun shadow map, lit scene into HDR, tone map into the frame, then the UI draws on top; `SceneVulkan.MeshRenderer` is a resource (singleton) holding the passes and the per-frame buffers; each mesh's entity gets `SceneVulkan.Component.GpuMesh` (its vertex and index buffers) and each texture's `SceneVulkan.Component.SceneTexture` (its scene-sampler descriptor set); `SceneVulkan.Component.MeshRendererCreated` marks the world entity once the passes are built |
-| `slop_animation_plugin` | `Animation` | `Animation.Component.Animator` (skeleton, clip, time, speed), looping unless the entity has the marker `Animation.Component.PlayOnce`; `Animate` samples the clip into the model's `Skin`, adding one the first time |
+| `slop_animation_plugin` | `Animation` | headless, so a server loads it too: `Animation.Component.Animator` (skeleton, clip, loop start, time, speed, weight), looping unless the entity has the marker `Animation.Component.PlayOnce`; `Animate` samples it into `Animation.Component.Pose` (the bone palette and each bone's pose, asset data rewritten every frame), adding one the first time; blend layers, crossfades, throttling and bone attachments ([below](#animation)) |
+| `slop_scene_animation_plugin` | `SceneAnimation` | what joins the two: an animated model's `Scene.Component.Skin` shares its `Animation.Component.Pose`, and `Scene.Component.OffView` marks it `Animation.Component.Unseen` |
 | `slop_lighting_plugin` | `Lighting` | `Sun`, `Sky`, `HeightFog` and `Exposure` components and a `Daylight` bundle, written into each view; `PointLight` and `SpotLight` components gathered into `Scene.Lights` |
 | `slop_blend_plugin` | `Blend` | `MeshReader`, `SkeletonReader` and `ActionReader`: what a recipe needs from a `.blend` |
 | `slop_png_plugin` | `Png` | a PNG decoder, pixel-exact against Pillow, for the images packed in a `.blend` |
@@ -69,22 +70,116 @@ What the readers do:
 
 ## Animation
 
+The animation plugin is headless: it needs only `slop/`, `slop_transform_plugin` and `slop_camera_plugin`, so a
+server can animate the skeletons its hit boxes and bone attachments ride. A program that draws its characters also
+loads `slop_scene_animation_plugin`, which hands each animated model's pose to the scene.
+
 `Animate` advances each animator by the tick's step (the world entity's `Component.Frame.step_milliseconds`) and
 samples its clip. The step is measured once per tick, so every part of a character advances by the same amount.
 
-- Position and scale are interpolated linearly.
+- Position and scale are interpolated linearly between keys.
 - Rotation uses a shortest-arc slerp, falling back to a normalised lerp for near-identical keys.
-- It writes `global · inverse_bind` for each bone into the `Skin`'s `pose.palette`, and each bone's model-space pose
-  (`global`) into `pose.bones`.
-- It skips a model marked `Scene.Component.OffView`. Gather adds that marker when a skinned model leaves the view
-  cone and its shadow cannot reach the view (its sphere swept away from the sun), and removes it when either comes
-  back, so an off-screen character costs no sampling and the marker changes only on those crossings. A character
-  coming into view shows its last pose for one frame.
-- An animator on the same skeleton, clip, time and `PlayOnce` as the one sampled just before it copies that pose
-  instead of sampling. The parts of one character are spawned together and sit next to each other in the row, so a
-  seven-part archer samples once.
+- It writes `global · inverse_bind` for each bone into `Animation.Component.Pose`'s `matrices.palette`, and each
+  bone's model-space pose (`global`) into `matrices.bones`. The scene's `Skin` shares those two lists, so nothing is
+  copied for drawing.
+- An animator on the same skeleton, clip, time, crossfade and `PlayOnce` as the one sampled just before it copies
+  that pose instead of sampling. The parts of one character are spawned together and sit next to each other in the
+  row, so a seven-part archer samples once.
 - The palette and bones matrices are rewritten in place, and the inverse binds are multiplied straight from the
   skeleton's floats, so a frame allocates nothing per bone.
+
+### Looping and loop start
+
+A clip's frames are its keys, first to last, so a looping clip lasts from its first key to its last one:
+`(frame_count - 1) / frames_per_second` seconds. Its first and last keys are the same moment of the cycle, so the
+loop never plays both: at the end it goes straight on from the first key's pose, and nothing is interpolated back
+from the last key to the first. So a looping action ends on the pose it starts with, as a cyclic Blender action
+does.
+
+`loop_start` (seconds, 0) on the animator makes a clip play its intro once, then loop from there: a time past the
+end comes back to `loop_start`, not to 0. The animator's `time` is kept inside the clip each time it is sampled, so
+it stays small however long the clip plays. With `PlayOnce`, the clip stops on its last key.
+
+```gdscript
+var animator = Animation.Component.Animator()
+animator.skeleton = "archer.skeleton"
+animator.clip = "archer.animation.cast"
+animator.loop_start = 0.4
+caster.add_component(animator)
+```
+
+### Blending clips
+
+Clips blend with weights. The animator's own clip counts with its `weight` (1), and each extra clip is a layer: a
+child entity of the animated one holding `Animation.Component.Layer` (clip, loop start, time, speed, weight). A
+layer advances its own time, loops unless it has `PlayOnce`, and is despawned with its animated entity.
+
+```gdscript
+var aiming = archer.create_entity()
+var layer = Animation.Component.Layer()
+layer.clip = "archer.animation.aim"
+layer.weight = 0.5
+aiming.add_component(layer)
+```
+
+The blended pose is the weighted average of every clip's pose, bone by bone: positions and scales are averaged, and
+rotations are summed on the same hemisphere and normalised. So two clips at equal weights give their midpoint, an
+animator of weight 3 with a layer of weight 1 lands a quarter of the way to the layer, and a layer of weight 0 counts
+for nothing. Changing a weight is writing it. An animator with layers is sampled on its own, never copied from the
+one before it. `GatherLayers` (`after_input`) collects each animated entity's layers into the `Animation.Layers`
+resource every tick, since a component holds no list.
+
+### Crossfades
+
+To change clip smoothly, add `Animation.Component.Crossfade` (clip, loop start, duration in seconds, 0.25) to the
+animated entity:
+
+```gdscript
+var fade = Animation.Component.Crossfade()
+fade.clip = "archer.animation.run"
+fade.duration = 0.3
+archer.add_component(fade)
+```
+
+- While it lasts, `elapsed` grows by each step, the new clip plays from the crossfade's `time` (0) at the
+  animator's speed, and the pose blends from the animator's clip to the new one by `elapsed / duration`.
+- When `elapsed` reaches `duration`, the animator takes the new clip, its loop start and its time, the `Crossfade`
+  is removed, and the entity is marked `Animation.Component.Crossfaded` for one tick, so a system can chain
+  what comes next on `Added<Animation.Component.Crossfaded>` or on the marker itself.
+- A `Crossfade` added while another is running replaces it, starting again from the animator's clip.
+
+### Throttling and visibility
+
+An animator far away does not need a pose every tick. Give it `Animation.Component.Throttle` and a `Transform`, and
+`ThrottleByDistance` (`after_input`) sets its `interval` from its distance to the nearest viewpoint: every camera's
+eye, and every entity with a `Transform` and the marker `Animation.Component.Viewpoint` (on a server, an observer's
+avatar). The bands come from `Animation.Component.ThrottleBands` on the world entity, which a game adds to change
+them:
+
+| Distance (metres, the defaults) | Sampled |
+|---|---|
+| up to `every_tick_within` (20) | every tick |
+| up to `every_second_tick_within` (40) | every 2nd tick |
+| up to `every_fourth_tick_within` (80) | every 4th tick |
+| farther | every 8th tick |
+
+- A throttled animator is sampled on the ticks where `(Component.Frame.count + phase) % interval` is 0. Its time
+  advances on every tick, so the pose it samples is the one an unthrottled animator would show on that tick; in
+  between it holds its last pose. Give a character's parts the same `phase` so they are sampled together, and
+  different characters different phases to spread the work over the ticks.
+- An animator marked `Animation.Component.Unseen` is not sampled at all, but its time, its crossfade and its layers
+  keep advancing, so it shows the right pose the moment it is seen again. `slop_scene_animation_plugin` adds the
+  marker when the scene marks a model `Scene.Component.OffView` (it left the view cone and its shadow cannot reach
+  the view) and removes it when the model comes back, so a character coming into view shows its last pose for one
+  frame. A server marks what no observer sees the same way.
+- A `Throttle` on an entity without a `Transform` keeps the `interval` the game writes, so a game can throttle by
+  its own rule.
+- The first pose is always sampled, whatever the throttle, so a new character never shows its bind pose.
+
+`examples/animation_check` checks blend weights, a crossfade from start to finish, loop wrapping and loop start,
+throttled animators against unthrottled ones, and an unseen animator's time, on a synthetic skeleton.
+`examples/animation_bench` times `Animate` over 2,800 synthetic animators, 400 seven-part characters in rings 4 to
+94 metres from the camera, with and without throttles (`--throttled=true`).
 
 `examples/animate_bench` animates 400 seven-part archers (2,800 animators, 65 bones) in rings around the camera,
 each archer at its own time. Optimised, on an RTX 3090 machine: Animate takes 9 ms, GatherModels 6.6 ms and
@@ -113,14 +208,14 @@ How it's resolved:
 - **Which bone:** name the bone with `bone`, or give `bone_index` (0 or more) for an index, as monsters' effect bones
   are. The name is looked up once in the carrier's skeleton and cached against the name, so changing `bone` later
   looks it up again. A name the skeleton doesn't have crashes, naming the bone and the skeleton.
-- **The carrier:** it needs an `Animator`, a `Skin` and a `Transform`. Until its skeleton has loaded and been posed,
+- **The carrier:** it needs an `Animator`, a `Pose` and a `Transform`. Until its skeleton has loaded and been posed,
   the attachment keeps its own `Transform`.
 - **Despawning:** because the attachment is a child, it despawns with its carrier.
 
 `examples/attachment_check` checks a named bone with an offset and an indexed bone on a synthetic, turned skeleton.
 
-The scene plugin knows nothing of animation: it uploads the palette of any model with a `Skin`, and the vertex shader skins
-with four bones per vertex.
+The scene plugin knows nothing of animation: it uploads the palette of any model with a `Skin`, and the vertex shader
+skins with four bones per vertex.
 
 ## Lighting
 

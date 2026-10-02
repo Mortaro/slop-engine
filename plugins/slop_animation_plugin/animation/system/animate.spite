@@ -1,8 +1,6 @@
 type Animated {
     entity: Entity
     animator: Animation.Component.Animator
-    model: Scene.Component.Model
-    on_view: Without<Scene.Component.OffView>
 }
 
 type Shelf {
@@ -11,51 +9,215 @@ type Shelf {
 }
 
 var sampler = Animation.Sampler()
+var layers = Animation.Layers()
+var once = Lookup<Animation.Component.PlayOnce>()
+var unseen = Lookup<Animation.Component.Unseen>()
+var throttles = Lookup<Animation.Component.Throttle>()
+var fades = Lookup<Animation.Component.Crossfade>()
+var layer_components = Lookup<Animation.Component.Layer>()
+var poses = Lookup<Animation.Component.Pose>()
+var locals = List<Float>()
 var last_skeleton = -1
 var last_clip = -1
 var last_time: Float = 0.0
 var last_looping = false
-var once = Lookup<Animation.Component.PlayOnce>()
+var last_fade_clip = -1
+var last_fade_time: Float = 0.0
+var last_share: Float = 0.0
 var last_palette = List<Math.Matrix4>()
 var last_bones = List<Math.Matrix4>()
-var skins = Lookup<Scene.Component.Skin>()
 
 func update_each(animated: Animated, shelf: Shelf) {
     var step: Float = shelf.frame.step_milliseconds
-    var library = shelf.library
+    var seconds = step / 1000.0
     var animator = animated.animator
+    var entity = animated.entity
+    animator.time = animator.time + seconds * animator.speed
+    var share = advance_fade(entity, animator, seconds)
+    var layer_ids = layers.of(entity.id)
+    advance_layers(layer_ids, seconds)
+    assert not unseen.has(entity.id)
+    var posed = poses.of(entity.id)
+    if posed {
+        assert due(entity, shelf.frame.count)
+        pose(entity, animator, shelf.library, share, layer_ids, posed.matrices)
+        return
+    }
+    assert ready(animator, shelf.library)
+    var made = Animation.Component.Pose()
+    entity.add_component(made)
+    pose(entity, animator, shelf.library, share, layer_ids, made.matrices)
+}
+
+func advance_fade(entity: Entity, animator: Animation.Component.Animator, seconds: Float): Float {
+    var fade = fades.of(entity.id)
+    if not fade {
+        return -1.0
+    }
+    fade.elapsed = fade.elapsed + seconds
+    fade.time = fade.time + seconds * animator.speed
+    if fade.elapsed < fade.duration {
+        return fade.elapsed / fade.duration
+    }
+    animator.clip = fade.clip
+    animator.loop_start = fade.loop_start
+    animator.time = fade.time
+    entity.remove_component(Animation.Component.Crossfade)
+    var finished = Animation.Component.Crossfaded()
+    entity.add_component(finished)
+    return -1.0
+}
+
+func advance_layers(layer_ids: List<Integer>, seconds: Float) {
+    var index = 0
+    while index < layer_ids.count() {
+        var layer = layer_components.of(layer_ids[index])
+        if layer {
+            layer.time = layer.time + seconds * layer.speed
+        }
+        index = index + 1
+    }
+}
+
+func ready(animator: Animation.Component.Animator, library: Animation.Component.Library): Boolean {
+    var skeleton_slot = library.skeletons.request(animator.skeleton)
+    var clip_slot = library.clips.request(animator.clip)
+    return library.skeletons.is_ready(skeleton_slot) and library.clips.is_ready(clip_slot)
+}
+
+func due(entity: Entity, frame: Integer): Boolean {
+    var throttle = throttles.of(entity.id)
+    if not throttle {
+        return true
+    }
+    var throttle_interval_is_one_or_more = throttle.interval >= 1
+    crash throttle_interval_is_one_or_more
+    return (frame + throttle.phase) % throttle.interval == 0
+}
+
+func pose(
+    entity: Entity,
+    animator: Animation.Component.Animator,
+    library: Animation.Component.Library,
+    share: Float,
+    layer_ids: List<Integer>,
+    matrices: Animation.PoseMatrices,
+) {
     var skeleton_slot = library.skeletons.request(animator.skeleton)
     var clip_slot = library.clips.request(animator.clip)
     assert library.skeletons.is_ready(skeleton_slot) and library.clips.is_ready(clip_slot)
-    animator.time = animator.time + step / 1000.0 * animator.speed
-    var pose = pose_of(animated.entity)
-    var looping = not once.has(animated.entity.id)
-    var same_skeleton = skeleton_slot == last_skeleton and clip_slot == last_clip
-    var same_moment = animator.time == last_time and looping == last_looping
-    if same_skeleton and same_moment {
-        copy_pose(last_palette, pose.palette)
-        copy_pose(last_bones, pose.bones)
-        return
-    }
     var skeleton = library.skeletons.value_at(skeleton_slot)
     var clip = library.clips.value_at(clip_slot)
-    sampler.sample(skeleton, clip, animator, looping, pose.palette, pose.bones)
+    var looping = not once.has(entity.id)
+    animator.time = sampler.clip_time(clip, animator.time, animator.loop_start, looping)
+    if not layer_ids.is_empty() {
+        last_skeleton = -1
+        blend(entity, animator, library, skeleton, clip, share, layer_ids, matrices)
+        return
+    }
+    var fade_clip = -1
+    var fade_time: Float = 0.0
+    if share >= 0.0 {
+        var incoming_name = fade_clip_name(entity)
+        fade_clip = library.clips.request(incoming_name)
+        assert library.clips.is_ready(fade_clip)
+        var incoming = library.clips.value_at(fade_clip)
+        var fade = fades.of(entity.id)
+        crash fade
+        fade.time = sampler.clip_time(incoming, fade.time, fade.loop_start, looping)
+        fade_time = fade.time
+    }
+    var same_clips = skeleton_slot == last_skeleton and clip_slot == last_clip and fade_clip == last_fade_clip
+    var same_moment = animator.time == last_time and looping == last_looping
+    var same_fade = fade_time == last_fade_time and share == last_share
+    if same_clips and same_moment and same_fade {
+        copy_pose(last_palette, matrices.palette)
+        copy_pose(last_bones, matrices.bones)
+        return
+    }
+    if share >= 0.0 {
+        blend(entity, animator, library, skeleton, clip, share, layer_ids, matrices)
+    } else {
+        sampler.sample(skeleton, clip, animator.time, matrices.palette, matrices.bones)
+    }
     last_skeleton = skeleton_slot
     last_clip = clip_slot
     last_time = animator.time
     last_looping = looping
-    last_palette = pose.palette
-    last_bones = pose.bones
+    last_fade_clip = fade_clip
+    last_fade_time = fade_time
+    last_share = share
+    last_palette = matrices.palette
+    last_bones = matrices.bones
 }
 
-func pose_of(animated: Entity): Scene.Pose {
-    var skin = skins.of(animated.id)
-    if skin {
-        return skin.pose
+func blend(
+    entity: Entity,
+    animator: Animation.Component.Animator,
+    library: Animation.Component.Library,
+    skeleton: Asset.Skeleton,
+    clip: Asset.Animation,
+    share: Float,
+    layer_ids: List<Integer>,
+    matrices: Animation.PoseMatrices,
+) {
+    var looping = not once.has(entity.id)
+    var base_weight = animator.weight
+    if share >= 0.0 {
+        base_weight = animator.weight * (1.0 - share)
     }
-    var made = Scene.Component.Skin()
-    animated.add_component(made)
-    return made.pose
+    sampler.accumulate(skeleton, clip, animator.time, base_weight, locals, true)
+    var total = base_weight
+    if share >= 0.0 {
+        var incoming_name = fade_clip_name(entity)
+        var fade_slot = library.clips.request(incoming_name)
+        if library.clips.is_ready(fade_slot) {
+            var incoming = library.clips.value_at(fade_slot)
+            var fade = fades.of(entity.id)
+            crash fade
+            fade.time = sampler.clip_time(incoming, fade.time, fade.loop_start, looping)
+            var fade_weight = animator.weight * share
+            sampler.accumulate(skeleton, incoming, fade.time, fade_weight, locals, false)
+            total = total + fade_weight
+        }
+    }
+    var index = 0
+    while index < layer_ids.count() {
+        var layer_id = layer_ids[index]
+        var layer_clip_name = layer_clip_name_of(layer_id)
+        if layer_clip_name != "" {
+            var layer_slot = library.clips.request(layer_clip_name)
+            if library.clips.is_ready(layer_slot) {
+                var layer_clip = library.clips.value_at(layer_slot)
+                var layer_looping = not once.has(layer_id)
+                var layer = layer_components.of(layer_id)
+                crash layer
+                layer.time = sampler.clip_time(layer_clip, layer.time, layer.loop_start, layer_looping)
+                sampler.accumulate(skeleton, layer_clip, layer.time, layer.weight, locals, false)
+                total = total + layer.weight
+            }
+        }
+        index = index + 1
+    }
+    if total <= 0.0 {
+        sampler.sample(skeleton, clip, animator.time, matrices.palette, matrices.bones)
+        return
+    }
+    sampler.compose(skeleton, locals, total, matrices.palette, matrices.bones)
+}
+
+func fade_clip_name(entity: Entity): String {
+    var fade = fades.of(entity.id)
+    crash fade
+    return fade.clip
+}
+
+func layer_clip_name_of(layer_id: Integer): String {
+    var layer = layer_components.of(layer_id)
+    if not layer {
+        return ""
+    }
+    return layer.clip
 }
 
 func copy_pose(source: List<Math.Matrix4>, target: List<Math.Matrix4>) {

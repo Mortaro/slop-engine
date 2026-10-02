@@ -1,0 +1,3 @@
+var characters = 400
+var throttled = false
+var ticks = 300
