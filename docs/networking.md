@@ -202,7 +202,7 @@ id) in that entity's changes, and the receiver removes it from its mirror.
 
 `replication_check` proves it across two processes: a gauge the server writes reaches the bot on every write, while
 one no system writes (a system reads it every tick) arrives exactly once. `replication_bench` measures it: 10,000
-mirrored entities of which 1% move each tick cost 2,000 bytes and about 1.3 ms of `Send` a tick (optimized).
+mirrored entities of which 1% move each tick cost 2,000 bytes and about 1.4 ms of `Send` a tick (optimized).
 
 ### Area of interest
 

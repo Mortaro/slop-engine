@@ -155,7 +155,7 @@ The whole page is Claude's proposal, unconfirmed; Mortaro decides the API. It is
 - **Prediction and rates**: client-side prediction and reconciliation of what a client owns, and a send rate per
   connection or per component.
 - **Send still walks every mirrored row and every known entity per peer each tick** (a stamp check and an empty
-  queue each), so 10,000 quiet entities still cost about 1.3 ms a tick. A per-column log of written entities and a
+  queue each), so 10,000 quiet entities still cost about 1.4 ms a tick. A per-column log of written entities and a
   per-peer list of entities with changes would make it follow only what changed.
 - **Datagram security**: a datagram is matched to its connection by a token sent in the clear in the hello; the
   acceptor takes the dialer's address from the first datagram with the token and never changes it. Anyone who reads
@@ -170,13 +170,13 @@ The whole page is Claude's proposal, unconfirmed; Mortaro decides the API. It is
 - **Messages before the handshake**: a message spawned while no peer is greeted is despawned unsent, as one spawned
   with no connection always was.
 - Measured on Linux (shared 4-core machine, `--optimized`, `replication_bench`: 10,000 mirrored entities, 100 moving
-  each tick, one bot, three interleaved runs each, medians, 2026-10-02):
+  each tick, one bot, 300 measured ticks, five interleaved runs each, medians, 2026-10-02):
 
   | | Before (encode and compare every value) | After (encode what was written) |
   |---|---|---|
-  | `Send` per tick | 8,387 µs | 1,346 µs |
+  | `Send` per tick | 7,889 µs | 1,403 µs |
   | Bytes per tick | 2,000 | 2,000 |
-  | Tick with 16 ms pacing | 24,912 µs | 17,746 µs |
+  | Tick with 16 ms pacing | 24,465 µs | 17,938 µs |
 
 ## [performance.md](../docs/performance.md)
 

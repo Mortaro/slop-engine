@@ -15,7 +15,7 @@ items come first.
 | 1 | ECS throughput | despawn and spawn in bulk within a frame budget (200,000 despawns: 224 ms, now 22 ms), parallel iteration inside one system: automatic, with no opt-in (Mortaro, 2026-09-26: whatever performs best, as long as game code does not change); waits on a folded race check from the language |
 | 2 | PSD | ZIP and ZIP-with-prediction channels, alpha and 16-bit are built; PSB and a faster decode remain |
 | 3 | Headless server | built: a fixed-rate tick, timers as components, one spatial grid for replication, sight and aggro. `server_bench` ticks 5,000 players and 10,000 monsters in about 8.5 ms (2026-09-26) |
-| 4 | Networking | area of interest, removal replication and per-frame deltas are built; handshake with a version, frames over 64 KiB, rate limits, reconnect remain |
+| 4 | Networking | area of interest, removal replication, replication by write (`Changed<T>`), a handshake refusing mismatched builds, unreliable datagrams and a server-owned clock are built; frames over 64 KiB, rate limits, prediction, reconnect and a per-peer change list remain |
 | 5 | MongoDB | SCRAM-SHA-256 and indexes; TLS later |
 | 6 | Navigation | a walkability bitgrid cooked from terrain and collision, grid A*, line of sight |
 | 7 | Physics | fully ECS (colliders, bodies and contacts are components, stepping is systems), so it runs in parallel with everything else instead of on one locked thread as in Unreal; heightfield, capsule and static mesh colliders, raycasts, a character controller. The same 3D physics on server and client, replacing the C# server's 2D, if it keeps thousands of players within the tick budget: one simulation means the server can check movement the way the client moves, which closes many cheats |
