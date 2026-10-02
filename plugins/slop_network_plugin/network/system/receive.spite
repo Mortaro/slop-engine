@@ -41,6 +41,7 @@ func after_input_each(peer: Peer) {
             stream.closed = true
         }
     }
+    stream.end_if_ended()
     read_datagrams(peer)
     mark_mirrors()
 }

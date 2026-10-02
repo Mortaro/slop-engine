@@ -338,7 +338,8 @@ peer's hello, and nothing is sent to a peer before its hello matched:
   spawned while no peer is greeted reaches nobody);
 - a mismatch, or any other first frame, closes the connection on both sides with an error naming both hashes and
   the peer's environment, and the dialer's world entity gets `Network.Component.Refused`, so it stops redialling.
-  A build never misreads another's bytes.
+  A build never misreads another's bytes. `Receive` reads every frame that arrived before a peer closed before it
+  handles the close, so the side refused second still reads the hello and refuses too.
 
 Message ids are hashes of the class names, so two classes can collide. `CheckSchema` hashes every replicated
 component on the first tick and crashes, naming both classes and

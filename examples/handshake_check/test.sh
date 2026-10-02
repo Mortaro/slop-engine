@@ -15,7 +15,11 @@ server=$!
 trap 'kill $server 2>/dev/null || true' EXIT
 "$out/stranger.exe" --port=7275
 "$out/bot.exe" --port=7275
-grep -q "refusing connection" "$out/server.log" || { echo "FAILED: the server did not refuse the stranger"; exit 1; }
+# The server refuses on its own tick: wait for its line, or for it to exit without one.
+while ! grep -q "refusing connection" "$out/server.log"; do
+    kill -0 $server 2>/dev/null || { echo "FAILED: the server did not refuse the stranger"; exit 1; }
+    sleep 0.2
+done
 echo "server refused the stranger too"
 clash=$("$out/clash.exe" 2>&1 || true)
 if ! echo "$clash" | grep -q "no_two_replicated_components_share_a_message_id"; then

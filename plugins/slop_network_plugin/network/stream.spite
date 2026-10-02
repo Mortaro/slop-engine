@@ -3,6 +3,7 @@ var socket = Socket()
 var inbound = Asset.Bytes()
 var outbound = Asset.Bytes()
 var closed = false
+var ended = false
 var sent_bytes: Long = 0
 var hello_sent = false
 var greeted = false
@@ -35,6 +36,12 @@ func receive_all() {
         reading = received > 0
     }
     if socket.closed {
+        ended = true
+    }
+}
+
+func end_if_ended() {
+    if ended {
         closed = true
     }
 }
