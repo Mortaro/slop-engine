@@ -64,6 +64,7 @@ compiler, or for a lock, and no single frame takes on an unbounded amount of wor
 | Mesh memory | vertex and index buffers are device-local, filled through the staging buffer. A replaced mesh's old buffers are freed once the frames using them have finished |
 | A new font size | a size's glyph atlas starts at 256² and doubles when full |
 | Freeing big object graphs | a removed component's value moves (as raw bytes, no reference-count change) into its column's buried buffer, and each tick frees at most `app.release_budget` (4,096) of them |
+| Spawning many entities | a spawn copies each inline component straight from its bundle into the column, and a flush that applies 4,096 changes or more has the allocator merge the blocks it freed (the bundles) before it returns, so their cost lands in that flush and not in a later tick |
 | Despawning many entities | removal records are per column in raw memory (a tick-ordered log and a per-entity "last removed" stamp, so `Removed<T>` checks are one read and trimming is O(trimmed)), and each column removes the whole despawn list in one call. Despawning 200,000 entities of 4 components in one tick takes about 22 ms |
 | Opening the cache | `store.bin.index` mirrors every record (key, offset, length), so opening the store is one read |
 | Re-cooking a changed source | recipes re-run on a worker, and the engine checks its loaded textures on another; the worst tick while a texture is re-cooked and reloaded is 2 ms |
