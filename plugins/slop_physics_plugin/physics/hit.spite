@@ -1,0 +1,8 @@
+var entity = Entity()
+var distance: Float = 0.0
+var point_x: Float = 0.0
+var point_y: Float = 0.0
+var point_z: Float = 0.0
+var normal_x: Float = 0.0
+var normal_y: Float = 0.0
+var normal_z: Float = 0.0

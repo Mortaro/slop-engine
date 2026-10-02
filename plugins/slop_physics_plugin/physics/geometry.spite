@@ -1,0 +1,928 @@
+var tolerance: Float = 0.001
+var on_query_x: Float = 0.0
+var on_query_y: Float = 0.0
+var on_query_z: Float = 0.0
+var on_target_x: Float = 0.0
+var on_target_y: Float = 0.0
+var on_target_z: Float = 0.0
+var best_squared: Float = 0.0
+var best_query_x: Float = 0.0
+var best_query_y: Float = 0.0
+var best_query_z: Float = 0.0
+var best_target_x: Float = 0.0
+var best_target_y: Float = 0.0
+var best_target_z: Float = 0.0
+var along_first: Float = 0.0
+var along_second: Float = 0.0
+var clip_low: Float = 0.0
+var clip_high: Float = 1.0
+var fraction: Float = 0.0
+var normal_x: Float = 0.0
+var normal_y: Float = 1.0
+var normal_z: Float = 0.0
+var point_x: Float = 0.0
+var point_y: Float = 0.0
+var point_z: Float = 0.0
+
+func segment_segment(
+    first_start_x: Float,
+    first_start_y: Float,
+    first_start_z: Float,
+    first_end_x: Float,
+    first_end_y: Float,
+    first_end_z: Float,
+    second_start_x: Float,
+    second_start_y: Float,
+    second_start_z: Float,
+    second_end_x: Float,
+    second_end_y: Float,
+    second_end_z: Float,
+): Float {
+    var first_direction_x = first_end_x - first_start_x
+    var first_direction_y = first_end_y - first_start_y
+    var first_direction_z = first_end_z - first_start_z
+    var second_direction_x = second_end_x - second_start_x
+    var second_direction_y = second_end_y - second_start_y
+    var second_direction_z = second_end_z - second_start_z
+    var between_x = first_start_x - second_start_x
+    var between_y = first_start_y - second_start_y
+    var between_z = first_start_z - second_start_z
+    var first_length = first_direction_x * first_direction_x + first_direction_y * first_direction_y + first_direction_z * first_direction_z
+    var second_length = second_direction_x * second_direction_x + second_direction_y * second_direction_y + second_direction_z * second_direction_z
+    var second_between = second_direction_x * between_x + second_direction_y * between_y + second_direction_z * between_z
+    var first_between = first_direction_x * between_x + first_direction_y * between_y + first_direction_z * between_z
+    var both = first_direction_x * second_direction_x + first_direction_y * second_direction_y + first_direction_z * second_direction_z
+    choose_parameters(first_length, second_length, first_between, second_between, both)
+    on_query_x = first_start_x + first_direction_x * along_first
+    on_query_y = first_start_y + first_direction_y * along_first
+    on_query_z = first_start_z + first_direction_z * along_first
+    on_target_x = second_start_x + second_direction_x * along_second
+    on_target_y = second_start_y + second_direction_y * along_second
+    on_target_z = second_start_z + second_direction_z * along_second
+    return squared_gap()
+}
+
+func choose_parameters(
+    first_length: Float,
+    second_length: Float,
+    first_between: Float,
+    second_between: Float,
+    both: Float,
+) {
+    along_first = 0.0
+    along_second = 0.0
+    assert first_length > 0.00000001 or second_length > 0.00000001
+    if first_length <= 0.00000001 {
+        along_second = clamped(second_between / second_length, 0.0, 1.0)
+        return
+    }
+    if second_length <= 0.00000001 {
+        along_first = clamped(-first_between / first_length, 0.0, 1.0)
+        return
+    }
+    var denominator = first_length * second_length - both * both
+    if denominator > 0.0 {
+        along_first = clamped((both * second_between - first_between * second_length) / denominator, 0.0, 1.0)
+    }
+    along_second = (both * along_first + second_between) / second_length
+    if along_second < 0.0 {
+        along_second = 0.0
+        along_first = clamped(-first_between / first_length, 0.0, 1.0)
+    } else if along_second > 1.0 {
+        along_second = 1.0
+        along_first = clamped((both - first_between) / first_length, 0.0, 1.0)
+    }
+}
+
+func squared_gap(): Float {
+    var across_x = on_query_x - on_target_x
+    var across_y = on_query_y - on_target_y
+    var across_z = on_query_z - on_target_z
+    return across_x * across_x + across_y * across_y + across_z * across_z
+}
+
+func point_box(query_x: Float, query_y: Float, query_z: Float, box: Physics.Shape): Float {
+    var relative_x = query_x - box.first_x
+    var relative_y = query_y - box.first_y
+    var relative_z = query_z - box.first_z
+    var local_x = relative_x * box.axis_x_x + relative_y * box.axis_x_y + relative_z * box.axis_x_z
+    var local_y = relative_x * box.axis_y_x + relative_y * box.axis_y_y + relative_z * box.axis_y_z
+    var local_z = relative_x * box.axis_z_x + relative_y * box.axis_z_y + relative_z * box.axis_z_z
+    local_x = clamped(local_x, -box.half_x, box.half_x)
+    local_y = clamped(local_y, -box.half_y, box.half_y)
+    local_z = clamped(local_z, -box.half_z, box.half_z)
+    on_query_x = query_x
+    on_query_y = query_y
+    on_query_z = query_z
+    on_target_x = box.first_x + box.axis_x_x * local_x + box.axis_y_x * local_y + box.axis_z_x * local_z
+    on_target_y = box.first_y + box.axis_x_y * local_x + box.axis_y_y * local_y + box.axis_z_y * local_z
+    on_target_z = box.first_z + box.axis_x_z * local_x + box.axis_y_z * local_y + box.axis_z_z * local_z
+    return squared_gap()
+}
+
+func set_target(target_x: Float, target_y: Float, target_z: Float) {
+    on_target_x = target_x
+    on_target_y = target_y
+    on_target_z = target_z
+}
+
+func point_triangle(query_x: Float, query_y: Float, query_z: Float, triangle: Physics.Shape): Float {
+    on_query_x = query_x
+    on_query_y = query_y
+    on_query_z = query_z
+    var edge_ab_x = triangle.second_x - triangle.first_x
+    var edge_ab_y = triangle.second_y - triangle.first_y
+    var edge_ab_z = triangle.second_z - triangle.first_z
+    var edge_ac_x = triangle.third_x - triangle.first_x
+    var edge_ac_y = triangle.third_y - triangle.first_y
+    var edge_ac_z = triangle.third_z - triangle.first_z
+    var from_a_x = query_x - triangle.first_x
+    var from_a_y = query_y - triangle.first_y
+    var from_a_z = query_z - triangle.first_z
+    var dot_ab_a = edge_ab_x * from_a_x + edge_ab_y * from_a_y + edge_ab_z * from_a_z
+    var dot_ac_a = edge_ac_x * from_a_x + edge_ac_y * from_a_y + edge_ac_z * from_a_z
+    if dot_ab_a <= 0.0 and dot_ac_a <= 0.0 {
+        set_target(triangle.first_x, triangle.first_y, triangle.first_z)
+        return squared_gap()
+    }
+    var from_b_x = query_x - triangle.second_x
+    var from_b_y = query_y - triangle.second_y
+    var from_b_z = query_z - triangle.second_z
+    var dot_ab_b = edge_ab_x * from_b_x + edge_ab_y * from_b_y + edge_ab_z * from_b_z
+    var dot_ac_b = edge_ac_x * from_b_x + edge_ac_y * from_b_y + edge_ac_z * from_b_z
+    if dot_ab_b >= 0.0 and dot_ac_b <= dot_ab_b {
+        set_target(triangle.second_x, triangle.second_y, triangle.second_z)
+        return squared_gap()
+    }
+    var weight_c = dot_ab_a * dot_ac_b - dot_ab_b * dot_ac_a
+    if weight_c <= 0.0 and dot_ab_a >= 0.0 and dot_ab_b <= 0.0 {
+        var along = dot_ab_a / (dot_ab_a - dot_ab_b)
+        set_target(
+            triangle.first_x + edge_ab_x * along,
+            triangle.first_y + edge_ab_y * along,
+            triangle.first_z + edge_ab_z * along,
+        )
+        return squared_gap()
+    }
+    var from_c_x = query_x - triangle.third_x
+    var from_c_y = query_y - triangle.third_y
+    var from_c_z = query_z - triangle.third_z
+    var dot_ab_c = edge_ab_x * from_c_x + edge_ab_y * from_c_y + edge_ab_z * from_c_z
+    var dot_ac_c = edge_ac_x * from_c_x + edge_ac_y * from_c_y + edge_ac_z * from_c_z
+    if dot_ac_c >= 0.0 and dot_ab_c <= dot_ac_c {
+        set_target(triangle.third_x, triangle.third_y, triangle.third_z)
+        return squared_gap()
+    }
+    var weight_b = dot_ab_c * dot_ac_a - dot_ab_a * dot_ac_c
+    if weight_b <= 0.0 and dot_ac_a >= 0.0 and dot_ac_c <= 0.0 {
+        var along = dot_ac_a / (dot_ac_a - dot_ac_c)
+        set_target(
+            triangle.first_x + edge_ac_x * along,
+            triangle.first_y + edge_ac_y * along,
+            triangle.first_z + edge_ac_z * along,
+        )
+        return squared_gap()
+    }
+    var weight_a = dot_ab_b * dot_ac_c - dot_ab_c * dot_ac_b
+    var toward_b = dot_ac_b - dot_ab_b
+    var toward_c = dot_ab_c - dot_ac_c
+    if weight_a <= 0.0 and toward_b >= 0.0 and toward_c >= 0.0 {
+        var along = toward_b / (toward_b + toward_c)
+        var edge_bc_x = triangle.third_x - triangle.second_x
+        var edge_bc_y = triangle.third_y - triangle.second_y
+        var edge_bc_z = triangle.third_z - triangle.second_z
+        set_target(
+            triangle.second_x + edge_bc_x * along,
+            triangle.second_y + edge_bc_y * along,
+            triangle.second_z + edge_bc_z * along,
+        )
+        return squared_gap()
+    }
+    var scale = 1.0 / (weight_a + weight_b + weight_c)
+    var toward_second = weight_b * scale
+    var toward_third = weight_c * scale
+    set_target(
+        triangle.first_x + edge_ab_x * toward_second + edge_ac_x * toward_third,
+        triangle.first_y + edge_ab_y * toward_second + edge_ac_y * toward_third,
+        triangle.first_z + edge_ab_z * toward_second + edge_ac_z * toward_third,
+    )
+    return squared_gap()
+}
+
+func begin_best() {
+    best_squared = Float.largest
+}
+
+func consider(squared: Float) {
+    if squared < best_squared {
+        best_squared = squared
+        best_query_x = on_query_x
+        best_query_y = on_query_y
+        best_query_z = on_query_z
+        best_target_x = on_target_x
+        best_target_y = on_target_y
+        best_target_z = on_target_z
+    }
+}
+
+func finish_best(): Float {
+    on_query_x = best_query_x
+    on_query_y = best_query_y
+    on_query_z = best_query_z
+    on_target_x = best_target_x
+    on_target_y = best_target_y
+    on_target_z = best_target_z
+    return best_squared
+}
+
+func touching_at(touch_x: Float, touch_y: Float, touch_z: Float): Float {
+    on_query_x = touch_x
+    on_query_y = touch_y
+    on_query_z = touch_z
+    set_target(touch_x, touch_y, touch_z)
+    return 0.0
+}
+
+func clip_slab(start: Float, delta: Float, half: Float): Boolean {
+    if delta.absolute() < 0.0000001 {
+        return start.absolute() <= half
+    }
+    var entering = (-half - start) / delta
+    var leaving = (half - start) / delta
+    if entering > leaving {
+        var swapped = entering
+        entering = leaving
+        leaving = swapped
+    }
+    clip_low = greater(clip_low, entering)
+    clip_high = lesser(clip_high, leaving)
+    return clip_low <= clip_high
+}
+
+func segment_box(
+    start_x: Float,
+    start_y: Float,
+    start_z: Float,
+    end_x: Float,
+    end_y: Float,
+    end_z: Float,
+    box: Physics.Shape,
+): Float {
+    var delta_x = end_x - start_x
+    var delta_y = end_y - start_y
+    var delta_z = end_z - start_z
+    if delta_x * delta_x + delta_y * delta_y + delta_z * delta_z < 0.00000001 {
+        return point_box(start_x, start_y, start_z, box)
+    }
+    var relative_x = start_x - box.first_x
+    var relative_y = start_y - box.first_y
+    var relative_z = start_z - box.first_z
+    var local_x = relative_x * box.axis_x_x + relative_y * box.axis_x_y + relative_z * box.axis_x_z
+    var local_y = relative_x * box.axis_y_x + relative_y * box.axis_y_y + relative_z * box.axis_y_z
+    var local_z = relative_x * box.axis_z_x + relative_y * box.axis_z_y + relative_z * box.axis_z_z
+    var step_x = delta_x * box.axis_x_x + delta_y * box.axis_x_y + delta_z * box.axis_x_z
+    var step_y = delta_x * box.axis_y_x + delta_y * box.axis_y_y + delta_z * box.axis_y_z
+    var step_z = delta_x * box.axis_z_x + delta_y * box.axis_z_y + delta_z * box.axis_z_z
+    clip_low = 0.0
+    clip_high = 1.0
+    var crosses = clip_slab(local_x, step_x, box.half_x)
+    if crosses {
+        crosses = clip_slab(local_y, step_y, box.half_y)
+    }
+    if crosses {
+        crosses = clip_slab(local_z, step_z, box.half_z)
+    }
+    if crosses {
+        var middle = (clip_low + clip_high) * 0.5
+        return touching_at(start_x + delta_x * middle, start_y + delta_y * middle, start_z + delta_z * middle)
+    }
+    begin_best()
+    var at_start = point_box(start_x, start_y, start_z, box)
+    consider(at_start)
+    var at_end = point_box(end_x, end_y, end_z, box)
+    consider(at_end)
+    var face = beyond_face(local_x, step_x, box.half_x)
+    if face != 0.0 {
+        face_edges(start_x, start_y, start_z, end_x, end_y, end_z, box, face, 0)
+        return finish_best()
+    }
+    face = beyond_face(local_y, step_y, box.half_y)
+    if face != 0.0 {
+        face_edges(start_x, start_y, start_z, end_x, end_y, end_z, box, face, 1)
+        return finish_best()
+    }
+    face = beyond_face(local_z, step_z, box.half_z)
+    if face != 0.0 {
+        face_edges(start_x, start_y, start_z, end_x, end_y, end_z, box, face, 2)
+        return finish_best()
+    }
+    box_edges(start_x, start_y, start_z, end_x, end_y, end_z, box)
+    return finish_best()
+}
+
+func beyond_face(start: Float, step: Float, half: Float): Float {
+    var finish = start + step
+    if start > half and finish > half {
+        return 1.0
+    }
+    if start < -half and finish < -half {
+        return -1.0
+    }
+    return 0.0
+}
+
+func face_edges(
+    start_x: Float,
+    start_y: Float,
+    start_z: Float,
+    end_x: Float,
+    end_y: Float,
+    end_z: Float,
+    box: Physics.Shape,
+    side: Float,
+    axis: Integer,
+) {
+    var across_x = box.axis_x_x * box.half_x
+    var across_y = box.axis_x_y * box.half_x
+    var across_z = box.axis_x_z * box.half_x
+    var first_x = box.axis_y_x * box.half_y
+    var first_y = box.axis_y_y * box.half_y
+    var first_z = box.axis_y_z * box.half_y
+    var second_x = box.axis_z_x * box.half_z
+    var second_y = box.axis_z_y * box.half_z
+    var second_z = box.axis_z_z * box.half_z
+    if axis == 1 {
+        across_x = box.axis_y_x * box.half_y
+        across_y = box.axis_y_y * box.half_y
+        across_z = box.axis_y_z * box.half_y
+        first_x = box.axis_x_x * box.half_x
+        first_y = box.axis_x_y * box.half_x
+        first_z = box.axis_x_z * box.half_x
+    } else if axis == 2 {
+        across_x = box.axis_z_x * box.half_z
+        across_y = box.axis_z_y * box.half_z
+        across_z = box.axis_z_z * box.half_z
+        second_x = box.axis_x_x * box.half_x
+        second_y = box.axis_x_y * box.half_x
+        second_z = box.axis_x_z * box.half_x
+    }
+    var face_x = box.first_x + across_x * side
+    var face_y = box.first_y + across_y * side
+    var face_z = box.first_z + across_z * side
+    var sign: Float = -1.0
+    while sign < 2.0 {
+        var along_x = face_x + second_x * sign
+        var along_y = face_y + second_y * sign
+        var along_z = face_z + second_z * sign
+        var on_first = segment_segment(
+            start_x,
+            start_y,
+            start_z,
+            end_x,
+            end_y,
+            end_z,
+            along_x - first_x,
+            along_y - first_y,
+            along_z - first_z,
+            along_x + first_x,
+            along_y + first_y,
+            along_z + first_z,
+        )
+        consider(on_first)
+        var beside_x = face_x + first_x * sign
+        var beside_y = face_y + first_y * sign
+        var beside_z = face_z + first_z * sign
+        var on_second = segment_segment(
+            start_x,
+            start_y,
+            start_z,
+            end_x,
+            end_y,
+            end_z,
+            beside_x - second_x,
+            beside_y - second_y,
+            beside_z - second_z,
+            beside_x + second_x,
+            beside_y + second_y,
+            beside_z + second_z,
+        )
+        consider(on_second)
+        sign = sign + 2.0
+    }
+}
+
+func box_edges(
+    start_x: Float,
+    start_y: Float,
+    start_z: Float,
+    end_x: Float,
+    end_y: Float,
+    end_z: Float,
+    box: Physics.Shape,
+) {
+    var along_x_x = box.axis_x_x * box.half_x
+    var along_x_y = box.axis_x_y * box.half_x
+    var along_x_z = box.axis_x_z * box.half_x
+    var along_y_x = box.axis_y_x * box.half_y
+    var along_y_y = box.axis_y_y * box.half_y
+    var along_y_z = box.axis_y_z * box.half_y
+    var along_z_x = box.axis_z_x * box.half_z
+    var along_z_y = box.axis_z_y * box.half_z
+    var along_z_z = box.axis_z_z * box.half_z
+    var sign_first: Float = -1.0
+    while sign_first < 2.0 {
+        var sign_second: Float = -1.0
+        while sign_second < 2.0 {
+            var across_x = box.first_x + along_y_x * sign_first + along_z_x * sign_second
+            var across_y = box.first_y + along_y_y * sign_first + along_z_y * sign_second
+            var across_z = box.first_z + along_y_z * sign_first + along_z_z * sign_second
+            var on_x = segment_segment(
+                start_x,
+                start_y,
+                start_z,
+                end_x,
+                end_y,
+                end_z,
+                across_x - along_x_x,
+                across_y - along_x_y,
+                across_z - along_x_z,
+                across_x + along_x_x,
+                across_y + along_x_y,
+                across_z + along_x_z,
+            )
+            consider(on_x)
+            var upward_x = box.first_x + along_x_x * sign_first + along_z_x * sign_second
+            var upward_y = box.first_y + along_x_y * sign_first + along_z_y * sign_second
+            var upward_z = box.first_z + along_x_z * sign_first + along_z_z * sign_second
+            var on_y = segment_segment(
+                start_x,
+                start_y,
+                start_z,
+                end_x,
+                end_y,
+                end_z,
+                upward_x - along_y_x,
+                upward_y - along_y_y,
+                upward_z - along_y_z,
+                upward_x + along_y_x,
+                upward_y + along_y_y,
+                upward_z + along_y_z,
+            )
+            consider(on_y)
+            var forward_x = box.first_x + along_x_x * sign_first + along_y_x * sign_second
+            var forward_y = box.first_y + along_x_y * sign_first + along_y_y * sign_second
+            var forward_z = box.first_z + along_x_z * sign_first + along_y_z * sign_second
+            var on_z = segment_segment(
+                start_x,
+                start_y,
+                start_z,
+                end_x,
+                end_y,
+                end_z,
+                forward_x - along_z_x,
+                forward_y - along_z_y,
+                forward_z - along_z_z,
+                forward_x + along_z_x,
+                forward_y + along_z_y,
+                forward_z + along_z_z,
+            )
+            consider(on_z)
+            sign_second = sign_second + 2.0
+        }
+        sign_first = sign_first + 2.0
+    }
+}
+
+func segment_triangle(
+    start_x: Float,
+    start_y: Float,
+    start_z: Float,
+    end_x: Float,
+    end_y: Float,
+    end_z: Float,
+    triangle: Physics.Shape,
+): Float {
+    var delta_x = end_x - start_x
+    var delta_y = end_y - start_y
+    var delta_z = end_z - start_z
+    if delta_x * delta_x + delta_y * delta_y + delta_z * delta_z < 0.00000001 {
+        return point_triangle(start_x, start_y, start_z, triangle)
+    }
+    var crossing = segment_crossing(start_x, start_y, start_z, delta_x, delta_y, delta_z, triangle)
+    if crossing >= 0.0 {
+        return touching_at(start_x + delta_x * crossing, start_y + delta_y * crossing, start_z + delta_z * crossing)
+    }
+    begin_best()
+    var at_start = point_triangle(start_x, start_y, start_z, triangle)
+    consider(at_start)
+    var at_end = point_triangle(end_x, end_y, end_z, triangle)
+    consider(at_end)
+    var on_first = segment_segment(
+        start_x,
+        start_y,
+        start_z,
+        end_x,
+        end_y,
+        end_z,
+        triangle.first_x,
+        triangle.first_y,
+        triangle.first_z,
+        triangle.second_x,
+        triangle.second_y,
+        triangle.second_z,
+    )
+    consider(on_first)
+    var on_second = segment_segment(
+        start_x,
+        start_y,
+        start_z,
+        end_x,
+        end_y,
+        end_z,
+        triangle.second_x,
+        triangle.second_y,
+        triangle.second_z,
+        triangle.third_x,
+        triangle.third_y,
+        triangle.third_z,
+    )
+    consider(on_second)
+    var on_third = segment_segment(
+        start_x,
+        start_y,
+        start_z,
+        end_x,
+        end_y,
+        end_z,
+        triangle.third_x,
+        triangle.third_y,
+        triangle.third_z,
+        triangle.first_x,
+        triangle.first_y,
+        triangle.first_z,
+    )
+    consider(on_third)
+    return finish_best()
+}
+
+func segment_crossing(
+    start_x: Float,
+    start_y: Float,
+    start_z: Float,
+    delta_x: Float,
+    delta_y: Float,
+    delta_z: Float,
+    triangle: Physics.Shape,
+): Float {
+    var edge_one_x = triangle.second_x - triangle.first_x
+    var edge_one_y = triangle.second_y - triangle.first_y
+    var edge_one_z = triangle.second_z - triangle.first_z
+    var edge_two_x = triangle.third_x - triangle.first_x
+    var edge_two_y = triangle.third_y - triangle.first_y
+    var edge_two_z = triangle.third_z - triangle.first_z
+    var cross_x = delta_y * edge_two_z - delta_z * edge_two_y
+    var cross_y = delta_z * edge_two_x - delta_x * edge_two_z
+    var cross_z = delta_x * edge_two_y - delta_y * edge_two_x
+    var determinant = edge_one_x * cross_x + edge_one_y * cross_y + edge_one_z * cross_z
+    if determinant.absolute() < 0.0000000001 {
+        return -1.0
+    }
+    var inverse = 1.0 / determinant
+    var from_x = start_x - triangle.first_x
+    var from_y = start_y - triangle.first_y
+    var from_z = start_z - triangle.first_z
+    var weight_u = (from_x * cross_x + from_y * cross_y + from_z * cross_z) * inverse
+    if weight_u < 0.0 or weight_u > 1.0 {
+        return -1.0
+    }
+    var turned_x = from_y * edge_one_z - from_z * edge_one_y
+    var turned_y = from_z * edge_one_x - from_x * edge_one_z
+    var turned_z = from_x * edge_one_y - from_y * edge_one_x
+    var weight_v = (delta_x * turned_x + delta_y * turned_y + delta_z * turned_z) * inverse
+    if weight_v < 0.0 or weight_u + weight_v > 1.0 {
+        return -1.0
+    }
+    var along = (edge_two_x * turned_x + edge_two_y * turned_y + edge_two_z * turned_z) * inverse
+    if along < 0.0 or along > 1.0 {
+        return -1.0
+    }
+    return along
+}
+
+func squared_distance_to(
+    shape: Physics.Shape,
+    start_x: Float,
+    start_y: Float,
+    start_z: Float,
+    end_x: Float,
+    end_y: Float,
+    end_z: Float,
+): Float {
+    if shape.kind == 1 {
+        return segment_box(start_x, start_y, start_z, end_x, end_y, end_z, shape)
+    }
+    if shape.kind == 2 {
+        return segment_triangle(start_x, start_y, start_z, end_x, end_y, end_z, shape)
+    }
+    return segment_segment(
+        start_x,
+        start_y,
+        start_z,
+        end_x,
+        end_y,
+        end_z,
+        shape.first_x,
+        shape.first_y,
+        shape.first_z,
+        shape.second_x,
+        shape.second_y,
+        shape.second_z,
+    )
+}
+
+func sweep(
+    shape: Physics.Shape,
+    start_x: Float,
+    start_y: Float,
+    start_z: Float,
+    end_x: Float,
+    end_y: Float,
+    end_z: Float,
+    query_radius: Float,
+    motion_x: Float,
+    motion_y: Float,
+    motion_z: Float,
+    limit: Float,
+): Boolean {
+    var motion_squared = motion_x * motion_x + motion_y * motion_y + motion_z * motion_z
+    if motion_squared < 0.000000000001 {
+        return false
+    }
+    var reach = query_radius + shape.radius
+    var time: Float = 0.0
+    var step = 0
+    while step < 40 {
+        var offset_x = motion_x * time
+        var offset_y = motion_y * time
+        var offset_z = motion_z * time
+        var squared = squared_distance_to(
+            shape,
+            start_x + offset_x,
+            start_y + offset_y,
+            start_z + offset_z,
+            end_x + offset_x,
+            end_y + offset_y,
+            end_z + offset_z,
+        )
+        if squared < 0.000000000001 {
+            var length = motion_squared.square_root()
+            return record_hit(time, -motion_x / length, -motion_y / length, -motion_z / length, shape.radius)
+        }
+        var distance = squared.square_root()
+        var unit_x = (on_query_x - on_target_x) / distance
+        var unit_y = (on_query_y - on_target_y) / distance
+        var unit_z = (on_query_z - on_target_z) / distance
+        var rate = motion_x * unit_x + motion_y * unit_y + motion_z * unit_z
+        var gap = distance - reach
+        if gap <= tolerance {
+            if time == 0.0 and rate >= 0.0 {
+                return false
+            }
+            return record_hit(time, unit_x, unit_y, unit_z, shape.radius)
+        }
+        if rate >= -0.0000001 {
+            return false
+        }
+        normal_x = unit_x
+        normal_y = unit_y
+        normal_z = unit_z
+        time = time - gap / rate
+        if time > limit {
+            return false
+        }
+        step = step + 1
+    }
+    return record_hit(time, normal_x, normal_y, normal_z, shape.radius)
+}
+
+func record_hit(time: Float, unit_x: Float, unit_y: Float, unit_z: Float, target_radius: Float): Boolean {
+    fraction = time
+    normal_x = unit_x
+    normal_y = unit_y
+    normal_z = unit_z
+    point_x = on_target_x + unit_x * target_radius
+    point_y = on_target_y + unit_y * target_radius
+    point_z = on_target_z + unit_z * target_radius
+    return true
+}
+
+func overlaps(first: Physics.Shape, second: Physics.Shape): Boolean {
+    if first.kind == 0 {
+        var reach = first.radius + second.radius
+        var squared = squared_distance_to(
+            second,
+            first.first_x,
+            first.first_y,
+            first.first_z,
+            first.second_x,
+            first.second_y,
+            first.second_z,
+        )
+        return squared <= reach * reach
+    }
+    if second.kind == 0 {
+        return overlaps(second, first)
+    }
+    if first.kind == 1 and second.kind == 1 {
+        return boxes_overlap(first, second)
+    }
+    if first.kind == 1 and second.kind == 2 {
+        return box_overlaps_triangle(first, second)
+    }
+    if first.kind == 2 and second.kind == 1 {
+        return box_overlaps_triangle(second, first)
+    }
+    return false
+}
+
+func box_extent(box: Physics.Shape, axis_x: Float, axis_y: Float, axis_z: Float): Float {
+    var on_x = (axis_x * box.axis_x_x + axis_y * box.axis_x_y + axis_z * box.axis_x_z).absolute() * box.half_x
+    var on_y = (axis_x * box.axis_y_x + axis_y * box.axis_y_y + axis_z * box.axis_y_z).absolute() * box.half_y
+    var on_z = (axis_x * box.axis_z_x + axis_y * box.axis_z_y + axis_z * box.axis_z_z).absolute() * box.half_z
+    return on_x + on_y + on_z
+}
+
+func boxes_apart_on(first: Physics.Shape, second: Physics.Shape, axis_x: Float, axis_y: Float, axis_z: Float): Boolean {
+    var length = axis_x * axis_x + axis_y * axis_y + axis_z * axis_z
+    if length < 0.000001 {
+        return false
+    }
+    var between = (second.first_x - first.first_x) * axis_x + (second.first_y - first.first_y) * axis_y + (second.first_z - first.first_z) * axis_z
+    var reach = box_extent(first, axis_x, axis_y, axis_z) + box_extent(second, axis_x, axis_y, axis_z)
+    return between.absolute() > reach
+}
+
+func boxes_overlap(first: Physics.Shape, second: Physics.Shape): Boolean {
+    if boxes_apart_on(first, second, first.axis_x_x, first.axis_x_y, first.axis_x_z) {
+        return false
+    }
+    if boxes_apart_on(first, second, first.axis_y_x, first.axis_y_y, first.axis_y_z) {
+        return false
+    }
+    if boxes_apart_on(first, second, first.axis_z_x, first.axis_z_y, first.axis_z_z) {
+        return false
+    }
+    if boxes_apart_on(first, second, second.axis_x_x, second.axis_x_y, second.axis_x_z) {
+        return false
+    }
+    if boxes_apart_on(first, second, second.axis_y_x, second.axis_y_y, second.axis_y_z) {
+        return false
+    }
+    if boxes_apart_on(first, second, second.axis_z_x, second.axis_z_y, second.axis_z_z) {
+        return false
+    }
+    var crossings = 0
+    while crossings < 9 {
+        var own = crossings / 3
+        var theirs = crossings % 3
+        var own_x = first.axis_x_x
+        var own_y = first.axis_x_y
+        var own_z = first.axis_x_z
+        if own == 1 {
+            own_x = first.axis_y_x
+            own_y = first.axis_y_y
+            own_z = first.axis_y_z
+        } else if own == 2 {
+            own_x = first.axis_z_x
+            own_y = first.axis_z_y
+            own_z = first.axis_z_z
+        }
+        var their_x = second.axis_x_x
+        var their_y = second.axis_x_y
+        var their_z = second.axis_x_z
+        if theirs == 1 {
+            their_x = second.axis_y_x
+            their_y = second.axis_y_y
+            their_z = second.axis_y_z
+        } else if theirs == 2 {
+            their_x = second.axis_z_x
+            their_y = second.axis_z_y
+            their_z = second.axis_z_z
+        }
+        var cross_x = own_y * their_z - own_z * their_y
+        var cross_y = own_z * their_x - own_x * their_z
+        var cross_z = own_x * their_y - own_y * their_x
+        if boxes_apart_on(first, second, cross_x, cross_y, cross_z) {
+            return false
+        }
+        crossings = crossings + 1
+    }
+    return true
+}
+
+func triangle_apart_on(
+    box: Physics.Shape,
+    triangle: Physics.Shape,
+    axis_x: Float,
+    axis_y: Float,
+    axis_z: Float,
+): Boolean {
+    var length = axis_x * axis_x + axis_y * axis_y + axis_z * axis_z
+    if length < 0.000001 {
+        return false
+    }
+    var first = (triangle.first_x - box.first_x) * axis_x + (triangle.first_y - box.first_y) * axis_y + (triangle.first_z - box.first_z) * axis_z
+    var second = (triangle.second_x - box.first_x) * axis_x + (triangle.second_y - box.first_y) * axis_y + (triangle.second_z - box.first_z) * axis_z
+    var third = (triangle.third_x - box.first_x) * axis_x + (triangle.third_y - box.first_y) * axis_y + (triangle.third_z - box.first_z) * axis_z
+    var lowest = lesser(first, second)
+    lowest = lesser(lowest, third)
+    var highest = greater(first, second)
+    highest = greater(highest, third)
+    var reach = box_extent(box, axis_x, axis_y, axis_z)
+    return lowest > reach or highest < -reach
+}
+
+func box_overlaps_triangle(box: Physics.Shape, triangle: Physics.Shape): Boolean {
+    if triangle_apart_on(box, triangle, box.axis_x_x, box.axis_x_y, box.axis_x_z) {
+        return false
+    }
+    if triangle_apart_on(box, triangle, box.axis_y_x, box.axis_y_y, box.axis_y_z) {
+        return false
+    }
+    if triangle_apart_on(box, triangle, box.axis_z_x, box.axis_z_y, box.axis_z_z) {
+        return false
+    }
+    var edge_one_x = triangle.second_x - triangle.first_x
+    var edge_one_y = triangle.second_y - triangle.first_y
+    var edge_one_z = triangle.second_z - triangle.first_z
+    var edge_two_x = triangle.third_x - triangle.second_x
+    var edge_two_y = triangle.third_y - triangle.second_y
+    var edge_two_z = triangle.third_z - triangle.second_z
+    var face_x = edge_one_y * edge_two_z - edge_one_z * edge_two_y
+    var face_y = edge_one_z * edge_two_x - edge_one_x * edge_two_z
+    var face_z = edge_one_x * edge_two_y - edge_one_y * edge_two_x
+    if triangle_apart_on(box, triangle, face_x, face_y, face_z) {
+        return false
+    }
+    var crossings = 0
+    while crossings < 9 {
+        var own = crossings / 3
+        var edge = crossings % 3
+        var own_x = box.axis_x_x
+        var own_y = box.axis_x_y
+        var own_z = box.axis_x_z
+        if own == 1 {
+            own_x = box.axis_y_x
+            own_y = box.axis_y_y
+            own_z = box.axis_y_z
+        } else if own == 2 {
+            own_x = box.axis_z_x
+            own_y = box.axis_z_y
+            own_z = box.axis_z_z
+        }
+        var edge_x = edge_one_x
+        var edge_y = edge_one_y
+        var edge_z = edge_one_z
+        if edge == 1 {
+            edge_x = edge_two_x
+            edge_y = edge_two_y
+            edge_z = edge_two_z
+        } else if edge == 2 {
+            edge_x = triangle.first_x - triangle.third_x
+            edge_y = triangle.first_y - triangle.third_y
+            edge_z = triangle.first_z - triangle.third_z
+        }
+        var cross_x = own_y * edge_z - own_z * edge_y
+        var cross_y = own_z * edge_x - own_x * edge_z
+        var cross_z = own_x * edge_y - own_y * edge_x
+        if triangle_apart_on(box, triangle, cross_x, cross_y, cross_z) {
+            return false
+        }
+        crossings = crossings + 1
+    }
+    return true
+}
+
+func lesser(first: Float, second: Float): Float {
+    if second < first {
+        return second
+    }
+    return first
+}
+
+func greater(first: Float, second: Float): Float {
+    if second > first {
+        return second
+    }
+    return first
+}
+
+func clamped(value: Float, low: Float, high: Float): Float {
+    if value < low {
+        return low
+    }
+    if value > high {
+        return high
+    }
+    return value
+}

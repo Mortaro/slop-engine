@@ -1,0 +1,11 @@
+type Walker {
+    entity: Entity
+    transform: Transform.Component.Transform
+    character: Physics.Component.Character
+}
+
+var colliders = Physics.Colliders()
+
+func after_input_each(walker: Walker) {
+    colliders.move_character(walker.entity.id, walker.transform)
+}

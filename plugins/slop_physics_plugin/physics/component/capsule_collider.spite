@@ -1,0 +1,2 @@
+var radius: Float = 0.5
+var half_height: Float = 0.5

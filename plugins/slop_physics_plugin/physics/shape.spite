@@ -1,0 +1,266 @@
+var kind = 0
+var radius: Float = 0.0
+var first_x: Float = 0.0
+var first_y: Float = 0.0
+var first_z: Float = 0.0
+var second_x: Float = 0.0
+var second_y: Float = 0.0
+var second_z: Float = 0.0
+var third_x: Float = 0.0
+var third_y: Float = 0.0
+var third_z: Float = 0.0
+var axis_x_x: Float = 1.0
+var axis_x_y: Float = 0.0
+var axis_x_z: Float = 0.0
+var axis_y_x: Float = 0.0
+var axis_y_y: Float = 1.0
+var axis_y_z: Float = 0.0
+var axis_z_x: Float = 0.0
+var axis_z_y: Float = 0.0
+var axis_z_z: Float = 1.0
+var half_x: Float = 0.0
+var half_y: Float = 0.0
+var half_z: Float = 0.0
+
+func is_segment(): Boolean {
+    return kind == 0
+}
+
+func is_box(): Boolean {
+    return kind == 1
+}
+
+func is_triangle(): Boolean {
+    return kind == 2
+}
+
+func set_sphere(center_x: Float, center_y: Float, center_z: Float, sphere_radius: Float) {
+    set_capsule(center_x, center_y, center_z, center_x, center_y, center_z, sphere_radius)
+}
+
+func set_capsule(
+    start_x: Float,
+    start_y: Float,
+    start_z: Float,
+    end_x: Float,
+    end_y: Float,
+    end_z: Float,
+    capsule_radius: Float,
+) {
+    kind = 0
+    radius = capsule_radius
+    first_x = start_x
+    first_y = start_y
+    first_z = start_z
+    second_x = end_x
+    second_y = end_y
+    second_z = end_z
+}
+
+func set_box_center(center_x: Float, center_y: Float, center_z: Float, size_x: Float, size_y: Float, size_z: Float) {
+    kind = 1
+    radius = 0.0
+    first_x = center_x
+    first_y = center_y
+    first_z = center_z
+    half_x = size_x
+    half_y = size_y
+    half_z = size_z
+    axis_x_x = 1.0
+    axis_x_y = 0.0
+    axis_x_z = 0.0
+    axis_y_x = 0.0
+    axis_y_y = 1.0
+    axis_y_z = 0.0
+    axis_z_x = 0.0
+    axis_z_y = 0.0
+    axis_z_z = 1.0
+}
+
+func set_rotation(rotation_x: Float, rotation_y: Float, rotation_z: Float, rotation_w: Float) {
+    var xx = rotation_x * rotation_x
+    var yy = rotation_y * rotation_y
+    var zz = rotation_z * rotation_z
+    var xy = rotation_x * rotation_y
+    var xz = rotation_x * rotation_z
+    var yz = rotation_y * rotation_z
+    var wx = rotation_w * rotation_x
+    var wy = rotation_w * rotation_y
+    var wz = rotation_w * rotation_z
+    axis_x_x = 1.0 - 2.0 * (yy + zz)
+    axis_x_y = 2.0 * (xy + wz)
+    axis_x_z = 2.0 * (xz - wy)
+    axis_y_x = 2.0 * (xy - wz)
+    axis_y_y = 1.0 - 2.0 * (xx + zz)
+    axis_y_z = 2.0 * (yz + wx)
+    axis_z_x = 2.0 * (xz + wy)
+    axis_z_y = 2.0 * (yz - wx)
+    axis_z_z = 1.0 - 2.0 * (xx + yy)
+}
+
+func set_triangle(
+    corner_a_x: Float,
+    corner_a_y: Float,
+    corner_a_z: Float,
+    corner_b_x: Float,
+    corner_b_y: Float,
+    corner_b_z: Float,
+    corner_c_x: Float,
+    corner_c_y: Float,
+    corner_c_z: Float,
+) {
+    kind = 2
+    radius = 0.0
+    first_x = corner_a_x
+    first_y = corner_a_y
+    first_z = corner_a_z
+    second_x = corner_b_x
+    second_y = corner_b_y
+    second_z = corner_b_z
+    third_x = corner_c_x
+    third_y = corner_c_y
+    third_z = corner_c_z
+}
+
+func copy_from(source: Physics.Shape) {
+    kind = source.kind
+    radius = source.radius
+    first_x = source.first_x
+    first_y = source.first_y
+    first_z = source.first_z
+    second_x = source.second_x
+    second_y = source.second_y
+    second_z = source.second_z
+    third_x = source.third_x
+    third_y = source.third_y
+    third_z = source.third_z
+    axis_x_x = source.axis_x_x
+    axis_x_y = source.axis_x_y
+    axis_x_z = source.axis_x_z
+    axis_y_x = source.axis_y_x
+    axis_y_y = source.axis_y_y
+    axis_y_z = source.axis_y_z
+    axis_z_x = source.axis_z_x
+    axis_z_y = source.axis_z_y
+    axis_z_z = source.axis_z_z
+    half_x = source.half_x
+    half_y = source.half_y
+    half_z = source.half_z
+}
+
+func move_by(offset_x: Float, offset_y: Float, offset_z: Float) {
+    first_x = first_x + offset_x
+    first_y = first_y + offset_y
+    first_z = first_z + offset_z
+    second_x = second_x + offset_x
+    second_y = second_y + offset_y
+    second_z = second_z + offset_z
+    third_x = third_x + offset_x
+    third_y = third_y + offset_y
+    third_z = third_z + offset_z
+}
+
+func reach_x(): Float {
+    var reach = half_x * axis_x_x.absolute() + half_y * axis_y_x.absolute() + half_z * axis_z_x.absolute()
+    return reach
+}
+
+func reach_y(): Float {
+    var reach = half_x * axis_x_y.absolute() + half_y * axis_y_y.absolute() + half_z * axis_z_y.absolute()
+    return reach
+}
+
+func reach_z(): Float {
+    var reach = half_x * axis_x_z.absolute() + half_y * axis_y_z.absolute() + half_z * axis_z_z.absolute()
+    return reach
+}
+
+func lowest_x(): Float {
+    if kind == 1 {
+        return first_x - reach_x()
+    }
+    var lowest = lesser(first_x, second_x)
+    if kind == 2 {
+        lowest = lesser(lowest, third_x)
+    }
+    return lowest - radius
+}
+
+func lowest_y(): Float {
+    if kind == 1 {
+        return first_y - reach_y()
+    }
+    var lowest = lesser(first_y, second_y)
+    if kind == 2 {
+        lowest = lesser(lowest, third_y)
+    }
+    return lowest - radius
+}
+
+func lowest_z(): Float {
+    if kind == 1 {
+        return first_z - reach_z()
+    }
+    var lowest = lesser(first_z, second_z)
+    if kind == 2 {
+        lowest = lesser(lowest, third_z)
+    }
+    return lowest - radius
+}
+
+func highest_x(): Float {
+    if kind == 1 {
+        return first_x + reach_x()
+    }
+    var highest = greater(first_x, second_x)
+    if kind == 2 {
+        highest = greater(highest, third_x)
+    }
+    return highest + radius
+}
+
+func highest_y(): Float {
+    if kind == 1 {
+        return first_y + reach_y()
+    }
+    var highest = greater(first_y, second_y)
+    if kind == 2 {
+        highest = greater(highest, third_y)
+    }
+    return highest + radius
+}
+
+func highest_z(): Float {
+    if kind == 1 {
+        return first_z + reach_z()
+    }
+    var highest = greater(first_z, second_z)
+    if kind == 2 {
+        highest = greater(highest, third_z)
+    }
+    return highest + radius
+}
+
+func lesser(first: Float, second: Float): Float {
+    if second < first {
+        return second
+    }
+    return first
+}
+
+func greater(first: Float, second: Float): Float {
+    if second > first {
+        return second
+    }
+    return first
+}
+
+func clamped(value: Float, low: Float, high: Float): Float {
+    if value < low {
+        return low
+    }
+    if value > high {
+        return high
+    }
+    return value
+}

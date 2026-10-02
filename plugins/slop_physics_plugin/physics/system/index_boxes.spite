@@ -1,0 +1,18 @@
+type Placed {
+    entity: Entity
+    box: Added<Physics.Component.BoxCollider>
+    transform: Transform.Component.Transform
+}
+
+var colliders = Physics.Colliders()
+var triggers = Lookup<Physics.Component.Trigger>()
+var kinematics = Lookup<Physics.Component.Kinematic>()
+
+func after_input_each(placed: Placed) {
+    var id = placed.entity.id
+    var is_trigger = triggers.has(id)
+    var is_kinematic = kinematics.has(id)
+    var flag = colliders.flag_for(is_trigger, is_kinematic)
+    var box = placed.box.value
+    colliders.place_box(id, placed.transform, box.half_x, box.half_y, box.half_z, flag)
+}

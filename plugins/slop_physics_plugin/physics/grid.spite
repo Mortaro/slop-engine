@@ -1,0 +1,198 @@
+var cell_size: Float = 4.0
+var largest_cells = 256
+var mask: UnsignedInteger = 15
+var starts = List<Integer>()
+var cursors = List<Integer>()
+var entries = List<Integer>()
+var large = List<Integer>()
+var first_column = 0
+var last_column = 0
+var first_row = 0
+var last_row = 0
+
+func cell_of(value: Float): Integer {
+    var scaled = value / cell_size
+    if scaled < -1000000.0 {
+        return -1000000
+    }
+    if scaled > 1000000.0 {
+        return 1000000
+    }
+    var whole: Integer = scaled
+    if scaled < whole {
+        return whole - 1
+    }
+    return whole
+}
+
+func bucket(column: Integer, row: Integer): Integer {
+    var hashed_column: UnsignedInteger = column
+    var hashed_row: UnsignedInteger = row
+    var mixed = (hashed_column * 73856093).bits_exclusive_or(hashed_row * 19349663)
+    var masked: Integer = mixed.bits_and(mask)
+    return masked
+}
+
+func span(lowest_x: Float, lowest_z: Float, highest_x: Float, highest_z: Float): Integer {
+    first_column = cell_of(lowest_x)
+    last_column = cell_of(highest_x)
+    first_row = cell_of(lowest_z)
+    last_row = cell_of(highest_z)
+    var columns = last_column - first_column + 1
+    var rows = last_row - first_row + 1
+    if columns > 4096 or rows > 4096 {
+        return 2000000000
+    }
+    return columns * rows
+}
+
+func span_of(slot: Integer, bounds: List<Float>): Integer {
+    var base = slot * 6
+    crash base + 5 < bounds.count()
+    return span(bounds[base], bounds[base + 2], bounds[base + 3], bounds[base + 5])
+}
+
+func build(slots: List<Integer>, bounds: List<Float>) {
+    large.clear()
+    var total = 0
+    var index = 0
+    while index < slots.count() {
+        var slot = slots[index]
+        var covered = span_of(slot, bounds)
+        if covered > largest_cells {
+            large.append(slot)
+        } else {
+            total = total + covered
+        }
+        index = index + 1
+    }
+    var size = 16
+    while size < total * 2 {
+        size = size * 2
+    }
+    mask = size - 1
+    starts.clear()
+    cursors.clear()
+    var cleared = 0
+    while cleared <= size {
+        starts.append(0)
+        cursors.append(0)
+        cleared = cleared + 1
+    }
+    count_entries(slots, bounds)
+    var summed = 1
+    while summed < starts.count() {
+        crash starts[summed - 1]
+        starts[summed] = starts[summed] + starts[summed - 1]
+        summed = summed + 1
+    }
+    var copied = 0
+    while copied < starts.count() {
+        cursors[copied] = starts[copied]
+        copied = copied + 1
+    }
+    entries.clear()
+    var filled = 0
+    while filled < total {
+        entries.append(-1)
+        filled = filled + 1
+    }
+    fill_entries(slots, bounds)
+}
+
+func count_entries(slots: List<Integer>, bounds: List<Float>) {
+    var index = 0
+    while index < slots.count() {
+        var slot = slots[index]
+        var covered = span_of(slot, bounds)
+        if covered <= largest_cells {
+            var row = first_row
+            while row <= last_row {
+                var column = first_column
+                while column <= last_column {
+                    var counted = bucket(column, row) + 1
+                    crash starts[counted]
+                    starts[counted] = starts[counted] + 1
+                    column = column + 1
+                }
+                row = row + 1
+            }
+        }
+        index = index + 1
+    }
+}
+
+func fill_entries(slots: List<Integer>, bounds: List<Float>) {
+    var index = 0
+    while index < slots.count() {
+        var slot = slots[index]
+        var covered = span_of(slot, bounds)
+        if covered <= largest_cells {
+            var row = first_row
+            while row <= last_row {
+                var column = first_column
+                while column <= last_column {
+                    var filled = bucket(column, row)
+                    crash cursors[filled]
+                    var at = cursors[filled]
+                    entries[at] = slot
+                    cursors[filled] = at + 1
+                    column = column + 1
+                }
+                row = row + 1
+            }
+        }
+        index = index + 1
+    }
+}
+
+func gather(
+    lowest_x: Float,
+    lowest_z: Float,
+    highest_x: Float,
+    highest_z: Float,
+    found: List<Integer>,
+    stamps: List<Integer>,
+    stamp: Integer,
+) {
+    var large_index = 0
+    while large_index < large.count() {
+        note(large[large_index], found, stamps, stamp)
+        large_index = large_index + 1
+    }
+    assert entries.count() != 0
+    var covered = span(lowest_x, lowest_z, highest_x, highest_z)
+    if covered > entries.count() {
+        var every = 0
+        while every < entries.count() {
+            note(entries[every], found, stamps, stamp)
+            every = every + 1
+        }
+        return
+    }
+    var row = first_row
+    while row <= last_row {
+        var column = first_column
+        while column <= last_column {
+            var looked = bucket(column, row)
+            crash looked + 1 < starts.count()
+            var at = starts[looked]
+            var stop = starts[looked + 1]
+            while at < stop {
+                crash entries[at]
+                note(entries[at], found, stamps, stamp)
+                at = at + 1
+            }
+            column = column + 1
+        }
+        row = row + 1
+    }
+}
+
+func note(slot: Integer, found: List<Integer>, stamps: List<Integer>, stamp: Integer) {
+    crash stamps[slot]
+    if stamps[slot] != stamp {
+        stamps[slot] = stamp
+        found.append(slot)
+    }
+}

@@ -1,0 +1,18 @@
+type Wandering {
+    transform: Transform.Component.Transform
+    desired: Physics.Component.DesiredVelocity
+}
+
+var environment = Environment()
+
+func after_input_each(wandering: Wandering) {
+    var size: Float = environment.world_size
+    var transform = wandering.transform
+    var desired = wandering.desired
+    if transform.position_x < 4.0 and desired.velocity_x < 0.0 or transform.position_x > size - 4.0 and desired.velocity_x > 0.0 {
+        desired.velocity_x = -desired.velocity_x
+    }
+    if transform.position_z < 4.0 and desired.velocity_z < 0.0 or transform.position_z > size - 4.0 and desired.velocity_z > 0.0 {
+        desired.velocity_z = -desired.velocity_z
+    }
+}

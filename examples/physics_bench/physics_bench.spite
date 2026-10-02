@@ -1,0 +1,140 @@
+var console = Console()
+var world = World()
+var environment = Environment()
+var colliders = Physics.Colliders()
+var clock = Clock()
+var grounded = Lookup<Physics.Component.Grounded>()
+var seed: Long = 4242
+var size: Float = 0.0
+
+func PhysicsBench() {
+    load "../../slop"
+    load "../../plugins/slop_physics_plugin"
+    var app = App()
+    app.frame_milliseconds = 50
+    size = environment.world_size
+    colliders.brute_force = environment.brute_force
+    spawn_floor()
+    var index = 0
+    while index < environment.boxes {
+        spawn_box(false)
+        index = index + 1
+    }
+    index = 0
+    while index < environment.triggers {
+        spawn_box(true)
+        index = index + 1
+    }
+    var first = -1
+    index = 0
+    while index < environment.characters {
+        var spawned = spawn_character()
+        if first < 0 {
+            first = spawned
+        }
+        index = index + 1
+    }
+    world.flush()
+    app.tick()
+    app.tick()
+    var tests_before = colliders.narrow_tests
+    var started = clock.elapsed_nanoseconds()
+    var tick = 0
+    while tick < environment.ticks {
+        app.tick()
+        tick = tick + 1
+    }
+    var finished = clock.elapsed_nanoseconds()
+    var average = (finished - started) / environment.ticks / 1000
+    var tests = (colliders.narrow_tests - tests_before) / environment.ticks
+    var standing = 0
+    var counted = first
+    while counted < first + environment.characters {
+        if grounded.has(counted) {
+            standing = standing + 1
+        }
+        counted = counted + 1
+    }
+    console.print(
+        "characters",
+        environment.characters,
+        "boxes",
+        environment.boxes,
+        "triggers",
+        environment.triggers,
+        "brute force",
+        environment.brute_force,
+    )
+    console.print("average tick microseconds", average, "narrow tests per tick", tests, "grounded", standing)
+    report(app)
+}
+
+func report(app: App) {
+    var profile = app.profile()
+    var physics: Long = 0
+    var index = 0
+    while index < profile.systems.count() {
+        var entry = profile.systems[index]
+        if entry.name.starts_with("Physics.") {
+            physics = physics + entry.average_microseconds
+            if entry.average_microseconds >= 50 {
+                console.print(entry.name, entry.average_microseconds)
+            }
+        }
+        index = index + 1
+    }
+    console.print("physics step microseconds", physics)
+}
+
+func random(): Float {
+    seed = (seed * 1103515245 + 12345) % 2147483648
+    var value: Float = seed
+    return value / 2147483648.0
+}
+
+func spawn_floor() {
+    var entity = world.create_entity()
+    var transform = Transform.Component.Transform()
+    transform.position_x = size * 0.5
+    transform.position_y = -0.5
+    transform.position_z = size * 0.5
+    entity.add_component(transform)
+    var box = Physics.Component.BoxCollider()
+    box.half_x = size * 0.5 + 8.0
+    box.half_y = 0.5
+    box.half_z = size * 0.5 + 8.0
+    entity.add_component(box)
+}
+
+func spawn_box(is_trigger: Boolean) {
+    var entity = world.create_entity()
+    var box = Physics.Component.BoxCollider()
+    box.half_x = 0.5 + random() * 1.5
+    box.half_y = 0.5 + random() * 1.0
+    box.half_z = 0.5 + random() * 1.5
+    var transform = Transform.Component.Transform()
+    transform.position_x = random() * size
+    transform.position_y = box.half_y
+    transform.position_z = random() * size
+    var angle = random() * Float.pi
+    transform.rotation_y = angle.sine()
+    transform.rotation_w = angle.cosine()
+    entity.add_component(transform)
+    entity.add_component(box)
+    if is_trigger {
+        var marker = Physics.Component.Trigger()
+        entity.add_component(marker)
+    }
+}
+
+func spawn_character(): Integer {
+    var position_x = random() * size
+    var position_z = random() * size
+    var bundle = Physics.Bundle.Character(position_x, 0.02, position_z)
+    var speed = 1.5 + random() * 3.5
+    var heading = random() * Float.tau
+    bundle.desired.velocity_x = heading.cosine() * speed
+    bundle.desired.velocity_z = heading.sine() * speed
+    var entity = world.create_entity_from_bundle(bundle)
+    return entity.id
+}

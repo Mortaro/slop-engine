@@ -1,0 +1,5 @@
+var radius: Float = 0.4
+var height: Float = 1.8
+var step_height: Float = 0.35
+var slope_limit: Float = 45.0
+var gravity: Float = 9.81

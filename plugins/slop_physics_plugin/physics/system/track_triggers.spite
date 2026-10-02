@@ -1,0 +1,8 @@
+var colliders = Physics.Colliders()
+var contacts = Physics.Contacts()
+
+func after_input_each() {
+    contacts.retire()
+    colliders.find_trigger_overlaps()
+    contacts.update(colliders.pair_triggers, colliders.pair_visitors)
+}

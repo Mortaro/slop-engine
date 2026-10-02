@@ -519,6 +519,30 @@ which is nearly all of them.
 
 What the stress slowdown turned out to be is in [Performance](#performance) below: glibc, not the runner.
 
+## Update, 2026-10-02: what physics taught
+
+Written while building `slop_physics_plugin` (colliders, queries, a character controller, triggers), a few thousand
+lines of float maths over plain `List<Float>`s and classes. No compiler bug was hit; two performance findings, both
+measured with callgrind on `physics_bench` in an `--optimized` build, are for the language session (priority:
+medium, the engine's physics uses both on its hot path):
+
+- **`Float.minimum`, `maximum` and `clamp` compile to `fminf` and `fmaxf` calls into libm**
+  (`#define SpiteFloat_minimum(self, other) fminf(...)`), which the C compiler does not inline without fast-math
+  flags, since `fminf` must handle NaN. They were 4.5% of the bench's instructions; the plugin now uses its own
+  `lesser`, `greater` and `clamped` (an `if` each), which inline. A repro: `lowest = lowest.minimum(values[picked])`
+  in any loop, built `--optimized --c-source`, shows the call. Proposal: compile them to a comparison when the
+  operands cannot be NaN, or document that they are the NaN-aware C functions.
+- **A narrowed `list[index]` read calls `List_Float_get_at` twice, and the call is not inlined**: `crash
+  values[picked]` then `values[picked]` emits `List_Float_get_at(...)` for the check and again for the value, and the
+  function is an exported symbol (it is in the reflection table), so it stays a real call. Reads of the plugin's
+  shape lists were 8.7% of the bench's instructions. A repro is the same loop: `crash values[picked]` followed by a
+  read. Proposal: read the item once after a `crash` or `assert` narrowing (the docs say a narrowed read is taken
+  with no test), and give the C compiler an inlinable body.
+- **The lints shaped the code well.** "This `if` only returns: write `assert`", "a call inside an argument", "an
+  `if` inside a branch of another `if`" each forced a named local or a small function, and the geometry reads
+  better for it. The one that cost real time is the argument rule on chained maths (`a.minimum(b).minimum(c)` must
+  be two statements).
+
 ## Suggested order
 
 1. Bugs 1, 2 and 9 (in progress). They unblock `type` rows and the performance path.

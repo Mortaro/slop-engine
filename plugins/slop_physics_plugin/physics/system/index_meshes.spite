@@ -1,0 +1,14 @@
+type Placed {
+    entity: Entity
+    mesh: Added<Physics.Component.MeshCollider>
+    transform: Transform.Component.Transform
+}
+
+var colliders = Physics.Colliders()
+var meshes = Physics.Meshes()
+
+func after_input_each(placed: Placed) {
+    var found = meshes.named(placed.mesh.value.mesh)
+    crash found
+    colliders.place_mesh(placed.entity.id, placed.transform, found)
+}

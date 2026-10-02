@@ -1,0 +1,10 @@
+var transform = Transform.Component.Transform()
+var character = Physics.Component.Character()
+var desired = Physics.Component.DesiredVelocity()
+var vertical = Physics.Component.VerticalSpeed()
+
+func Character(position_x: Float, position_y: Float, position_z: Float) {
+    transform.position_x = position_x
+    transform.position_y = position_y
+    transform.position_z = position_z
+}

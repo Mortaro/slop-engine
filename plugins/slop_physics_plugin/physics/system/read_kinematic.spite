@@ -1,0 +1,11 @@
+type Carried {
+    entity: Entity
+    transform: Transform.Component.Transform
+    kinematic: Physics.Component.Kinematic
+}
+
+var colliders = Physics.Colliders()
+
+func after_input_each(carried: Carried) {
+    colliders.move(carried.entity.id, carried.transform)
+}

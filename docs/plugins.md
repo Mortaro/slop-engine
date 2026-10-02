@@ -198,6 +198,16 @@ Each cell is a linked list through entity ids, shared by every space since an en
 write per entity and clearing resets only the cells used. `server_bench` (15,000 entities) ticks in about 6 ms with
 10,000 aggro queries of 20 m and 5,000 of 60 m, and checks a query against brute force.
 
+## slop_physics_plugin
+
+Colliders, queries, characters and triggers, all components and systems ([physics.md](physics.md)). Box, sphere,
+capsule and static triangle-mesh colliders (`Physics.Component.BoxCollider` and the rest) on any entity with a
+`Transform`, static unless marked `Kinematic`; `Physics.Colliders`, the resource that indexes them in grids over the
+ground plane and answers `raycast`, `sweep_sphere` and `sweep_capsule`; `Physics.Meshes`, the mesh colliders'
+triangles by name; the character controller (`Character`, `DesiredVelocity`, `VerticalSpeed`, `Grounded`, moved by
+`MoveCharacters` in `update`); and trigger volumes, whose overlaps are entities marked `Entered` and `Left`. It loads
+the transform plugin.
+
 ## slop_interest_plugin
 
 Observing by distance: `Interest.Component.Viewer` and the link `Interest.Component.Viewpoint` on a connection

@@ -1,0 +1,106 @@
+singleton
+
+var keys = List<Long>()
+var contacts = List<Integer>()
+var seen = List<Integer>()
+var positions = Dictionary<Integer>()
+var entered = List<Integer>()
+var left = List<Integer>()
+var stamp = 0
+var columns = Columns()
+var world = World()
+
+func retire() {
+    var index = 0
+    while index < entered.count() {
+        var id = entered[index]
+        if not columns.is_dead(id) {
+            var contact = world.entity_of(id)
+            contact.remove_component(Physics.Component.Entered)
+        }
+        index = index + 1
+    }
+    entered.clear()
+    index = 0
+    while index < left.count() {
+        var id = left[index]
+        if not columns.is_dead(id) {
+            world.despawn(id)
+        }
+        index = index + 1
+    }
+    left.clear()
+}
+
+func update(triggers: List<Integer>, visitors: List<Integer>) {
+    stamp = stamp + 1
+    var index = 0
+    while index < triggers.count() {
+        crash visitors[index]
+        note(triggers[index], visitors[index])
+        index = index + 1
+    }
+    var kept = 0
+    while kept < keys.count() {
+        crash seen[kept]
+        if seen[kept] == stamp {
+            kept = kept + 1
+        } else {
+            end(kept)
+        }
+    }
+}
+
+func note(trigger: Integer, visitor: Integer) {
+    var wide: Long = trigger
+    var key = wide.shifted_left(32) + visitor
+    var found = positions[key]
+    if found {
+        seen[found] = stamp
+        return
+    }
+    var volume = world.entity_of(trigger)
+    var contact = volume.create_entity()
+    var link = Physics.Component.Visitor()
+    link.entity = world.entity_of(visitor)
+    contact.add_component(link)
+    var marker = Physics.Component.Entered()
+    contact.add_component(marker)
+    entered.append(contact.id)
+    positions[key] = keys.count()
+    keys.append(key)
+    contacts.append(contact.id)
+    seen.append(stamp)
+}
+
+func end(index: Integer) {
+    crash keys[index]
+    var key = keys[index]
+    crash contacts[index]
+    var id = contacts[index]
+    if not columns.is_dead(id) {
+        var contact = world.entity_of(id)
+        var marker = Physics.Component.Left()
+        contact.add_component(marker)
+        left.append(id)
+    }
+    positions.remove(key)
+    var last = keys.count() - 1
+    if index < last {
+        crash keys[last]
+        var moved = keys[last]
+        keys[index] = moved
+        crash contacts[last]
+        contacts[index] = contacts[last]
+        crash seen[last]
+        seen[index] = seen[last]
+        positions[moved] = index
+    }
+    keys.truncate(last)
+    contacts.truncate(last)
+    seen.truncate(last)
+}
+
+func count(): Integer {
+    return keys.count()
+}

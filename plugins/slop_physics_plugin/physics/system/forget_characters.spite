@@ -1,0 +1,10 @@
+type Lost {
+    entity: Entity
+    lost: Removed<Physics.Component.Character>
+}
+
+var colliders = Physics.Colliders()
+
+func after_input_each(lost: Lost) {
+    colliders.forget_character(lost.entity.id)
+}

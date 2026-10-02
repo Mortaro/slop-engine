@@ -1,0 +1,6 @@
+var entered_early = 0
+var left_early = 0
+var entered_late = 0
+var left_late = 0
+var walker_entered = 0
+var inside = 0
