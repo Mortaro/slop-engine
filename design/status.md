@@ -141,8 +141,8 @@ and the click test passed for 5 and 12 clicks.
   - terrain cells outside the view cast no shadow;
   - more than one view a frame: each view replans the atlas, and the cached light tiles serve only the last one;
   - the atlas is a fixed 8192×4096 at 32 bits (128 MB), whatever the settings use.
-- Shadow cost in `render_bench` (optimized, 1920x1080, RTX 3090, median of 3, 2026-10-02): before shadows covered
-  more than 6 m around the camera's target, frame 541 us, shadows 76 us, scene 429 us; with three cascades to
+- Shadow cost in `render_bench` (optimized, 1920x1080, RTX 3090, median of 3, 2026-10-02): before, shadows covered only
+  6 m around the camera's target, frame 541 us, shadows 76 us, scene 429 us; with three cascades to
   200 m, frame 723 us, shadows 148 us (the sun's cascades), scene 539 us (the 5x5 filter on every lit fragment).
   `--shadowed-lights=8` adds local shadows 82 us (36 faces a frame) and scene to 615 us. A 7x7 filter cost 20 to
   30 us more in the scene pass.
