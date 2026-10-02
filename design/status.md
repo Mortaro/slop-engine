@@ -212,6 +212,15 @@ The benchmarks to race are ecs_bench_suite's: `add_remove` and `schedule` look w
   `kernel32`); those examples were compiled for Windows in check mode only. The UI plugin loads `spite_truetype`,
   which must sit beside the engine, and the pinned MongoDB driver commit `ea1a143` does not compile with current
   Spite (`map_key` must be `map_keys`, `map_to_string` `map_to_strings`): it needs a driver commit and a new pin.
+- On Windows (2026-10-02, Spite master `400b740`, with the operators migration merged in): every headless example
+  builds and runs balanced under `--debug-memory` (`healing`, `tracking`, `use_potion`, `without_check`,
+  `relations_check`, `timers_check`, `wire_probe`, `asset_round_trip`, `inline_string_probe`, `psd_probe`,
+  `psd_zip_probe`, `scheduler_check`, `waits_check`, `template_wait_check`), and `parallel_check`,
+  `click_counter_online`, `interest_check`, `store_race_test` and the three refusal tests pass. Every example that
+  loads the UI plugin (the window, UI and render tests) fails to compile: the pinned `spite_truetype@014df72` calls
+  `accumulation.set_at(cell, ...)` in `true_type/rasterizer.spite:279`, which D396 refuses; it needs a truetype
+  commit writing `accumulation[cell] = ...` and a new pin in `plugins/slop_ui_plugin/ui/ui.spite`. `io_systems` and
+  `mongodb_check` fail on the MongoDB driver pin above. So the pinned window path (D363) is still not run on Windows.
 
 - The tests that still capture at a frame number (`scene_probe`, `lights_check`, `terrain_check`,
   `kal_character`'s `--frames`) are to move to a trigger, as `render_parity` did. `render_parity` used to capture two
