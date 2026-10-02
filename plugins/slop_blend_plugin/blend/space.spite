@@ -53,7 +53,7 @@ func object_local(object: Blend.View): Math.Matrix4 {
         euler_to(pose, rot_value, rot_value_2, rot_value_3)
     }
     var result = Math.Matrix4()
-    result.set_pose(pose)
+    result.pose = pose
     return result
 }
 

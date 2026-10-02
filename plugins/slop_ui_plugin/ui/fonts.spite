@@ -17,7 +17,7 @@ var bitmap = TrueType.GlyphBitmap()
 
 func atlas_of(font: String, face_index: Integer, pixels: Integer): Ui.Component.GlyphAtlas? {
     var name = "{font}#{face_index}@{pixels}"
-    var found = atlases.get(name)
+    var found = atlases[name]
     if found {
         return found
     }
@@ -42,14 +42,14 @@ func atlas_of(font: String, face_index: Integer, pixels: Integer): Ui.Component.
     fill_blank(atlas.texture, atlas.texels, first_atlas_side)
     var owner = world.create_entity()
     owner.add_component(atlas)
-    atlases.set(name, atlas)
-    atlas_entities.set(name, owner.id)
+    atlases[name] = atlas
+    atlas_entities[name] = owner.id
     atlas_names.append(name)
     return atlas
 }
 
 func face_of_name(font: String, face_index: Integer, name: String): TrueType.Face? {
-    var found = faces.get(name)
+    var found = faces[name]
     if found {
         return found
     }
@@ -70,12 +70,12 @@ func face_of_name(font: String, face_index: Integer, name: String): TrueType.Fac
     var data = TrueType.FontData()
     data.copy_bytes(cooked.address, cooked.length)
     var face = TrueType.Face(data, face_index)
-    faces.set(name, face)
+    faces[name] = face
     return face
 }
 
 func face_of(atlas: Ui.Component.GlyphAtlas): TrueType.Face {
-    var face = faces.get(atlas.face_name)
+    var face = faces[atlas.face_name]
     crash face
     return face
 }
@@ -103,7 +103,7 @@ func text_width(atlas: Ui.Component.GlyphAtlas, text: String): Float {
 }
 
 func glyph_of(atlas: Ui.Component.GlyphAtlas, codepoint: Integer): Integer {
-    var found = atlas.glyphs.codes.get(codepoint)
+    var found = atlas.glyphs.codes[codepoint]
     if found {
         return found
     }
@@ -122,7 +122,7 @@ func queue(atlas: Ui.Component.GlyphAtlas, codepoint: Integer) {
 }
 
 func entity_of(atlas: Ui.Component.GlyphAtlas): Entity {
-    var owner = atlas_entities.get(atlas.name)
+    var owner = atlas_entities[atlas.name]
     crash owner
     return world.entity_of(owner)
 }
@@ -170,7 +170,7 @@ func add_glyph(atlas: Ui.Component.GlyphAtlas, codepoint: Integer) {
     table.heights.append(bitmap.height)
     table.bearings.append(bitmap.left)
     table.risers.append(bitmap.top)
-    table.codes.set(codepoint, place)
+    table.codes[codepoint] = place
     note_changed(atlas)
 }
 
@@ -206,7 +206,7 @@ func copy_into_atlas(atlas: Ui.Component.GlyphAtlas, left: Integer, top: Integer
             var alpha = coverage.shifted_left(24)
             var texel = alpha.bits_or(16777215)
             var at = (top + row) * atlas.side + left + column
-            texture.pixels.set_at(at, texel)
+            texture.pixels[at] = texel
             raw.write_integer(texels.address, at * 4, texel)
             column = column + 1
         }
@@ -265,7 +265,7 @@ func copy_row(
     while column < old_side {
         crash old_texture.pixels[row * old_side + column]
         var texel = old_texture.pixels[row * old_side + column]
-        texture.pixels.set_at(row * side + column, texel)
+        texture.pixels[row * side + column] = texel
         column = column + 1
     }
 }
@@ -338,7 +338,8 @@ func settled(): Boolean {
     }
     var index = 0
     while index < atlas_names.count() {
-        var atlas = atlases.get(atlas_names[index])
+        var atlas_name = atlas_names[index]
+        var atlas = atlases[atlas_name]
         crash atlas
         if atlas.glyphs.pending.count() > 0 or atlas.generation != atlas.published {
             return false

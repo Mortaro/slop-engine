@@ -38,10 +38,10 @@ func insert_in_order(strokes: List<Stroke>, index: Integer) {
     var at = order.count() - 1
     while at > 0 and earlier(strokes, entity, at - 1) {
         crash order[at - 1]
-        order.set_at(at, order[at - 1])
+        order[at] = order[at - 1]
         at = at - 1
     }
-    order.set_at(at, index)
+    order[at] = index
 }
 
 func earlier(strokes: List<Stroke>, entity: Integer, at: Integer): Boolean {

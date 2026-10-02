@@ -20,13 +20,13 @@ func buffer_for(entity: Integer, link: Boolean): Asset.Bytes {
 
 func place_of(entity: Integer): Integer {
     var key: String = entity
-    var found = places.get(key)
+    var found = places[key]
     if found {
         return found
     }
     var place = entities.count()
     entities.append(entity)
-    places.set(key, place)
+    places[key] = place
     if heads.count() <= place {
         var head = Asset.Bytes()
         heads.append(head)

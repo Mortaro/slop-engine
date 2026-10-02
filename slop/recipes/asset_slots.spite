@@ -51,7 +51,7 @@ func start_slot(reader: Recipes.CacheReader, slot: Integer) {
         report_console.print("asset never cooked:", never_cooked_id)
     }
     crash record
-    loaded_revisions.set_at(slot, catalog.revision)
+    loaded_revisions[slot] = catalog.revision
     var job = Recipes.AssetLoad<$asset_type>(record)
     var loading = Parallel(job.run)
     loads.append(loading)
@@ -85,10 +85,10 @@ func finish_if_done(index: Integer) {
     var loading = loads[index]
     var loaded = loading.finished_value()
     assert loaded
-    values.set_at(slot, loaded)
-    ready.set_at(slot, true)
+    values[slot] = loaded
+    ready[slot] = true
     crash generations[slot]
-    generations.set_at(slot, generations[slot] + 1)
+    generations[slot] = generations[slot] + 1
     loads.remove_at(index)
     load_slots.remove_at(index)
 }

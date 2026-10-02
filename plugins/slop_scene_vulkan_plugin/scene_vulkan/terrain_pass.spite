@@ -182,7 +182,7 @@ func upload_one_layer(renderer: RenderVulkan.Renderer, materials: Scene.TerrainM
     var generation = materials.generation(material)
     if uploaded_generations[material] != generation {
         start_material(renderer, materials, material)
-        uploaded_generations.set_at(material, generation)
+        uploaded_generations[material] = generation
     }
     var which = 0
     while which < arrays_per_material {
@@ -280,12 +280,12 @@ func create_array_image(renderer: RenderVulkan.Renderer, array: Scene.LoadedArra
     var view_made = RenderVulkan.Structure(8)
     var view_result = vulkan.vkCreateImageView(renderer.device, view_creation.address, no_allocator, view_made.address)
     crash view_result == 0
-    images.set_at(place, image)
-    memories.set_at(place, memory)
+    images[place] = image
+    memories[place] = memory
     var view = view_made.read_long(0)
-    views.set_at(place, view)
-    mip_counts.set_at(place, mips)
-    uploaded_layers.set_at(place, 0)
+    views[place] = view
+    mip_counts[place] = mips
+    uploaded_layers[place] = 0
 }
 
 func upload_layer(renderer: RenderVulkan.Renderer, array: Scene.LoadedArray, place: Integer) {
@@ -337,7 +337,7 @@ func upload_layer(renderer: RenderVulkan.Renderer, array: Scene.LoadedArray, pla
         layer_barrier(command_buffer, image, 2048, 32, 6, 5, 4096, 128, 0, mips - 1, layer)
     }
     layer_barrier(command_buffer, image, 4096, 32, 7, 5, 4096, 128, mips - 1, 1, layer)
-    uploaded_layers.set_at(place, layer + 1)
+    uploaded_layers[place] = layer + 1
 }
 
 func half_of(size: Integer): Integer {
@@ -430,9 +430,9 @@ func write_parameters(renderer: RenderVulkan.Renderer, materials: Scene.TerrainM
         var buffer = renderer.create_buffer(parameter_bytes, storage_usage)
         var memory = renderer.host_memory_for(buffer)
         var mapped = renderer.map(memory, parameter_bytes)
-        parameter_buffers.set_at(material, buffer)
-        parameter_memories.set_at(material, memory)
-        parameter_mapped.set_at(material, mapped)
+        parameter_buffers[material] = buffer
+        parameter_memories[material] = memory
+        parameter_mapped[material] = mapped
     }
     crash parameter_mapped[material]
     var at = parameter_mapped[material]
@@ -534,7 +534,7 @@ func write_set(renderer: RenderVulkan.Renderer, materials: Scene.TerrainMaterial
     while texture < textures_per_material {
         var slot = materials.texture_slot(material, texture)
         var view = renderer.texture_view(slot)
-        set_views.set_at(material * textures_per_material + texture, view)
+        set_views[material * textures_per_material + texture] = view
         images_information.append_long(clamp_sampler)
         images_information.append_long(view)
         images_information.append_integer(5)
@@ -570,7 +570,7 @@ func write_set(renderer: RenderVulkan.Renderer, materials: Scene.TerrainMaterial
     writes.append_long(0)
     var no_copies: Long = 0
     vulkan.vkUpdateDescriptorSets(renderer.device, 2, writes.address, 0, no_copies)
-    sets.set_at(material, set)
+    sets[material] = set
 }
 
 func retire_set(renderer: RenderVulkan.Renderer, material: Integer) {
@@ -578,7 +578,7 @@ func retire_set(renderer: RenderVulkan.Renderer, material: Integer) {
     var retired = sets[material]
     retired_sets.append(retired)
     retired_at.append(renderer.frame_number)
-    sets.set_at(material, 0)
+    sets[material] = 0
 }
 
 func retire_image(renderer: RenderVulkan.Renderer, place: Integer) {
@@ -593,7 +593,7 @@ func retire_image(renderer: RenderVulkan.Renderer, place: Integer) {
     renderer.frame.retired_memories.append(memory)
     renderer.frame.retired_views.append(view)
     renderer.frame.retired_sets.append(0)
-    images.set_at(place, 0)
+    images[place] = 0
 }
 
 func release_retired(renderer: RenderVulkan.Renderer) {

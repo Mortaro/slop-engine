@@ -27,7 +27,7 @@ func margin_at(side: Integer): Float {
 }
 
 func set_margin_at(side: Integer, value: Float) {
-    margins.set_at(side, value)
+    margins[side] = value
 }
 
 func margin_auto_at(side: Integer): Boolean {

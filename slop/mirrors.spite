@@ -12,20 +12,20 @@ func local_of(remote: Integer): Integer {
     if remote == -1 {
         return world.entity
     }
-    var found = known.get(remote)
+    var found = known[remote]
     if found {
         return found
     }
     var made = world.create_entity()
-    known.set(remote, made.id)
-    remotes.set(made.id, remote)
+    known[remote] = made.id
+    remotes[made.id] = remote
     created.append(made.id)
     created_remotes.append(remote)
     return made.id
 }
 
 func forget(remote: Integer) {
-    var found = known.get(remote)
+    var found = known[remote]
     assert found
     known.remove(remote)
     remotes.remove(found)
@@ -39,7 +39,7 @@ func field_to_wire(local: Integer): Integer {
     if local == world.entity {
         return world_field
     }
-    var remote = remotes.get(local)
+    var remote = remotes[local]
     if remote {
         return receivers_own_first - remote
     }

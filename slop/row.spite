@@ -200,15 +200,15 @@ func find_row(index: Integer, entity: Integer, found: List<Integer>): Boolean {
     crash keys[index]
     var header = headers[index]
     if kinds[index] == 2 {
-        found.set_at(index, -1)
+        found[index] = -1
         return columns.removed_since(keys[index], entity, since)
     }
     if kinds[index] == 4 {
-        found.set_at(index, -1)
+        found[index] = -1
         return not present_in(header, entity)
     }
     if header == 0 {
-        found.set_at(index, -1)
+        found[index] = -1
         return true
     }
     var capacity = raw.read_long(header, 40)
@@ -217,7 +217,7 @@ func find_row(index: Integer, entity: Integer, found: List<Integer>): Boolean {
     }
     var sparse = raw.read_long(header, 32)
     var stored = raw.read_long(sparse, entity * 8)
-    found.set_at(index, stored - 1)
+    found[index] = stored - 1
     if stored <= 0 {
         return false
     }

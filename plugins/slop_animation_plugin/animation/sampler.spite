@@ -56,7 +56,7 @@ func pose_bone(
     read_key(clip, from, bone, first)
     read_key(clip, to, bone, second)
     interpolate(blend)
-    local.set_pose(first)
+    local.pose = first
     crash skeleton.parents[bone]
     var parent = skeleton.parents[bone]
     crash globals[bone]

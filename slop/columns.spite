@@ -36,8 +36,9 @@ func namespace_of(kind: Spite.Class): String {
 }
 
 func header(name: String): Long {
-    if headers[name] {
-        return headers[name]
+    var known = headers[name]
+    if known {
+        return known
     }
     var made = heap.allocate(64)
     var offset = 0
@@ -45,16 +46,17 @@ func header(name: String): Long {
         raw.write_long(made, offset, 0)
         offset = offset + 8
     }
-    headers.set(name, made)
+    headers[name] = made
     return made
 }
 
 func removals_of(column_key: String): Removals {
-    if removals[column_key] {
-        return removals[column_key]
+    var known = removals[column_key]
+    if known {
+        return known
     }
     var made = Removals()
-    removals.set(column_key, made)
+    removals[column_key] = made
     return made
 }
 
@@ -64,15 +66,17 @@ func note_removal(column_key: String, entity: Integer) {
 }
 
 func removed_since(column_key: String, entity: Integer, since: Integer): Boolean {
-    if not removals[column_key] {
+    var records = removals[column_key]
+    if not records {
         return false
     }
-    return removals[column_key].removed_since(entity, since)
+    return records.removed_since(entity, since)
 }
 
 func removed_entities(column_key: String, since: Integer): List<Integer> {
-    if removals[column_key] {
-        return removals[column_key].removed_entities(since)
+    var records = removals[column_key]
+    if records {
+        return records.removed_entities(since)
     }
     return List<Integer>()
 }
@@ -87,8 +91,9 @@ func trim_removals(older_than: Integer) {
 }
 
 func trim_key(column_key: String, older_than: Integer) {
-    assert removals[column_key]
-    removals[column_key].trim(older_than)
+    var records = removals[column_key]
+    assert records
+    records.trim(older_than)
 }
 
 func is_marker(column_header: Long): Boolean {
@@ -102,16 +107,18 @@ func added_tick(column_header: Long, row: Integer): Integer {
 
 func insert_object(entity: Integer, value: Anything, copying: Boolean) {
     var name = key(value.class)
-    crash releasers[name]
-    releasers[name].insert_object(entity, value, copying)
+    var releaser = releasers[name]
+    crash releaser
+    releaser.insert_object(entity, value, copying)
 }
 
 func remove_one(name: String, entity: Integer) {
     var column_header = header(name)
     assert row_of(column_header, entity) >= 0
-    assert releasers[name]
+    var releaser = releasers[name]
+    assert releaser
     note_removal(name, entity)
-    releasers[name].remove_entity(column_header, entity)
+    releaser.remove_entity(column_header, entity)
 }
 
 func release_buried(budget: Integer): Integer {
@@ -139,7 +146,7 @@ func release_buried_in(names: List<String>, index: Integer, remaining: Integer):
 
 func record_releaser(name: String, releaser: AnyColumn) {
     assert not releasers.has(name)
-    releasers.set(name, releaser)
+    releasers[name] = releaser
 }
 
 func count_of(name: String): Integer {
@@ -230,7 +237,7 @@ func bury(despawned: Integer) {
     var shifted = bit.shifted_left(despawned % 64)
     crash dead[word]
     var buried = dead[word].bits_or(shifted)
-    dead.set_at(word, buried)
+    dead[word] = buried
 }
 
 func is_dead(entity: Integer): Boolean {

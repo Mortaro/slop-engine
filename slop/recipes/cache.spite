@@ -20,10 +20,11 @@ func key(id: String, input_fingerprint: String): String {
 
 func is_current(id: String, input_fingerprint: String): Boolean {
     load_index()
-    if not fingerprints[id] {
+    var known_fingerprint = fingerprints[id]
+    if not known_fingerprint {
         return false
     }
-    var parts = fingerprints[id].split("#")
+    var parts = known_fingerprint.split("#")
     if parts.count() != 3 {
         return false
     }
@@ -39,10 +40,11 @@ func is_current(id: String, input_fingerprint: String): Boolean {
 }
 
 func schema_of(kind: String): Long {
-    if not schemas[kind] {
+    var schema = schemas[kind]
+    if not schema {
         return 0
     }
-    return schemas[kind]
+    return schema
 }
 
 func put(id: String, input_fingerprint: String, bytes: Asset.Bytes) {
@@ -79,12 +81,12 @@ func register_asset(asset: Symbol<Asset>) {
     var pack = Pack<asset.class>()
     var kind = pack.kind()
     var schema = pack.schema()
-    schemas.set(kind, schema)
+    schemas[kind] = schema
 }
 
 func point_index(id: String, input_fingerprint: String) {
     assert fingerprints[id] != input_fingerprint
-    fingerprints.set(id, input_fingerprint)
+    fingerprints[id] = input_fingerprint
     var json = JsonWriter(fingerprints)
     var text = json.write()
     var path = index_path()
@@ -94,15 +96,17 @@ func point_index(id: String, input_fingerprint: String) {
 
 func read(id: String): Asset.Bytes? {
     load_index()
-    assert fingerprints[id]
-    var entry = key(id, fingerprints[id])
+    var known_fingerprint = fingerprints[id]
+    assert known_fingerprint
+    var entry = key(id, known_fingerprint)
     return opened_store().read(entry)
 }
 
 func locate(id: String): Recipes.Record? {
     load_index()
-    assert fingerprints[id]
-    var entry = key(id, fingerprints[id])
+    var known_fingerprint = fingerprints[id]
+    assert known_fingerprint
+    var entry = key(id, known_fingerprint)
     return opened_store().locate(entry)
 }
 

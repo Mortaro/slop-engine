@@ -13,12 +13,12 @@ var seen_revision = 0
 var records = Lookup<Scene.Component.Mesh>()
 
 func request(id: String): Integer {
-    var found = known_slots.get(id)
+    var found = known_slots[id]
     if found {
         return found
     }
     var slot = entities.count()
-    known_slots.set(id, slot)
+    known_slots[id] = slot
     var created = Scene.Component.Mesh()
     created.id = id
     created.slot = slot
@@ -85,7 +85,7 @@ func start_waiting_loads() {
 }
 
 func start_load(reader: Recipes.CacheReader, id: String) {
-    var slot = known_slots.get(id)
+    var slot = known_slots[id]
     crash slot
     var record = reader.locate(id)
     if not record {

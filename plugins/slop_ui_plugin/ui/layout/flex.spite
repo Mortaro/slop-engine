@@ -123,14 +123,15 @@ func set_padding_block(
 }
 
 func write_layout(entity: Integer, left: Float, top: Float, width: Float, height: Float) {
-    laid_out.set(entity, true)
+    laid_out[entity] = true
     var layout = Lookup<Ui.Component.ComputedLayout>().of(entity)
     if layout {
         fill_layout(layout, left, top, width, height)
         return
     }
-    crash created_layouts[entity]
-    fill_layout(created_layouts[entity], left, top, width, height)
+    var created = created_layouts[entity]
+    crash created
+    fill_layout(created, left, top, width, height)
 }
 
 func fill_layout(layout: Ui.Component.ComputedLayout, left: Float, top: Float, width: Float, height: Float) {
@@ -211,10 +212,10 @@ func sink(found: List<Integer>, orders: List<Integer>, start: Integer) {
         if moving {
             var order_value = orders[position]
             var entity = found[position]
-            orders.set_at(position, orders[position - 1])
-            found.set_at(position, found[position - 1])
-            orders.set_at(position - 1, order_value)
-            found.set_at(position - 1, entity)
+            orders[position] = orders[position - 1]
+            found[position] = found[position - 1]
+            orders[position - 1] = order_value
+            found[position - 1] = entity
             position = position - 1
         }
     }
@@ -1305,8 +1306,9 @@ func record_scroll_range(entity: Integer, box: Ui.Layout.Box, left: Float, top: 
         fill_scroll_range(range, entity, box, left, top, width, height)
         return
     }
-    crash created_ranges[entity]
-    fill_scroll_range(created_ranges[entity], entity, box, left, top, width, height)
+    var created = created_ranges[entity]
+    crash created
+    fill_scroll_range(created, entity, box, left, top, width, height)
 }
 
 func fill_scroll_range(
@@ -1382,9 +1384,10 @@ func write_scrollbars(
         )
         return
     }
-    crash created_scrollbars[entity]
+    var created = created_scrollbars[entity]
+    crash created
     fill_scrollbars(
-        created_scrollbars[entity],
+        created,
         entity,
         range,
         scroll_left,
@@ -1539,8 +1542,9 @@ func reach_child(content: Ui.Layout.Placement, child: Integer, scroll_left: Floa
         reach_layout(content, layout, scroll_left, scroll_top)
         return
     }
-    assert created_layouts[child]
-    reach_layout(content, created_layouts[child], scroll_left, scroll_top)
+    var created = created_layouts[child]
+    assert created
+    reach_layout(content, created, scroll_left, scroll_top)
 }
 
 func reach_layout(
@@ -1559,8 +1563,9 @@ func write_content_origin(entity: Integer, placement: Ui.Layout.Placement) {
         fill_content_origin(layout, placement)
         return
     }
-    crash created_layouts[entity]
-    fill_content_origin(created_layouts[entity], placement)
+    var created = created_layouts[entity]
+    crash created
+    fill_content_origin(created, placement)
 }
 
 func fill_content_origin(layout: Ui.Component.ComputedLayout, placement: Ui.Layout.Placement) {
@@ -1574,8 +1579,9 @@ func write_clip(entity: Integer, inherited: Ui.Layout.Placement) {
         fill_clip(clip, inherited)
         return
     }
-    crash created_clips[entity]
-    fill_clip(created_clips[entity], inherited)
+    var created = created_clips[entity]
+    crash created
+    fill_clip(created, inherited)
 }
 
 func fill_clip(clip: Ui.Component.ComputedClip, inherited: Ui.Layout.Placement) {
@@ -1916,18 +1922,18 @@ func read_edges(entity: Integer, box: Ui.Layout.Box, containing_width: Float?) {
 func set_side(sides: List<Float>, side: Integer, length: Ui.Length, font_size: Float, base: Float?) {
     var resolved = resolve(length, font_size, base)
     var value = positive_or_zero(resolved)
-    sides.set_at(side, value)
+    sides[side] = value
 }
 
 func set_margin(box: Ui.Layout.Box, side: Integer, length: Ui.Length, base: Float?) {
     var is_auto = length.is_auto()
-    box.margin_autos.set_at(side, is_auto)
+    box.margin_autos[side] = is_auto
     var resolved = resolve(length, box.font_size, base)
     var value: Float = 0.0
     if resolved {
         value = resolved
     }
-    box.margins.set_at(side, value)
+    box.margins[side] = value
 }
 
 func read_sizes(entity: Integer, box: Ui.Layout.Box, containing_width: Float?, containing_height: Float?) {
@@ -2035,8 +2041,8 @@ func read_position(entity: Integer, box: Ui.Layout.Box, containing_width: Float?
 func set_inset(box: Ui.Layout.Box, side: Integer, length: Ui.Length, base: Float?) {
     var resolved = resolve(length, box.font_size, base)
     assert resolved
-    box.insets.set_at(side, resolved)
-    box.inset_given.set_at(side, true)
+    box.insets[side] = resolved
+    box.inset_given[side] = true
 }
 
 func read_item(entity: Integer, box: Ui.Layout.Box) {
@@ -2232,9 +2238,9 @@ func share_free_space(
     while index < sizes.count() {
         var track = track_at(templates, index)
         if fractions > 0.0 and track.unit == 'fraction' {
-            sizes.set_at(index, free * track.amount / fractions)
+            sizes[index] = free * track.amount / fractions
         } else if fractions <= 0.0 and automatic_count > 0.0 and track.unit == 'automatic' {
-            sizes.set_at(index, sizes[index] + free / automatic_count)
+            sizes[index] = sizes[index] + free / automatic_count
         }
         index = index + 1
     }
@@ -2424,8 +2430,9 @@ func order_layout(entity: Integer) {
         layout.order = paint_order
         return
     }
-    crash created_layouts[entity]
-    created_layouts[entity].order = paint_order
+    var created = created_layouts[entity]
+    crash created
+    created.order = paint_order
 }
 
 func order_bars(entity: Integer): Boolean {
@@ -2434,8 +2441,9 @@ func order_bars(entity: Integer): Boolean {
         bars.order = paint_order
         return true
     }
-    if created_scrollbars[entity] {
-        created_scrollbars[entity].order = paint_order
+    var created = created_scrollbars[entity]
+    if created {
+        created.order = paint_order
         return true
     }
     return false
