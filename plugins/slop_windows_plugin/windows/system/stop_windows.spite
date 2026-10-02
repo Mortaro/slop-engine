@@ -1,9 +1,0 @@
-type Quitting {
-    quit: Component.Quit
-}
-
-var owner = Windows.Owner()
-
-func last_each(_quitting: Quitting) {
-    owner.stop()
-}

@@ -13,9 +13,9 @@ var tone_pool: Long = 0
 var tone_set: Long = 0
 var shader_tone_vertex: Long = 0
 var shader_tone_fragment: Long = 0
-var hdr_image: Long = 0
-var hdr_memory: Long = 0
-var hdr_view: Long = 0
+var high_dynamic_range_image: Long = 0
+var high_dynamic_range_memory: Long = 0
+var high_dynamic_range_view: Long = 0
 var lighting_buffers = List<Long>()
 var lighting_memories = List<Long>()
 var lighting_mapped = List<Long>()
@@ -119,7 +119,7 @@ func record(
     storage.append_long(storage_sets[slot])
     var no_offsets: Long = 0
     record_shadows(renderer, drawn, storage)
-    renderer.barrier(hdr_image, 0, 256, 0, 2, 1, 1024)
+    renderer.barrier(high_dynamic_range_image, 0, 256, 0, 2, 1, 1024)
     depth_barrier(renderer)
     begin_rendering(renderer, view)
     vulkan.vkCmdBindPipeline(frame.command_buffer, 0, pipeline)
@@ -130,7 +130,7 @@ func record(
     record_runs(renderer, drawn, view_projection)
     record_terrain(renderer, drawn, terrain_materials, storage, view_projection)
     vulkan.vkCmdEndRendering(frame.command_buffer)
-    renderer.barrier(hdr_image, 256, 32, 2, 5, 1024, 128)
+    renderer.barrier(high_dynamic_range_image, 256, 32, 2, 5, 1024, 128)
     record_tone_map(renderer)
     frame.scene_drawn = true
 }
@@ -1124,10 +1124,10 @@ func ensure_depth(renderer: RenderVulkan.Renderer) {
     var bind_result = vulkan.vkBindImageMemory(renderer.device, depth_image, depth_memory, no_offset)
     crash bind_result == 0
     create_depth_view(renderer)
-    create_hdr(renderer)
+    create_high_dynamic_range(renderer)
 }
 
-func create_hdr(renderer: RenderVulkan.Renderer) {
+func create_high_dynamic_range(renderer: RenderVulkan.Renderer) {
     var no_allocator: Long = 0
     var creation = RenderVulkan.Structure(96)
     creation.append_integer(14)
@@ -1150,22 +1150,27 @@ func create_hdr(renderer: RenderVulkan.Renderer) {
     var made = RenderVulkan.Structure(8)
     var result = vulkan.vkCreateImage(renderer.device, creation.address, no_allocator, made.address)
     crash result == 0
-    hdr_image = made.read_long(0)
+    high_dynamic_range_image = made.read_long(0)
     var requirements = RenderVulkan.Structure(24)
-    vulkan.vkGetImageMemoryRequirements(renderer.device, hdr_image, requirements.address)
+    vulkan.vkGetImageMemoryRequirements(renderer.device, high_dynamic_range_image, requirements.address)
     var device_local = 1
-    hdr_memory = renderer.allocate_memory(requirements, device_local)
+    high_dynamic_range_memory = renderer.allocate_memory(requirements, device_local)
     var no_offset: Long = 0
-    var bind_result = vulkan.vkBindImageMemory(renderer.device, hdr_image, hdr_memory, no_offset)
+    var bind_result = vulkan.vkBindImageMemory(
+        renderer.device,
+        high_dynamic_range_image,
+        high_dynamic_range_memory,
+        no_offset,
+    )
     crash bind_result == 0
-    hdr_view = renderer.create_view(hdr_image, 97)
+    high_dynamic_range_view = renderer.create_view(high_dynamic_range_image, 97)
     write_tone_set(renderer)
 }
 
 func write_tone_set(renderer: RenderVulkan.Renderer) {
     var image_information = RenderVulkan.Structure(24)
     image_information.append_long(renderer.sampler)
-    image_information.append_long(hdr_view)
+    image_information.append_long(high_dynamic_range_view)
     image_information.append_integer(5)
     var write = RenderVulkan.Structure(64)
     write.append_integer(35)
@@ -1423,7 +1428,7 @@ func begin_rendering(renderer: RenderVulkan.Renderer, view: Scene.Component.View
     var color = RenderVulkan.Structure(72)
     color.append_integer(1000044001)
     color.append_long(0)
-    color.append_long(hdr_view)
+    color.append_long(high_dynamic_range_view)
     color.append_integer(2)
     color.append_integer(0)
     color.append_long(0)
@@ -1916,10 +1921,10 @@ func release_depth(renderer: RenderVulkan.Renderer) {
     vulkan.vkDestroyImage(renderer.device, depth_image, no_allocator)
     vulkan.vkFreeMemory(renderer.device, depth_memory, no_allocator)
     depth_image = 0
-    vulkan.vkDestroyImageView(renderer.device, hdr_view, no_allocator)
-    vulkan.vkDestroyImage(renderer.device, hdr_image, no_allocator)
-    vulkan.vkFreeMemory(renderer.device, hdr_memory, no_allocator)
-    hdr_image = 0
+    vulkan.vkDestroyImageView(renderer.device, high_dynamic_range_view, no_allocator)
+    vulkan.vkDestroyImage(renderer.device, high_dynamic_range_image, no_allocator)
+    vulkan.vkFreeMemory(renderer.device, high_dynamic_range_memory, no_allocator)
+    high_dynamic_range_image = 0
 }
 
 func release_part(renderer: RenderVulkan.Renderer) {
