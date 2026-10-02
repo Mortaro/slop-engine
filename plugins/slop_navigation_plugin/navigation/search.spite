@@ -17,7 +17,7 @@ func find(grid: Navigation.Grid, start: Integer, goal: Integer): Boolean {
     cells.clear()
     cost = 0.0
     expanded = 0
-    if not grid.open_cell(start) or not grid.open_cell(goal) {
+    if not grid.connected(start, goal) {
         return false
     }
     next_stamp()
@@ -226,33 +226,28 @@ func pop(): Integer {
 
 func sift_down(cell: Integer, key: Long, count: Integer) {
     var parent = 0
-    var moving = true
-    while moving {
-        var child = parent * 2 + 1
-        if child + 1 < count and smaller(child + 1, child) {
-            child = child + 1
+    var child = 1
+    while child < count {
+        crash heap_keys[child]
+        var child_key = heap_keys[child]
+        if child + 1 < count {
+            crash heap_keys[child + 1]
+            var right_key = heap_keys[child + 1]
+            if right_key < child_key {
+                child = child + 1
+                child_key = right_key
+            }
         }
-        if child < count and lower(child, key) {
+        if child_key < key {
             crash heap_cells[child]
-            crash heap_keys[child]
             heap_cells[parent] = heap_cells[child]
-            heap_keys[parent] = heap_keys[child]
+            heap_keys[parent] = child_key
             parent = child
+            child = parent * 2 + 1
         } else {
-            moving = false
+            child = count
         }
     }
     heap_cells[parent] = cell
     heap_keys[parent] = key
-}
-
-func smaller(first: Integer, second: Integer): Boolean {
-    crash heap_keys[first]
-    crash heap_keys[second]
-    return heap_keys[first] < heap_keys[second]
-}
-
-func lower(child: Integer, key: Long): Boolean {
-    crash heap_keys[child]
-    return heap_keys[child] < key
 }

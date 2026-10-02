@@ -1,6 +1,7 @@
 var console = Console()
 var world = World()
 var map = Navigation.Map()
+var cookbook = Recipes.Cookbook()
 var seed: Long = 2024
 
 func NavigationCheck() {
@@ -9,13 +10,9 @@ func NavigationCheck() {
     var optimal = check_optimal()
     console.print("a star matches dijkstra", optimal)
     crash optimal
-    var course = Course()
-    var baked = course.build()
-    var pack = Pack<Navigation.Asset.Walkability>()
-    var bytes = Asset.Bytes()
-    pack.encode(baked, bytes)
-    var walkability = pack.decode(bytes)
-    crash walkability
+    cookbook.cook_recipes()
+    var cooked = Navigation.Cooked()
+    var walkability = cooked.walkability("navigation.check.course")
     var baked_right = check_bake(walkability)
     console.print("bake", baked_right)
     crash baked_right

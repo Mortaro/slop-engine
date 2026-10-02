@@ -5,6 +5,8 @@ var origin_x: Float = 0.0
 var origin_z: Float = 0.0
 var cells = List<Byte>()
 var heights = List<Float>()
+var regions = List<Integer>()
+var frontier = List<Integer>()
 
 func use(walkability: Navigation.Asset.Walkability) {
     columns = walkability.columns
@@ -28,6 +30,73 @@ func use(walkability: Navigation.Asset.Walkability) {
         heights.append(walkability.heights[cell])
         cell = cell + 1
     }
+    label_regions()
+}
+
+func label_regions() {
+    regions.clear()
+    var count = columns * rows
+    regions.reserve(count)
+    while regions.count() < count {
+        regions.append(-1)
+    }
+    var region = 0
+    var cell = 0
+    while cell < count {
+        if open_cell(cell) and unlabelled(cell) {
+            flood(cell, region)
+            region = region + 1
+        }
+        cell = cell + 1
+    }
+}
+
+func unlabelled(cell: Integer): Boolean {
+    crash regions[cell]
+    return regions[cell] < 0
+}
+
+func flood(first: Integer, region: Integer) {
+    frontier.clear()
+    frontier.append(first)
+    regions[first] = region
+    while frontier.count() > 0 {
+        var cell = frontier.remove_last()
+        crash cell
+        var column = cell % columns
+        var row = cell / columns
+        var down = -1
+        while down <= 1 {
+            var across = -1
+            while across <= 1 {
+                if passable(column, row, across, down) {
+                    reach_region((row + down) * columns + column + across, region)
+                }
+                across = across + 1
+            }
+            down = down + 1
+        }
+    }
+}
+
+func reach_region(cell: Integer, region: Integer) {
+    crash regions[cell]
+    assert regions[cell] < 0
+    regions[cell] = region
+    frontier.append(cell)
+}
+
+func passable(column: Integer, row: Integer, across: Integer, down: Integer): Boolean {
+    if across == 0 and down == 0 or not open(column + across, row + down) {
+        return false
+    }
+    return across == 0 or down == 0 or open(column + across, row) and open(column, row + down)
+}
+
+func connected(first: Integer, second: Integer): Boolean {
+    crash regions[first]
+    crash regions[second]
+    return regions[first] >= 0 and regions[first] == regions[second]
 }
 
 func open(column: Integer, row: Integer): Boolean {

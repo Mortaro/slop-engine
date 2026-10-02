@@ -1,40 +1,311 @@
 var console = Console()
 var clock = Clock()
+var world = World()
+var map = Navigation.Map()
+var environment = Environment()
+var pool = ThreadPool()
 var seed: Long = 777
+var size = 2048
 
 func NavigationBench() {
     load "../../slop"
     load "../../plugins/slop_navigation_plugin"
-    var size = 2048
-    var walkability = Navigation.Asset.Walkability()
-    walkability.cover(size, size)
-    var cell = 0
-    while cell < size * size {
-        walkability.mark_walkable(cell, 0.0)
-        cell = cell + 1
+    size = environment.cells
+    var walkability = bake_course()
+    map.use(walkability)
+    var grid = map.grid
+    query_alone(grid, 125, environment.queries)
+    query_alone(grid, 600, environment.queries / 10)
+    query_in_parallel(125, environment.queries)
+    query_through_systems(environment.bots)
+}
+
+func bake_course(): Navigation.Asset.Walkability {
+    var started = clock.elapsed_nanoseconds()
+    var baking = Navigation.Bake()
+    baking.cover(0.0, 0.0, size, size)
+    var spacing: Float = 3.2
+    var extent: Float = size
+    extent = extent * 0.8
+    var whole_samples: Integer = extent / spacing
+    var samples_across = whole_samples + 1
+    var samples = List<Float>()
+    var row = 0
+    while row < samples_across {
+        var column = 0
+        while column < samples_across {
+            var height = hills(column, row)
+            samples.append(height)
+            column = column + 1
+        }
+        row = row + 1
     }
-    var grid = Navigation.Grid()
-    grid.use(walkability)
+    baking.add_heightfield(samples, samples_across, samples_across, spacing, 0.0, 0.0, 0.0)
+    var box = box_mesh()
+    var boxes = 0
+    while boxes < environment.boxes {
+        var placed = Transform.Component.Transform()
+        placed.position_x = random_unit() * extent
+        placed.position_z = random_unit() * extent
+        placed.position_y = -1.0
+        placed.scale_x = 2.0 + random_unit() * 30.0
+        placed.scale_z = 2.0 + random_unit() * 30.0
+        placed.scale_y = 30.0
+        baking.add_mesh(box, placed)
+        boxes = boxes + 1
+    }
+    var walkability = baking.finish()
+    var took = (clock.elapsed_nanoseconds() - started) / 1000000
+    var walkable = walkability.walkable_count()
+    var cells = size * size
+    console.print(
+        "bake",
+        size,
+        "x",
+        size,
+        "cells,",
+        baking.triangles,
+        "triangles:",
+        took,
+        "ms,",
+        walkable,
+        "of",
+        cells,
+        "walkable",
+    )
+    return walkability
+}
+
+func hills(column: Integer, row: Integer): Float {
+    var across: Float = column
+    var down: Float = row
+    var wave = (across * 0.05).sine() * (down * 0.07).cosine()
+    return wave * 4.0
+}
+
+func box_mesh(): Asset.Mesh {
+    var box = Asset.Mesh()
+    corner(box, -0.5, 0.0, -0.5)
+    corner(box, 0.5, 0.0, -0.5)
+    corner(box, 0.5, 0.0, 0.5)
+    corner(box, -0.5, 0.0, 0.5)
+    corner(box, -0.5, 1.0, -0.5)
+    corner(box, 0.5, 1.0, -0.5)
+    corner(box, 0.5, 1.0, 0.5)
+    corner(box, -0.5, 1.0, 0.5)
+    face(box, 4, 7, 6, 5)
+    face(box, 0, 1, 2, 3)
+    face(box, 0, 4, 5, 1)
+    face(box, 1, 5, 6, 2)
+    face(box, 2, 6, 7, 3)
+    face(box, 3, 7, 4, 0)
+    return box
+}
+
+func corner(box: Asset.Mesh, across: Float, rise: Float, down: Float) {
+    box.vertices.append(across)
+    box.vertices.append(rise)
+    box.vertices.append(down)
+    box.vertices.append(0.0)
+    box.vertices.append(1.0)
+    box.vertices.append(0.0)
+    box.vertices.append(0.0)
+    box.vertices.append(0.0)
+}
+
+func face(box: Asset.Mesh, first: Integer, second: Integer, third: Integer, fourth: Integer) {
+    box.indices.append(first)
+    box.indices.append(second)
+    box.indices.append(third)
+    box.indices.append(first)
+    box.indices.append(third)
+    box.indices.append(fourth)
+}
+
+func query_alone(grid: Navigation.Grid, reach: Integer, count: Integer) {
     var search = Navigation.Search()
     search.find(grid, 0, 1)
     var started = clock.elapsed_nanoseconds()
     var queries = 0
     var found = 0
-    var expanded = 0
-    while queries < 2000 {
-        var start = random_below(size * size)
-        var column = start % size
-        var row = start / size
-        var goal_column = (column + random_below(128) - 64).clamp(0, size - 1)
-        var goal_row = (row + random_below(128) - 64).clamp(0, size - 1)
-        if search.find(grid, start, goal_row * size + goal_column) {
+    var expanded: Long = 0
+    while queries < count {
+        var start = random_open(grid)
+        var goal = random_near(grid, start, reach)
+        if search.find(grid, start, goal) {
             found = found + 1
-            expanded = expanded + search.expanded
+            search.smooth(grid)
         }
+        expanded = expanded + search.expanded
         queries = queries + 1
     }
     var took = clock.elapsed_nanoseconds() - started
-    console.print("queries", queries, "found", found, "expanded", expanded, "microseconds", took / 1000)
+    var wide_queries: Long = queries
+    var per_second = wide_queries * 1000000000 / took
+    console.print(
+        "one thread, goals within",
+        reach,
+        "cells:",
+        queries,
+        "queries,",
+        found,
+        "found,",
+        per_second,
+        "queries per second,",
+        expanded / queries,
+        "cells expanded each",
+    )
+}
+
+func query_in_parallel(reach: Integer, count: Integer) {
+    var grid = map.grid
+    var workers = pool.size() + 1
+    var each = count / workers
+    var jobs = List<Parallel<Navigation.Found>>()
+    var started = clock.elapsed_nanoseconds()
+    var worker = 0
+    while worker < workers {
+        var job = Navigation.SearchJob()
+        var asked = 0
+        while asked < each {
+            var start = random_open(grid)
+            var goal = random_near(grid, start, reach)
+            var start_x = grid.center_x(start % grid.columns)
+            var start_z = grid.center_z(start / grid.columns)
+            var goal_x = grid.center_x(goal % grid.columns)
+            var goal_z = grid.center_z(goal / grid.columns)
+            job.ask(asked, start_x, start_z, goal_x, goal_z)
+            asked = asked + 1
+        }
+        var running = Parallel(job.run)
+        jobs.append(running)
+        worker = worker + 1
+    }
+    var found = 0
+    while jobs.count() > 0 {
+        var job = jobs.remove_last()
+        crash job
+        var result: Navigation.Found = job
+        found = found + answered_in(result)
+    }
+    var took = clock.elapsed_nanoseconds() - started
+    var queries = each * workers
+    var wide_queries: Long = queries
+    var per_second = wide_queries * 1000000000 / took
+    console.print(
+        workers,
+        "threads, goals within",
+        reach,
+        "cells:",
+        queries,
+        "queries,",
+        found,
+        "found,",
+        per_second,
+        "queries per second",
+    )
+}
+
+func answered_in(result: Navigation.Found): Integer {
+    var answered = 0
+    var index = 0
+    while index < result.counts.count() {
+        if result.counts[index] > 0 {
+            answered = answered + 1
+        }
+        index = index + 1
+    }
+    return answered
+}
+
+func query_through_systems(bots: Integer) {
+    var app = App()
+    app.frame_milliseconds = 50
+    var grid = map.grid
+    var made = 0
+    var first = -1
+    while made < bots {
+        var start = random_open(grid)
+        var goal = random_near(grid, start, 125)
+        var bot = world.create_entity()
+        if first < 0 {
+            first = bot.id
+        }
+        var placed = Transform.Component.Transform()
+        placed.position_x = grid.center_x(start % grid.columns)
+        placed.position_z = grid.center_z(start / grid.columns)
+        bot.add_component(placed)
+        var destination = Navigation.Component.Destination()
+        destination.position_x = grid.center_x(goal % grid.columns)
+        destination.position_z = grid.center_z(goal / grid.columns)
+        bot.add_component(destination)
+        made = made + 1
+    }
+    world.flush()
+    var headings = Lookup<Navigation.Component.Heading>()
+    var unreachables = Lookup<Navigation.Component.Unreachable>()
+    var started = clock.elapsed_nanoseconds()
+    var worst: Long = 0
+    var ticks = 0
+    var answered = 0
+    while answered < bots {
+        var tick_started = clock.elapsed_nanoseconds()
+        app.tick()
+        var tick = clock.elapsed_nanoseconds() - tick_started
+        worst = worst.maximum(tick)
+        ticks = ticks + 1
+        answered = count_answered(headings, unreachables, first, bots)
+    }
+    var took = (clock.elapsed_nanoseconds() - started) / 1000000
+    console.print(
+        bots,
+        "bots asking at once: all answered in",
+        took,
+        "ms over",
+        ticks,
+        "ticks, worst tick",
+        worst / 1000000,
+        "ms",
+    )
+}
+
+func count_answered(
+    headings: Lookup<Navigation.Component.Heading>,
+    unreachables: Lookup<Navigation.Component.Unreachable>,
+    first: Integer,
+    bots: Integer,
+): Integer {
+    var answered = 0
+    var bot = first
+    while bot < first + bots {
+        if headings.has(bot) or unreachables.has(bot) {
+            answered = answered + 1
+        }
+        bot = bot + 1
+    }
+    return answered
+}
+
+func random_open(grid: Navigation.Grid): Integer {
+    var cell = random_below(grid.columns * grid.rows)
+    while not grid.open_cell(cell) {
+        cell = random_below(grid.columns * grid.rows)
+    }
+    return cell
+}
+
+func random_near(grid: Navigation.Grid, start: Integer, reach: Integer): Integer {
+    var column = start % grid.columns
+    var row = start / grid.columns
+    var goal = -1
+    while goal < 0 {
+        var goal_column = column + random_below(reach * 2 + 1) - reach
+        var goal_row = row + random_below(reach * 2 + 1) - reach
+        if grid.open(goal_column, goal_row) {
+            goal = goal_row * grid.columns + goal_column
+        }
+    }
+    return goal
 }
 
 func random_below(limit: Integer): Integer {
@@ -42,4 +313,10 @@ func random_below(limit: Integer): Integer {
     var value: Long = seed % limit
     var whole: Integer = value
     return whole
+}
+
+func random_unit(): Float {
+    seed = (seed * 1103515245 + 12345) % 2147483648
+    var value: Float = seed
+    return value / 2147483648.0
 }

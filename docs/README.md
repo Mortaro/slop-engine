@@ -23,5 +23,7 @@ Read the pages in this order the first time; each page assumes the ones before i
    and spot lights.
 10. [networking.md](networking.md): environments as folders (client, server, bot), replicated components,
     observers and area of interest, the binary wire.
-11. [performance.md](performance.md): measuring, the profile, where the time goes, how the engine avoids stutters.
-12. [testing.md](testing.md): every example, what it proves, and how to write a test.
+11. [navigation.md](navigation.md): a walkability grid baked from triangles, A* paths, line of sight, and bots
+    that follow paths.
+12. [performance.md](performance.md): measuring, the profile, where the time goes, how the engine avoids stutters.
+13. [testing.md](testing.md): every example, what it proves, and how to write a test.
