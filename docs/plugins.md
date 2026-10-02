@@ -19,8 +19,8 @@ one is one `load` line.
 ## Platforms and devices
 
 A platform is a plugin. `slop_window_plugin` and `slop_input_plugin` are platform-neutral: window data, the mouse
-and keyboard state, and the `Input.Component.Event` entities a platform produces. `slop_windows_plugin` is Win32: its
-window thread owns the windows and turns their messages into event entities. Another OS, or a console, is another plugin
+and keyboard state, and the `Input.Component.Event` entities a platform produces. `slop_windows_plugin` is Win32: it creates
+the windows and turns their messages into event entities. Another OS, or a console, is another plugin
 producing the same events; a controller family (XInput, a console pad) is a plugin producing its own device
 components.
 
@@ -49,27 +49,27 @@ queue, and whatever the render plugins add).
 |---|---|
 | `Window.Component.Window` | `title`, `width` (640), `height` (400): plain data, any thread |
 | `Window.Component.Hidden` | marker: the window is created hidden (tests, benchmarks) |
-| `Window.Component.Handle` | `value`: the platform's native window handle, 0 until the platform has created it |
-| `Window.Component.Opening` | `slot`: the window's pending request to the platform |
-| `Window.Component.Requested` | marker: this window has not been opened yet |
-| `Window.Bundle.Window` | a `Window`, a `Handle`, a `Requested`, and the input plugin's `Mouse` and `Keyboard` |
+| `Window.Component.Handle` | `value`: the platform's native window handle, added by the platform once it has created the window; [pinned](ecs.md#components-pinned-to-a-thread) to the thread that created it |
+| `Window.Bundle.Window` | a `Window` and the input plugin's `Mouse` and `Keyboard` |
 
-"The window entity exists" is `Added<Window.Component.Window>`; "the window is open" (it has a handle) is
-`Removed<Window.Component.Opening>`, which is what the Vulkan renderer waits for.
+"The window entity exists" is `Added<Window.Component.Window>`; "the window is open" is
+`Added<Window.Component.Handle>`, which is what the Vulkan renderer waits for. A platform opens every window that has
+no `Handle` yet.
 
 ## slop_windows_plugin
 
-Win32. The windows belong to a dedicated window thread: `Windows.Owner` (a singleton the systems call briefly)
-starts `Windows.Pump`, a plain object holding only the shared raw memory, whose loop creates windows on request,
-pumps their messages continuously (even while a frame takes long) and records mouse and keyboard messages into a buffer in raw
-memory behind an SRW lock; no system is tied to a thread.
+Win32 delivers a window's messages only to the thread that created it, so `Window.Component.Handle` is pinned to
+its thread, and the systems below, which touch it, all run on the app's thread. `Windows.WindowClass` (a resource)
+registers the window class once and creates each window.
 
 | | |
 |---|---|
-| `Windows.System.OpenWindow` (`input`) | asks the window thread for every requested window, then swaps `Requested` for `Opening` |
-| `Windows.System.FinishOpening` (`after_input`) | takes the handle once the window exists and removes `Opening` |
-| `Windows.System.PumpMessages` (`input`) | translates the window thread's messages into event entities, children of their window, notices a closed window, removes its entity and adds `Component.Quit` to the world entity |
-| `Windows.System.StopWindows` (`last`) | stops the window thread once the world entity has `Component.Quit` |
+| `Windows.System.OpenWindow` (`input`) | creates every window without a `Handle` (hidden if it has `Hidden`) and adds its `Handle` |
+| `Windows.System.PumpMessages` (`input`) | takes every message waiting for the app's thread, translates mouse and keyboard messages into event entities, children of their window, and dispatches them; notices a closed window, removes its entity and adds `Component.Quit` to the world entity |
+| `Windows.System.TrackWindowSize` (`input`) | copies each window's client size into its `Window` |
+
+Messages are taken once a tick, so a window is as responsive as the frame rate, and dragging a window by its title
+bar holds the tick until the drag ends, as in any engine that pumps messages on its game thread.
 
 ## slop_xinput_plugin
 

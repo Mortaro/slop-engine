@@ -7,31 +7,31 @@ type OpenedWindow {
 var user = DynamicLibrary("user32.dll", 'identity', "")
 var heap = Memory.Heap()
 var raw = Raw()
-var owner = Windows.Owner()
 
 var world = World()
 var double_click = false
 
 func input_all(windows: List<OpenedWindow>) {
-    assert owner.shared != 0
-    var messages = owner.take_events()
-    var message = 0
-    while message * 4 + 3 < messages.count() {
-        deliver(windows, messages, message * 4)
-        message = message + 1
+    var message = heap.allocate(48)
+    var every_window: Long = 0
+    var remove_from_queue = 1
+    while user.PeekMessageA(message, every_window, 0, 0, remove_from_queue) != 0 {
+        deliver(windows, message)
+        user.TranslateMessage(message)
+        user.DispatchMessageA(message)
     }
+    heap.free(message)
     windows.each(notice_closed)
 }
 
-func deliver(windows: List<OpenedWindow>, messages: List<Long>, at: Integer) {
-    crash messages[at]
-    crash messages[at + 1]
-    crash messages[at + 2]
-    crash messages[at + 3]
-    var target = messages[at]
-    var kind: Integer = messages[at + 1]
-    var word = messages[at + 2]
-    var position = messages[at + 3]
+func deliver(windows: List<OpenedWindow>, message: Long) {
+    var kind = raw.read_integer(message, 8)
+    var mouse = kind >= 512 and kind <= 522
+    var keys = kind == 256 or kind == 257 or kind == 258
+    assert mouse or keys
+    var target = raw.read_long(message, 0)
+    var word = raw.read_long(message, 16)
+    var position = raw.read_long(message, 24)
     double_click = false
     var event = translate(kind, word, position)
     assert event

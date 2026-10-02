@@ -1,105 +1,24 @@
+singleton
+
 var raw = Raw()
 var heap = Memory.Heap()
-var shared: Long = 0
-var request_slots = 16
-var request_bytes = 64
-var event_capacity = 4096
-var event_bytes = 32
+var instance: Long = 0
+var class_name = "SlopEngineWindow"
 var kernel = DynamicLibrary("kernel32.dll", 'identity', "")
 var user = DynamicLibrary("user32.dll", 'identity', "")
 
-func Pump(shared_memory: Long) {
-    shared = shared_memory
-}
-
-func requests_at(): Long {
-    return shared + 32
-}
-
-func events_at(): Long {
-    var request_area = request_slots * request_bytes
-    return shared + 32 + request_area
-}
-
-func lock() {
-    kernel.AcquireSRWLockExclusive(shared)
-}
-
-func unlock() {
-    kernel.ReleaseSRWLockExclusive(shared)
-}
-
-func quitting(): Boolean {
-    lock()
-    var flag = raw.read_long(shared, 8) == 1
-    unlock()
-    return flag
-}
-
-func run() {
+func create(window: Window.Component.Window, hidden: Boolean): Long {
+    register()
     var no_handle: Long = 0
-    var instance = kernel.GetModuleHandleA_as_long(no_handle)
-    var class_name = "SlopEngineWindow"
-    register_class(instance, class_name)
-    var message = heap.allocate(48)
-    while not quitting() {
-        create_requested(instance, class_name)
-        while user.PeekMessageA(message, no_handle, 0, 0, 1) != 0 {
-            record(message)
-            user.TranslateMessage(message)
-            user.DispatchMessageA(message)
-        }
-        kernel.Sleep(1)
-    }
-    heap.free(message)
-}
-
-func create_requested(instance: Long, class_name: String) {
-    var slot = 0
-    while slot < request_slots {
-        create_slot(instance, class_name, slot)
-        slot = slot + 1
-    }
-}
-
-func create_slot(instance: Long, class_name: String, slot: Integer) {
-    lock()
-    var at = requests_at() + slot * request_bytes
-    var pending = raw.read_long(at, 0) == 1
-    var width: Integer = raw.read_long(at, 8)
-    var height: Integer = raw.read_long(at, 16)
-    var visible = raw.read_long(at, 24) == 1
-    var title_address = raw.read_long(at, 32)
-    var title_length = raw.read_long(at, 40)
-    unlock()
-    assert pending
-    var title = raw.text(title_address, title_length)
-    heap.free(title_address)
-    var handle = create_window(instance, class_name, title, width, height, visible)
-    lock()
-    raw.write_long(at, 48, handle)
-    raw.write_long(at, 0, 2)
-    unlock()
-}
-
-func create_window(
-    instance: Long,
-    class_name: String,
-    title: String,
-    width: Integer,
-    height: Integer,
-    visible: Boolean,
-): Long {
-    var no_handle: Long = 0
-    var style = window_style(visible)
-    var outer = outer_size(width, height, style)
+    var style = window_style(not hidden)
+    var outer = outer_size(window.width, window.height, style)
     var outer_width = raw.read_integer(outer, 8) - raw.read_integer(outer, 0)
     var outer_height = raw.read_integer(outer, 12) - raw.read_integer(outer, 4)
     heap.free(outer)
     var handle = user.CreateWindowExA_as_long(
         0,
         class_name,
-        title,
+        window.title,
         style,
         200,
         150,
@@ -112,28 +31,6 @@ func create_window(
     )
     crash handle != 0
     return handle
-}
-
-func record(message: Long) {
-    var kind = raw.read_integer(message, 8)
-    var mouse = kind >= 512 and kind <= 522
-    var keys = kind == 256 or kind == 257 or kind == 258
-    assert mouse or keys
-    lock()
-    var count = raw.read_long(shared, 16)
-    if count < event_capacity {
-        var at = events_at() + count * event_bytes
-        var window = raw.read_long(message, 0)
-        var wide_kind: Long = kind
-        var word = raw.read_long(message, 16)
-        var position = raw.read_long(message, 24)
-        raw.write_long(at, 0, window)
-        raw.write_long(at, 8, wide_kind)
-        raw.write_long(at, 16, word)
-        raw.write_long(at, 24, position)
-        raw.write_long(shared, 16, count + 1)
-    }
-    unlock()
 }
 
 func window_style(visible: Boolean): Integer {
@@ -158,8 +55,10 @@ func outer_size(width: Integer, height: Integer, style: Integer): Long {
     return rectangle
 }
 
-func register_class(instance: Long, class_name: String) {
+func register() {
+    assert instance == 0
     var no_handle: Long = 0
+    instance = kernel.GetModuleHandleA_as_long(no_handle)
     var user_module = kernel.GetModuleHandleA_as_long("user32.dll")
     var default_procedure = kernel.GetProcAddress_as_long(user_module, "DefWindowProcA")
     var name_bytes = heap.allocate(64)

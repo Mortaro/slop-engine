@@ -1,1 +1,5 @@
 var value: Long = 0
+
+func pinned_to_creating_thread(): Boolean {
+    return true
+}

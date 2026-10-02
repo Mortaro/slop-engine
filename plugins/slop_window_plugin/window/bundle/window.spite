@@ -1,5 +1,3 @@
 var window = Component.Window()
-var requested = Component.Requested()
-var handle = Component.Handle()
 var mouse = Input.Component.Mouse()
 var keyboard = Input.Component.Keyboard()

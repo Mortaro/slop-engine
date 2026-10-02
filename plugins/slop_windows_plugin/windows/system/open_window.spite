@@ -1,15 +1,15 @@
 type PendingWindow {
     entity: Entity
     window: Window.Component.Window
-    requested: Window.Component.Requested
+    unopened: Without<Window.Component.Handle>
 }
 
-var owner = Windows.Owner()
+var window_class = Windows.WindowClass()
+var hiddens = Lookup<Window.Component.Hidden>()
 
 func input_each(pending: PendingWindow) {
-    var opening = Window.Component.Opening()
-    var hidden = Lookup<Window.Component.Hidden>().has(pending.entity.id)
-    opening.slot = owner.request(pending.window, hidden)
-    pending.entity.add_component(opening)
-    pending.entity.remove_component(Window.Component.Requested)
+    var hidden = hiddens.has(pending.entity.id)
+    var handle = Window.Component.Handle()
+    handle.value = window_class.create(pending.window, hidden)
+    pending.entity.add_component(handle)
 }
