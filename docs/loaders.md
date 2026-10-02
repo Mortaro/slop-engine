@@ -59,14 +59,22 @@ address, 64-bit length and count).
 - `Blend.View` reads any field by name (`integer`, `short_integer`, `small_integer`, `float_at`, `pointer`, `text`),
   descends into an embedded struct (`inner`), follows a pointer (`follow`) and steps through arrays (`element`).
 
-What it has found in Blender 5.2: a mesh's data is in `AttributeStorage`, as named attributes: `position` (float3
-per vertex), `.corner_vert` and `.corner_edge` (int per corner), `UVMap` (float2 per corner), `sharp_face`,
-`sharp_edge`, and `custom_normal` (int16 pairs per corner, Blender's encoded custom normals); face offsets are in
-`poly_offset_indices`.
+What it has found in Blender 5.2: a mesh's data is in `AttributeStorage`, as named attributes, each with its type
+(`data_type`: 0 boolean, 2 int16 pair, 3 int, 4 int pair, 7 float3) and domain (`domain`: 0 point, 1 edge, 2 face,
+3 corner): `position` (float3 per vertex), `.edge_verts` (int pair per edge), `.corner_vert` and `.corner_edge` (int
+per corner), `UVMap` (float2 per corner), `sharp_face`, `sharp_edge`, and `custom_normal`, either int16 pairs per
+corner (Blender's encoded custom normals, which `normals_split_custom_set` and the Weighted Normal modifier write)
+or float3 "free" normals on the point, face or corner domain; face offsets are in `poly_offset_indices`.
 
 Meshes, skeletons, skins, animations and packed PNG textures are read by the readers in [scene.md](scene.md).
-Faces are split as fans, one UV set is read, custom split normals and vertex colours are ignored, and an image that
-references an external file is reported by its path for the recipe to cook.
+Faces are triangulated and corner normals worked out the way Blender does it (see [scene.md](scene.md)). One UV
+set is read and vertex colours are ignored, and an image that references an external file is reported by its path
+for the recipe to cook.
+
+Checked: `blend_mesh_check` reads thirteen meshes `make_fixtures.py` builds in Blender 5.2 (concave L, U, star,
+comb and spiral n-gons, collinear points, a folded quad, smooth and sharp-edged spheres, encoded, weighted and free
+custom normals, a rotated and unevenly scaled object) and compares every triangle corner's position and normal
+with the loop triangles and corner normals Blender itself reports.
 
 ---
 

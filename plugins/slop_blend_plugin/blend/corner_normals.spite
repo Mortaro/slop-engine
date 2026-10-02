@@ -1,0 +1,821 @@
+var file = Blend.File()
+var positions = 0
+var corner_vertices = 0
+var corner_edges = 0
+var face_offsets = 0
+var sharp_faces = -1
+var sharp_face_constant = false
+var sharp_edges = -1
+var sharp_edge_constant = false
+var custom = -1
+var custom_kind = 0
+var custom_domain = 0
+var vertex_count = 0
+var edge_count = 0
+var face_count = 0
+var normals = List<Float>()
+var face_normals = List<Float>()
+var corner_faces = List<Integer>()
+var vertex_face_starts = List<Integer>()
+var vertex_faces = List<Integer>()
+var around_faces = List<Integer>()
+var around_corners = List<Integer>()
+var around_previous = List<Integer>()
+var around_next = List<Integer>()
+var around_previous_edges = List<Integer>()
+var around_next_edges = List<Integer>()
+var visited = List<Boolean>()
+var edge_ends = List<Integer>()
+var edge_states = List<Integer>()
+var edge_first_corners = List<Integer>()
+var edge_second_corners = List<Integer>()
+var edge_towards = List<Boolean>()
+var edge_directions = List<Float>()
+var fan = List<Integer>()
+var fan_directions = List<Float>()
+var encoded_kind = 2
+var point_domain = 0
+var face_domain = 2
+var corner_domain = 3
+var edge_unseen = 0
+var edge_one_corner = 1
+var edge_two_corners = 2
+var edge_sharp = 3
+var threshold: Float = 0.9999
+var tau: Float = Float.pi * 2.0
+var normal = Math.Vector3()
+var reference = Math.Vector3()
+var other = Math.Vector3()
+var ortho = Math.Vector3()
+var result = Math.Vector3()
+
+func compute() {
+    compute_face_normals()
+    map_vertex_faces()
+    var domain = normal_domain()
+    if domain == point_domain {
+        compute_vertex_normals()
+        return
+    }
+    if domain == face_domain {
+        copy_face_normals()
+        return
+    }
+    if custom >= 0 and custom_kind != encoded_kind {
+        read_custom(corner_domain)
+        return
+    }
+    compute_fan_normals()
+}
+
+func normal_domain(): Integer {
+    if custom >= 0 {
+        return custom_domain
+    }
+    var faces_all_sharp = true
+    var faces_any_sharp = false
+    var face = 0
+    while face < face_count {
+        var sharp = is_sharp_face(face)
+        faces_all_sharp = faces_all_sharp and sharp
+        faces_any_sharp = faces_any_sharp or sharp
+        face = face + 1
+    }
+    var edges_all_sharp = true
+    var edges_any_sharp = false
+    var edge = 0
+    while edge < edge_count {
+        var sharp = is_sharp_edge(edge)
+        edges_all_sharp = edges_all_sharp and sharp
+        edges_any_sharp = edges_any_sharp or sharp
+        edge = edge + 1
+    }
+    if faces_all_sharp or edges_all_sharp {
+        return face_domain
+    }
+    if not faces_any_sharp and not edges_any_sharp {
+        return point_domain
+    }
+    return corner_domain
+}
+
+func face_start(face: Integer): Integer {
+    return file.integer_at(face_offsets + face * 4)
+}
+
+func corner_vertex(corner: Integer): Integer {
+    return file.integer_at(corner_vertices + corner * 4)
+}
+
+func corner_edge(corner: Integer): Integer {
+    return file.integer_at(corner_edges + corner * 4)
+}
+
+func position(vertex: Integer, axis: Integer): Float {
+    return file.float_at(positions + vertex * 12 + axis * 4)
+}
+
+func face_normal(face: Integer, axis: Integer): Float {
+    crash face_normals[face * 3 + axis]
+    return face_normals[face * 3 + axis]
+}
+
+func is_sharp_face(face: Integer): Boolean {
+    if sharp_faces >= 0 {
+        return file.bytes.byte_at(sharp_faces + face) != 0
+    }
+    return sharp_face_constant
+}
+
+func is_sharp_edge(edge: Integer): Boolean {
+    if sharp_edges >= 0 {
+        return file.bytes.byte_at(sharp_edges + edge) != 0
+    }
+    return sharp_edge_constant
+}
+
+func compute_face_normals() {
+    var face = 0
+    while face < face_count {
+        var first = face_start(face)
+        var last = face_start(face + 1)
+        var corner = first
+        while corner < last {
+            corner_faces.append(face)
+            corner = corner + 1
+        }
+        newell(first, last)
+        var length = normalize_scaled(normal)
+        if length == 0.0 {
+            normal.z_value = 1.0
+        }
+        face_normals.append(normal.x_value)
+        face_normals.append(normal.y_value)
+        face_normals.append(normal.z_value)
+        face = face + 1
+    }
+}
+
+func newell(first: Integer, last: Integer) {
+    normal.x_value = 0.0
+    normal.y_value = 0.0
+    normal.z_value = 0.0
+    var before = corner_vertex(last - 1)
+    var corner = first
+    while corner < last {
+        var here = corner_vertex(corner)
+        var before_x = position(before, 0)
+        var before_y = position(before, 1)
+        var before_z = position(before, 2)
+        var here_x = position(here, 0)
+        var here_y = position(here, 1)
+        var here_z = position(here, 2)
+        normal.x_value = normal.x_value + (before_y - here_y) * (before_z + here_z)
+        normal.y_value = normal.y_value + (before_z - here_z) * (before_x + here_x)
+        normal.z_value = normal.z_value + (before_x - here_x) * (before_y + here_y)
+        before = here
+        corner = corner + 1
+    }
+}
+
+func map_vertex_faces() {
+    var counts = List<Integer>()
+    var vertex = 0
+    while vertex <= vertex_count {
+        counts.append(0)
+        vertex_face_starts.append(0)
+        vertex = vertex + 1
+    }
+    var corner = 0
+    while corner < corner_faces.count() {
+        var corner_vertex_index = corner_vertex(corner)
+        crash counts[corner_vertex_index]
+        counts[corner_vertex_index] = counts[corner_vertex_index] + 1
+        vertex_faces.append(0)
+        corner = corner + 1
+    }
+    var total = 0
+    vertex = 0
+    while vertex < vertex_count {
+        vertex_face_starts[vertex] = total
+        crash counts[vertex]
+        total = total + counts[vertex]
+        counts[vertex] = total - counts[vertex]
+        vertex = vertex + 1
+    }
+    vertex_face_starts[vertex_count] = total
+    corner = 0
+    while corner < corner_faces.count() {
+        var corner_vertex_index = corner_vertex(corner)
+        crash counts[corner_vertex_index]
+        var slot = counts[corner_vertex_index]
+        vertex_faces[slot] = corner_faces[corner]
+        counts[corner_vertex_index] = slot + 1
+        corner = corner + 1
+    }
+}
+
+func cross(target: Math.Vector3, left: Math.Vector3, right: Math.Vector3) {
+    var cross_x = left.y_value * right.z_value - left.z_value * right.y_value
+    var cross_y = left.z_value * right.x_value - left.x_value * right.z_value
+    var cross_z = left.x_value * right.y_value - left.y_value * right.x_value
+    target.x_value = cross_x
+    target.y_value = cross_y
+    target.z_value = cross_z
+}
+
+func dot(left: Math.Vector3, right: Math.Vector3): Float {
+    return left.x_value * right.x_value + left.y_value * right.y_value + left.z_value * right.z_value
+}
+
+func normalize_scaled(target: Math.Vector3): Float {
+    var squared = dot(target, target)
+    if squared > 0.0 {
+        var length = squared.square_root()
+        var inverse = 1.0 / length
+        target.x_value = target.x_value * inverse
+        target.y_value = target.y_value * inverse
+        target.z_value = target.z_value * inverse
+        return length
+    }
+    target.x_value = 0.0
+    target.y_value = 0.0
+    target.z_value = 0.0
+    return 0.0
+}
+
+func normalize(target: Math.Vector3): Float {
+    var squared = dot(target, target)
+    if squared > 0.0 {
+        var length = squared.square_root()
+        target.x_value = target.x_value / length
+        target.y_value = target.y_value / length
+        target.z_value = target.z_value / length
+        return length
+    }
+    target.x_value = 0.0
+    target.y_value = 0.0
+    target.z_value = 0.0
+    return 0.0
+}
+
+func arc_cosine(cosine: Float): Float {
+    var size = cosine.absolute()
+    var clamped: Float = 1.0
+    if size < 1.0 {
+        clamped = 1.0 - (1.0 - size)
+    }
+    var root = (1.0 - clamped).square_root()
+    var series = 0.077980478 + clamped * -0.02164095
+    series = -0.213300989 + clamped * series
+    series = 1.5707963267 + clamped * series
+    var angle = root * series
+    if cosine < 0.0 {
+        return Float.pi - angle
+    }
+    return angle
+}
+
+func append_normal(value: Math.Vector3) {
+    normals.append(value.x_value)
+    normals.append(value.y_value)
+    normals.append(value.z_value)
+}
+
+func copy_face_normals() {
+    if custom >= 0 {
+        read_custom(face_domain)
+        return
+    }
+    var corner = 0
+    while corner < corner_faces.count() {
+        var face = corner_faces[corner]
+        result.x_value = face_normal(face, 0)
+        result.y_value = face_normal(face, 1)
+        result.z_value = face_normal(face, 2)
+        append_normal(result)
+        corner = corner + 1
+    }
+}
+
+func read_custom(domain: Integer) {
+    var corner = 0
+    while corner < corner_faces.count() {
+        var element = corner
+        if domain == point_domain {
+            element = corner_vertex(corner)
+        } else if domain == face_domain {
+            element = corner_faces[corner]
+        }
+        result.x_value = file.float_at(custom + element * 12)
+        result.y_value = file.float_at(custom + element * 12 + 4)
+        result.z_value = file.float_at(custom + element * 12 + 8)
+        normalize(result)
+        append_normal(result)
+        corner = corner + 1
+    }
+}
+
+func compute_vertex_normals() {
+    if custom >= 0 {
+        read_custom(point_domain)
+        return
+    }
+    var sums = List<Float>()
+    var vertex = 0
+    while vertex < vertex_count {
+        vertex_normal(vertex)
+        sums.append(normal.x_value)
+        sums.append(normal.y_value)
+        sums.append(normal.z_value)
+        vertex = vertex + 1
+    }
+    var corner = 0
+    while corner < corner_faces.count() {
+        var corner_vertex_index = corner_vertex(corner)
+        crash sums[corner_vertex_index * 3]
+        crash sums[corner_vertex_index * 3 + 1]
+        crash sums[corner_vertex_index * 3 + 2]
+        result.x_value = sums[corner_vertex_index * 3]
+        result.y_value = sums[corner_vertex_index * 3 + 1]
+        result.z_value = sums[corner_vertex_index * 3 + 2]
+        append_normal(result)
+        corner = corner + 1
+    }
+}
+
+func vertex_normal(vertex: Integer) {
+    collect_corners(vertex)
+    normal.x_value = 0.0
+    normal.y_value = 0.0
+    normal.z_value = 0.0
+    var index = 0
+    while index < around_faces.count() {
+        var face = around_faces[index]
+        crash around_previous[index]
+        crash around_next[index]
+        var before = corner_vertex(around_previous[index])
+        var after = corner_vertex(around_next[index])
+        direction_to(reference, vertex, before)
+        direction_to(other, vertex, after)
+        var cosine = dot(reference, other)
+        var weight = arc_cosine(cosine)
+        normal.x_value = normal.x_value + face_normal(face, 0) * weight
+        normal.y_value = normal.y_value + face_normal(face, 1) * weight
+        normal.z_value = normal.z_value + face_normal(face, 2) * weight
+        index = index + 1
+    }
+    normalize(normal)
+}
+
+func direction_to(target: Math.Vector3, from: Integer, to: Integer) {
+    target.x_value = position(to, 0) - position(from, 0)
+    target.y_value = position(to, 1) - position(from, 1)
+    target.z_value = position(to, 2) - position(from, 2)
+    normalize(target)
+}
+
+func collect_corners(vertex: Integer) {
+    around_faces.clear()
+    around_corners.clear()
+    around_previous.clear()
+    around_next.clear()
+    crash vertex_face_starts[vertex]
+    crash vertex_face_starts[vertex + 1]
+    var slot = vertex_face_starts[vertex]
+    var end = vertex_face_starts[vertex + 1]
+    while slot < end {
+        crash vertex_faces[slot]
+        var face = vertex_faces[slot]
+        var first = face_start(face)
+        var last = face_start(face + 1)
+        var corner = first
+        while corner < last and corner_vertex(corner) != vertex {
+            corner = corner + 1
+        }
+        var before = corner - 1
+        if corner == first {
+            before = last - 1
+        }
+        var after = corner + 1
+        if after == last {
+            after = first
+        }
+        around_faces.append(face)
+        around_corners.append(corner)
+        around_previous.append(before)
+        around_next.append(after)
+        slot = slot + 1
+    }
+}
+
+func compute_fan_normals() {
+    var corner = 0
+    while corner < corner_faces.count() * 3 {
+        normals.append(0.0)
+        corner = corner + 1
+    }
+    var vertex = 0
+    while vertex < vertex_count {
+        collect_corners(vertex)
+        if around_faces.count() > 0 {
+            vertex_fans(vertex)
+        }
+        vertex = vertex + 1
+    }
+}
+
+func vertex_fans(vertex: Integer) {
+    map_local_edges(vertex)
+    connect_local_edges()
+    visited.clear()
+    var index = 0
+    while index < around_faces.count() {
+        visited.append(false)
+        index = index + 1
+    }
+    var done = 0
+    var start = 0
+    while done < around_faces.count() {
+        traverse_fan(start)
+        fan_normal()
+        if custom >= 0 {
+            decode_fan()
+        }
+        index = 0
+        while index < fan.count() {
+            var local = fan[index]
+            crash around_corners[local]
+            set_corner(around_corners[local], result)
+            visited[local] = true
+            index = index + 1
+        }
+        done = done + fan.count()
+        while start < visited.count() and is_visited(start) {
+            start = start + 1
+        }
+    }
+}
+
+func is_visited(local: Integer): Boolean {
+    crash local < visited.count()
+    return visited[local]
+}
+
+func set_corner(corner: Integer, value: Math.Vector3) {
+    normals[corner * 3] = value.x_value
+    normals[corner * 3 + 1] = value.y_value
+    normals[corner * 3 + 2] = value.z_value
+}
+
+func map_local_edges(vertex: Integer) {
+    edge_ends.clear()
+    around_previous_edges.clear()
+    around_next_edges.clear()
+    var index = 0
+    while index < around_faces.count() {
+        crash around_previous[index]
+        crash around_next[index]
+        var before = corner_vertex(around_previous[index])
+        var after = corner_vertex(around_next[index])
+        var before_edge = local_edge(before)
+        var after_edge = local_edge(after)
+        around_previous_edges.append(before_edge)
+        around_next_edges.append(after_edge)
+        index = index + 1
+    }
+    edge_states.clear()
+    edge_first_corners.clear()
+    edge_second_corners.clear()
+    edge_towards.clear()
+    edge_directions.clear()
+    index = 0
+    while index < edge_ends.count() {
+        edge_states.append(edge_unseen)
+        edge_first_corners.append(0)
+        edge_second_corners.append(0)
+        edge_towards.append(false)
+        direction_to(reference, vertex, edge_ends[index])
+        edge_directions.append(reference.x_value)
+        edge_directions.append(reference.y_value)
+        edge_directions.append(reference.z_value)
+        index = index + 1
+    }
+}
+
+func local_edge(end: Integer): Integer {
+    var index = 0
+    while index < edge_ends.count() {
+        if edge_ends[index] == end {
+            return index
+        }
+        index = index + 1
+    }
+    edge_ends.append(end)
+    return edge_ends.count() - 1
+}
+
+func connect_local_edges() {
+    var local = 0
+    while local < around_faces.count() {
+        var face = around_faces[local]
+        crash around_previous_edges[local]
+        crash around_next_edges[local]
+        var before_edge = around_previous_edges[local]
+        var after_edge = around_next_edges[local]
+        if is_sharp_face(face) {
+            edge_states[before_edge] = edge_sharp
+            edge_states[after_edge] = edge_sharp
+        } else {
+            crash around_corners[local]
+            crash around_previous[local]
+            var edge_toward = corner_edge(around_previous[local])
+            var edge_away = corner_edge(around_corners[local])
+            add_corner(before_edge, local, edge_toward, true)
+            add_corner(after_edge, local, edge_away, false)
+        }
+        local = local + 1
+    }
+}
+
+func add_corner(edge: Integer, local: Integer, mesh_edge: Integer, toward: Boolean) {
+    crash edge_states[edge]
+    var state = edge_states[edge]
+    if state == edge_unseen {
+        if is_sharp_edge(mesh_edge) {
+            edge_states[edge] = edge_sharp
+            return
+        }
+        edge_states[edge] = edge_one_corner
+        edge_first_corners[edge] = local
+        edge_towards[edge] = toward
+        return
+    }
+    if state == edge_one_corner {
+        crash edge < edge_towards.count()
+        if edge_towards[edge] == toward {
+            edge_states[edge] = edge_sharp
+            return
+        }
+        edge_states[edge] = edge_two_corners
+        edge_second_corners[edge] = local
+        return
+    }
+    edge_states[edge] = edge_sharp
+}
+
+func is_two_corners(edge: Integer): Boolean {
+    crash edge_states[edge]
+    return edge_states[edge] == edge_two_corners
+}
+
+func across_edge(edge: Integer, local: Integer): Integer {
+    crash edge_first_corners[edge]
+    crash edge_second_corners[edge]
+    if edge_first_corners[edge] == local {
+        return edge_second_corners[edge]
+    }
+    return edge_first_corners[edge]
+}
+
+func next_edge(local: Integer): Integer {
+    crash around_next_edges[local]
+    return around_next_edges[local]
+}
+
+func previous_edge(local: Integer): Integer {
+    crash around_previous_edges[local]
+    return around_previous_edges[local]
+}
+
+func traverse_fan(start: Integer) {
+    fan.clear()
+    fan.append(start)
+    var current = start
+    var edge = next_edge(start)
+    var cyclic = false
+    while not cyclic and is_two_corners(edge) {
+        current = across_edge(edge, current)
+        if current == start {
+            cyclic = true
+        } else {
+            fan.append(current)
+            edge = next_edge(current)
+        }
+    }
+    fan.reverse()
+    if cyclic {
+        rotate_to_lowest_corner()
+        return
+    }
+    current = start
+    edge = previous_edge(start)
+    while is_two_corners(edge) {
+        current = across_edge(edge, current)
+        fan.append(current)
+        edge = previous_edge(current)
+    }
+}
+
+func rotate_to_lowest_corner() {
+    var lowest = 0
+    var lowest_corner = Integer.largest
+    var index = 0
+    while index < fan.count() {
+        var local = fan[index]
+        crash around_corners[local]
+        if around_corners[local] < lowest_corner {
+            lowest = index
+            lowest_corner = around_corners[local]
+        }
+        index = index + 1
+    }
+    var rotated = List<Integer>()
+    index = 0
+    while index < fan.count() {
+        var source = (lowest + index) % fan.count()
+        crash fan[source]
+        rotated.append(fan[source])
+        index = index + 1
+    }
+    fan.clear()
+    index = 0
+    while index < rotated.count() {
+        fan.append(rotated[index])
+        index = index + 1
+    }
+}
+
+func edge_direction(target: Math.Vector3, edge: Integer) {
+    crash edge_directions[edge * 3]
+    crash edge_directions[edge * 3 + 1]
+    crash edge_directions[edge * 3 + 2]
+    target.x_value = edge_directions[edge * 3]
+    target.y_value = edge_directions[edge * 3 + 1]
+    target.z_value = edge_directions[edge * 3 + 2]
+}
+
+func fan_normal() {
+    var first = fan.first()
+    crash first
+    crash around_faces[first]
+    var first_face = around_faces[first]
+    normal.x_value = face_normal(first_face, 0)
+    normal.y_value = face_normal(first_face, 1)
+    normal.z_value = face_normal(first_face, 2)
+    if fan.count() > 1 {
+        normal.x_value = 0.0
+        normal.y_value = 0.0
+        normal.z_value = 0.0
+        var index = 0
+        while index < fan.count() {
+            var local = fan[index]
+            crash around_faces[local]
+            var face = around_faces[local]
+            var before_edge = previous_edge(local)
+            var after_edge = next_edge(local)
+            edge_direction(reference, before_edge)
+            edge_direction(other, after_edge)
+            var cosine = dot(reference, other)
+            var weight = arc_cosine(cosine)
+            normal.x_value = normal.x_value + face_normal(face, 0) * weight
+            normal.y_value = normal.y_value + face_normal(face, 1) * weight
+            normal.z_value = normal.z_value + face_normal(face, 2) * weight
+            index = index + 1
+        }
+        normalize(normal)
+    }
+    result.x_value = normal.x_value
+    result.y_value = normal.y_value
+    result.z_value = normal.z_value
+}
+
+func decode_fan() {
+    var first = fan.first()
+    var last = fan.last()
+    crash first
+    crash last
+    var first_edge = next_edge(first)
+    var last_edge = previous_edge(last)
+    fan_directions.clear()
+    if fan.count() > 1 {
+        var index = 0
+        while index < fan.count() {
+            var local = fan[index]
+            var after_edge = next_edge(local)
+            edge_direction(reference, after_edge)
+            append_direction(reference)
+            index = index + 1
+        }
+        if last_edge != first_edge {
+            edge_direction(reference, last_edge)
+            append_direction(reference)
+        }
+    }
+    edge_direction(reference, first_edge)
+    edge_direction(other, last_edge)
+    var alpha_sum = 0
+    var beta_sum = 0
+    var index = 0
+    while index < fan.count() {
+        var local = fan[index]
+        crash around_corners[local]
+        var corner = around_corners[local]
+        alpha_sum = alpha_sum + signed_short(custom + corner * 4)
+        beta_sum = beta_sum + signed_short(custom + corner * 4 + 2)
+        index = index + 1
+    }
+    var alpha_code = alpha_sum / fan.count()
+    var beta_code = beta_sum / fan.count()
+    decode_custom(alpha_code, beta_code)
+}
+
+func append_direction(vector: Math.Vector3) {
+    fan_directions.append(vector.x_value)
+    fan_directions.append(vector.y_value)
+    fan_directions.append(vector.z_value)
+}
+
+func signed_short(offset: Integer): Integer {
+    var value = file.short_at(offset)
+    if value >= 32768 {
+        value = value - 65536
+    }
+    return value
+}
+
+func decode_custom(alpha_code: Integer, beta_code: Integer) {
+    var reference_cosine = dot(reference, normal)
+    var other_cosine = dot(other, normal)
+    var reference_far = reference_cosine.absolute() >= threshold
+    var other_far = other_cosine.absolute() >= threshold
+    assert not reference_far and not other_far
+    var reference_alpha = mean_alpha(reference_cosine, other_cosine)
+    project(reference, reference_cosine)
+    cross(ortho, normal, reference)
+    normalize(ortho)
+    project(other, other_cosine)
+    var reference_beta = tau
+    var beta_cosine = dot(reference, other)
+    if beta_cosine < threshold {
+        reference_beta = arc_cosine(beta_cosine)
+        if dot(ortho, other) < 0.0 {
+            reference_beta = tau - reference_beta
+        }
+    }
+    assert alpha_code != 0 and reference_alpha != 0.0 and reference_beta != 0.0
+    var alpha_factor: Float = alpha_code
+    alpha_factor = alpha_factor / 32767.0
+    var beta_factor: Float = beta_code
+    beta_factor = beta_factor / 32767.0
+    var alpha = tau - reference_alpha
+    if alpha_factor > 0.0 {
+        alpha = reference_alpha
+    }
+    alpha = alpha * alpha_factor
+    var alpha_cosine = alpha.cosine()
+    var alpha_sine = alpha.sine()
+    result.x_value = normal.x_value * alpha_cosine
+    result.y_value = normal.y_value * alpha_cosine
+    result.z_value = normal.z_value * alpha_cosine
+    var along_reference = alpha_sine
+    var along_ortho: Float = 0.0
+    if beta_factor != 0.0 {
+        var beta = tau - reference_beta
+        if beta_factor > 0.0 {
+            beta = reference_beta
+        }
+        beta = beta * beta_factor
+        along_reference = alpha_sine * beta.cosine()
+        along_ortho = alpha_sine * beta.sine()
+    }
+    result.x_value = result.x_value + reference.x_value * along_reference + ortho.x_value * along_ortho
+    result.y_value = result.y_value + reference.y_value * along_reference + ortho.y_value * along_ortho
+    result.z_value = result.z_value + reference.z_value * along_reference + ortho.z_value * along_ortho
+}
+
+func mean_alpha(reference_cosine: Float, other_cosine: Float): Float {
+    var count = fan_directions.count() / 3
+    if count == 0 {
+        var reference_angle = arc_cosine(reference_cosine)
+        var other_angle = arc_cosine(other_cosine)
+        return (reference_angle + other_angle) / 2.0
+    }
+    var total: Float = 0.0
+    var index = 0
+    while index + 2 < fan_directions.count() {
+        var cosine = fan_directions[index] * normal.x_value + fan_directions[index + 1] * normal.y_value
+        cosine = cosine + fan_directions[index + 2] * normal.z_value
+        total = total + arc_cosine(cosine)
+        index = index + 3
+    }
+    var divisor: Float = count
+    return total / divisor
+}
+
+func project(target: Math.Vector3, along: Float) {
+    target.x_value = target.x_value - normal.x_value * along
+    target.y_value = target.y_value - normal.y_value * along
+    target.z_value = target.z_value - normal.z_value * along
+    normalize(target)
+}

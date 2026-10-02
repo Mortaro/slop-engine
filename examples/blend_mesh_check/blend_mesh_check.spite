@@ -1,0 +1,104 @@
+var console = Console()
+var build = Build()
+var environment = Environment()
+var passed = true
+var position_tolerance: Float = 0.0001
+var normal_tolerance: Float = 0.001
+
+func BlendMeshCheck() {
+    load "../../slop"
+    load "../../plugins/slop_blend_plugin"
+    var blend_path = environment.blend
+    var reference_path = environment.reference
+    if blend_path.is_empty() {
+        blend_path = "{build.program}/fixtures/meshes.blend"
+        reference_path = "{build.program}/fixtures/reference.json"
+    }
+    var text = File(reference_path).read()
+    crash text
+    var reader = JsonReader<Reference>(text)
+    var reference = reader.read()
+    crash reference
+    var file = Blend.File()
+    file.open(blend_path)
+    var index = 0
+    while index < reference.meshes.count() {
+        check_mesh(file, reference.meshes[index])
+        index = index + 1
+    }
+    console.print("passed", passed)
+}
+
+func check_mesh(file: Blend.File, expected: ReferenceMesh) {
+    var object = object_named(file, expected.name)
+    var mesh_reader = Blend.MeshReader()
+    var bones = List<String>()
+    var mesh = mesh_reader.read(file, object, bones)
+    var triangles = mesh.indices.count() / 3
+    var expected_triangles = expected.corners.count() / 9
+    var same_count = triangles == expected_triangles
+    var position_error: Float = 0.0
+    var normal_error: Float = 0.0
+    var corner = 0
+    while same_count and corner < mesh.indices.count() {
+        var vertex = mesh.indices[corner]
+        var position = largest_difference(mesh.vertices, vertex * 8, expected.corners, corner * 3)
+        var normal = largest_difference(mesh.vertices, vertex * 8 + 3, expected.normals, corner * 3)
+        position_error = position_error.maximum(position)
+        normal_error = normal_error.maximum(normal)
+        if normal > normal_tolerance {
+            console.print("  corner", corner, "vertex", vertex, "error", normal)
+        }
+        corner = corner + 1
+    }
+    var matched = same_count and position_error < position_tolerance and normal_error < normal_tolerance
+    passed = passed and matched
+    console.print(
+        expected.name,
+        expected.domain,
+        "triangles",
+        triangles,
+        "of",
+        expected_triangles,
+        "position error",
+        position_error,
+        "normal error",
+        normal_error,
+        "matched",
+        matched,
+    )
+}
+
+func largest_difference(values: List<Float>, start: Integer, blender: List<Float>, blender_start: Integer): Float {
+    crash values[start]
+    crash values[start + 1]
+    crash values[start + 2]
+    crash blender[blender_start]
+    crash blender[blender_start + 1]
+    crash blender[blender_start + 2]
+    var across = values[start] - blender[blender_start]
+    var upward = values[start + 1] - blender[blender_start + 2]
+    var forward = values[start + 2] + blender[blender_start + 1]
+    var largest = across.absolute()
+    var upward_size = upward.absolute()
+    var forward_size = forward.absolute()
+    largest = largest.maximum(upward_size)
+    largest = largest.maximum(forward_size)
+    return largest
+}
+
+func object_named(file: Blend.File, name: String): Blend.View {
+    var blocks = file.blocks_coded("OB")
+    var found = -1
+    var index = 0
+    while index < blocks.count() {
+        var view = file.view_of(blocks[index])
+        if file.id_name(view) == name {
+            found = index
+        }
+        index = index + 1
+    }
+    var block = blocks[found]
+    crash block
+    return file.view_of(block)
+}

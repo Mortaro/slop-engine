@@ -41,10 +41,20 @@ What the readers do:
   reader enters the ID it reads (`file.enter(view)`) and duplicate addresses resolve to that ID's blocks.
 - **Meshes.** Blender 5 keeps geometry in `AttributeStorage`: `position`, `.corner_vert`, the active UV map and
   `sharp_face`. Each attribute's data sits behind an `AttributeArray`.
-  - Faces are triangulated as fans.
-  - Normals are smooth, or the face normal where `sharp_face` is set.
+  - Faces are triangulated as Blender triangulates them, so the triangles are Blender's loop triangles in the
+    same order and winding: a quad is split along its first diagonal, or the second when the first folds it; a
+    larger face is projected onto the plane of its Newell normal and ear-clipped the way Blender's polygon fill
+    does, so concave faces and faces with collinear points come out whole.
+  - Corner normals are Blender's. A mesh with no sharp edges or faces is smooth (vertex normals weighted by each
+    corner's angle); one with every face or edge sharp is flat; otherwise the corners around each vertex are
+    grouped into fans split at sharp edges, sharp faces, edges with more than two faces and edges whose faces wind
+    opposite ways, and each fan takes the angle-weighted mean of its face normals.
+  - Custom split normals (the `custom_normal` attribute) replace them: encoded ones are decoded in each fan's
+    normal space, as Blender stores them; free float3 normals are used as they are, per corner, face or vertex.
   - Corners are welded by vertex, normal and UV.
-  - Positions go through the object's world matrix and from Blender's Z-up to Y-up, `(x, y, z) → (x, z, -y)`.
+  - Positions go through the object's world matrix and from Blender's Z-up to Y-up, `(x, y, z) → (x, z, -y)`;
+    normals go through the inverse transpose of the same matrix, so an unevenly scaled object keeps them
+    perpendicular to its faces.
   - Skin weights come from the deform-vertex layer of the vertex data: the four heaviest groups that name a
     bone, renormalised. A mesh with no deform layer is static: it gets no joints, so it is drawn with the identity
     palette entry. A vertex of a skinned mesh that no group weighs follows bone 0.

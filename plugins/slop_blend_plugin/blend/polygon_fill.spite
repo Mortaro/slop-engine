@@ -1,0 +1,211 @@
+var across = List<Float>()
+var up = List<Float>()
+var triangles = List<Integer>()
+var nexts = List<Integer>()
+var previous = List<Integer>()
+var signs = List<Integer>()
+var remaining = 0
+var concave = 0
+var head = 0
+var convex_sign = 1
+var tangential_sign = 0
+var concave_sign = -1
+
+func clear() {
+    across.clear()
+    up.clear()
+    triangles.clear()
+}
+
+func add(point_across: Float, point_up: Float) {
+    across.append(point_across)
+    up.append(point_up)
+}
+
+func fill() {
+    prepare()
+    var ear_start = head
+    var reverse = false
+    while remaining > 3 {
+        var ear = find_ear(ear_start, reverse)
+        if sign_of(ear) != convex_sign {
+            concave = concave - 1
+        }
+        var before = previous_of(ear)
+        var after = next_of(ear)
+        cut(ear)
+        update_sign(before)
+        update_sign(after)
+        if reverse {
+            ear_start = previous_of(before)
+        } else {
+            ear_start = next_of(after)
+        }
+        if sign_of(ear_start) != convex_sign {
+            if reverse {
+                ear_start = previous_of(ear_start)
+            } else {
+                ear_start = next_of(ear_start)
+            }
+            reverse = not reverse
+        }
+    }
+    var second = next_of(head)
+    var third = next_of(second)
+    triangles.append(head)
+    triangles.append(second)
+    triangles.append(third)
+}
+
+func prepare() {
+    var count = across.count()
+    nexts.clear()
+    previous.clear()
+    signs.clear()
+    var slot = 0
+    while slot < count {
+        nexts.append((slot + 1) % count)
+        previous.append((slot + count - 1) % count)
+        slot = slot + 1
+    }
+    remaining = count
+    concave = 0
+    head = 0
+    slot = 0
+    while slot < count {
+        var sign = corner_sign(slot)
+        signs.append(sign)
+        if sign != convex_sign {
+            concave = concave + 1
+        }
+        slot = slot + 1
+    }
+}
+
+func update_sign(slot: Integer) {
+    assert sign_of(slot) != convex_sign
+    var sign = corner_sign(slot)
+    signs[slot] = sign
+    if sign == convex_sign {
+        concave = concave - 1
+    }
+}
+
+func corner_sign(slot: Integer): Integer {
+    var before = previous_of(slot)
+    var after = next_of(slot)
+    return span_sign(before, slot, after)
+}
+
+func cut(ear: Integer) {
+    var before = previous_of(ear)
+    var after = next_of(ear)
+    triangles.append(before)
+    triangles.append(ear)
+    triangles.append(after)
+    nexts[before] = after
+    previous[after] = before
+    if head == ear {
+        head = after
+    }
+    remaining = remaining - 1
+}
+
+func find_ear(start: Integer, reverse: Boolean): Integer {
+    var accepted = convex_sign
+    while accepted >= tangential_sign {
+        var ear = start
+        var left = remaining
+        while left > 0 {
+            if is_ear(ear, accepted) {
+                return ear
+            }
+            if reverse {
+                ear = previous_of(ear)
+            } else {
+                ear = next_of(ear)
+            }
+            left = left - 1
+        }
+        accepted = accepted - 1
+    }
+    var ear = start
+    var left = remaining
+    while left > 0 {
+        if sign_of(ear) != concave_sign {
+            return ear
+        }
+        ear = next_of(ear)
+        left = left - 1
+    }
+    return ear
+}
+
+func is_ear(tip: Integer, accepted: Integer): Boolean {
+    if concave == 0 {
+        return true
+    }
+    if sign_of(tip) != accepted {
+        return false
+    }
+    var before = previous_of(tip)
+    var after = next_of(tip)
+    var first = before
+    var second = tip
+    var third = after
+    var checked = 0
+    var slot = next_of(after)
+    while slot != before {
+        if sign_of(slot) != convex_sign {
+            var inside = slot
+            var outside = span_sign(third, first, inside) == concave_sign
+            outside = outside or span_sign(first, second, inside) == concave_sign
+            outside = outside or span_sign(second, third, inside) == concave_sign
+            if not outside {
+                return false
+            }
+            checked = checked + 1
+            if checked == concave {
+                return true
+            }
+        }
+        slot = next_of(slot)
+    }
+    return true
+}
+
+func span_sign(first: Integer, second: Integer, third: Integer): Integer {
+    crash across[first]
+    crash across[second]
+    crash across[third]
+    crash up[first]
+    crash up[second]
+    crash up[third]
+    var second_across = across[second] - across[third]
+    var second_up = up[second] - up[third]
+    var first_across = across[first] - across[third]
+    var first_up = up[first] - up[third]
+    var area = second_across * first_up - first_across * second_up
+    if area == 0.0 {
+        return tangential_sign
+    }
+    if area > 0.0 {
+        return convex_sign
+    }
+    return concave_sign
+}
+
+func next_of(slot: Integer): Integer {
+    crash nexts[slot]
+    return nexts[slot]
+}
+
+func previous_of(slot: Integer): Integer {
+    crash previous[slot]
+    return previous[slot]
+}
+
+func sign_of(slot: Integer): Integer {
+    crash signs[slot]
+    return signs[slot]
+}

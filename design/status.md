@@ -111,8 +111,13 @@ and the click test passed for 5 and 12 clicks.
 
 - PSD: decoding straight into the texture's bytes, instead of `List<Integer>` one byte at a time, would cut the
   683 ms of a 10 MB splat map several times over (measured 2026-09-26). PSB is not read.
-- `.blend`, not built yet: ear-clipping triangulation (faces are split as fans), custom split normals, more than one
-  UV set, vertex colours, and cooking images that reference external files (the reader reports their paths).
+- `.blend`, not built yet: more than one UV set and vertex colours (both need `Asset.Mesh` and the scene shader to
+  carry more per-vertex data), and cooking images that reference external files (the reader reports their paths).
+- `.blend` corner normals differ from Blender's in one case: a fan whose normal space Blender cannot build (an edge
+  almost along the fan normal, on degenerate geometry) keeps the fan normal, where Blender answers a zero normal.
+- `blend_mesh_check` against Blender 5.2 (2026-10-02): the thirteen fixtures match its loop triangles exactly and
+  its corner normals to 7e-6; the archer's 21 meshes (all triangles, encoded custom normals) to 9e-4, the worst on a
+  folded, non-manifold pocket of tiny triangles in `Body - Chest`, and 1e-6 elsewhere.
 
 ## [scene.md](../docs/scene.md)
 
@@ -134,7 +139,7 @@ and the click test passed for 5 and 12 clicks.
   from 26.8 ms to 2.2 ms.
 - Not built yet, from the previous Kal renderer: the ray-marched atmosphere and sky; shadow cascades and contact
   shadows; GTAO; image-based sky lighting; bloom; 4× MSAA; automatic exposure from a histogram; Blender's custom
-  split normals (`custom_normal` is ignored and normals are recomputed); blending between clips.
+  blending between clips.
 
 ## [networking.md](../docs/networking.md)
 

@@ -90,6 +90,11 @@ parts are Claude's proposals. Mortaro decides the API; a proposal stays marked h
 ## [loaders.md](../docs/loaders.md)
 
 - `Zstd.BitReader` uses the bitwise functions of D117.
+- The `.blend` mesh reader ports Blender's own tessellation (`BLI_polyfill_calc`, the quad split) and corner normal
+  code (`normals_calc_corners`, the encoded custom normal spaces) rather than writing its own, so a mesh looks the
+  way it does in Blender; game alert A9 (a proposal by Claude, unconfirmed).
+- Where Blender answers a zero normal for a fan whose space it cannot build, the reader keeps the fan normal (a
+  proposal by Claude, unconfirmed): a zero normal draws black.
 
 ## [scene.md](../docs/scene.md)
 
