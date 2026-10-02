@@ -227,7 +227,7 @@ loads the network and spatial plugins. See [networking.md](networking.md#area-of
 The engine side of MongoDB. The driver itself (BSON, OP_MSG, `Mongo.Client`, `Mongo.Collection`,
 `Mongo.TypedCollection<T>`, the compile-time `Mongo.Codec<T>`) is its own package, `spite_mongodb_driver`, beside
 this repository, so programs that are not games use it too. The plugin loads it
-(`load "../../../../spite_mongodb_driver@ea1a143/mongodb"`, a pinned commit) and adds `Mongo.Component.Database` (host, port, database
+(`load "../../../../spite_mongodb_driver@df985e6/mongodb"`, a pinned commit) and adds `Mongo.Component.Database` (host, port, database
 name) and `Mongo.Component.Client` (a connection pool and the database it names), which `database.connect()` makes;
 `Mongo.System.ConnectDatabases` (`input`) adds one beside every database that has none. Queries run in
 [IO systems](ecs.md#io-systems), between frames.

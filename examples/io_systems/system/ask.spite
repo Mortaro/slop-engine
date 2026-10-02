@@ -1,11 +1,11 @@
-type Started {
-    frame: Added<Component.Frame>
+type Connected {
+    connected: Added<Mongo.Component.Client>
 }
 
 var world = World()
 var names = ["first", "second", "third"]
 
-func update_each(_started: Started) {
+func update_each(_connected: Connected) {
     names.each(ask)
 }
 
