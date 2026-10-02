@@ -137,6 +137,68 @@ and the click test passed for 5 and 12 clicks.
   shadows; GTAO; image-based sky lighting; bloom; 4× MSAA; automatic exposure from a histogram; Blender's custom
   split normals (`custom_normal` is ignored and normals are recomputed); blending between clips.
 
+## [physics.md](../docs/physics.md)
+
+Built 2026-10-02: box, sphere, capsule and static mesh colliders, the grid broad phase, raycasts and sphere and
+capsule sweeps, the character controller and triggers. Not built yet:
+
+- **Rigid-body dynamics**: mass, forces, impulses, friction, restitution, stacking, sleeping, joints. Nothing in
+  the engine simulates bodies; colliders are static or moved by code, and characters by their controller.
+- **Contacts between solid colliders** as entities (only trigger overlaps are), which dynamics would need.
+- **A heightfield collider** (the roadmap's terrain collider). A terrain can be a `MeshCollider` today, at one
+  broad-phase entry per triangle.
+- **Collision layers or filters**: every query hits every solid collider, and every trigger sees every character
+  and kinematic collider.
+- **Box sweeps and public overlap queries** (`overlap_sphere`, `overlap_box`): the overlap test exists, used by
+  triggers and the controller, but has no query function yet.
+- **Mesh colliders from a recipe**: a `.blend`'s `UCX_` collision objects cooked into `Physics.Meshes` (roadmap
+  item 9). Meshes are built in code today.
+- **Kinematic mesh colliders**: a mesh is placed once; moving one means adding its component again, which re-reads
+  every triangle.
+- **Per-mesh acceleration shared between instances**: each placed mesh copies its triangles into the broad phase in
+  world space, so a thousand copies of one rock cost a thousand times its triangles.
+- **Scale on primitives**: a primitive ignores the transform's scale.
+
+Known gaps:
+
+- `MoveCharacters` is one system, so 5,000 characters run on one thread (no parallel iteration inside a system,
+  above). It shares its stage with every system that touches neither `Transform`, the character components nor
+  `Physics.Colliders`.
+- Every system that binds `Physics.Colliders` counts as writing it (INSIGHTS bug 52), so systems that only query
+  never run beside each other.
+- Positions are `Float`s and contact is within 1 mm, which holds within a few kilometres of the origin; a larger
+  world needs origin shifting or `Double` positions.
+- The controller cannot push a character out of a box whose interior holds the capsule's whole core segment (spawned
+  deep inside); it pushes out of anything shallower.
+- Queries in a tick see kinematic colliders where they stood at the start of the tick.
+- `Kinematic` and `Trigger` are read when the shape is added; adding or removing them later changes nothing until
+  the shape is added again.
+
+Questions for Mortaro:
+
+- **Should characters collide with each other?** Options: (a) never: they pass through (today; most MMOs do this,
+  and it is the cheapest); (b) a marker such as `Physics.Component.Solid` on a character makes it solid to the
+  others' controllers, at one more broad-phase grid read per sweep; (c) always. Recommendation: (a), with (b) when a
+  game needs body blocking.
+- **Rigid bodies, and how far.** Options: (a) none, kinematic only (today); (b) simple bodies (sphere and box,
+  gravity, bounce, no stacking) for loot and projectiles; (c) a full solver with stacking and joints. Recommendation:
+  (b) first, as components (`Body`, `Velocity`, `Mass`) and systems, if a game asks.
+- **Collision layers**: a layer component holding a bit mask (one component per collider), or a marker per layer
+  (`Physics.Component.LayerProjectile`), filtered in queries. Recommendation: one `Layers` component with a mask and
+  a query argument, since queries need to combine layers.
+
+Measured (Linux, a 4-core cloud machine shared with four other builds, `--optimized`, three interleaved runs,
+medians), `physics_bench`, 5,000 characters, 10,000 boxes, 200 triggers:
+
+| Broad phase | Tick | `MoveCharacters` |
+|---|---|---|
+| none: every query tests every collider (`--brute-force=true`), the "before" | 5,128 ms | 4,832 ms |
+| the grids | 14.1 ms | 10.9 ms |
+
+History of the grid run: 24 ms a tick at first; 15 ms once a segment beyond a box face tests that face's 4 edges
+instead of all 12, and `lesser`/`greater` replaced `Float.minimum`/`maximum` (INSIGHTS, 2026-10-02); 13.5 to 14 ms
+once characters left the grids that solid queries read.
+
 ## [networking.md](../docs/networking.md)
 
 The whole page is Claude's proposal, unconfirmed; Mortaro decides the API. It is built and tested by

@@ -97,6 +97,42 @@ parts are Claude's proposals. Mortaro decides the API; a proposal stays marked h
 - Bone attachments (a proposal by Claude, for Mortaro to decide).
 - The terrain shader is a port of the first game's Unreal `M_Terrain`, whose roughness and specular are 1 and 0.
 
+## [physics.md](../docs/physics.md)
+
+Physics rests on Mortaro's decision of 2026-09-27 (recorded in the roadmap): completely ECS, so it runs beside
+everything else, and the same 3D physics on the server and the client. Everything else on the page is a proposal by
+Claude (2026-10-02), for Mortaro to confirm:
+
+- Colliders are one shape component per entity (`BoxCollider`, `SphereCollider`, `CapsuleCollider`,
+  `MeshCollider`) beside a `Transform`; a compound shape is several entities. Static by default, `Kinematic` for a
+  collider code moves (read every tick), `Trigger` for a volume that blocks nothing; both markers are read when the
+  shape is added. A primitive's size is its component's; the transform's scale applies only to meshes.
+- A mesh collider's triangles are a `Physics.TriangleMesh` held by name in the `Physics.Meshes` resource (asset data
+  held by an object, as `Scene.Pose` is), and the component holds only the name.
+- **The query API is functions of a resource, `Physics.Colliders`**, not request entities answered by a system. A
+  character controller makes several sweeps per character per tick and needs each answer before the next, a game's
+  aiming or line-of-sight check wants its answer in the same function, and a request entity would cost a command, a
+  flush and a tick of latency per query. The cost is the runner's: every system binding the resource counts as
+  writing it, so querying systems share no stage with each other (they still share stages with everything else).
+  Request entities can be added on top later for queries that come from the network. It is named `Colliders`, not
+  `World`, because `World` is the core's and a `World` inside the `Physics` namespace would shadow it.
+- `Physics.Hit` gives the collider as an `Entity` (a new one per hit, so keeping it is safe), the distance, the
+  point and the normal, as plain floats like `Transform`.
+- The broad phase is a spatial hash over the ground plane rebuilt by counting sort: static colliders only when one
+  comes or goes, kinematic colliders and characters every tick; height is checked against bounds. Chosen over
+  sweep-and-prune because a game's colliders spread over the ground and most queries are short.
+- The narrow phase measures distances between cores (point, segment, box, triangle) and sweeps by stepping along a
+  convex distance, which cannot pass a contact; boxes against boxes and triangles use separating axes.
+- The character controller: `Character` (radius 0.4, height 1.8, step height 0.35, slope limit 45 degrees,
+  gravity 9.81), `DesiredVelocity`, `VerticalSpeed` (a jump sets it), the `Grounded` marker added and removed only
+  when it changes; the transform's position is the feet; a slope steeper than the limit is a wall; stepping accepts
+  landing on an edge whose surface is walkable, no higher than the step height above the ground it left. It runs
+  in `update`, so a game sets `DesiredVelocity` in `after_input`.
+- Triggers: each overlap is an entity, a child of the trigger, holding the link `Visitor` and the markers
+  `Entered` or `Left`, each living from one `TrackTriggers` to the next so every system sees it once (the same
+  reasoning as `Rang`, which lives one tick). Triggers detect characters and kinematic colliders, not static ones,
+  which never enter anything.
+
 ## [networking.md](../docs/networking.md)
 
 - Environments, replication and the wire are Claude's proposal, unconfirmed; Mortaro decides the API.

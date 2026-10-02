@@ -249,4 +249,4 @@ components, so a scene without that plugin is still lit.
 
 ---
 
-Next: [Environments and networking](networking.md), one program built as a client, a server and a bot.
+Next: [Physics](physics.md), colliders, queries, characters and triggers as components and systems.

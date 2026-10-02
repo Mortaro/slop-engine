@@ -346,9 +346,10 @@ The pages in [docs/](docs/README.md), in reading order; each ends with a link to
 7. [Assets and recipes](docs/assets-and-recipes.md)
 8. [Loaders](docs/loaders.md)
 9. [3D: scenes, characters and lighting](docs/scene.md)
-10. [Environments and networking](docs/networking.md)
-11. [Performance](docs/performance.md)
-12. [Testing](docs/testing.md)
+10. [Physics](docs/physics.md)
+11. [Environments and networking](docs/networking.md)
+12. [Performance](docs/performance.md)
+13. [Testing](docs/testing.md)
 
 The people and agents who build the engine keep their material in [design/](design/): what is not built yet, where
 each decision came from, the roadmap, and what building the engine taught about Spite.
