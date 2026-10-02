@@ -12,9 +12,10 @@ with `spite kal_character --kal-assets=<folder>`.
 | `slop_transform_plugin` | `Transform` | `Transform.Component.Transform`: position, a rotation quaternion and scale |
 | `slop_camera_plugin` | `Camera` | `Camera.Component.Camera` (eye, target, field of view, near, far) and `Camera.Component.Orbit` with the `AimOrbit` system |
 | `slop_scene_plugin` | `Scene` | `Scene.Component.Model` (a mesh id) and, on an animated model, `Scene.Component.Skin` (its `Scene.Pose`: the bone palette and each bone's pose, asset data rewritten every frame); `Scene.Component.View` on each window, whose draws, terrain draws and palettes for the frame live in the `Scene.Draws` resource (`draws.of(view)`, a `Scene.DrawSet` per view); the `Scene.Meshes` and `Scene.TerrainMaterials` resources, which give each mesh and terrain material an entity (`Scene.Component.Mesh`, `Scene.Component.TerrainMaterial`, marked `Component.Loading` while a job runs and `TerrainTexturesRequested` once its control textures are asked for); and `Scene.Component.ViewCamera` (the view matrix, field of view, near, far, eye and shadow centre) while a camera exists; `Gather` collects the camera, the models and the lighting every frame |
-| `slop_scene_vulkan_plugin` | `SceneVulkan` | the Vulkan passes: sun shadow map, lit scene into HDR, tone map into the frame, then the UI draws on top; `SceneVulkan.MeshRenderer` is a resource (singleton) holding the passes and the per-frame buffers; each mesh's entity gets `SceneVulkan.Component.GpuMesh` (its vertex and index buffers) and each texture's `SceneVulkan.Component.SceneTexture` (its scene-sampler descriptor set); `SceneVulkan.Component.MeshRendererCreated` marks the world entity once the passes are built |
+| `slop_scene_vulkan_plugin` | `SceneVulkan` | the Vulkan passes: sun shadow map, lit scene into HDR, then [post-processing](#post-processing) (`SceneVulkan.PostProcess`: ambient occlusion, temporal anti-aliasing and upsampling, auto exposure, bloom, tone map into the frame), then the UI draws on top; `SceneVulkan.MeshRenderer` is a resource (singleton) holding the passes and the per-frame buffers; each mesh's entity gets `SceneVulkan.Component.GpuMesh` (its vertex and index buffers) and each texture's `SceneVulkan.Component.SceneTexture` (its scene-sampler descriptor set); `SceneVulkan.Component.MeshRendererCreated` marks the world entity once the passes are built |
 | `slop_animation_plugin` | `Animation` | `Animation.Component.Animator` (skeleton, clip, time, speed), looping unless the entity has the marker `Animation.Component.PlayOnce`; `Animate` samples the clip into the model's `Skin`, adding one the first time |
 | `slop_lighting_plugin` | `Lighting` | `Sun`, `Sky`, `HeightFog` and `Exposure` components and a `Daylight` bundle, written into each view; `PointLight` and `SpotLight` components gathered into `Scene.Lights` |
+| `slop_post_process_plugin` | `PostProcess` | `ToneMapper`, `AutoExposure`, `Bloom`, `Vignette`, `AmbientOcclusion` and `ScreenPercentage` components, written into each view the way the lighting is; see [Post-processing](#post-processing) |
 | `slop_blend_plugin` | `Blend` | `MeshReader`, `SkeletonReader` and `ActionReader`: what a recipe needs from a `.blend` |
 | `slop_png_plugin` | `Png` | a PNG decoder, pixel-exact against Pillow, for the images packed in a `.blend` |
 
@@ -130,15 +131,82 @@ The scene pass writes pre-exposed radiance into an RGBA16F image. The maths:
 - **Material:** a painted default of roughness 0.7, specular 0.5, metallic 0.
 - **Ambient:** a sky and ground hemisphere.
 - **Fog:** exponential height fog by its optical depth along the view ray.
-- **Exposure:** `1 / (1.2 · 2^EV100)`, with EV100 15 by default.
+- **Exposure:** `1 / (1.2 · 2^EV100)`, with EV100 15 by default, unless the view is
+  [metered](#post-processing). The scene is lit already multiplied by it (pre-exposed), so its values stay in the
+  range a half float holds.
 
-A full-screen pass tone maps with the ACES fit, encodes sRGB and dithers into the frame, under the UI.
+The scene pass also writes the sky light's share of each pixel into a second target, which ambient occlusion takes
+back from. [Post-processing](#post-processing) then turns the HDR image into the frame, under the UI.
 
 The sun casts a 2048² shadow map:
 - an orthographic view around the camera's target, with the depth-only pipeline sharing the skinning vertex
   shader and keeping alpha cut-outs;
 - a slope-scaled depth bias against acne;
 - 3×3 PCF when sampling.
+
+### Post-processing
+
+`SceneVulkan.PostProcess` turns the lit HDR image into the frame with Unreal's post-processing and Unreal's
+defaults. Every pass is a full-screen draw or a compute dispatch, timed under its own name in
+`renderer.gpu_timings`:
+
+1. **`ambient occlusion`**: ground-truth ambient occlusion (Jimenez et al. 2016) from the depth buffer, with normals
+   rebuilt from depth: one slice through each pixel, six steps each way, its angle turned every frame so the next
+   pass averages the noise away. It darkens only the sky light: `lit − sky_light × intensity × (1 − visibility)`,
+   faded out between `fade_distance − fade_radius` and `fade_distance`.
+2. **`temporal aa`**: temporal anti-aliasing (Karis 2014). The projection moves by a sub-pixel jitter each frame
+   (Halton 2, 3, eight positions). Each output pixel:
+   - rebuilds the new frame from the 3 by 3 render texels around it, each weighted by its distance from the pixel
+     after the jitter;
+   - finds where it was last frame through the camera's motion, from the closest depth of those texels;
+   - reads its history there with a Catmull-Rom filter and clips it to the colour box of the new texels in YCoCg;
+   - blends 4% of the new frame in, Unreal's default weight, each side weighted by `1 / (1 + luminance)`.
+
+   An object moving on its own is not reprojected; the colour clip is what keeps it from smearing.
+   The output is at the window's size, so a screen percentage below 100 renders the scene smaller and this pass
+   upsamples it, as Unreal's temporal upsampling does.
+3. **`exposure`**, on a view marked `Scene.Component.AutoExposed`: Unreal's histogram auto exposure. A compute pass
+   counts a half-size grid of the frame into 64 bins of EV100 from -10 to 20. A second one averages the bins
+   between the low and the high percentile, clamps the average to the minimum and maximum, takes the compensation
+   off, and moves the adapted EV100 toward it: at `speed_up` stops a second while the picture brightens and
+   `speed_down` while it darkens, linearly while more than 1.5 stops away and exponentially closer. The scene is
+   lit with the exposure the GPU adapted two frames before (read back without waiting), and the tone map finishes
+   the difference, so the picture changes the frame the exposure does.
+4. **`bloom`**: Unreal's Gaussian bloom. Six downsamples (half size to 1/64), each blurred by a separable Gaussian
+   whose radius is `size × size_scale` percent of the level's width, halved (sigma half the radius), weighted by its
+   tint over six and summed from the coarsest up. Sizes 0.3, 1, 2, 10, 30 and 64; tints 0.3465, 0.138, 0.1176,
+   0.066, 0.066 and 0.061. A positive threshold keeps only light brighter than it; -1, the default, blooms
+   everything.
+5. **`tone map`**: the bloom times its intensity is added, the exposure finished, then Unreal's vignette (the
+   cosine-fourth law on a circle whose corners sit at distance 1), the tone curve, the sRGB encoding and a dither.
+   The default curve is Unreal's filmic one: the ACES reference transform's glow and red modifier, then a toe, a
+   straight section and a shoulder in log space in ACEScg, set by slope, toe, shoulder, black clip and white clip.
+   `'aces_fitted'` picks the earlier fit of ACES (Hill) instead.
+
+The settings live on `Scene.Component.View` with Unreal's defaults; each component of the post-processing plugin,
+on the entity that carries the lighting, writes its own into every view:
+
+| Component | Fields and defaults |
+|---|---|
+| `PostProcess.Component.ToneMapper` | `curve` (`'filmic'` or `'aces_fitted'`), `slope` 0.88, `toe` 0.55, `shoulder` 0.26, `black_clip` 0, `white_clip` 0.04 |
+| `PostProcess.Component.AutoExposure` | `minimum` -10, `maximum` 20 (EV100), `speed_up` 3, `speed_down` 1, `low_percent` 80, `high_percent` 98.3, `compensation` 1; marks each view `Scene.Component.AutoExposed`, and removing it unmarks them, back to `Lighting.Component.Exposure` |
+| `PostProcess.Component.Bloom` | `intensity` 0.675 (0 skips the pass), `threshold` -1, `size_scale` 4 |
+| `PostProcess.Component.Vignette` | `intensity` 0.4 |
+| `PostProcess.Component.AmbientOcclusion` | `intensity` 0.5 (0 leaves the image alone), `radius` 2 m, `fade_distance` 80 m, `fade_radius` 50 m |
+| `PostProcess.Component.ScreenPercentage` | `value` 100: the scene renders at this percentage of the window and is upsampled |
+
+```gdscript
+var metering = PostProcess.Component.AutoExposure()
+metering.compensation = 0.5
+lighting.add_component(metering)
+var scaled = PostProcess.Component.ScreenPercentage()
+scaled.value = 66.7
+lighting.add_component(scaled)
+```
+
+Removing a settings component leaves the views at the values it last wrote. `examples/post_check` checks that bloom
+spreads light past a bright cube onto a black sky and that none spreads without it, and that auto exposure brings a
+floor back to its brightness after the light drops by six stops.
 
 ### Masked materials
 
