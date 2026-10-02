@@ -168,7 +168,8 @@ func measure(path: String) {
     var decode_took = decoded - opened
     console.print(path)
     console.print("  psd", texture.width, texture.height, "open ms", open_took, "decode ms", decode_took)
-    var setting: TextureCompression.Compressor.Setting = environment.compression
+    var setting = environment.compression.to_setting()
+    crash setting
     var compressor = TextureCompression.Compressor()
     if environment.single_thread {
         compressor.smallest_band_blocks = 1000000000
