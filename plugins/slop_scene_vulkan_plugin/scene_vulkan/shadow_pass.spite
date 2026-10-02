@@ -1,0 +1,1450 @@
+var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
+var raw = Raw()
+var floats = TypedMemory<Float>()
+var scalar = Math.Scalar()
+var pipeline: Long = 0
+var shader_fragment: Long = 0
+var image: Long = 0
+var atlas_memory: Long = 0
+var image_view: Long = 0
+var sampler: Long = 0
+var initialized = false
+var cascade_size = 2048
+var tile_size = 512
+var local_left = 4096
+var tiles_across = 8
+var tile_count = 64
+var atlas_width = 8192
+var atlas_height = 4096
+var most_cascades = 4
+var most_shadowed_lights = 16
+var face_budget = 36
+var filter_guard: Float = 4.0
+var light_near: Float = 0.1
+var caster_radius_threshold: Float = 0.01
+var record_stride = 80
+var record_base = 0
+var sections_per_mesh = 64
+var cascades = 0
+var fade_start: Float = 0.0
+var fade_end: Float = 0.0
+var transition: Float = 0.1
+var cascade_matrices = List<Math.Matrix4>()
+var cascade_splits = List<Float>()
+var cascade_texels = List<Float>()
+var cascade_depths = List<Float>()
+var view_matrices = List<Math.Matrix4>()
+var view_lefts = List<Integer>()
+var view_tops = List<Integer>()
+var view_sizes = List<Integer>()
+var view_first_runs = List<Integer>()
+var view_run_counts = List<Integer>()
+var view_first_cells = List<Integer>()
+var view_cell_counts = List<Integer>()
+var local_first_view = 0
+var run_records = List<Integer>()
+var run_instances = List<Integer>()
+var run_draws = List<Integer>()
+var record_draws = List<Integer>()
+var view_cells = List<Integer>()
+var picked = List<Integer>()
+var picked_cells = List<Integer>()
+var key_counts = List<Integer>()
+var key_first = List<Integer>()
+var used_keys = List<Integer>()
+var kept_owners = List<Integer>()
+var kept_first_tiles = List<Integer>()
+var kept_tile_counts = List<Integer>()
+var kept_rendered = List<Boolean>()
+var kept_signatures = List<Float>()
+var kept_states = List<Float>()
+var kept_bases = List<Math.Matrix4>()
+var kept_focals = List<Float>()
+var kept_fars = List<Float>()
+var state_floats = 8
+var tile_used = List<Boolean>()
+var light_records = List<Integer>()
+var record_kept = List<Integer>()
+var candidates = List<Integer>()
+var importances = List<Float>()
+var chosen = List<Integer>()
+var chosen_kept = List<Integer>()
+var chosen_dirty = List<Boolean>()
+var state = List<Float>()
+var signature: Float = 0.0
+var moving = false
+var face_forward = [1.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, -1.0]
+var face_up = [0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0]
+var right = Math.Vector3()
+var up = Math.Vector3()
+var forward = Math.Vector3()
+
+func create(renderer: RenderVulkan.Renderer, owner: SceneVulkan.MeshRenderer) {
+    shader_fragment = renderer.create_shader("shader.shadow.fragment")
+    create_atlas(renderer)
+    pipeline = create_pipeline(renderer, owner)
+    while cascade_matrices.count() < most_cascades {
+        var matrix = Math.Matrix4()
+        cascade_matrices.append(matrix)
+        cascade_splits.append(0.0)
+        cascade_texels.append(0.0)
+        cascade_depths.append(1.0)
+    }
+    while tile_used.count() < tile_count {
+        tile_used.append(false)
+    }
+}
+
+func plan(
+    view: Scene.Component.View,
+    camera: Scene.Component.ViewCamera,
+    drawn: Scene.DrawSet,
+    lights: Scene.Lights,
+    clusters: Scene.LightClusters,
+) {
+    view_matrices.clear()
+    view_lefts.clear()
+    view_tops.clear()
+    view_sizes.clear()
+    view_first_runs.clear()
+    view_run_counts.clear()
+    view_first_cells.clear()
+    view_cell_counts.clear()
+    run_records.clear()
+    run_instances.clear()
+    run_draws.clear()
+    record_draws.clear()
+    view_cells.clear()
+    plan_cascades(view, camera, drawn)
+    local_first_view = view_matrices.count()
+    plan_lights(camera, drawn, lights, clusters)
+}
+
+func plan_cascades(view: Scene.Component.View, camera: Scene.Component.ViewCamera, drawn: Scene.DrawSet) {
+    cascades = 0
+    fade_start = 0.0
+    fade_end = 0.0
+    var wanted = view.cascade_count
+    if wanted > most_cascades {
+        wanted = most_cascades
+    }
+    var near = camera.near
+    var far = scalar.minimum(view.shadow_distance, camera.far)
+    assert wanted > 0 and far > near
+    sun_basis(view)
+    transition = view.cascade_transition_fraction
+    var exponent = view.cascade_distribution_exponent
+    var total: Float = 0.0
+    var scale: Float = 1.0
+    var cascade = 0
+    while cascade < wanted {
+        total = total + scale
+        scale = scale * exponent
+        cascade = cascade + 1
+    }
+    var reached: Float = 0.0
+    var start = near
+    scale = 1.0
+    cascade = 0
+    while cascade < wanted {
+        reached = reached + scale
+        scale = scale * exponent
+        var end = near + (far - near) * reached / total
+        var covered = end
+        if cascade < wanted - 1 {
+            covered = end + (end - start) * transition
+        }
+        aim_cascade(camera, drawn, cascade, start, covered)
+        cascade_splits[cascade] = end
+        start = end
+        cascade = cascade + 1
+    }
+    cascades = wanted
+    fade_end = far
+    fade_start = far - (far - near) * view.shadow_fadeout_fraction
+}
+
+func sun_basis(view: Scene.Component.View) {
+    forward.x_value = 0.0 - view.sun_toward_x
+    forward.y_value = 0.0 - view.sun_toward_y
+    forward.z_value = 0.0 - view.sun_toward_z
+    basis_around_forward()
+}
+
+func basis_around_forward() {
+    var hint_y: Float = 1.0
+    var hint_z: Float = 0.0
+    if scalar.absolute(forward.y_value) > 0.99 {
+        hint_y = 0.0
+        hint_z = 1.0
+    }
+    var right_x = forward.y_value * hint_z - forward.z_value * hint_y
+    var right_y = forward.z_value * 0.0 - forward.x_value * hint_z
+    var right_z = forward.x_value * hint_y - forward.y_value * 0.0
+    var length = scalar.square_root(right_x * right_x + right_y * right_y + right_z * right_z)
+    right.x_value = right_x / length
+    right.y_value = right_y / length
+    right.z_value = right_z / length
+    up.x_value = right.y_value * forward.z_value - right.z_value * forward.y_value
+    up.y_value = right.z_value * forward.x_value - right.x_value * forward.z_value
+    up.z_value = right.x_value * forward.y_value - right.y_value * forward.x_value
+}
+
+func aim_cascade(camera: Scene.Component.ViewCamera, drawn: Scene.DrawSet, cascade: Integer, start: Float, end: Float) {
+    var down_tangent = scalar.tangent(camera.field_of_view * 0.5)
+    var across_tangent = down_tangent * camera.aspect
+    var spread = down_tangent * down_tangent + across_tangent * across_tangent
+    var along = (start + end) * 0.5 * (1.0 + spread)
+    var radius: Float = 0.0
+    if along >= end {
+        along = end
+        radius = end * scalar.square_root(spread)
+    } else {
+        radius = scalar.square_root((end - along) * (end - along) + end * end * spread)
+    }
+    radius = scalar.floor(radius) + 1.0
+    var size: Float = cascade_size
+    var half = radius * size / (size - 2.0 * filter_guard)
+    var texel = half * 2.0 / size
+    var eye_view = camera.view
+    var center_x = camera.eye_x - eye_view.m2 * along
+    var center_y = camera.eye_y - eye_view.m6 * along
+    var center_z = camera.eye_z - eye_view.m10 * along
+    var across = dot_right(center_x, center_y, center_z)
+    var rise = dot_up(center_x, center_y, center_z)
+    var deep = dot_forward(center_x, center_y, center_z)
+    var snapped_across = scalar.floor(across / texel) * texel
+    var snapped_rise = scalar.floor(rise / texel) * texel
+    var farthest = deep + radius
+    var nearest = deep - radius
+    picked.clear()
+    picked_cells.clear()
+    var total = drawn.draws.count() + drawn.casters.count()
+    var index = 0
+    while index < total {
+        var draw = draw_of(drawn, index)
+        var reach = half + draw.radius
+        var off_across = dot_right(draw.center_x, draw.center_y, draw.center_z) - snapped_across
+        var off_rise = dot_up(draw.center_x, draw.center_y, draw.center_z) - snapped_rise
+        var caster_deep = dot_forward(draw.center_x, draw.center_y, draw.center_z) - draw.radius
+        var inside = scalar.absolute(off_across) < reach and scalar.absolute(off_rise) < reach
+        if inside and caster_deep < farthest and large_enough(camera, draw) {
+            picked.append(index)
+            nearest = scalar.minimum(nearest, caster_deep)
+        }
+        index = index + 1
+    }
+    index = 0
+    while index < drawn.terrain_draws.count() {
+        var cell = drawn.terrain_draws[index]
+        var cell_reach = half + cell.radius
+        var cell_across = dot_right(cell.center_x, cell.center_y, cell.center_z) - snapped_across
+        var cell_rise = dot_up(cell.center_x, cell.center_y, cell.center_z) - snapped_rise
+        var cell_deep = dot_forward(cell.center_x, cell.center_y, cell.center_z) - cell.radius
+        if scalar.absolute(cell_across) < cell_reach and scalar.absolute(cell_rise) < cell_reach and cell_deep < farthest {
+            picked_cells.append(index)
+            nearest = scalar.minimum(nearest, cell_deep)
+        }
+        index = index + 1
+    }
+    var depth = farthest - nearest
+    crash cascade_matrices[cascade]
+    var matrix = cascade_matrices[cascade]
+    matrix.m0 = right.x_value / half
+    matrix.m4 = right.y_value / half
+    matrix.m8 = right.z_value / half
+    matrix.m12 = 0.0 - snapped_across / half
+    matrix.m1 = up.x_value / half
+    matrix.m5 = up.y_value / half
+    matrix.m9 = up.z_value / half
+    matrix.m13 = 0.0 - snapped_rise / half
+    matrix.m2 = forward.x_value / depth
+    matrix.m6 = forward.y_value / depth
+    matrix.m10 = forward.z_value / depth
+    matrix.m14 = 0.0 - nearest / depth
+    matrix.m3 = 0.0
+    matrix.m7 = 0.0
+    matrix.m11 = 0.0
+    matrix.m15 = 1.0
+    cascade_texels[cascade] = texel
+    cascade_depths[cascade] = depth
+    var left = cascade % 2 * cascade_size
+    var top = cascade / 2 * cascade_size
+    add_view(drawn, matrix, left, top, cascade_size)
+}
+
+func large_enough(camera: Scene.Component.ViewCamera, draw: Scene.Draw): Boolean {
+    var along_x = draw.center_x - camera.eye_x
+    var along_y = draw.center_y - camera.eye_y
+    var along_z = draw.center_z - camera.eye_z
+    var distance_squared = along_x * along_x + along_y * along_y + along_z * along_z
+    return draw.radius * draw.radius >= caster_radius_threshold * caster_radius_threshold * distance_squared
+}
+
+func dot_right(x_value: Float, y_value: Float, z_value: Float): Float {
+    return right.x_value * x_value + right.y_value * y_value + right.z_value * z_value
+}
+
+func dot_up(x_value: Float, y_value: Float, z_value: Float): Float {
+    return up.x_value * x_value + up.y_value * y_value + up.z_value * z_value
+}
+
+func dot_forward(x_value: Float, y_value: Float, z_value: Float): Float {
+    return forward.x_value * x_value + forward.y_value * y_value + forward.z_value * z_value
+}
+
+func draw_of(drawn: Scene.DrawSet, index: Integer): Scene.Draw {
+    var in_view = drawn.draws.count()
+    if index < in_view {
+        return drawn.draws[index]
+    }
+    crash drawn.casters[index - in_view]
+    return drawn.casters[index - in_view]
+}
+
+func add_view(drawn: Scene.DrawSet, matrix: Math.Matrix4, left: Integer, top: Integer, size: Integer) {
+    view_matrices.append(matrix)
+    view_lefts.append(left)
+    view_tops.append(top)
+    view_sizes.append(size)
+    var first_run = run_records.count()
+    view_first_runs.append(first_run)
+    used_keys.clear()
+    var index = 0
+    while index < picked.count() {
+        var draw = draw_of(drawn, picked[index])
+        var key = draw.mesh_slot * sections_per_mesh + draw.section
+        while key_counts.count() <= key {
+            key_counts.append(0)
+            key_first.append(0)
+        }
+        crash key_counts[key]
+        var seen = key_counts[key]
+        if seen == 0 {
+            used_keys.append(key)
+            key_first[key] = picked[index]
+        }
+        key_counts[key] = seen + 1
+        index = index + 1
+    }
+    var start = record_draws.count()
+    index = 0
+    while index < used_keys.count() {
+        var used = used_keys[index]
+        crash key_counts[used]
+        crash key_first[used]
+        var count = key_counts[used]
+        run_records.append(start)
+        run_instances.append(count)
+        run_draws.append(key_first[used])
+        key_counts[used] = start
+        start = start + count
+        index = index + 1
+    }
+    while record_draws.count() < start {
+        record_draws.append(0)
+    }
+    index = 0
+    while index < picked.count() {
+        var placed = picked[index]
+        var draw = draw_of(drawn, placed)
+        var key = draw.mesh_slot * sections_per_mesh + draw.section
+        crash key_counts[key]
+        var position = key_counts[key]
+        record_draws[position] = placed
+        key_counts[key] = position + 1
+        index = index + 1
+    }
+    index = 0
+    while index < used_keys.count() {
+        var used = used_keys[index]
+        key_counts[used] = 0
+        index = index + 1
+    }
+    var runs_now = run_records.count()
+    view_run_counts.append(runs_now - first_run)
+    var cells_now = view_cells.count()
+    view_first_cells.append(cells_now)
+    index = 0
+    while index < picked_cells.count() {
+        view_cells.append(picked_cells[index])
+        index = index + 1
+    }
+    var cells_picked = picked_cells.count()
+    view_cell_counts.append(cells_picked)
+}
+
+func plan_lights(
+    camera: Scene.Component.ViewCamera,
+    drawn: Scene.DrawSet,
+    lights: Scene.Lights,
+    clusters: Scene.LightClusters,
+) {
+    light_records.clear()
+    record_kept.clear()
+    while light_records.count() < lights.count() {
+        light_records.append(0)
+    }
+    rank_candidates(camera, lights, clusters)
+    choose_lights(lights)
+    forget_unchosen(lights)
+    keep_chosen(lights)
+    judge_chosen(drawn, lights)
+    render_dirty(drawn, lights, true)
+    render_dirty(drawn, lights, false)
+    assign_records()
+}
+
+func rank_candidates(camera: Scene.Component.ViewCamera, lights: Scene.Lights, clusters: Scene.LightClusters) {
+    candidates.clear()
+    importances.clear()
+    var source = lights.floats
+    var visible = 0
+    while visible < clusters.visible.count() {
+        var from = clusters.visible[visible]
+        var light = from / lights.light_floats
+        crash light < lights.shadowed.count()
+        if lights.shadowed[light] {
+            crash source[from]
+            crash source[from + 1]
+            crash source[from + 2]
+            crash source[from + 3]
+            var along_x = source[from] - camera.eye_x
+            var along_y = source[from + 1] - camera.eye_y
+            var along_z = source[from + 2] - camera.eye_z
+            var distance = scalar.square_root(along_x * along_x + along_y * along_y + along_z * along_z)
+            var importance = source[from + 3] / scalar.maximum(distance, 0.01)
+            var at = 0
+            while at < importances.count() and importances[at] >= importance {
+                at = at + 1
+            }
+            candidates.insert(at, light)
+            importances.insert(at, importance)
+        }
+        visible = visible + 1
+    }
+}
+
+func is_point(lights: Scene.Lights, light: Integer): Boolean {
+    var cone_scale = lights.floats[light * lights.light_floats + 12]
+    crash cone_scale
+    return cone_scale <= 0.0
+}
+
+func tiles_of(lights: Scene.Lights, light: Integer): Integer {
+    if is_point(lights, light) {
+        return 6
+    }
+    return 1
+}
+
+func choose_lights(lights: Scene.Lights) {
+    chosen.clear()
+    var tiles = 0
+    var index = 0
+    while index < candidates.count() and chosen.count() < most_shadowed_lights {
+        var light = candidates[index]
+        var needed = tiles_of(lights, light)
+        if tiles + needed <= tile_count {
+            chosen.append(light)
+            tiles = tiles + needed
+        }
+        index = index + 1
+    }
+}
+
+func forget_unchosen(lights: Scene.Lights) {
+    var kept = kept_owners.count() - 1
+    while kept >= 0 {
+        crash kept_owners[kept]
+        var owner = kept_owners[kept]
+        var still = false
+        var index = 0
+        while index < chosen.count() {
+            if chosen_owner_is(lights, index, owner) {
+                still = true
+            }
+            index = index + 1
+        }
+        if not still {
+            forget(kept)
+        }
+        kept = kept - 1
+    }
+}
+
+func chosen_owner_is(lights: Scene.Lights, index: Integer, owner: Integer): Boolean {
+    crash chosen[index]
+    var light = chosen[index]
+    crash lights.owners[light]
+    return lights.owners[light] == owner
+}
+
+func forget(kept: Integer) {
+    crash kept_first_tiles[kept]
+    crash kept_tile_counts[kept]
+    var tile = kept_first_tiles[kept]
+    var last = tile + kept_tile_counts[kept]
+    while tile < last {
+        tile_used[tile] = false
+        tile = tile + 1
+    }
+    kept_owners.remove_at(kept)
+    kept_first_tiles.remove_at(kept)
+    kept_tile_counts.remove_at(kept)
+    kept_rendered.remove_at(kept)
+    kept_signatures.remove_at(kept)
+    kept_bases.remove_at(kept)
+    kept_focals.remove_at(kept)
+    kept_fars.remove_at(kept)
+    var field = 0
+    while field < state_floats {
+        kept_states.remove_at(kept * state_floats)
+        field = field + 1
+    }
+}
+
+func keep_chosen(lights: Scene.Lights) {
+    chosen_kept.clear()
+    var index = 0
+    while index < chosen.count() {
+        var light = chosen[index]
+        crash lights.owners[light]
+        var owner = lights.owners[light]
+        var needed = tiles_of(lights, light)
+        var kept = kept_index_of(owner)
+        if kept >= 0 {
+            crash kept_tile_counts[kept]
+            if kept_tile_counts[kept] != needed {
+                forget(kept)
+                kept = -1
+            }
+        }
+        if kept < 0 {
+            var first = free_tiles(needed)
+            if first >= 0 {
+                kept = start_keeping(owner, first, needed)
+            }
+        }
+        chosen_kept.append(kept)
+        index = index + 1
+    }
+}
+
+func kept_index_of(owner: Integer): Integer {
+    var kept = 0
+    while kept < kept_owners.count() {
+        if kept_owners[kept] == owner {
+            return kept
+        }
+        kept = kept + 1
+    }
+    return -1
+}
+
+func free_tiles(needed: Integer): Integer {
+    if needed == 1 {
+        var last = tile_count - 1
+        while last >= 0 {
+            crash last < tile_used.count()
+            if not tile_used[last] {
+                tile_used[last] = true
+                return last
+            }
+            last = last - 1
+        }
+        return -1
+    }
+    var first = 0
+    while first + needed <= tile_count {
+        var run = 0
+        while run < needed and not tile_is_used(first + run) {
+            run = run + 1
+        }
+        if run == needed {
+            run = 0
+            while run < needed {
+                tile_used[first + run] = true
+                run = run + 1
+            }
+            return first
+        }
+        first = first + run + 1
+    }
+    return -1
+}
+
+func tile_is_used(tile: Integer): Boolean {
+    crash tile < tile_used.count()
+    return tile_used[tile]
+}
+
+func start_keeping(owner: Integer, first: Integer, needed: Integer): Integer {
+    kept_owners.append(owner)
+    kept_first_tiles.append(first)
+    kept_tile_counts.append(needed)
+    kept_rendered.append(false)
+    kept_signatures.append(0.0)
+    var basis = Math.Matrix4()
+    kept_bases.append(basis)
+    kept_focals.append(1.0)
+    kept_fars.append(1.0)
+    var field = 0
+    while field < state_floats {
+        kept_states.append(0.0)
+        field = field + 1
+    }
+    return kept_owners.count() - 1
+}
+
+func judge_chosen(drawn: Scene.DrawSet, lights: Scene.Lights) {
+    chosen_dirty.clear()
+    var index = 0
+    while index < chosen.count() {
+        var light = chosen[index]
+        crash chosen_kept[index]
+        var kept = chosen_kept[index]
+        var dirty = false
+        if kept >= 0 {
+            read_state(lights, light)
+            signature = 0.0
+            moving = false
+            pick_light_casters(drawn, lights, light, -1)
+            crash kept < kept_rendered.count()
+            crash kept_signatures[kept]
+            dirty = not kept_rendered[kept] or moving or signature != kept_signatures[kept] or state_changed(kept)
+        }
+        chosen_dirty.append(dirty)
+        index = index + 1
+    }
+}
+
+func read_state(lights: Scene.Lights, light: Integer) {
+    state.clear()
+    var from = light * lights.light_floats
+    var source = lights.floats
+    crash source[from]
+    crash source[from + 1]
+    crash source[from + 2]
+    crash source[from + 3]
+    crash source[from + 4]
+    crash source[from + 5]
+    crash source[from + 6]
+    crash source[from + 12]
+    crash source[from + 13]
+    state.append(source[from])
+    state.append(source[from + 1])
+    state.append(source[from + 2])
+    state.append(source[from + 3])
+    state.append(source[from + 4])
+    state.append(source[from + 5])
+    state.append(source[from + 6])
+    var cosine_outer: Float = 0.0
+    if source[from + 12] > 0.0 {
+        cosine_outer = 0.0 - source[from + 13] / source[from + 12]
+    }
+    state.append(cosine_outer)
+}
+
+func state_changed(kept: Integer): Boolean {
+    var field = 0
+    while field < state_floats {
+        crash state[field]
+        crash kept_states[kept * state_floats + field]
+        if scalar.absolute(state[field] - kept_states[kept * state_floats + field]) > 0.0001 {
+            return true
+        }
+        field = field + 1
+    }
+    return false
+}
+
+func light_tangent(point: Boolean): Float {
+    var size: Float = tile_size
+    var widen = size / (size - 2.0 * filter_guard)
+    if point {
+        return widen
+    }
+    crash state[7]
+    var cosine = scalar.maximum(state[7], 0.17)
+    var sine = scalar.square_root(1.0 - cosine * cosine)
+    return sine / cosine * widen
+}
+
+func pick_light_casters(drawn: Scene.DrawSet, lights: Scene.Lights, light: Integer, face: Integer) {
+    var point = is_point(lights, light)
+    var faces = 1
+    if point {
+        faces = 6
+    }
+    var tangent = light_tangent(point)
+    var current = 0
+    while current < faces {
+        if face < 0 or face == current {
+            aim_face(point, current)
+            pick_in_frustum(drawn, tangent)
+        }
+        current = current + 1
+    }
+}
+
+func aim_face(point: Boolean, face: Integer) {
+    if point {
+        crash face_forward[face * 3]
+        crash face_forward[face * 3 + 1]
+        crash face_forward[face * 3 + 2]
+        crash face_up[face * 3]
+        crash face_up[face * 3 + 1]
+        crash face_up[face * 3 + 2]
+        forward.x_value = face_forward[face * 3]
+        forward.y_value = face_forward[face * 3 + 1]
+        forward.z_value = face_forward[face * 3 + 2]
+        up.x_value = face_up[face * 3]
+        up.y_value = face_up[face * 3 + 1]
+        up.z_value = face_up[face * 3 + 2]
+        right.x_value = forward.y_value * up.z_value - forward.z_value * up.y_value
+        right.y_value = forward.z_value * up.x_value - forward.x_value * up.z_value
+        right.z_value = forward.x_value * up.y_value - forward.y_value * up.x_value
+        return
+    }
+    crash state[4]
+    crash state[5]
+    crash state[6]
+    forward.x_value = state[4]
+    forward.y_value = state[5]
+    forward.z_value = state[6]
+    basis_around_forward()
+}
+
+func pick_in_frustum(drawn: Scene.DrawSet, tangent: Float) {
+    picked.clear()
+    picked_cells.clear()
+    crash state[0]
+    crash state[1]
+    crash state[2]
+    crash state[3]
+    var light_x = state[0]
+    var light_y = state[1]
+    var light_z = state[2]
+    var range = state[3]
+    var norm = scalar.square_root(1.0 + tangent * tangent)
+    var total = drawn.draws.count() + drawn.casters.count()
+    var index = 0
+    while index < total {
+        var draw = draw_of(drawn, index)
+        var inside = sphere_in_frustum(
+            draw.center_x - light_x,
+            draw.center_y - light_y,
+            draw.center_z - light_z,
+            draw.radius,
+            range,
+            tangent,
+            norm,
+        )
+        if inside {
+            picked.append(index)
+            note_caster(draw)
+        }
+        index = index + 1
+    }
+    index = 0
+    while index < drawn.terrain_draws.count() {
+        var cell = drawn.terrain_draws[index]
+        var cell_inside = sphere_in_frustum(
+            cell.center_x - light_x,
+            cell.center_y - light_y,
+            cell.center_z - light_z,
+            cell.radius,
+            range,
+            tangent,
+            norm,
+        )
+        if cell_inside {
+            picked_cells.append(index)
+            signature = signature + cell.center_x * 3.0 + cell.center_z * 5.0 + cell.radius
+        }
+        index = index + 1
+    }
+}
+
+func sphere_in_frustum(
+    along_x: Float,
+    along_y: Float,
+    along_z: Float,
+    radius: Float,
+    range: Float,
+    tangent: Float,
+    norm: Float,
+): Boolean {
+    var reach = range + radius
+    if along_x * along_x + along_y * along_y + along_z * along_z > reach * reach {
+        return false
+    }
+    var ahead = dot_forward(along_x, along_y, along_z) * tangent
+    var across = dot_right(along_x, along_y, along_z)
+    var rise = dot_up(along_x, along_y, along_z)
+    var margin = 0.0 - radius * norm
+    return ahead - across >= margin and ahead + across >= margin and ahead - rise >= margin and ahead + rise >= margin
+}
+
+func note_caster(draw: Scene.Draw) {
+    var model = draw.model
+    signature = signature + draw.center_x + draw.center_y * 3.0 + draw.center_z * 7.0 + draw.radius * 11.0
+    signature = signature + model.m0 * 13.0 + model.m2 * 17.0 + model.m8 * 19.0 + model.m10 * 23.0
+    signature = signature + draw.mesh_slot * 29 + draw.section * 31 + 1
+    if draw.palette_first > 0 {
+        moving = true
+    }
+}
+
+func render_dirty(drawn: Scene.DrawSet, lights: Scene.Lights, first_time: Boolean) {
+    var faces = 0
+    var view = local_first_view
+    while view < view_matrices.count() {
+        faces = faces + 1
+        view = view + 1
+    }
+    var index = 0
+    while index < chosen.count() {
+        var light = chosen[index]
+        crash chosen_kept[index]
+        crash index < chosen_dirty.count()
+        var kept = chosen_kept[index]
+        var never = kept >= 0 and not kept_was_rendered(kept)
+        if chosen_dirty[index] and never == first_time {
+            var needed = tiles_of(lights, light)
+            if faces == 0 or faces + needed <= face_budget {
+                render_light(drawn, lights, light, kept)
+                faces = faces + needed
+                chosen_dirty[index] = false
+            }
+        }
+        index = index + 1
+    }
+}
+
+func kept_was_rendered(kept: Integer): Boolean {
+    crash kept < kept_rendered.count()
+    return kept_rendered[kept]
+}
+
+func render_light(drawn: Scene.DrawSet, lights: Scene.Lights, light: Integer, kept: Integer) {
+    read_state(lights, light)
+    var point = is_point(lights, light)
+    var tangent = light_tangent(point)
+    var focal = 1.0 / tangent
+    crash state[0]
+    crash state[1]
+    crash state[2]
+    crash state[3]
+    var light_x = state[0]
+    var light_y = state[1]
+    var light_z = state[2]
+    var far = state[3]
+    crash kept_first_tiles[kept]
+    var first_tile = kept_first_tiles[kept]
+    signature = 0.0
+    moving = false
+    var faces = tiles_of(lights, light)
+    var face = 0
+    while face < faces {
+        aim_face(point, face)
+        pick_in_frustum(drawn, tangent)
+        var matrix = Math.Matrix4()
+        perspective_view(matrix, light_x, light_y, light_z, focal, far)
+        var tile = first_tile + face
+        var left = local_left + tile % tiles_across * tile_size
+        var top = tile / tiles_across * tile_size
+        add_view(drawn, matrix, left, top, tile_size)
+        face = face + 1
+    }
+    if not point {
+        crash kept_bases[kept]
+        var basis = kept_bases[kept]
+        basis.m0 = right.x_value
+        basis.m4 = right.y_value
+        basis.m8 = right.z_value
+        basis.m12 = 0.0 - dot_right(light_x, light_y, light_z)
+        basis.m1 = up.x_value
+        basis.m5 = up.y_value
+        basis.m9 = up.z_value
+        basis.m13 = 0.0 - dot_up(light_x, light_y, light_z)
+        basis.m2 = forward.x_value
+        basis.m6 = forward.y_value
+        basis.m10 = forward.z_value
+        basis.m14 = 0.0 - dot_forward(light_x, light_y, light_z)
+        basis.m3 = 0.0
+        basis.m7 = 0.0
+        basis.m11 = 0.0
+        basis.m15 = 1.0
+    }
+    kept_rendered[kept] = true
+    kept_signatures[kept] = signature
+    kept_focals[kept] = focal
+    kept_fars[kept] = far
+    var field = 0
+    while field < state_floats {
+        crash state[field]
+        kept_states[kept * state_floats + field] = state[field]
+        field = field + 1
+    }
+}
+
+func perspective_view(matrix: Math.Matrix4, light_x: Float, light_y: Float, light_z: Float, focal: Float, far: Float) {
+    var depth_scale = far / (light_near - far)
+    var depth_offset = light_near * far / (light_near - far)
+    var along_right = dot_right(light_x, light_y, light_z)
+    var along_up = dot_up(light_x, light_y, light_z)
+    var along_forward = dot_forward(light_x, light_y, light_z)
+    matrix.m0 = focal * right.x_value
+    matrix.m4 = focal * right.y_value
+    matrix.m8 = focal * right.z_value
+    matrix.m12 = 0.0 - focal * along_right
+    matrix.m1 = 0.0 - focal * up.x_value
+    matrix.m5 = 0.0 - focal * up.y_value
+    matrix.m9 = 0.0 - focal * up.z_value
+    matrix.m13 = focal * along_up
+    matrix.m2 = 0.0 - depth_scale * forward.x_value
+    matrix.m6 = 0.0 - depth_scale * forward.y_value
+    matrix.m10 = 0.0 - depth_scale * forward.z_value
+    matrix.m14 = depth_scale * along_forward + depth_offset
+    matrix.m3 = forward.x_value
+    matrix.m7 = forward.y_value
+    matrix.m11 = forward.z_value
+    matrix.m15 = 0.0 - along_forward
+}
+
+func assign_records() {
+    var index = 0
+    while index < chosen.count() and record_kept.count() < most_shadowed_lights {
+        var light = chosen[index]
+        crash chosen_kept[index]
+        var kept = chosen_kept[index]
+        if kept >= 0 and kept_was_rendered(kept) {
+            record_kept.append(kept)
+            light_records[light] = record_kept.count()
+        }
+        index = index + 1
+    }
+}
+
+func record_count(): Integer {
+    return record_draws.count()
+}
+
+func record_of_light(light: Integer): Float {
+    var shadow_record = light_records[light]
+    crash shadow_record
+    var value: Float = shadow_record
+    return value
+}
+
+func write_records(drawn: Scene.DrawSet, draws_at: Long, base: Integer) {
+    record_base = base
+    var index = 0
+    while index < record_draws.count() {
+        var draw = draw_of(drawn, record_draws[index])
+        var record_at = draws_at + (base + index) * record_stride
+        draw.model.write_to(record_at)
+        raw.write_integer(record_at, 64, draw.palette_first)
+        var masked = 0
+        if draw.masked {
+            masked = 1
+        }
+        raw.write_integer(record_at, 68, masked)
+        index = index + 1
+    }
+}
+
+func write_lighting(at: Long) {
+    var count: Float = cascades
+    put(at, 28, fade_start, fade_end, count, transition)
+    put_list(at, 32, cascade_splits)
+    put_list(at, 36, cascade_texels)
+    put_list(at, 40, cascade_depths)
+    var cascade = 0
+    while cascade < most_cascades {
+        crash cascade_matrices[cascade]
+        var matrix_at = at + 256 + cascade * 64
+        cascade_matrices[cascade].write_to(matrix_at)
+        cascade = cascade + 1
+    }
+    var left: Float = local_left
+    var across: Float = tiles_across
+    var size: Float = cascade_size
+    var tile: Float = tile_size
+    put(at, 128, left, across, size, tile)
+    var shadow_record = 0
+    while shadow_record < record_kept.count() {
+        var kept = record_kept[shadow_record]
+        write_local_shadow(at + 528 + shadow_record * 96, kept)
+        shadow_record = shadow_record + 1
+    }
+}
+
+func write_local_shadow(at: Long, kept: Integer) {
+    crash kept_bases[kept]
+    kept_bases[kept].write_to(at)
+    var from = kept * state_floats
+    crash kept_states[from]
+    crash kept_states[from + 1]
+    crash kept_states[from + 2]
+    crash kept_tile_counts[kept]
+    var kind: Float = 0.0
+    if kept_tile_counts[kept] == 6 {
+        kind = 1.0
+    }
+    put(at, 16, kept_states[from], kept_states[from + 1], kept_states[from + 2], kind)
+    crash kept_first_tiles[kept]
+    crash kept_focals[kept]
+    crash kept_fars[kept]
+    var first: Float = kept_first_tiles[kept]
+    put(at, 20, first, kept_focals[kept], light_near, kept_fars[kept])
+}
+
+func put_list(at: Long, index: Integer, values: List<Float>) {
+    crash values[0]
+    crash values[1]
+    crash values[2]
+    crash values[3]
+    put(at, index, values[0], values[1], values[2], values[3])
+}
+
+func put(at: Long, index: Integer, first: Float, second: Float, third: Float, fourth: Float) {
+    floats.write_value(at, index, first)
+    floats.write_value(at, index + 1, second)
+    floats.write_value(at, index + 2, third)
+    floats.write_value(at, index + 3, fourth)
+}
+
+func record(
+    renderer: RenderVulkan.Renderer,
+    owner: SceneVulkan.MeshRenderer,
+    drawn: Scene.DrawSet,
+    storage: RenderVulkan.Structure,
+) {
+    if initialized {
+        barrier(renderer, 32, 1536, 5, 3, 128, 768)
+    } else {
+        barrier(renderer, 0, 1536, 0, 3, 1, 768)
+    }
+    initialized = true
+    var timings = renderer.gpu_timings
+    var sun_timing = timings.begin("shadows")
+    record_region(renderer, owner, drawn, storage, 0, local_first_view, 0, local_left, true)
+    timings.end(sun_timing)
+    var local_timing = timings.begin("local shadows")
+    var view_count = view_matrices.count()
+    record_region(
+        renderer,
+        owner,
+        drawn,
+        storage,
+        local_first_view,
+        view_count,
+        local_left,
+        atlas_width - local_left,
+        false,
+    )
+    timings.end(local_timing)
+    barrier(renderer, 1024, 32, 3, 5, 512, 128)
+}
+
+func record_region(
+    renderer: RenderVulkan.Renderer,
+    owner: SceneVulkan.MeshRenderer,
+    drawn: Scene.DrawSet,
+    storage: RenderVulkan.Structure,
+    first: Integer,
+    last: Integer,
+    left: Integer,
+    width: Integer,
+    clearing: Boolean,
+) {
+    assert last > first
+    var command_buffer = renderer.frame.command_buffer
+    var load_operation = 0
+    if clearing {
+        load_operation = 1
+    }
+    var depth = RenderVulkan.Structure(72)
+    depth.append_integer(1000044001)
+    depth.append_long(0)
+    depth.append_long(image_view)
+    depth.append_integer(3)
+    depth.append_integer(0)
+    depth.append_long(0)
+    depth.append_integer(0)
+    depth.append_integer(load_operation)
+    depth.append_integer(0)
+    depth.append_float(1.0)
+    depth.append_integer(0)
+    depth.append_integer(0)
+    depth.append_integer(0)
+    var rendering = RenderVulkan.Structure(80)
+    rendering.append_integer(1000044000)
+    rendering.append_long(0)
+    rendering.append_integer(0)
+    rendering.append_integer(left)
+    rendering.append_integer(0)
+    rendering.append_integer(width)
+    rendering.append_integer(atlas_height)
+    rendering.append_integer(1)
+    rendering.append_integer(0)
+    rendering.append_integer(0)
+    rendering.append_long(0)
+    rendering.append_pointer(depth)
+    rendering.append_long(0)
+    vulkan.vkCmdBeginRendering(command_buffer, rendering.address)
+    vulkan.vkCmdBindPipeline(command_buffer, 0, pipeline)
+    var no_offsets: Long = 0
+    vulkan.vkCmdBindDescriptorSets(command_buffer, 0, owner.pipeline_layout, 1, 1, storage.address, 0, no_offsets)
+    var view = first
+    while view < last {
+        if not clearing {
+            clear_tile(renderer, view)
+        }
+        record_view(renderer, owner, drawn, view)
+        view = view + 1
+    }
+    vulkan.vkCmdEndRendering(command_buffer)
+}
+
+func clear_tile(renderer: RenderVulkan.Renderer, view: Integer) {
+    crash view_lefts[view]
+    crash view_tops[view]
+    crash view_sizes[view]
+    var attachment = RenderVulkan.Structure(24)
+    attachment.append_integer(2)
+    attachment.append_integer(0)
+    attachment.append_float(1.0)
+    attachment.append_integer(0)
+    attachment.append_integer(0)
+    attachment.append_integer(0)
+    var rectangle = RenderVulkan.Structure(24)
+    rectangle.append_integer(view_lefts[view])
+    rectangle.append_integer(view_tops[view])
+    rectangle.append_integer(view_sizes[view])
+    rectangle.append_integer(view_sizes[view])
+    rectangle.append_integer(0)
+    rectangle.append_integer(1)
+    vulkan.vkCmdClearAttachments(renderer.frame.command_buffer, 1, attachment.address, 1, rectangle.address)
+}
+
+func record_view(
+    renderer: RenderVulkan.Renderer,
+    owner: SceneVulkan.MeshRenderer,
+    drawn: Scene.DrawSet,
+    view: Integer,
+) {
+    crash view_matrices[view]
+    crash view_lefts[view]
+    crash view_tops[view]
+    crash view_sizes[view]
+    crash view_first_runs[view]
+    crash view_run_counts[view]
+    crash view_first_cells[view]
+    crash view_cell_counts[view]
+    var matrix = view_matrices[view]
+    set_viewport(renderer, view_lefts[view], view_tops[view], view_sizes[view])
+    var run = view_first_runs[view]
+    var last_run = run + view_run_counts[view]
+    while run < last_run {
+        crash run_draws[run]
+        crash run_records[run]
+        crash run_instances[run]
+        var draw = draw_of(drawn, run_draws[run])
+        owner.record_instances(
+            renderer,
+            draw.mesh_slot,
+            draw.first_index,
+            draw.index_count,
+            draw.texture_slot,
+            record_base + run_records[run],
+            run_instances[run],
+            matrix,
+        )
+        run = run + 1
+    }
+    var cell = view_first_cells[view]
+    var last_cell = cell + view_cell_counts[view]
+    var first_terrain = drawn.draws.count()
+    while cell < last_cell {
+        crash view_cells[cell]
+        var terrain_index = view_cells[cell]
+        crash drawn.terrain_draws[terrain_index]
+        var terrain = drawn.terrain_draws[terrain_index]
+        owner.record_mesh(
+            renderer,
+            terrain.mesh_slot,
+            terrain.first_index,
+            terrain.index_count,
+            -1,
+            first_terrain + terrain_index,
+            matrix,
+        )
+        cell = cell + 1
+    }
+}
+
+func set_viewport(renderer: RenderVulkan.Renderer, left: Integer, top: Integer, size: Integer) {
+    var command_buffer = renderer.frame.command_buffer
+    var viewport = RenderVulkan.Structure(24)
+    viewport.append_float(left)
+    viewport.append_float(top)
+    viewport.append_float(size)
+    viewport.append_float(size)
+    viewport.append_float(0.0)
+    viewport.append_float(1.0)
+    vulkan.vkCmdSetViewport(command_buffer, 0, 1, viewport.address)
+    var scissor = RenderVulkan.Structure(16)
+    scissor.append_integer(left)
+    scissor.append_integer(top)
+    scissor.append_integer(size)
+    scissor.append_integer(size)
+    vulkan.vkCmdSetScissor(command_buffer, 0, 1, scissor.address)
+}
+
+func barrier(
+    renderer: RenderVulkan.Renderer,
+    source_access: Integer,
+    destination_access: Integer,
+    old_layout: Integer,
+    new_layout: Integer,
+    source_stage: Integer,
+    destination_stage: Integer,
+) {
+    var description = RenderVulkan.Structure(72)
+    description.append_integer(45)
+    description.append_long(0)
+    description.append_integer(source_access)
+    description.append_integer(destination_access)
+    description.append_integer(old_layout)
+    description.append_integer(new_layout)
+    description.append_integer(-1)
+    description.append_integer(-1)
+    description.append_long(image)
+    description.append_integer(2)
+    description.append_integer(0)
+    description.append_integer(1)
+    description.append_integer(0)
+    description.append_integer(1)
+    var no_barriers: Long = 0
+    vulkan.vkCmdPipelineBarrier(
+        renderer.frame.command_buffer,
+        source_stage,
+        destination_stage,
+        0,
+        0,
+        no_barriers,
+        0,
+        no_barriers,
+        1,
+        description.address,
+    )
+}
+
+func create_atlas(renderer: RenderVulkan.Renderer) {
+    var no_allocator: Long = 0
+    var creation = RenderVulkan.Structure(96)
+    creation.append_integer(14)
+    creation.append_long(0)
+    creation.append_integer(0)
+    creation.append_integer(1)
+    creation.append_integer(126)
+    creation.append_integer(atlas_width)
+    creation.append_integer(atlas_height)
+    creation.append_integer(1)
+    creation.append_integer(1)
+    creation.append_integer(1)
+    creation.append_integer(1)
+    creation.append_integer(0)
+    creation.append_integer(36)
+    creation.append_integer(0)
+    creation.append_integer(0)
+    creation.append_long(0)
+    creation.append_integer(0)
+    var made = RenderVulkan.Structure(8)
+    var result = vulkan.vkCreateImage(renderer.device, creation.address, no_allocator, made.address)
+    crash result == 0
+    image = made.read_long(0)
+    var requirements = RenderVulkan.Structure(24)
+    vulkan.vkGetImageMemoryRequirements(renderer.device, image, requirements.address)
+    var device_local = 1
+    atlas_memory = renderer.allocate_memory(requirements, device_local)
+    var no_offset: Long = 0
+    var bind_result = vulkan.vkBindImageMemory(renderer.device, image, atlas_memory, no_offset)
+    crash bind_result == 0
+    var view_creation = RenderVulkan.Structure(80)
+    view_creation.append_integer(15)
+    view_creation.append_long(0)
+    view_creation.append_integer(0)
+    view_creation.append_long(image)
+    view_creation.append_integer(1)
+    view_creation.append_integer(126)
+    var field = 0
+    while field < 4 {
+        view_creation.append_integer(0)
+        field = field + 1
+    }
+    view_creation.append_integer(2)
+    view_creation.append_integer(0)
+    view_creation.append_integer(1)
+    view_creation.append_integer(0)
+    view_creation.append_integer(1)
+    var view_result = vulkan.vkCreateImageView(renderer.device, view_creation.address, no_allocator, made.address)
+    crash view_result == 0
+    image_view = made.read_long(0)
+    var sampler_creation = RenderVulkan.Structure(80)
+    sampler_creation.append_integer(31)
+    sampler_creation.append_long(0)
+    sampler_creation.append_integer(0)
+    sampler_creation.append_integer(1)
+    sampler_creation.append_integer(1)
+    sampler_creation.append_integer(0)
+    sampler_creation.append_integer(2)
+    sampler_creation.append_integer(2)
+    sampler_creation.append_integer(2)
+    sampler_creation.append_float(0.0)
+    sampler_creation.append_integer(0)
+    sampler_creation.append_float(1.0)
+    sampler_creation.append_integer(1)
+    sampler_creation.append_integer(3)
+    sampler_creation.append_float(0.0)
+    sampler_creation.append_float(0.0)
+    sampler_creation.append_integer(0)
+    sampler_creation.append_integer(0)
+    var sampler_result = vulkan.vkCreateSampler(renderer.device, sampler_creation.address, no_allocator, made.address)
+    crash sampler_result == 0
+    sampler = made.read_long(0)
+}
+
+func create_pipeline(renderer: RenderVulkan.Renderer, owner: SceneVulkan.MeshRenderer): Long {
+    var rendering = RenderVulkan.Structure(40)
+    rendering.append_integer(1000044002)
+    rendering.append_long(0)
+    rendering.append_integer(0)
+    rendering.append_integer(0)
+    rendering.append_long(0)
+    rendering.append_integer(126)
+    rendering.append_integer(0)
+    var stages = RenderVulkan.Structure(96)
+    stages.append_integer(18)
+    stages.append_long(0)
+    stages.append_integer(0)
+    stages.append_integer(1)
+    stages.append_long(owner.shader_vertex)
+    stages.append_text("main")
+    stages.append_long(0)
+    stages.append_integer(18)
+    stages.append_long(0)
+    stages.append_integer(0)
+    stages.append_integer(16)
+    stages.append_long(shader_fragment)
+    stages.append_text("main")
+    stages.append_long(0)
+    var vertex_input = owner.vertex_input_state()
+    var assembly = RenderVulkan.Structure(32)
+    assembly.append_integer(20)
+    assembly.append_long(0)
+    assembly.append_integer(0)
+    assembly.append_integer(3)
+    assembly.append_integer(0)
+    var viewport = RenderVulkan.Structure(48)
+    viewport.append_integer(22)
+    viewport.append_long(0)
+    viewport.append_integer(0)
+    viewport.append_integer(1)
+    viewport.append_long(0)
+    viewport.append_integer(1)
+    viewport.append_long(0)
+    var rasterization = RenderVulkan.Structure(64)
+    rasterization.append_integer(23)
+    rasterization.append_long(0)
+    rasterization.append_integer(0)
+    rasterization.append_integer(0)
+    rasterization.append_integer(0)
+    rasterization.append_integer(0)
+    rasterization.append_integer(0)
+    rasterization.append_integer(0)
+    rasterization.append_integer(1)
+    rasterization.append_float(1.25)
+    rasterization.append_float(0.0)
+    rasterization.append_float(1.75)
+    rasterization.append_float(1.0)
+    var multisample = RenderVulkan.Structure(48)
+    multisample.append_integer(24)
+    multisample.append_long(0)
+    multisample.append_integer(0)
+    multisample.append_integer(1)
+    multisample.append_integer(0)
+    multisample.append_float(0.0)
+    multisample.append_long(0)
+    multisample.append_integer(0)
+    multisample.append_integer(0)
+    var depth = owner.depth_state(1)
+    var blend = RenderVulkan.Structure(64)
+    blend.append_integer(26)
+    blend.append_long(0)
+    blend.append_integer(0)
+    blend.append_integer(0)
+    blend.append_integer(0)
+    blend.append_integer(0)
+    blend.append_long(0)
+    blend.append_float(0.0)
+    blend.append_float(0.0)
+    blend.append_float(0.0)
+    blend.append_float(0.0)
+    var dynamic_states = RenderVulkan.Structure(8)
+    dynamic_states.append_integer(0)
+    dynamic_states.append_integer(1)
+    var dynamic = RenderVulkan.Structure(32)
+    dynamic.append_integer(27)
+    dynamic.append_long(0)
+    dynamic.append_integer(0)
+    dynamic.append_integer(2)
+    dynamic.append_pointer(dynamic_states)
+    var description = RenderVulkan.Structure(160)
+    description.append_integer(28)
+    description.append_pointer(rendering)
+    description.append_integer(0)
+    description.append_integer(2)
+    description.append_pointer(stages)
+    description.append_pointer(vertex_input)
+    description.append_pointer(assembly)
+    description.append_long(0)
+    description.append_pointer(viewport)
+    description.append_pointer(rasterization)
+    description.append_pointer(multisample)
+    description.append_pointer(depth)
+    description.append_pointer(blend)
+    description.append_pointer(dynamic)
+    description.append_long(owner.pipeline_layout)
+    description.append_long(0)
+    description.append_integer(0)
+    description.append_long(0)
+    description.append_integer(-1)
+    var no_cache: Long = 0
+    var no_allocator: Long = 0
+    var made = RenderVulkan.Structure(8)
+    var result = vulkan.vkCreateGraphicsPipelines(
+        renderer.device,
+        no_cache,
+        1,
+        description.address,
+        no_allocator,
+        made.address,
+    )
+    crash result == 0
+    return made.read_long(0)
+}
+
+func release(renderer: RenderVulkan.Renderer) {
+    var no_allocator: Long = 0
+    vulkan.vkDestroyPipeline(renderer.device, pipeline, no_allocator)
+    vulkan.vkDestroyShaderModule(renderer.device, shader_fragment, no_allocator)
+    vulkan.vkDestroySampler(renderer.device, sampler, no_allocator)
+    vulkan.vkDestroyImageView(renderer.device, image_view, no_allocator)
+    vulkan.vkDestroyImage(renderer.device, image, no_allocator)
+    vulkan.vkFreeMemory(renderer.device, atlas_memory, no_allocator)
+}

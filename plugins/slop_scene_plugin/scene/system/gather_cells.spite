@@ -44,6 +44,10 @@ func add_cell(target: Target, placed: Cell) {
         draw.first_index = drawn.sections[section * 3]
         draw.index_count = drawn.sections[section * 3 + 1]
         draw.material_slot = material_slot
+        draw.center_x = target.view.cone.placed.x_value
+        draw.center_y = target.view.cone.placed.y_value
+        draw.center_z = target.view.cone.placed.z_value
+        draw.radius = radius
         draws.of(target.entity.id).terrain_draws.append(draw)
         section = section + 1
     }

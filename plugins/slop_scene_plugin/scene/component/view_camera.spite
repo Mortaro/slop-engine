@@ -6,9 +6,6 @@ var aspect: Float = 1.7777778
 var eye_x: Float = 0.0
 var eye_y: Float = 0.0
 var eye_z: Float = 0.0
-var shadow_center_x: Float = 0.0
-var shadow_center_y: Float = 1.0
-var shadow_center_z: Float = 0.0
 
 func look_through(lens: Camera.Component.Camera) {
     field_of_view = lens.field_of_view
@@ -17,9 +14,6 @@ func look_through(lens: Camera.Component.Camera) {
     eye_x = lens.eye_x
     eye_y = lens.eye_y
     eye_z = lens.eye_z
-    shadow_center_x = lens.target_x
-    shadow_center_y = lens.target_y
-    shadow_center_z = lens.target_z
     view.set_look_at(lens.eye_x, lens.eye_y, lens.eye_z, lens.target_x, lens.target_y, lens.target_z)
 }
 

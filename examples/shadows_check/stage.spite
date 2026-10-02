@@ -1,0 +1,8 @@
+singleton
+
+var step = 0
+var camera = 0
+var sun = 0
+var sun_x: Float = 0.7
+var sun_y: Float = -0.5
+var sun_z: Float = 0.3

@@ -1,4 +1,5 @@
 type Lit {
+    entity: Entity
     sun: Lighting.Component.Sun
     sky: Lighting.Component.Sky
     fog: Lighting.Component.HeightFog
@@ -10,6 +11,7 @@ type Target {
 }
 
 var scalar = Math.Scalar()
+var shadowing = Lookup<Lighting.Component.CastsShadows>()
 
 func render_each(lit: Lit, target: Target) {
     var view = target.view
@@ -24,6 +26,14 @@ func render_each(lit: Lit, target: Target) {
     view.sun_green = sun.green
     view.sun_blue = sun.blue
     view.sun_illuminance = sun.illuminance
+    view.shadow_distance = sun.shadow_distance
+    view.cascade_count = 0
+    if shadowing.has(lit.entity.id) {
+        view.cascade_count = sun.cascade_count
+    }
+    view.cascade_distribution_exponent = sun.cascade_distribution_exponent
+    view.cascade_transition_fraction = sun.cascade_transition_fraction
+    view.shadow_fadeout_fraction = sun.shadow_fadeout_fraction
     var sky = lit.sky
     view.sky_red = sky.red
     view.sky_green = sky.green

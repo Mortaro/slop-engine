@@ -2,6 +2,10 @@ singleton
 
 var floats = List<Float>()
 var light_floats = 16
+var owners = List<Integer>()
+var shadowed = List<Boolean>()
+var shadow_reach: Float = 0.0
+var last_shadow_reach: Float = 0.0
 
 func count(): Integer {
     return floats.count() / light_floats
@@ -9,6 +13,10 @@ func count(): Integer {
 
 func clear() {
     floats.clear()
+    owners.clear()
+    shadowed.clear()
+    last_shadow_reach = shadow_reach
+    shadow_reach = 0.0
 }
 
 func add(light: Scene.Light) {
@@ -28,4 +36,9 @@ func add(light: Scene.Light) {
     floats.append(light.cone_offset)
     floats.append(0.0)
     floats.append(0.0)
+    owners.append(light.owner)
+    shadowed.append(light.casts_shadows)
+    if light.casts_shadows and light.range > shadow_reach {
+        shadow_reach = light.range
+    }
 }

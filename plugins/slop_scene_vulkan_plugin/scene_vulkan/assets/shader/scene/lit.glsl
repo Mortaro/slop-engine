@@ -5,6 +5,15 @@ const uint tiles_across = 16u;
 const uint tiles_down = 9u;
 const uint depth_slices = 24u;
 
+// A shadowed point or spot light's tiles, as they were when last drawn (shadows.glsl).
+struct LocalShadow {
+    // a spot's view: right, up and forward rows from the light
+    mat4 basis;
+    // position, and 1 for a point light's six faces
+    vec4 position;
+    // first tile, focal length, near, far
+    vec4 view;
+};
 
 layout(std430, set = 1, binding = 2) readonly buffer Lighting {
     vec4 sun_toward;
@@ -14,10 +23,21 @@ layout(std430, set = 1, binding = 2) readonly buffer Lighting {
     vec4 fog;
     vec4 eye;
     vec4 material;
-    mat4 light_view_projection;
+    // fade start and end (the shadow distance), cascade count, and the transition fraction
+    vec4 shadow_fade;
+    // each cascade's far depth along the view
+    vec4 cascade_splits;
+    // each cascade's texel size in metres
+    vec4 cascade_texels;
+    // each cascade's depth range in metres
+    vec4 cascade_depths;
     mat4 view;
     // near, slices per doubling of depth, and the two projection scales
     vec4 clusters;
+    mat4 cascade_view_projections[4];
+    // left of the light tiles, tiles across, cascade size and tile size, in atlas texels
+    vec4 shadow_atlas;
+    LocalShadow local_shadows[16];
 } lighting;
 
 layout(set = 1, binding = 3) uniform sampler2DShadow shadow_map;
@@ -33,7 +53,8 @@ struct LocalLight {
     float cone_scale;
     float cone_offset;
     float unused_0;
-    float unused_1;
+    // the light's LocalShadow plus one, or 0 when it casts none this frame
+    float shadow;
 };
 
 struct ClusterRange {
@@ -98,24 +119,7 @@ float fog_optical_depth(vec3 start, vec3 finish) {
     return density_at_start * distance_travelled * shape;
 }
 
-float sun_visibility(vec3 position, vec3 normal) {
-    vec3 offset_position = position + normal * 0.02;
-    vec4 light_clip = lighting.light_view_projection * vec4(offset_position, 1.0);
-    vec3 light_coordinate = light_clip.xyz / light_clip.w;
-    vec2 texel_coordinate = light_coordinate.xy * 0.5 + 0.5;
-    if (texel_coordinate.x <= 0.0 || texel_coordinate.x >= 1.0 || texel_coordinate.y <= 0.0 || texel_coordinate.y >= 1.0 || light_coordinate.z >= 1.0) {
-        return 1.0;
-    }
-    vec2 texel_size = 1.0 / vec2(textureSize(shadow_map, 0));
-    float lit = 0.0;
-    for (int row = -1; row <= 1; row++) {
-        for (int column = -1; column <= 1; column++) {
-            vec2 step_offset = vec2(float(column), float(row)) * texel_size;
-            lit += texture(shadow_map, vec3(texel_coordinate + step_offset, light_coordinate.z - 0.0015));
-        }
-    }
-    return lit / 9.0;
-}
+#include "shadows.glsl"
 
 struct Surface {
     vec3 normal;
@@ -175,6 +179,9 @@ vec3 local_radiance(Surface surface, vec3 position) {
         vec3 toward_light = to_light / max(distance_travelled, 1e-4);
         float cone = clamp(dot(-toward_light, light.toward) * light.cone_scale + light.cone_offset, 0.0, 1.0);
         float falloff = windowed_inverse_square(distance_travelled, light.range) * cone * cone;
+        if (light.shadow > 0.5 && falloff > 0.0) {
+            falloff *= local_visibility(uint(light.shadow) - 1u, position, surface.normal);
+        }
         radiance += reflectance(surface, toward_light) * light.color * light.intensity * falloff;
     }
     return radiance;

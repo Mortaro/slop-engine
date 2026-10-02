@@ -1,10 +1,12 @@
 type Spotted {
+    entity: Entity
     light: Lighting.Component.SpotLight
     transform: Transform.Component.Transform
 }
 
 var light = Scene.Light()
 var lights = Scene.Lights()
+var shadowing = Lookup<Lighting.Component.CastsShadows>()
 var scalar = Math.Scalar()
 var axis = Math.Vector3()
 
@@ -24,6 +26,8 @@ func render_each(spotted: Spotted) {
     light.green = spot.green
     light.blue = spot.blue
     light.intensity = spot.intensity
+    light.owner = spotted.entity.id
+    light.casts_shadows = shadowing.has(spotted.entity.id)
     var cosine_inner = scalar.cosine(spot.inner_angle)
     var cosine_outer = scalar.cosine(spot.outer_angle)
     var spread = cosine_inner - cosine_outer

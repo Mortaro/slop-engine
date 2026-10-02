@@ -16,6 +16,7 @@ var meshes = Scene.Meshes()
 var off_views = Lookup<Component.OffView>()
 var skins = Lookup<Component.Skin>()
 var draws = Scene.Draws()
+var lights = Scene.Lights()
 var no_palette = List<Math.Matrix4>()
 
 func render_each(target: Target, modeled: Modeled) {
@@ -44,10 +45,11 @@ func add_draw(target: Target, modeled: Modeled) {
     }
     var radius = target.view.cone.radius_of(loaded, modeled.transform)
     var in_view = target.view.cone.contains(radius)
+    var casting = in_view or casts_into_view(target.view, radius)
     if skinned {
-        mark_view(target.view, modeled.entity, radius, in_view)
+        mark_view(modeled.entity, casting)
     }
-    assert in_view
+    assert casting
     var palette_first = 0
     if skinned {
         palette_first = drawn.palettes.count()
@@ -63,12 +65,16 @@ func add_draw(target: Target, modeled: Modeled) {
         draw.mesh_slot = slot
         draw.model = model
         draw.palette_first = palette_first
-        add_section(drawn, loaded, draw, section)
+        draw.center_x = target.view.cone.placed.x_value
+        draw.center_y = target.view.cone.placed.y_value
+        draw.center_z = target.view.cone.placed.z_value
+        draw.radius = radius
+        add_section(drawn, loaded, draw, section, in_view)
         section = section + 1
     }
 }
 
-func add_section(drawn: Scene.DrawSet, loaded: Scene.LoadedMesh, draw: Scene.Draw, section: Integer) {
+func add_section(drawn: Scene.DrawSet, loaded: Scene.LoadedMesh, draw: Scene.Draw, section: Integer, in_view: Boolean) {
     var at = section * 3
     crash loaded.sections[at]
     crash loaded.sections[at + 1]
@@ -84,11 +90,20 @@ func add_section(drawn: Scene.DrawSet, loaded: Scene.LoadedMesh, draw: Scene.Dra
             draw.texture_slot = textures.request(texture)
         }
     }
-    drawn.draws.append(draw)
+    if in_view {
+        drawn.draws.append(draw)
+    } else {
+        drawn.casters.append(draw)
+    }
 }
 
-func mark_view(view: Component.View, entity: Entity, radius: Float, in_view: Boolean) {
-    var seen = in_view or view.cone.shades_view(radius, view.sun_toward_x, view.sun_toward_y, view.sun_toward_z)
+func casts_into_view(view: Component.View, radius: Float): Boolean {
+    var sun_reach = view.cascade_count > 0 and view.cone.shades_view(radius, view.sun_toward_x, view.sun_toward_y, view.sun_toward_z)
+    var light_reach = lights.last_shadow_reach * 2.0
+    return sun_reach or light_reach > 0.0 and view.cone.contains(radius + light_reach)
+}
+
+func mark_view(entity: Entity, seen: Boolean) {
     var marked = off_views.has(entity.id)
     if seen and marked {
         entity.remove_component(Component.OffView)
