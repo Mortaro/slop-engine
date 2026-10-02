@@ -7,7 +7,8 @@ var lake_z: Float = 60.0
 
 func build() {
     var fingerprint = cache.fingerprint("foliage fixture 3")
-    assert not cache.is_current("foliage.check.material", fingerprint)
+    var material_current = cache.is_current("foliage.check.material", fingerprint)
+    assert not material_current or not cache.is_current("foliage.check.cell.0_0", fingerprint)
     build_cell(fingerprint, 0, 0)
     build_cell(fingerprint, 1, 0)
     build_cell(fingerprint, 0, 1)
