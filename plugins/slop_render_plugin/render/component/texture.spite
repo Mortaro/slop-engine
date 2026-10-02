@@ -1,6 +1,5 @@
 var id = ""
 var slot = 0
 var image = Asset.Texture()
-var raw = Asset.Bytes()
 var generation = 0
 var loaded_revision = 0

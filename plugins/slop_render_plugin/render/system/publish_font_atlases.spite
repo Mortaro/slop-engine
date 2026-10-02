@@ -10,7 +10,7 @@ var fonts = Ui.Fonts()
 func render_each(changed: Changed) {
     var atlas = changed.atlas
     var id = fonts.atlas_id(atlas)
-    textures.publish(id, atlas.texture, atlas.texels)
+    textures.publish(id, atlas.texture)
     atlas.published = atlas.generation
     changed.entity.remove_component(Ui.Component.AtlasChanged)
 }

@@ -1,4 +1,35 @@
 var width = 0
 var height = 0
 var layers = 0
-var pixels = List<Integer>()
+var format = "rgba8"
+var levels = 1
+var texels = Asset.Bytes()
+
+func append_layer(layer: Asset.Texture) {
+    if layers == 0 {
+        width = layer.width
+        height = layer.height
+        format = layer.format
+        levels = layer.levels
+    }
+    var same_shape = layer.width == width and layer.height == height and layer.format == format
+    crash same_shape and layer.levels == levels
+    var complete = layer.texels.length == layer.expected_bytes()
+    crash complete
+    texels.write_bytes(layer.texels.address, layer.texels.length)
+    layers = layers + 1
+}
+
+func layer_shape(): Asset.Texture {
+    var shape = Asset.Texture()
+    shape.width = width
+    shape.height = height
+    shape.format = format
+    shape.levels = levels
+    return shape
+}
+
+func layer_bytes(): Integer {
+    var shape = layer_shape()
+    return shape.expected_bytes()
+}

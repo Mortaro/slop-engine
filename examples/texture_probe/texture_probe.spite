@@ -1,0 +1,76 @@
+var console = Console()
+var clock = Clock()
+var environment = Environment()
+
+func TextureProbe() {
+    load "../../slop"
+    load "../../plugins/slop_psd_plugin"
+    load "../../plugins/slop_texture_compression_plugin"
+    var started = clock.elapsed_milliseconds()
+    var document = Psd.Document()
+    document.open(environment.source)
+    var opened = clock.elapsed_milliseconds()
+    crash document.layers[0]
+    var texture = document.pixels_of(document.layers[0])
+    var decoded = clock.elapsed_milliseconds()
+    var open_took = opened - started
+    var decode_took = decoded - opened
+    console.print("psd", texture.width, texture.height, "open ms", open_took, "decode ms", decode_took)
+    var setting: TextureCompression.Compressor.Setting = environment.compression
+    var compressor = TextureCompression.Compressor()
+    if environment.single_thread {
+        compressor.smallest_band_blocks = 1000000000
+    }
+    var warm = 1
+    while warm < environment.repeat {
+        var discarded = compressor.compress(texture, setting)
+        crash discarded.levels > 0
+        warm = warm + 1
+    }
+    compressor.mip_milliseconds = 0
+    compressor.encode_milliseconds = 0
+    var before = clock.elapsed_milliseconds()
+    var compressed = compressor.compress(texture, setting)
+    var after = clock.elapsed_milliseconds()
+    var took = after - before
+    var pixels: Float = texture.width * texture.height
+    var megapixels = pixels / 1000000.0
+    var took_float: Float = took
+    var per_megapixel = took_float / megapixels
+    var pack = Pack<Asset.Texture>()
+    var bytes = Asset.Bytes()
+    pack.encode(compressed, bytes)
+    var loaded = pack.decode(bytes)
+    crash loaded
+    var decoder = TextureCompression.Decoder()
+    var restored = decoder.decode_level(loaded, 0)
+    var channels = 3
+    if compressed.format == "bc5" {
+        channels = 2
+    } else if compressed.format == "r8" or compressed.format == "bc4" {
+        channels = 1
+    } else if compressed.format == "bc3" or compressed.format == "bc7" {
+        channels = 4
+    }
+    var count = texture.width * texture.height
+    var quality = decoder.peak_signal_to_noise(texture.texels, restored, count, channels)
+    var uncompressed = count * 4 * 4 / 3
+    console.print(
+        "setting",
+        setting,
+        "format",
+        compressed.format,
+        "levels",
+        compressed.levels,
+        "ms",
+        took,
+        "ms per megapixel",
+        per_megapixel,
+    )
+    console.print("mip ms", compressor.mip_milliseconds, "encode ms", compressor.encode_milliseconds)
+    console.print("bytes", compressed.texels.length, "uncompressed with mips", uncompressed, "psnr db", quality)
+    if environment.dump != "" {
+        texture.texels.save("{environment.dump}.source.rgba")
+        restored.save("{environment.dump}.{compressed.format}.rgba")
+    }
+}

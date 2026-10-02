@@ -55,7 +55,9 @@ void main() {
         }
         vec3 coordinate = vec3(ground * scales[slot], clamp(floor(picks[slot] + 0.5), 0.0, last_layer));
         albedo = mix(albedo, texture(layer_colors, coordinate).rgb, weight);
-        bumped = mix(bumped, texture(layer_normals, coordinate).xyz * 2.0 - 1.0, weight);
+        vec2 slope = texture(layer_normals, coordinate).xy * 2.0 - 1.0;
+        vec3 layer_normal = vec3(slope, sqrt(max(1.0 - dot(slope, slope), 0.0)));
+        bumped = mix(bumped, layer_normal, weight);
     }
     float depth = max(-(lighting.view * vec4(world_position, 1.0)).z, 0.0);
     float detail_fade = clamp(1.0 - depth / terrain.detail.z, 0.0, 1.0);

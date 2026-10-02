@@ -1,0 +1,149 @@
+enum Setting {
+    'default'
+    'normal_map'
+    'masks'
+    'grayscale'
+    'user_interface'
+    'bc7'
+}
+
+var mips = TextureCompression.MipChain()
+var pool = ThreadPool()
+var raw = Raw()
+var prepared = false
+var clock = Clock()
+var mip_milliseconds: Long = 0
+var encode_milliseconds: Long = 0
+var smallest_band_blocks = 1024
+
+func compress(source: Asset.Texture, setting: Setting): Asset.Texture {
+    var uncompressed_source = source.format == "rgba8" and source.levels == 1
+    crash uncompressed_source
+    var complete = source.texels.length == source.width * source.height * 4
+    crash complete
+    if setting == 'user_interface' {
+        return source
+    }
+    prepare()
+    var texture = Asset.Texture()
+    texture.width = source.width
+    texture.height = source.height
+    texture.format = format_for(source, setting)
+    texture.levels = level_count(source.width, source.height)
+    var filter = filter_for(setting)
+    var pixels = source.texels
+    var level = 0
+    while level < texture.levels {
+        var width = texture.level_width(level)
+        var height = texture.level_height(level)
+        var encoding = clock.elapsed_milliseconds()
+        encode_level(texture, pixels, width, height)
+        var encoded = clock.elapsed_milliseconds()
+        encode_milliseconds = encode_milliseconds + encoded - encoding
+        level = level + 1
+        if level < texture.levels {
+            pixels = mips.next_level(pixels, width, height, filter)
+            var filtered = clock.elapsed_milliseconds()
+            mip_milliseconds = mip_milliseconds + filtered - encoded
+        }
+    }
+    var everything_written = texture.texels.length == texture.expected_bytes()
+    crash everything_written
+    return texture
+}
+
+func format_for(source: Asset.Texture, setting: Setting): String {
+    switch setting {
+        'normal_map': return "bc5"
+        'grayscale': return "r8"
+        'bc7': return "bc7"
+        _: return colour_format(source)
+    }
+}
+
+func colour_format(source: Asset.Texture): String {
+    if has_alpha(source) {
+        return "bc3"
+    }
+    return "bc1"
+}
+
+func has_alpha(source: Asset.Texture): Boolean {
+    var count = source.width * source.height
+    var index = 0
+    while index < count {
+        var alpha = raw.read_byte(source.texels.address, index * 4 + 3).bits_and(255)
+        if alpha != 255 {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func filter_for(setting: Setting): TextureCompression.MipChain.Filter {
+    switch setting {
+        'normal_map': return 'normal'
+        'masks': return 'linear'
+        _: return 'srgb'
+    }
+}
+
+func level_count(width: Integer, height: Integer): Integer {
+    var largest = width.maximum(height)
+    var count = 1
+    while largest > 1 {
+        largest = largest / 2
+        count = count + 1
+    }
+    return count
+}
+
+func prepare() {
+    assert not prepared
+    prepared = true
+    mips.prepare()
+}
+
+func encode_level(texture: Asset.Texture, pixels: Asset.Bytes, width: Integer, height: Integer) {
+    if texture.format == "r8" {
+        append_red(texture.texels, pixels, width * height)
+        return
+    }
+    var across = (width + 3) / 4
+    var down = (height + 3) / 4
+    var bands = across * down / smallest_band_blocks
+    var workers = pool.size() * 2
+    bands = bands.clamp(1, workers).minimum(down)
+    var block_rows_each = (down + bands - 1) / bands
+    var runs = List<Parallel<Asset.Bytes>>()
+    var first_block_row = 0
+    while first_block_row < down {
+        var first_row = first_block_row * 4
+        var last_row = ((first_block_row + block_rows_each) * 4).minimum(height)
+        var rows = last_row - first_row
+        var job = TextureCompression.BandJob(texture.format, width, rows)
+        job.source_address = pixels.address + first_row * width * 4
+        var running = Parallel(job.run)
+        runs.append(running)
+        first_block_row = first_block_row + block_rows_each
+    }
+    var index = 0
+    while index < runs.count() {
+        var running = runs[index]
+        var encoded: Asset.Bytes = running
+        texture.texels.write_bytes(encoded.address, encoded.length)
+        index = index + 1
+    }
+}
+
+func append_red(texels: Asset.Bytes, pixels: Asset.Bytes, count: Integer) {
+    texels.reserve(texels.length + count + 8)
+    var index = 0
+    while index < count {
+        var red = raw.read_byte(pixels.address, index * 4)
+        raw.write_byte(texels.address, texels.length + index, red)
+        index = index + 1
+    }
+    texels.length = texels.length + count
+}

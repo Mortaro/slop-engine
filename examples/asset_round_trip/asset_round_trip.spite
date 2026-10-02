@@ -13,7 +13,8 @@ func AssetRoundTrip() {
     level.width = 1
     level.height = 1
     level.scale = 0.5
-    texture.levels.append(level)
+    texture.scales.append(level)
+    texture.append_pixel(-1)
     var pack = Pack<Asset.Texture>()
     var path = "{build.program}/round_trip.texture.bin"
     var saved = pack.save(texture, path)
@@ -21,8 +22,9 @@ func AssetRoundTrip() {
     crash saved
     crash loaded
     var pixels = loaded.pixels.join(" ")
-    crash loaded.levels[0]
-    var level_count = loaded.levels.count()
-    var scale = loaded.levels[0].scale
-    console.print(loaded.width, loaded.height, loaded.name, loaded.opaque, pixels, level_count, scale)
+    crash loaded.scales[0]
+    var level_count = loaded.scales.count()
+    var scale = loaded.scales[0].scale
+    var texel = loaded.pixel(0)
+    console.print(loaded.width, loaded.height, loaded.name, loaded.opaque, pixels, level_count, scale, texel)
 }

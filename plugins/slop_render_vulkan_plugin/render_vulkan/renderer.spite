@@ -29,6 +29,11 @@ var stream_height = 0
 var stream_mips = 0
 var stream_row = 0
 var stream_pixels = Asset.Bytes()
+var stream_texture = Asset.Texture()
+var stream_stored = false
+var stream_format = 37
+var stream_level = 0
+var block_compression = false
 var stream_cursor = 0
 var shader_vertex: Long = 0
 var shader_fragment: Long = 0
@@ -218,6 +223,7 @@ func create_device(chosen: RenderVulkan.Component.Device) {
     }
     vulkan.vkGetPhysicalDeviceFeatures(physical_device, available.address)
     var anisotropy_supported = available.read_integer(76) == 1
+    block_compression = available.read_integer(88) == 1
     if anisotropy_supported {
         chosen.maximum_anisotropy = 16.0
     }
@@ -226,6 +232,8 @@ func create_device(chosen: RenderVulkan.Component.Device) {
     while feature_index < 55 {
         var wanted_flag = 0
         if feature_index == 19 and anisotropy_supported {
+            wanted_flag = 1
+        } else if feature_index == 22 and block_compression {
             wanted_flag = 1
         }
         wanted.append_integer(wanted_flag)
@@ -604,23 +612,36 @@ func try_start(textures: Render.Textures, count: Integer) {
     var record = Lookup<Render.Component.Texture>().of(owner)
     crash record
     var texture = record.image
-    var pixels = record.raw
-    var pixels_match_the_size = pixels.length == texture.width * texture.height * 4
+    var pixels = texture.texels
+    var pixels_match_the_size = pixels.length == texture.expected_bytes()
     crash pixels_match_the_size
+    var gpu_reads_the_format = block_compression or not texture.is_compressed()
+    crash gpu_reads_the_format
     stream_index = slot + 1
     stream_slot = slot
     stream_generation = record.generation
     stream_width = texture.width
     stream_height = texture.height
+    stream_texture = texture
+    stream_stored = texture.format != "rgba8" or texture.levels > 1
+    stream_format = vulkan_format_of(texture.format)
     stream_mips = mip_count_of(texture.width, texture.height)
+    if stream_stored {
+        stream_mips = texture.levels
+    }
+    stream_level = 0
     stream_row = 0
     stream_pixels = pixels
-    stream_image = create_texture_image(stream_width, stream_height, stream_mips)
+    stream_image = create_texture_image_as(stream_format, stream_width, stream_height, stream_mips)
     stream_memory = created_memory
     level_barrier(stream_image, 0, 4096, 0, 7, 1, 4096, 0, stream_mips)
 }
 
 func stream_band() {
+    if stream_stored {
+        stream_stored_band()
+        return
+    }
     var row_bytes = stream_width * 4
     var row_fits_the_budget = row_bytes <= upload_budget_bytes
     crash row_fits_the_budget
@@ -657,14 +678,80 @@ func stream_band() {
     }
 }
 
+func stream_stored_band() {
+    var block_side = stream_texture.block_side()
+    var row_bytes = stream_texture.blocks_across(stream_level) * stream_texture.block_bytes()
+    var block_rows = stream_texture.blocks_down(stream_level)
+    var row_fits_the_budget = row_bytes <= upload_budget_bytes - 16
+    crash row_fits_the_budget
+    frame_staged = (frame_staged + 15) / 16 * 16
+    var room = upload_budget_bytes - frame_staged
+    var rows = room / row_bytes
+    if rows <= 0 {
+        frame_staged = upload_budget_bytes
+        return
+    }
+    rows = rows.minimum(block_rows - stream_row)
+    var bytes = rows * row_bytes
+    var level_start = stream_texture.level_offset(stream_level)
+    var source = stream_pixels.address + level_start + stream_row * row_bytes
+    raw.copy(source, frame.staging_mapped + frame_staged, bytes)
+    var level_width = stream_texture.level_width(stream_level)
+    var level_height = stream_texture.level_height(stream_level)
+    var top = stream_row * block_side
+    var height = (rows * block_side).minimum(level_height - top)
+    var region = Structure(56)
+    var offset: Long = frame_staged
+    region.append_long(offset)
+    region.append_integer(0)
+    region.append_integer(0)
+    region.append_integer(1)
+    region.append_integer(stream_level)
+    region.append_integer(0)
+    region.append_integer(1)
+    region.append_integer(0)
+    region.append_integer(top)
+    region.append_integer(0)
+    region.append_integer(level_width)
+    region.append_integer(height)
+    region.append_integer(1)
+    vulkan.vkCmdCopyBufferToImage(frame.command_buffer, frame.staging_buffer, stream_image, 7, 1, region.address)
+    frame_staged = frame_staged + bytes
+    stream_row = stream_row + rows
+    if stream_row == block_rows {
+        stream_row = 0
+        stream_level = stream_level + 1
+    }
+    if stream_level == stream_mips {
+        finish_stream()
+    }
+}
+
+func vulkan_format_of(format: String): Integer {
+    switch format {
+        "r8": return 9
+        "bc1": return 131
+        "bc3": return 137
+        "bc4": return 139
+        "bc5": return 141
+        "bc7": return 145
+        _: return 37
+    }
+}
+
 func finish_stream() {
-    record_mips(stream_image, stream_width, stream_height, stream_mips)
+    if stream_stored {
+        level_barrier(stream_image, 4096, 32, 7, 5, 4096, 128, 0, stream_mips)
+    } else {
+        record_mips(stream_image, stream_width, stream_height, stream_mips)
+    }
     var gpu = gpu_of(stream_slot)
     crash gpu
     if gpu.set != 0 {
         retire(gpu.set, gpu.image, gpu.image_memory, gpu.view)
     }
-    var view = create_view_levels(stream_image, 37, stream_mips)
+    var grey = stream_format == 9 or stream_format == 139
+    var view = create_swizzled_view(stream_image, stream_format, stream_mips, grey)
     var set = allocate_texture_set(view)
     gpu.image = stream_image
     gpu.image_memory = stream_memory
@@ -676,6 +763,8 @@ func finish_stream() {
     stream_memory = 0
     var released = Asset.Bytes()
     stream_pixels = released
+    var released_texture = Asset.Texture()
+    stream_texture = released_texture
 }
 
 func stage_white() {
@@ -873,13 +962,21 @@ func mip_count_of(width: Integer, height: Integer): Integer {
 }
 
 func create_texture_image(width: Integer, height: Integer, mips: Integer): Long {
+    return create_texture_image_as(37, width, height, mips)
+}
+
+func create_texture_image_as(format: Integer, width: Integer, height: Integer, mips: Integer): Long {
     var no_allocator: Long = 0
+    var usage = 7
+    if format != 37 {
+        usage = 6
+    }
     var creation = Structure(96)
     creation.append_integer(14)
     creation.append_long(0)
     creation.append_integer(0)
     creation.append_integer(1)
-    creation.append_integer(37)
+    creation.append_integer(format)
     creation.append_integer(width)
     creation.append_integer(height)
     creation.append_integer(1)
@@ -887,7 +984,7 @@ func create_texture_image(width: Integer, height: Integer, mips: Integer): Long 
     creation.append_integer(1)
     creation.append_integer(1)
     creation.append_integer(0)
-    creation.append_integer(7)
+    creation.append_integer(usage)
     creation.append_integer(0)
     creation.append_integer(0)
     creation.append_long(0)
@@ -1307,6 +1404,41 @@ func create_view(image: Long, format: Integer): Long {
         field = field + 1
     }
     append_color_range(creation)
+    var created = Structure(8)
+    var result = vulkan.vkCreateImageView(device, creation.address, no_allocator, created.address)
+    crash result == 0
+    return created.read_long(0)
+}
+
+func create_swizzled_view(image: Long, format: Integer, levels: Integer, grey: Boolean): Long {
+    var no_allocator: Long = 0
+    var creation = Structure(80)
+    creation.append_integer(15)
+    creation.append_long(0)
+    creation.append_integer(0)
+    creation.append_long(image)
+    creation.append_integer(1)
+    creation.append_integer(format)
+    var red_everywhere = 3
+    var one = 2
+    var identity = 0
+    if grey {
+        creation.append_integer(red_everywhere)
+        creation.append_integer(red_everywhere)
+        creation.append_integer(red_everywhere)
+        creation.append_integer(one)
+    } else {
+        var field = 0
+        while field < 4 {
+            creation.append_integer(identity)
+            field = field + 1
+        }
+    }
+    creation.append_integer(1)
+    creation.append_integer(0)
+    creation.append_integer(levels)
+    creation.append_integer(0)
+    creation.append_integer(1)
     var created = Structure(8)
     var result = vulkan.vkCreateImageView(device, creation.address, no_allocator, created.address)
     crash result == 0

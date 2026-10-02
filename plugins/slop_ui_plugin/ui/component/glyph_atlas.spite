@@ -4,7 +4,6 @@ var pixels = 12
 var ascent = 0
 var line_height = 0
 var texture = Asset.Texture()
-var texels = Asset.Bytes()
 var side = 256
 var shelf_left = 1
 var shelf_top = 1

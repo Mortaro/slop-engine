@@ -24,6 +24,8 @@ func write(value: $field_type, bytes: Asset.Bytes) {
     } else if $field_type == Entity {
         var wire = mirrors.field_to_wire(value.id)
         bytes.write_integer(wire)
+    } else if $field_type == Asset.Bytes {
+        bytes.write_block(value)
     } else if $field_type == List {
         var list_field = ListField<$field_type>()
         list_field.write(value, bytes)
@@ -56,6 +58,8 @@ func read(bytes: Asset.Bytes): $field_type {
             linked.id = local
         }
         return linked
+    } else if $field_type == Asset.Bytes {
+        return bytes.read_block()
     } else if $field_type == List {
         var list_field = ListField<$field_type>()
         return list_field.read(bytes)

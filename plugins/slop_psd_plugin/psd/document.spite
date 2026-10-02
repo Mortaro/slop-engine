@@ -309,38 +309,46 @@ func pixels_of(layer: Psd.Layer): Asset.Texture {
     var alpha = channel_plane(layer, -1)
     var mask = mask_plane(layer)
     var count = texture.width * texture.height
+    var texels = texture.texels
+    texels.reserve(count * 4 + 8)
     var pixel = 0
     while pixel < count {
         var value = pack_pixel(red, green, blue, alpha, mask, pixel)
-        texture.pixels.append(value)
+        raw.write_integer(texels.address, pixel * 4, value)
         pixel = pixel + 1
     }
+    texels.length = count * 4
     return texture
 }
 
 func pack_pixel(
-    red: List<Integer>,
-    green: List<Integer>,
-    blue: List<Integer>,
-    alpha: List<Integer>,
-    mask: List<Integer>,
+    red: Asset.Bytes,
+    green: Asset.Bytes,
+    blue: Asset.Bytes,
+    alpha: Asset.Bytes,
+    mask: Asset.Bytes,
     pixel: Integer,
 ): Integer {
-    crash red[pixel]
-    crash green[pixel]
-    crash blue[pixel]
-    crash alpha[pixel]
-    crash mask[pixel]
-    var masked = (alpha[pixel] * mask[pixel] + 127) / 255
-    var green_bits = green[pixel].shifted_left(8)
-    var blue_bits = blue[pixel].shifted_left(16)
+    var red_value = raw.read_byte(red.address, pixel).bits_and(255)
+    var green_value = raw.read_byte(green.address, pixel).bits_and(255)
+    var blue_value = raw.read_byte(blue.address, pixel).bits_and(255)
+    var masked = 255
+    if alpha.length > 0 {
+        masked = raw.read_byte(alpha.address, pixel).bits_and(255)
+    }
+    if mask.length > 0 {
+        var cover = raw.read_byte(mask.address, pixel).bits_and(255)
+        masked = (masked * cover + 127) / 255
+    }
+    var green_bits = green_value.shifted_left(8)
+    var blue_bits = blue_value.shifted_left(16)
     var alpha_bits = masked.shifted_left(24)
-    var low = red[pixel].bits_or(green_bits)
+    var low = red_value.bits_or(green_bits)
     var high = blue_bits.bits_or(alpha_bits)
     return low.bits_or(high)
 }
 
-func channel_plane(layer: Psd.Layer, identifier: Integer): List<Integer> {
+func channel_plane(layer: Psd.Layer, identifier: Integer): Asset.Bytes {
     var plane_width = layer.width()
     var plane_height = layer.height()
     var channel = layer.channels.find_by_identifier(identifier)
@@ -348,12 +356,11 @@ func channel_plane(layer: Psd.Layer, identifier: Integer): List<Integer> {
         return decode_channel(channel, plane_width, plane_height)
     }
     crash identifier == -1
-    return filled(plane_width * plane_height, 255)
+    var opaque = Asset.Bytes()
+    return opaque
 }
 
-func mask_plane(layer: Psd.Layer): List<Integer> {
-    var plane_width = layer.width()
-    var plane_height = layer.height()
+func mask_plane(layer: Psd.Layer): Asset.Bytes {
     var channel = layer.channels.find_by_identifier(layer.mask_channel)
     var usable = layer.mask_enabled and layer.mask_channel != 0
     if channel {
@@ -361,14 +368,18 @@ func mask_plane(layer: Psd.Layer): List<Integer> {
             return masked_plane(layer, channel)
         }
     }
-    return filled(plane_width * plane_height, 255)
+    var uncovered = Asset.Bytes()
+    return uncovered
 }
 
-func masked_plane(layer: Psd.Layer, channel: Psd.Channel): List<Integer> {
+func masked_plane(layer: Psd.Layer, channel: Psd.Channel): Asset.Bytes {
     var mask_width = layer.mask_right - layer.mask_left
     var mask_height = layer.mask_bottom - layer.mask_top
     var stored = decode_channel(channel, mask_width, mask_height)
-    var plane = List<Integer>()
+    var plane = Asset.Bytes()
+    var plane_width = layer.width()
+    var plane_height = layer.height()
+    plane.reserve(plane_width * plane_height + 8)
     var row = 0
     while row < layer.height() {
         append_mask_row(layer, stored, plane, row)
@@ -377,7 +388,7 @@ func masked_plane(layer: Psd.Layer, channel: Psd.Channel): List<Integer> {
     return plane
 }
 
-func append_mask_row(layer: Psd.Layer, stored: List<Integer>, plane: List<Integer>, row: Integer) {
+func append_mask_row(layer: Psd.Layer, stored: Asset.Bytes, plane: Asset.Bytes, row: Integer) {
     var canvas_top = layer.top + row
     var mask_width = layer.mask_right - layer.mask_left
     var inside_rows = canvas_top >= layer.mask_top and canvas_top < layer.mask_bottom
@@ -388,28 +399,18 @@ func append_mask_row(layer: Psd.Layer, stored: List<Integer>, plane: List<Intege
         var value = layer.mask_default
         if inside {
             var at = (canvas_top - layer.mask_top) * mask_width + canvas_left - layer.mask_left
-            crash stored[at]
-            value = stored[at]
+            value = stored.byte_at(at)
         }
-        plane.append(value)
+        plane.write_byte(value)
         column = column + 1
     }
 }
 
-func filled(count: Integer, value: Integer): List<Integer> {
-    var plane = List<Integer>()
-    var index = 0
-    while index < count {
-        plane.append(value)
-        index = index + 1
-    }
-    return plane
-}
-
-func decode_channel(channel: Psd.Channel, plane_width: Integer, plane_height: Integer): List<Integer> {
+func decode_channel(channel: Psd.Channel, plane_width: Integer, plane_height: Integer): Asset.Bytes {
     var sample_bytes = depth / 8
     var row_bytes = plane_width * sample_bytes
-    var stored = List<Integer>()
+    var stored = Asset.Bytes()
+    stored.reserve(row_bytes * plane_height + 8)
     if channel.compression == 1 {
         decode_run_length(channel, row_bytes, plane_height, stored)
     } else if channel.compression >= 2 {
@@ -417,36 +418,36 @@ func decode_channel(channel: Psd.Channel, plane_width: Integer, plane_height: In
     } else {
         copy_bytes(channel.offset, row_bytes * plane_height, stored)
     }
-    crash stored.count() == row_bytes * plane_height
+    crash stored.length == row_bytes * plane_height
     if sample_bytes == 1 {
         return stored
     }
     return high_bytes(stored)
 }
 
-func high_bytes(stored: List<Integer>): List<Integer> {
-    var plane = List<Integer>()
+func high_bytes(stored: Asset.Bytes): Asset.Bytes {
+    var plane = Asset.Bytes()
+    var count = stored.length / 2
+    plane.reserve(count + 8)
     var index = 0
-    while index + 1 < stored.count() {
-        plane.append(stored[index])
-        index = index + 2
+    while index < count {
+        var high = raw.read_byte(stored.address, index * 2)
+        raw.write_byte(plane.address, index, high)
+        index = index + 1
     }
+    plane.length = count
     return plane
 }
 
-func decode_zip(channel: Psd.Channel, row_bytes: Integer, plane_height: Integer, stored: List<Integer>) {
+func decode_zip(channel: Psd.Channel, row_bytes: Integer, plane_height: Integer, stored: Asset.Bytes) {
     var wanted = row_bytes * plane_height
     var unpacked = inflated(channel, row_bytes, plane_height)
     var first = 0
     if channel.plane >= 0 {
         first = channel.plane * wanted
     }
-    var index = 0
-    while index < wanted {
-        var value = unpacked.byte_at(first + index)
-        stored.append(value)
-        index = index + 1
-    }
+    crash first + wanted <= unpacked.length
+    stored.write_bytes(unpacked.address + first, wanted)
 }
 
 func inflated(channel: Psd.Channel, row_bytes: Integer, plane_height: Integer): Asset.Bytes {
@@ -484,12 +485,14 @@ func undo_prediction(unpacked: Asset.Bytes, row_bytes: Integer, plane_height: In
 }
 
 func undo_narrow_row(unpacked: Asset.Bytes, start: Integer, row_bytes: Integer) {
+    crash start + row_bytes <= unpacked.length
+    var previous = raw.read_byte(unpacked.address, start)
     var column = 1
     while column < row_bytes {
-        var previous = unpacked.byte_at(start + column - 1)
-        var current = unpacked.byte_at(start + column)
-        var sum = (previous + current) % 256
+        var current = raw.read_byte(unpacked.address, start + column)
+        var sum = (previous + current).bits_and(255)
         raw.write_byte(unpacked.address, start + column, sum)
+        previous = sum
         column = column + 1
     }
 }
@@ -506,7 +509,7 @@ func undo_wide_row(unpacked: Asset.Bytes, start: Integer, row_bytes: Integer) {
     }
 }
 
-func decode_run_length(channel: Psd.Channel, row_bytes: Integer, plane_height: Integer, plane: List<Integer>) {
+func decode_run_length(channel: Psd.Channel, row_bytes: Integer, plane_height: Integer, plane: Asset.Bytes) {
     var counts = channel.offset
     var offset = channel.offset + plane_height * 2
     if channel.row_counts >= 0 {
@@ -522,27 +525,28 @@ func decode_run_length(channel: Psd.Channel, row_bytes: Integer, plane_height: I
     }
 }
 
-func decode_pack_bits(start: Integer, length: Integer, wanted: Integer, plane: List<Integer>) {
+func decode_pack_bits(start: Integer, length: Integer, wanted: Integer, plane: Asset.Bytes) {
     var read = start
     var end = start + length
+    crash end <= bytes.length
     var written = 0
     while written < wanted {
         crash read < end
-        var header = bytes.byte_at(read)
+        var header = raw.read_byte(bytes.address, read).bits_and(255)
         read = read + 1
         if header < 128 {
             var copy = header + 1
             crash read + copy <= end
             crash written + copy <= wanted
-            copy_bytes(read, copy, plane)
+            plane.write_bytes(bytes.address + read, copy)
             read = read + copy
             written = written + copy
         } else if header > 128 {
             var repeat = 257 - header
             crash read < end
             crash written + repeat <= wanted
-            var value = bytes.byte_at(read)
-            repeat_value(value, repeat, plane)
+            var value = raw.read_byte(bytes.address, read)
+            plane.repeat_byte(value, repeat)
             read = read + 1
             written = written + repeat
         }
@@ -550,21 +554,9 @@ func decode_pack_bits(start: Integer, length: Integer, wanted: Integer, plane: L
     crash read == end
 }
 
-func copy_bytes(from: Integer, count: Integer, plane: List<Integer>) {
-    var index = 0
-    while index < count {
-        var value = bytes.byte_at(from + index)
-        plane.append(value)
-        index = index + 1
-    }
-}
-
-func repeat_value(value: Integer, count: Integer, plane: List<Integer>) {
-    var index = 0
-    while index < count {
-        plane.append(value)
-        index = index + 1
-    }
+func copy_bytes(from: Integer, count: Integer, plane: Asset.Bytes) {
+    crash from + count <= bytes.length
+    plane.write_bytes(bytes.address + from, count)
 }
 
 func read_tag(): String {

@@ -25,7 +25,8 @@ func build() {
     texture.height = 2
     var index = 0
     while index < 4 {
-        texture.pixels.append(opaque + texel)
+        var value = opaque + texel
+        texture.append_pixel(value)
         index = index + 1
     }
     var pack = Pack<Asset.Texture>()

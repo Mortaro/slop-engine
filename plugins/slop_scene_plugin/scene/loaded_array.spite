@@ -1,4 +1,15 @@
 var width = 1
 var height = 1
 var layers = 1
+var format = "rgba8"
+var levels = 1
 var raw = Asset.Bytes()
+
+func layer_shape(): Asset.Texture {
+    var shape = Asset.Texture()
+    shape.width = width
+    shape.height = height
+    shape.format = format
+    shape.levels = levels
+    return shape
+}

@@ -34,6 +34,7 @@ func last_each(checked: Checked, _quitting: Quitting) {
         console.print("draws", drawn)
         var timings = renderer.gpu_timings.describe()
         console.print(timings)
+        print_texture_bytes()
         var request = RenderVulkan.Component.CaptureRequested()
         checked.entity.add_component(request)
     }
@@ -45,6 +46,25 @@ func last_each(checked: Checked, _quitting: Quitting) {
         return
     }
     keep_capture(checked.draw_list.width, checked.draw_list.height)
+}
+
+func print_texture_bytes() {
+    var stored: Long = 0
+    var uncompressed: Long = 0
+    var records = Lookup<Render.Component.Texture>()
+    var slot = 0
+    while slot < textures.count() {
+        var owner = textures.entity_of(slot)
+        var record = records.of(owner)
+        if record {
+            var image = record.image
+            stored = stored + image.texels.length
+            var mipless: Long = image.width * image.height * 4
+            uncompressed = uncompressed + mipless * 4 / 3
+        }
+        slot = slot + 1
+    }
+    console.print("texture bytes", stored, "as rgba8 with mips", uncompressed)
 }
 
 func settled(drawn: Integer): Boolean {

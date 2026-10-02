@@ -17,6 +17,7 @@ func AnimateBench() {
     load "../../plugins/slop_lighting_plugin"
     load "../../plugins/slop_blend_plugin"
     load "../../plugins/slop_png_plugin"
+    load "../../plugins/slop_texture_compression_plugin"
     cookbook.cook()
     var app = App()
     app.frame_milliseconds = 1
