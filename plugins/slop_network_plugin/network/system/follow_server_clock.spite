@@ -1,0 +1,12 @@
+type Following {
+    frame: Component.Frame
+    clock: Network.Component.ServerClock
+    follow: Network.Component.FollowServerClock
+}
+
+func input_each(following: Following) {
+    assert following.clock.offset != 0
+    var frame = following.frame
+    frame.elapsed_milliseconds = frame.elapsed_milliseconds + following.clock.offset
+    following.clock.offset = 0
+}

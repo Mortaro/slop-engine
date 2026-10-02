@@ -1,0 +1,9 @@
+type Inspected {
+    gauge: Component.Gauge
+}
+
+var total = 0
+
+func prepare_each(inspected: Inspected) {
+    total = total + inspected.gauge.amount
+}

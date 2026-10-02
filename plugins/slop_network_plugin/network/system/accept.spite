@@ -4,6 +4,8 @@ type Hosting {
 }
 
 var world = World()
+var datagrams = Network.Datagrams()
+var schema = Network.Schema()
 var listening = Lookup<Network.Component.Listening>()
 
 func input_each(hosting: Hosting) {
@@ -11,6 +13,7 @@ func input_each(hosting: Hosting) {
     var owner = hosting.entity
     if not listening.has(owner.id) {
         crash listen.socket.listen_at(listen.host, listen.port)
+        open_datagrams(listen)
         var marker = Network.Component.Listening()
         owner.add_component(marker)
     }
@@ -21,9 +24,15 @@ func input_each(hosting: Hosting) {
     }
 }
 
+func open_datagrams(listen: Network.Component.Listen) {
+    assert schema.uses_datagrams()
+    datagrams.open_at(listen.host, listen.port)
+}
+
 func adopt(accepted: Socket) {
     var connection = Network.Component.Connection()
     connection.stream.adopt(accepted)
     var peer = world.create_entity()
+    connection.stream.token = datagrams.token_for(peer.id)
     peer.add_component(connection)
 }

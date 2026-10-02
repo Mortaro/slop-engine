@@ -5,7 +5,7 @@ var columns = Columns()
 var world = World()
 var build = Build()
 var raw = Raw()
-var scratch = Asset.Bytes()
+var changes = Changes()
 
 func key(): String {
     return columns.key($component_type)
@@ -24,26 +24,68 @@ func id(): Integer {
     return narrow
 }
 
-func mirror(frames: Network.Frames) {
+func mirror(frames: Network.Frames, since: Integer) {
     if $component_type.has_function("mirrored_from") {
-        mirror_column(frames)
+        mirror_column(frames, since)
     }
 }
 
-func mirror_column(frames: Network.Frames) {
-    var name = key()
+func mirrored_here(): Boolean {
+    var probe: $component_type = $component_type()
+    if $component_type.has_function("mirrored_from") {
+        return probe.mirrored_from(build.environment)
+    }
+    return false
+}
+
+func unreliable(): Boolean {
+    if $component_type.has_function("sent_unreliably") {
+        var probe: $component_type = $component_type()
+        return probe.sent_unreliably()
+    }
+    return false
+}
+
+func mirror_column(frames: Network.Frames, since: Integer) {
+    assert mirrored_here()
     var message = id()
-    var count = columns.count_of(name)
+    var hurried = unreliable()
+    var column_header = column.header_now()
+    var count: Integer = raw.read_long(column_header, 0)
     var row = 0
     while row < count {
-        var entity = columns.entity_at(name, row)
-        var value = column.get(entity)
-        if value.mirrored_from(build.environment) {
+        var entities = raw.read_long(column_header, 24)
+        var entity: Integer = raw.read_long(entities, row * 8)
+        var fresh = frames.touch(entity)
+        if fresh or changes.changed_since(column_header, entity, since) {
+            var value = column.value_at(row)
+            frames.scratch.clear()
             var remote = remote_of(entity)
-            var buffer = frames.buffer_for(entity)
-            write_frame(buffer, message, remote, value)
+            write_frame(frames.scratch, message, remote, value)
+            frames.put(entity, message, hurried)
         }
         row = row + 1
+    }
+}
+
+func strip(frames: Network.Frames, since: Integer) {
+    if $component_type.has_function("mirrored_from") {
+        strip_column(frames, since)
+    }
+}
+
+func strip_column(frames: Network.Frames, since: Integer) {
+    assert mirrored_here()
+    var name = key()
+    var message = id()
+    var removed = columns.removed_entities(name, since)
+    var index = 0
+    while index < removed.count() {
+        var entity = removed[index]
+        if column.row_of_entity(entity) < 0 {
+            frames.strip(entity, message)
+        }
+        index = index + 1
     }
 }
 
@@ -76,6 +118,30 @@ func replicated(): Boolean {
         return true
     }
     return false
+}
+
+func schema(): Long {
+    var text = ""
+    if $component_type.has_function("mirrored_from") or $component_type.has_function("sent_from") {
+        var shape = Network.Shape<$component_type>()
+        text = shape.text()
+    }
+    var mode = "mirrored"
+    if $component_type.has_function("sent_from") {
+        mode = "sent"
+    }
+    if unreliable() {
+        mode = "unreliable"
+    }
+    var described = "{key()} {mode} {text}"
+    var hash: Long = 7
+    var index = 0
+    while index < described.length() {
+        var code = described.code_at(index)
+        hash = (hash * 31 + code) % 288230376151711717
+        index = index + 1
+    }
+    return hash
 }
 
 func read(frame: Asset.Bytes): $component_type? {

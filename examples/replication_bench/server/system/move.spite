@@ -1,0 +1,8 @@
+type Mover {
+    spot: Component.Spot
+    moving: Component.Moving
+}
+
+func update_each(mover: Mover) {
+    mover.spot.across = mover.spot.across + 1.0
+}

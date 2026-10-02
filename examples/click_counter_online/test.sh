@@ -3,11 +3,11 @@
 # Run from anywhere: bash examples/click_counter_online/test.sh
 set -e
 here="$(cd "$(dirname "$0")" && pwd)"
-spite="$here/../../../SpiteLanguage/bin/spite"
+spite="${SPITE:-$here/../../../SpiteLanguage/bin/spite}"
 out="$here/.test"
 mkdir -p "$out"
 for environment in server bot; do
-    "$spite" "$here" --environment=$environment --executable --run=false --executable-path="$out/$environment.exe"
+    "$spite" "$here" --environment=$environment --executable --run=false --executable-path="$out/$environment.exe" $SPITE_FLAGS
 done
 
 "$out/server.exe" --port=7171 --lifetime-seconds=60 > "$out/server.log" 2>&1 &

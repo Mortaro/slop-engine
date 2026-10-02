@@ -1,0 +1,57 @@
+var protocol = 1
+var hash: Long = 0
+var computed = false
+var unreliable_count = 0
+var replicated_count = 0
+var ids = List<Integer>()
+var names = List<String>()
+var clashes = 0
+var console = Console()
+
+func ensure() {
+    assert not computed
+    computed = true
+    hash_components()
+    var no_two_replicated_components_share_a_message_id = clashes == 0
+    crash no_two_replicated_components_share_a_message_id
+}
+
+func hash_component(component: Symbol<Component>) {
+    var codec = Network.Codec<component.class>()
+    if codec.replicated() {
+        var name = codec.key()
+        var message = codec.id()
+        check_clash(name, message)
+        ids.append(message)
+        names.append(name)
+        var shape = codec.schema()
+        hash = hash.bits_exclusive_or(shape)
+        replicated_count = replicated_count + 1
+        if codec.unreliable() {
+            unreliable_count = unreliable_count + 1
+        }
+    }
+}
+
+func check_clash(name: String, message: Integer) {
+    var index = 0
+    while index < ids.count() {
+        if ids[index] == message {
+            clashes = clashes + 1
+            var other = names[index]
+            crash other
+            console.error("{name} and {other} hash to the same message id {message}: rename one of them")
+        }
+        index = index + 1
+    }
+}
+
+func matches(peer_protocol: Integer, peer_hash: Long): Boolean {
+    ensure()
+    return peer_protocol == protocol and peer_hash == hash
+}
+
+func uses_datagrams(): Boolean {
+    ensure()
+    return unreliable_count > 0
+}

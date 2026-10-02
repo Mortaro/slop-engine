@@ -1,0 +1,23 @@
+var build = Build()
+
+func HandshakeCheck() {
+    load "../../slop"
+    load "../../plugins/slop_network_plugin"
+    if build.environment == "server" {
+        load "server"
+    }
+    if build.environment == "bot" or build.environment == "stranger" {
+        load "players"
+    }
+    if build.environment == "bot" {
+        load "bot"
+    }
+    if build.environment == "stranger" {
+        load "stranger"
+    }
+    if build.environment == "clash" {
+        load "clash"
+    }
+    var app = App()
+    app.run()
+}

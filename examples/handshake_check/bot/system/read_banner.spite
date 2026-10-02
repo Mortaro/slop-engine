@@ -1,0 +1,21 @@
+type Shown {
+    banner: Component.Banner
+    mirrored: Network.Component.Mirrored
+}
+
+type Running {
+    frame: Component.Frame
+    running: Without<Component.Quit>
+}
+
+var console = Console()
+var world = World()
+
+func update_each(running: Running, shown: Shown) {
+    assert running.frame.count >= 0
+    console.print("bot was greeted and reads the banner:", shown.banner.text)
+    crash shown.banner.text == "welcome"
+    console.print("passed true")
+    var quit = Component.Quit()
+    world.as_entity().add_component(quit)
+}

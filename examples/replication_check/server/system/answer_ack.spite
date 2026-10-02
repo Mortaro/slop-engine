@@ -1,0 +1,25 @@
+type Acked {
+    entity: Entity
+    ack: Component.Ack
+    arrived: Network.Component.Arrived
+}
+
+type Answered {
+    gauge: Component.Gauge
+    written: Component.Written
+}
+
+var world = World()
+var acks = 0
+
+func update_each(acked: Acked, answered: Answered) {
+    acked.entity.remove_component(Component.Ack)
+    crash acked.ack.amount == answered.gauge.amount
+    acks = acks + 1
+    answered.gauge.amount = answered.gauge.amount + 1
+    assert acks == 3
+    var finale = Component.Finale()
+    finale.acks = acks
+    var made = world.create_entity()
+    made.add_component(finale)
+}

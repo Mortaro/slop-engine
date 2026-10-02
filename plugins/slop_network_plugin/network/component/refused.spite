@@ -1,0 +1,3 @@
+var protocol = 0
+var schema: Long = 0
+var environment = ""

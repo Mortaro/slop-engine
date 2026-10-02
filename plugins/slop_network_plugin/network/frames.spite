@@ -1,40 +1,146 @@
-var current = List<Asset.Bytes>()
-var previous = List<Asset.Bytes>()
+var full = List<Asset.Bytes>()
 var delta = List<Asset.Bytes>()
-var stamped = List<Integer>()
+var quick = List<Asset.Bytes>()
+var quick_before = List<Asset.Bytes>()
+var present = List<Integer>()
+var fresh = List<Integer>()
+var delta_ticks = List<Integer>()
+var quick_ticks = List<Integer>()
 var touched = List<Integer>()
 var last_touched = List<Integer>()
+var quickened = List<Integer>()
+var last_quickened = List<Integer>()
 var gone = List<Integer>()
 var tick = 0
+var encodes = 0
+var scratch = Asset.Bytes()
+var spliced = Asset.Bytes()
+var nothing = Asset.Bytes()
 var raw = Raw()
 
 func begin() {
     tick = tick + 1
-    last_touched.clear()
-    var index = 0
-    while index < touched.count() {
-        last_touched.append(touched[index])
-        index = index + 1
-    }
+    encodes = 0
+    copy_into(touched, last_touched)
+    copy_into(quickened, last_quickened)
     touched.clear()
+    quickened.clear()
     gone.clear()
 }
 
-func buffer_for(entity: Integer): Asset.Bytes {
-    ensure(entity)
-    crash current[entity]
-    if stamped[entity] != tick {
-        stamped[entity] = tick
-        current[entity].clear()
-        touched.append(entity)
+func copy_into(source: List<Integer>, target: List<Integer>) {
+    target.clear()
+    var index = 0
+    while index < source.count() {
+        target.append(source[index])
+        index = index + 1
     }
-    return current[entity]
+}
+
+func touch(entity: Integer): Boolean {
+    ensure(entity)
+    if present[entity] != tick {
+        note_present(entity)
+    }
+    return fresh[entity] == tick
+}
+
+func note_present(entity: Integer) {
+    if present[entity] != tick - 1 {
+        fresh[entity] = tick
+        crash full[entity]
+        full[entity].clear()
+    }
+    present[entity] = tick
+    touched.append(entity)
+}
+
+func put(entity: Integer, message: Integer, unreliable: Boolean) {
+    encodes = encodes + 1
+    crash full[entity]
+    var stored = full[entity]
+    var at = frame_with(stored, message)
+    var size = scratch.length
+    assert at < 0 or raw.read_integer(stored.address, at) + 4 != size or not same_bytes(stored, at, size)
+    splice(stored, at)
+    if unreliable and fresh[entity] != tick {
+        var quickly = quick_for(entity)
+        quickly.write_bytes(scratch.address, size)
+        return
+    }
+    var changes = delta_for(entity)
+    changes.write_bytes(scratch.address, size)
+}
+
+func strip(entity: Integer, message: Integer) {
+    assert entity < present.count() and present[entity] == tick
+    crash full[entity]
+    var stored = full[entity]
+    var at = frame_with(stored, message)
+    assert at >= 0
+    var remote = raw.read_integer(stored.address, at + 8)
+    scratch.clear()
+    splice(stored, at)
+    var changes = delta_for(entity)
+    changes.write_integer(12)
+    changes.write_integer(-4)
+    changes.write_integer(remote)
+    changes.write_integer(message)
+}
+
+func splice(stored: Asset.Bytes, at: Integer) {
+    if at < 0 {
+        stored.write_bytes(scratch.address, scratch.length)
+        return
+    }
+    var old_size = raw.read_integer(stored.address, at) + 4
+    var after = at + old_size
+    spliced.clear()
+    spliced.write_bytes(stored.address, at)
+    spliced.write_bytes(scratch.address, scratch.length)
+    spliced.write_bytes(stored.address + after, stored.length - after)
+    stored.clear()
+    stored.write_bytes(spliced.address, spliced.length)
+}
+
+func delta_for(entity: Integer): Asset.Bytes {
+    crash delta[entity]
+    if delta_ticks[entity] != tick {
+        delta_ticks[entity] = tick
+        delta[entity].clear()
+    }
+    return delta[entity]
+}
+
+func quick_for(entity: Integer): Asset.Bytes {
+    crash quick[entity]
+    if quick_ticks[entity] != tick {
+        turn_quick(entity)
+        quick_ticks[entity] = tick
+        quickened.append(entity)
+    }
+    crash quick[entity]
+    return quick[entity]
+}
+
+func turn_quick(entity: Integer) {
+    crash quick[entity]
+    crash quick_before[entity]
+    var current = quick[entity]
+    var before = quick_before[entity]
+    before.clear()
+    if quick_ticks[entity] == tick - 1 {
+        quick_before[entity] = current
+        quick[entity] = before
+    } else {
+        current.clear()
+    }
 }
 
 func finish() {
     var index = 0
-    while index < touched.count() {
-        settle(touched[index])
+    while index < last_quickened.count() {
+        settle(last_quickened[index])
         index = index + 1
     }
     index = 0
@@ -44,69 +150,68 @@ func finish() {
     }
 }
 
-func encoded(entity: Integer): Boolean {
-    return entity < stamped.count() and stamped[entity] == tick
+func settle(entity: Integer) {
+    assert present[entity] == tick
+    crash quick[entity]
+    crash quick_before[entity]
+    var now = quick[entity]
+    if quick_ticks[entity] != tick {
+        now = nothing
+    }
+    var before = quick[entity]
+    if quick_ticks[entity] == tick {
+        before = quick_before[entity]
+    }
+    settle_frames(entity, before, now)
 }
 
-func full(entity: Integer): Asset.Bytes {
-    crash previous[entity]
-    return previous[entity]
+func settle_frames(entity: Integer, before: Asset.Bytes, now: Asset.Bytes) {
+    crash full[entity]
+    var stored = full[entity]
+    var at = 0
+    while at < before.length {
+        var size = raw.read_integer(before.address, at) + 4
+        var message = raw.read_integer(before.address, at + 4)
+        var current = frame_with(stored, message)
+        if frame_with(now, message) < 0 and current >= 0 {
+            var current_size = raw.read_integer(stored.address, current) + 4
+            var changes = delta_for(entity)
+            changes.write_bytes(stored.address + current, current_size)
+        }
+        at = at + size
+    }
+}
+
+func forget(entity: Integer) {
+    assert present[entity] != tick
+    gone.append(entity)
+    crash full[entity]
+    full[entity].clear()
+}
+
+func encoded(entity: Integer): Boolean {
+    return entity < present.count() and present[entity] == tick
+}
+
+func full_of(entity: Integer): Asset.Bytes {
+    crash full[entity]
+    return full[entity]
 }
 
 func changed(entity: Integer): Asset.Bytes {
+    if delta_ticks[entity] != tick {
+        return nothing
+    }
     crash delta[entity]
     return delta[entity]
 }
 
-func settle(entity: Integer) {
-    crash current[entity]
-    crash previous[entity]
-    crash delta[entity]
-    var fresh = current[entity]
-    var stored = previous[entity]
-    var differences = delta[entity]
-    differences.clear()
-    collect_changes(fresh, stored, differences)
-    previous[entity] = fresh
-    current[entity] = stored
-}
-
-func forget(entity: Integer) {
-    assert stamped[entity] != tick
-    gone.append(entity)
-    crash previous[entity]
-    previous[entity].clear()
-}
-
-func collect_changes(fresh: Asset.Bytes, stored: Asset.Bytes, differences: Asset.Bytes) {
-    var at = 0
-    while at < fresh.length {
-        var size = raw.read_integer(fresh.address, at) + 4
-        var message = raw.read_integer(fresh.address, at + 4)
-        var before = frame_with(stored, message)
-        var same = before >= 0 and raw.read_integer(stored.address, before) + 4 == size and same_bytes(fresh, at, stored, before, size)
-        if not same {
-            differences.write_bytes(fresh.address + at, size)
-        }
-        at = at + size
+func hurried(entity: Integer): Asset.Bytes {
+    if quick_ticks[entity] != tick {
+        return nothing
     }
-    collect_removals(fresh, stored, differences)
-}
-
-func collect_removals(fresh: Asset.Bytes, stored: Asset.Bytes, differences: Asset.Bytes) {
-    var before = 0
-    while before < stored.length {
-        var size = raw.read_integer(stored.address, before) + 4
-        var message = raw.read_integer(stored.address, before + 4)
-        if frame_with(fresh, message) < 0 {
-            var entity = raw.read_integer(stored.address, before + 8)
-            differences.write_integer(12)
-            differences.write_integer(-4)
-            differences.write_integer(entity)
-            differences.write_integer(message)
-        }
-        before = before + size
-    }
+    crash quick[entity]
+    return quick[entity]
 }
 
 func frame_with(frames: Asset.Bytes, message: Integer): Integer {
@@ -121,24 +226,29 @@ func frame_with(frames: Asset.Bytes, message: Integer): Integer {
     return found
 }
 
-func same_bytes(fresh: Asset.Bytes, at: Integer, stored: Asset.Bytes, before: Integer, size: Integer): Boolean {
+func same_bytes(stored: Asset.Bytes, at: Integer, size: Integer): Boolean {
     var index = 0
     var same = true
     while same and index < size {
-        same = fresh.byte_at(at + index) == stored.byte_at(before + index)
+        same = stored.byte_at(at + index) == scratch.byte_at(index)
         index = index + 1
     }
     return same
 }
 
 func ensure(entity: Integer) {
-    while stamped.count() <= entity {
-        stamped.append(0)
-        var made_current = Asset.Bytes()
-        current.append(made_current)
-        var made_previous = Asset.Bytes()
-        previous.append(made_previous)
+    while present.count() <= entity {
+        present.append(-1)
+        fresh.append(-1)
+        delta_ticks.append(-1)
+        quick_ticks.append(-1)
+        var made_full = Asset.Bytes()
+        full.append(made_full)
         var made_delta = Asset.Bytes()
         delta.append(made_delta)
+        var made_quick = Asset.Bytes()
+        quick.append(made_quick)
+        var made_before = Asset.Bytes()
+        quick_before.append(made_before)
     }
 }

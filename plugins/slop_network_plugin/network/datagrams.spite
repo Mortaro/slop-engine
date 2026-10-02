@@ -1,0 +1,47 @@
+singleton
+
+var socket = UdpSocket()
+var opened = false
+var port = 0
+var salt = 0
+var outgoing = List<Byte>()
+var clock = Clock()
+
+func open_at(host: String, at_port: Integer) {
+    assert not opened
+    opened = socket.open_at(host, at_port)
+    if opened {
+        port = at_port
+    }
+}
+
+func open_any() {
+    assert not opened
+    opened = socket.open()
+}
+
+func token_for(connection: Integer): Integer {
+    if salt == 0 {
+        var now = clock.elapsed_nanoseconds()
+        var low: Integer = now % 1000000
+        salt = low + 1
+    }
+    return (connection * 7919 + salt) % 2147483647
+}
+
+func send(host: String, to_port: Integer, bytes: Asset.Bytes) {
+    assert opened and to_port > 0
+    outgoing.clear()
+    var index = 0
+    while index < bytes.length {
+        var value: Byte = bytes.byte_at(index)
+        outgoing.append(value)
+        index = index + 1
+    }
+    socket.send_to(host, to_port, outgoing)
+}
+
+func receive(): List<Byte>? {
+    assert opened
+    return socket.receive_now()
+}

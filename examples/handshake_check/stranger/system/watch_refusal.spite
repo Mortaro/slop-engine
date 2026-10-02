@@ -1,0 +1,23 @@
+type Refusal {
+    refused: Network.Component.Refused
+    running: Without<Component.Quit>
+}
+
+type Seen {
+    mirrored: Network.Component.Mirrored
+}
+
+var console = Console()
+var world = World()
+
+func update_all(refusals: List<Refusal>, seen: List<Seen>) {
+    var refusal = refusals.first()
+    crash refusal
+    var refused = refusal.refused
+    var mirrored = seen.count()
+    console.print("stranger was refused by the", refused.environment, "and mirrored", mirrored, "entities")
+    var nothing_was_misread = mirrored == 0
+    crash nothing_was_misread
+    var quit = Component.Quit()
+    world.as_entity().add_component(quit)
+}

@@ -1,0 +1,8 @@
+type Stirred {
+    gauge: Component.Gauge
+    busy: Component.Busy
+}
+
+func update_each(stirred: Stirred) {
+    stirred.gauge.amount = stirred.gauge.amount + 1
+}

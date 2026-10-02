@@ -1,0 +1,3 @@
+var offset: Long = 0
+var round_trip = 0
+var samples = 0

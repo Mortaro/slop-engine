@@ -1,0 +1,65 @@
+type Changes {
+    changed: Changed<Component.Gauge>
+    mirrored: Network.Component.Mirrored
+}
+
+type Ended {
+    finale: Component.Finale
+    mirrored: Network.Component.Mirrored
+}
+
+type Running {
+    frame: Component.Frame
+    running: Without<Component.Quit>
+}
+
+var console = Console()
+var world = World()
+var written_seen = 0
+var quiet_seen = 0
+var busy_seen = 0
+var acked = -1
+
+func update_all(runs: List<Running>, changes: List<Changes>, ends: List<Ended>) {
+    changes.each(count)
+    var ended = ends.first()
+    assert ended
+    console.print(
+        "bot saw the written gauge change",
+        written_seen,
+        "times, the quiet one",
+        quiet_seen,
+        "and the busy one",
+        busy_seen,
+    )
+    crash ended.finale.acks == 3
+    var each_write_arrived = written_seen == 4
+    crash each_write_arrived
+    var the_unwritten_gauge_arrived_once = quiet_seen == 1
+    crash the_unwritten_gauge_arrived_once
+    crash busy_seen > 1
+    console.print("passed true")
+    var quit = Component.Quit()
+    world.as_entity().add_component(quit)
+}
+
+func count(seen: Changes) {
+    var gauge = seen.changed.value
+    if gauge.role == 1 {
+        written_seen = written_seen + 1
+        acknowledge(gauge.amount)
+    } else if gauge.role == 2 {
+        quiet_seen = quiet_seen + 1
+    } else {
+        busy_seen = busy_seen + 1
+    }
+}
+
+func acknowledge(amount: Integer) {
+    assert amount < 3 and amount > acked
+    acked = amount
+    var ack = Component.Ack()
+    ack.amount = amount
+    var request = world.create_entity()
+    request.add_component(ack)
+}

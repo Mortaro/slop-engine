@@ -1,0 +1,9 @@
+type Started {
+    frame: Added<Component.Frame>
+}
+
+var schema = Network.Schema()
+
+func input_each(_started: Started) {
+    schema.ensure()
+}
