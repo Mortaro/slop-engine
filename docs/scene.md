@@ -11,8 +11,8 @@ with `spite kal_character --kal-assets=<folder>`.
 |---|---|---|
 | `slop_transform_plugin` | `Transform` | `Transform.Component.Transform`: position, a rotation quaternion and scale |
 | `slop_camera_plugin` | `Camera` | `Camera.Component.Camera` (eye, target, field of view, near, far) and `Camera.Component.Orbit` with the `AimOrbit` system |
-| `slop_scene_plugin` | `Scene` | `Scene.Component.Model` (a mesh id) and, on an animated model, `Scene.Component.Skin` (its `Scene.Pose`: the bone palette and each bone's pose, asset data rewritten every frame); `Scene.Component.View` on each window, whose draws, terrain draws and palettes for the frame live in the `Scene.Draws` resource (`draws.of(view)`, a `Scene.DrawSet` per view); the `Scene.Meshes` and `Scene.TerrainMaterials` resources, which give each mesh and terrain material an entity (`Scene.Component.Mesh`, `Scene.Component.TerrainMaterial`, marked `Component.Loading` while a job runs and `TerrainTexturesRequested` once its control textures are asked for); and `Scene.Component.ViewCamera` (the view matrix, field of view, near, far, eye and shadow centre) while a camera exists; `Gather` collects the camera, the models and the lighting every frame |
-| `slop_scene_vulkan_plugin` | `SceneVulkan` | the Vulkan passes: sun shadow map, lit scene into HDR, tone map into the frame, then the UI draws on top; `SceneVulkan.MeshRenderer` is a resource (singleton) holding the passes and the per-frame buffers; each mesh's entity gets `SceneVulkan.Component.GpuMesh` (its vertex and index buffers) and each texture's `SceneVulkan.Component.SceneTexture` (its scene-sampler descriptor set); `SceneVulkan.Component.MeshRendererCreated` marks the world entity once the passes are built |
+| `slop_scene_plugin` | `Scene` | `Scene.Component.Model` (a mesh id) and, on an animated model, `Scene.Component.Skin` (its `Scene.Pose`: the bone palette and each bone's pose, asset data rewritten every frame); `Scene.Component.View` on each window, whose draws, terrain draws and palettes for the frame live in the `Scene.Draws` resource (`draws.of(view)`, a `Scene.DrawSet` per view); the `Scene.Meshes` and `Scene.TerrainMaterials` resources, which give each mesh and terrain material an entity (`Scene.Component.Mesh`, `Scene.Component.TerrainMaterial`, marked `Component.Loading` while a job runs and `TerrainTexturesRequested` once its control textures are asked for); `Scene.Component.ViewCamera` (the view matrix, field of view, near, far, eye and shadow centre) while a camera exists; `Scene.Component.DetailLevel` on a model whose mesh has levels of detail; `Scene.Component.OcclusionCulling` on each window (added with its `View`) and, when a program adds it, `Scene.Component.ForcedDetailLevel`; `Gather` collects the camera, the models and the lighting every frame |
+| `slop_scene_vulkan_plugin` | `SceneVulkan` | the Vulkan passes: sun shadow map, lit scene into HDR, tone map into the frame, the occlusion depth map, then the UI draws on top; `SceneVulkan.MeshRenderer` is a resource (singleton) holding the passes and the per-frame buffers; each mesh's entity gets `SceneVulkan.Component.GpuMesh` (its vertex and index buffers) and each texture's `SceneVulkan.Component.SceneTexture` (its scene-sampler descriptor set); `SceneVulkan.Component.MeshRendererCreated` marks the world entity once the passes are built |
 | `slop_animation_plugin` | `Animation` | `Animation.Component.Animator` (skeleton, clip, time, speed), looping unless the entity has the marker `Animation.Component.PlayOnce`; `Animate` samples the clip into the model's `Skin`, adding one the first time |
 | `slop_lighting_plugin` | `Lighting` | `Sun`, `Sky`, `HeightFog` and `Exposure` components and a `Daylight` bundle, written into each view; `PointLight` and `SpotLight` components gathered into `Scene.Lights` |
 | `slop_blend_plugin` | `Blend` | `MeshReader`, `SkeletonReader` and `ActionReader`: what a recipe needs from a `.blend` |
@@ -21,6 +21,7 @@ with `spite kal_character --kal-assets=<folder>`.
 `slop/` itself gains only neutral pieces:
 - the assets: `Asset.Mesh`, `Asset.Skeleton` and `Asset.Animation`;
 - `Recipes.AssetSlots<T>`, which loads any cooked asset on the thread pool;
+- `Recipes.DetailLevels`, which gives a cooked mesh its [levels of detail](#levels-of-detail);
 - the maths: `Math.Scalar`, `Math.Matrix4`, `Math.Pose` and `Math.Vector3`.
 
 ## A character is cooked by a recipe
@@ -162,10 +163,87 @@ behind it, beside it or past its far plane (`Camera.far`), so a far plane at the
 view. Depth is reversed-Z, so a 20 km far plane keeps its precision. A terrain cell may name a coarser `far_mesh`,
 drawn once the cell is `far_distance` metres away.
 
-**Instancing.** Draws of the same mesh section share a texture, so the renderer counting-sorts them by (mesh, section)
-into contiguous runs of the draw buffer and issues one instanced draw per run; the vertex shader reads
+**Instancing.** Draws of the same mesh section share a texture, so the renderer counting-sorts them by (mesh, section,
+level of detail, occluded) into contiguous runs of the draw buffer and issues one instanced draw per run; the vertex shader reads
 `draws[push.draw + gl_InstanceIndex]`, and skinned instances keep their own palettes. `examples/props_bench` draws
 17,000 cubes (11,192 in view) in a 13.9 ms frame, `DrawScene` taking 2.2 ms (optimized, RTX 3090).
+
+### Levels of detail
+
+A mesh exported from a dense source (a Nanite flower of 50,000 triangles, say) needs coarser versions for when it is
+small on screen. A recipe opts a mesh in by calling `Recipes.DetailLevels` on it before packing it:
+
+```gdscript
+var details = Recipes.DetailLevels()
+
+func build() {
+    ...
+    mesh.add_section(0, index_count, "")
+    details.generate(mesh)
+    pack.encode(mesh, bytes)
+    cache.put("mesh.flower", fingerprint, bytes)
+}
+```
+
+How the chain is made:
+- **Halving.** Each level keeps half the triangles of the one before (`reduction`, 0.5), up to eight levels with
+  level 0 (`level_limit`, Unreal's limit). The chain stops early when a level would have fewer than 16 triangles
+  (`minimum_triangles`), when simplifying stalls above three quarters of the level before, or when the next collapse
+  would move the surface by more than a quarter of the bounding radius (`error_limit`).
+- **Simplification.** Quadric error metric edge collapse (Garland and Heckbert), each collapse moving a vertex onto
+  a neighbour, so every level reuses the mesh's own vertices with their normals, UVs and skin weights. A level is a
+  list of indices appended to `Asset.Mesh.indices`; the vertex buffer is shared by every level.
+- **What is kept.** Open borders, UV seams, hard-normal splits and the edges between material sections only collapse
+  along themselves, and a vertex where more than two of them meet never moves. A collapse that would turn a
+  triangle's normal by more than about 75 degrees is refused. Changing a vertex's normal or skin weights costs extra,
+  so flat regions weighted to one bone go first.
+- **Sections.** Every level keeps the mesh's material slots: `Asset.Mesh.detail_sections` holds the first index and
+  index count of each section, level by level from level 1.
+- **Screen sizes.** `Asset.Mesh.detail_screen_sizes` holds, for each level from 1, the screen size below which it is
+  drawn. A recipe can set them (`details.screen_sizes`, like Unreal's LOD screen sizes); otherwise each comes from
+  its level's geometric error, so that a level moves the silhouette by at most `pixel_error` (1) pixel on a
+  1080-pixel-high screen: `2 · radius · pixel_error / (error · 1080)`, at most 4, and never above the level before.
+  `details.triangle_counts` and `details.errors` report the chain.
+
+A mesh without levels is drawn as before. At run time, `Gather` picks each model's level:
+- **Screen size** is Unreal's: the bounding sphere's projected diameter over the screen height,
+  `radius / (distance · tan(field_of_view / 2))`. Level k is drawn below the k-th screen size.
+- **Hysteresis.** A model keeps its level in `Scene.Component.DetailLevel`, added the first time it is drawn, and
+  only moves to a coarser level once its screen size is 10% below that level's size, and back once it is 10% above
+  (`Scene.DetailPicker.hysteresis`), so a camera resting on a threshold never flickers between two levels.
+- **Forcing.** A `Scene.Component.ForcedDetailLevel` (`level`) on a window draws every model of its view at one level, like Unreal's
+  `r.ForceLOD`.
+- **Shadows** draw each model at the level the view draws it, so a surface always shadows itself exactly.
+
+`examples/render_bench --field=60` adds 3,600 flowers of 44,800 triangles behind a wall: with levels of detail the
+scene pass draws 1.2 million triangles instead of 145 million, and the frame takes 0.96 ms on the GPU instead of 27.6 ms
+(RTX 3090, 1920x1080). The frames with and without levels differ only in a few thousand sub-pixel flower edges.
+
+### Occlusion culling
+
+A model hidden behind other geometry is not drawn by the scene pass:
+- **The map.** After the scene pass, a compute pass (`occlusion depth`) reduces the depth buffer to the farthest depth
+  in each 16x16-pixel block (120 by 68 at 1080p) and writes it to host memory.
+- **Publishing.** Before the next frame is gathered, `SceneVulkan.System.PublishOcclusion` asks each frame's fence,
+  without waiting, whether it has finished, and hands the newest finished map to its view: `Scene.DrawSet.occlusion`, a
+  `Scene.OcclusionMap` holding a pyramid of farthest depths and the camera the frame was drawn with.
+- **The test.** `Gather` tests each model in view against it. The bounding sphere is projected with the map's own
+  camera into a screen rectangle; the model is hidden when its nearest point is farther than the farthest depth over
+  that rectangle, read at the pyramid level where the rectangle covers at most two texels each way.
+- **Never hidden:** a sphere that crosses the map's near plane or leaves the map's screen, and everything while the
+  eye is more than 1 m from where the map was drawn (`camera_cut` of the window's `Scene.Component.OcclusionCulling`).
+
+What it promises:
+- Turning the camera never hides a visible model, even for a frame: what one eye point sees past an occluder does not
+  depend on where it looks, and each test uses the camera the map was drawn from.
+- A model uncovered because the eye moved, or because its occluder moved, is drawn one frame late while the GPU
+  keeps up with the CPU, and two when the GPU is a whole frame behind, as with Unreal's occlusion queries.
+- A hidden model still casts its shadow: its draws are marked `occluded` and only the scene pass skips them.
+- Nothing ever waits for the GPU.
+
+Each window gets a `Scene.Component.OcclusionCulling` with its `View`; removing it turns occlusion culling off for that view (Unreal's `r.AllowOcclusionQueries`). The map costs about 0.02 ms of GPU
+time at 1080p. In `render_bench --field=60`, 4,619 of 7,144 draws are hidden, and without levels of detail the
+frame goes from 27.6 ms to 16.3 ms; the frames with and without occlusion culling are identical.
 
 ### Terrain
 

@@ -8,6 +8,8 @@ type Viewing {
 }
 
 var cameras = Lookup<Component.ViewCamera>()
+var occlusion_cullings = Lookup<Component.OcclusionCulling>()
+var forced_levels = Lookup<Component.ForcedDetailLevel>()
 var draws = Scene.Draws()
 
 func prepare_each(target: Target, viewing: Viewing) {
@@ -15,6 +17,7 @@ func prepare_each(target: Target, viewing: Viewing) {
     var owner = target.entity
     var drawn = draws.of(owner.id)
     drawn.begin()
+    switch_culling(drawn, owner)
     var existing = cameras.of(owner.id)
     if existing {
         existing.look_through(viewing.camera)
@@ -25,4 +28,17 @@ func prepare_each(target: Target, viewing: Viewing) {
     camera.look_through(viewing.camera)
     view.cone.prepare(camera)
     owner.add_component(camera)
+}
+
+func switch_culling(drawn: Scene.DrawSet, owner: Entity) {
+    var occlusion = occlusion_cullings.of(owner.id)
+    drawn.culls_occluded = false
+    if occlusion {
+        drawn.culls_occluded = true
+        drawn.camera_cut = occlusion.camera_cut
+    }
+    var forced = forced_levels.of(owner.id)
+    drawn.forced_detail_level = -1
+    assert forced
+    drawn.forced_detail_level = forced.level
 }

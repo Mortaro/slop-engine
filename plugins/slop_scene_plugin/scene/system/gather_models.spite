@@ -50,8 +50,15 @@ func add_draw(target: Target, modeled: Modeled) {
         mark_view(target.view, modeled.entity, radius, in_view)
     }
     assert in_view
-    var level = details.level_for(detail_levels, modeled.entity, loaded, target.view.cone, radius)
-    var occluded = drawn.occlusion.hides(target.view.cone, radius)
+    var level = details.level_for(
+        detail_levels,
+        modeled.entity,
+        loaded,
+        target.view.cone,
+        radius,
+        drawn.forced_detail_level,
+    )
+    var occluded = drawn.culls_occluded and drawn.occlusion.hides(target.view.cone, radius, drawn.camera_cut)
     var palette_first = 0
     if skinned {
         palette_first = drawn.palettes.count()

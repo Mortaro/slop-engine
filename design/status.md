@@ -117,6 +117,23 @@ and the click test passed for 5 and 12 clicks.
 ## [scene.md](../docs/scene.md)
 
 - Normal, roughness and metallic maps are not read yet.
+- Levels of detail and occlusion culling (2026-10-02), known gaps:
+  - every level shares the mesh's full vertex buffer (a level is only indices), so levels cut triangles and vertex
+    shading but not vertex memory;
+  - UV stretching is not costed by the simplifier (seams are kept, interior UVs follow the collapsed vertex);
+  - the shadow pass draws each model at the view's level (no coarser shadow level), and models outside the view
+    cone still cast no shadow;
+  - one `DetailLevel` per model, so two views of one model share its hysteresis;
+  - no dithered transitions between levels (Unreal's are off by default for static meshes);
+  - occlusion tests models only, not terrain cells; a model uncovered by a moving eye or occluder shows one frame
+    late (two when the GPU is a frame behind); the occlusion map is copied into a `List<Float>` each frame (8,160
+    floats at 1080p);
+  - `render_bench` (optimized, RTX 3090, 1920x1080, medians of 3): the default scene went from frame 569, shadows 79,
+    scene 453 us to frame 579, shadows 76, scene 432, occlusion depth 25 us, with an identical capture; with
+    `--field=60` (3,600 flowers of 44,800 triangles behind a wall) the frame takes 27.6 ms with neither, 0.96 ms
+    with levels of detail, 16.3 ms with occlusion culling and 0.93 ms with both (4,619 of 7,144 draws hidden, 0.45
+    million scene triangles instead of 145 million). Gathering the 3,600 flowers costs about 0.4 ms more CPU with
+    occlusion on. The flower cooks into 8 levels in 2.3 s.
 - Dithered fades (Unreal's OccluderDither at a non-zero fade) are not built yet.
 - A light that is a child of a moving entity reads only its own position (proposal: follow the parent once
   transforms have a world pass).

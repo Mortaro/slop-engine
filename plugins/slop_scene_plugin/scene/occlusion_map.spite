@@ -1,4 +1,3 @@
-var culling = Scene.Culling()
 var scalar = Math.Scalar()
 var ready = false
 var view = Math.Matrix4()
@@ -105,15 +104,14 @@ func depth_at(index: Integer): Float {
     return depths[index]
 }
 
-func hides(cone: Scene.ViewCone, radius: Float): Boolean {
-    if not ready or not culling.occlusion {
+func hides(cone: Scene.ViewCone, radius: Float, camera_cut: Float): Boolean {
+    if not ready {
         return false
     }
     var moved_x = cone.eye_x - eye_x
     var moved_y = cone.eye_y - eye_y
     var moved_z = cone.eye_z - eye_z
-    var jump = culling.occlusion_eye_jump
-    if moved_x * moved_x + moved_y * moved_y + moved_z * moved_z > jump * jump {
+    if moved_x * moved_x + moved_y * moved_y + moved_z * moved_z > camera_cut * camera_cut {
         return false
     }
     var center = cone.placed

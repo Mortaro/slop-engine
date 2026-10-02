@@ -1,7 +1,6 @@
 var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
 var raw = Raw()
 var floats = TypedMemory<Float>()
-var culling = Scene.Culling()
 var block = 16
 var push_bytes = 20
 var shader: Long = 0
@@ -284,10 +283,10 @@ func record(
     slot: Integer,
 ) {
     built[slot] = false
-    if not culling.occlusion {
+    if not drawn.culls_occluded {
         drawn.occlusion.ready = false
     }
-    assert culling.occlusion
+    assert drawn.culls_occluded
     crash pending[slot]
     var map = pending[slot]
     map.begin(camera, width, height, block)

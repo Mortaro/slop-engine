@@ -4,7 +4,6 @@ type Started {
 
 var world = World()
 var environment = Environment()
-var culling = Scene.Culling()
 var scalar = Math.Scalar()
 var parts = ["chest", "boots", "gloves", "shorts_part_1", "shorts_part_2", "face_1", "hair_1"]
 
@@ -56,10 +55,6 @@ func update_each(_started: Started) {
 }
 
 func add_field() {
-    culling.occlusion = environment.occlusion
-    if not environment.lod {
-        culling.forced_detail_level = 0
-    }
     assert environment.field > 0
     add_block(0.0, 3.0, 17.0, 20.0, 6.0, 0.5)
     var count = environment.field * environment.field

@@ -52,6 +52,7 @@ The steps:
 |---|---|
 | `Psd.Layers` | `open(id)`, `texture(layer path, id)`, `skip(prefix, reason)`, `finish()`, which refuses any layer nothing claimed |
 | `Recipes.Glsl` | `compile(root, id, stage)`: GLSL to SPIR-V with `glslangValidator`; the plugin names its own folder as the root |
+| `Recipes.DetailLevels` | `generate(mesh)`: appends a chain of simplified levels of detail to an `Asset.Mesh` ([scene.md](scene.md#levels-of-detail)) |
 
 Any package can bring recipes along with its systems: the Vulkan plugin brings its shaders, a game brings its PSDs.
 

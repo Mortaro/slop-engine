@@ -1,0 +1,15 @@
+type Adopted {
+    entity: Entity
+    occlusion: Added<Scene.Component.OcclusionCulling>
+}
+
+var environment = Environment()
+
+func update_each(adopted: Adopted) {
+    if not environment.occlusion {
+        adopted.entity.remove_component(Scene.Component.OcclusionCulling)
+    }
+    assert not environment.lod
+    var forced = Scene.Component.ForcedDetailLevel()
+    adopted.entity.add_component(forced)
+}

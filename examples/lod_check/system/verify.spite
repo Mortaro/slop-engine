@@ -12,7 +12,7 @@ type Quitting {
 var placed = Placed()
 var meshes = Scene.Meshes()
 var draws = Scene.Draws()
-var culling = Scene.Culling()
+var details = Scene.DetailPicker()
 var renderer = RenderVulkan.Renderer()
 var cameras = Lookup<Camera.Component.Camera>()
 var transforms = Lookup<Transform.Component.Transform>()
@@ -264,10 +264,10 @@ func check_transition(view_camera: Scene.Component.ViewCamera, level: Integer, s
     var radius = loaded.bound_radius * 2.0
     var going_out = level > last_level
     var crossed = level
-    var factor = 1.0 - culling.detail_hysteresis
+    var factor = 1.0 - details.hysteresis
     if not going_out {
         crossed = last_level
-        factor = 1.0 + culling.detail_hysteresis
+        factor = 1.0 + details.hysteresis
     }
     var one_step = level - last_level == 1 or last_level - level == 1
     crash one_step

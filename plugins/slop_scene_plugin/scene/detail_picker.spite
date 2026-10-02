@@ -1,4 +1,4 @@
-var culling = Scene.Culling()
+var hysteresis: Float = 0.1
 
 func level_for(
     levels: Lookup<Scene.Component.DetailLevel>,
@@ -6,14 +6,15 @@ func level_for(
     mesh: Scene.LoadedMesh,
     cone: Scene.ViewCone,
     radius: Float,
+    forced: Integer,
 ): Integer {
     var count = mesh.detail_screen_sizes.count()
     if count == 0 {
         return 0
     }
-    if culling.forced_detail_level >= 0 {
-        if culling.forced_detail_level < count {
-            return culling.forced_detail_level
+    if forced >= 0 {
+        if forced < count {
+            return forced
         }
         return count
     }
@@ -25,8 +26,8 @@ func level_for(
         entity.add_component(chosen)
         return chosen.level
     }
-    var coarsest = level_at(mesh, size, 1.0 + culling.detail_hysteresis)
-    var finest = level_at(mesh, size, 1.0 - culling.detail_hysteresis)
+    var coarsest = level_at(mesh, size, 1.0 + hysteresis)
+    var finest = level_at(mesh, size, 1.0 - hysteresis)
     if held.level < finest {
         held.level = finest
     }
