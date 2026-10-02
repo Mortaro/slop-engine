@@ -1,8 +1,6 @@
 var build = Build()
 
-var kernel = DynamicLibrary("kernel32.dll", 'identity', "")
-var heap = Memory.Heap()
-var raw = Raw()
+var program = Program()
 
 func relative_path(id: String, extension: String): String {
     var folders = id.replace(".", "/")
@@ -32,13 +30,8 @@ func index_path(): String {
 }
 
 func executable_name(): String {
-    var buffer = heap.allocate(1024)
-    var no_module: Long = 0
-    var size = kernel.GetModuleFileNameA(no_module, buffer, 1024)
-    var named = size > 0 and size < 1024
-    crash named
-    var full = raw.text(buffer, size)
-    heap.free(buffer)
+    var full = program.executable_path()
+    crash full != ""
     var normalized = full.replace("\\", "/")
     var start = normalized.length()
     while start > 0 and normalized.code_at(start - 1) != 47 {

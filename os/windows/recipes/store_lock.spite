@@ -1,0 +1,51 @@
+var kernel = DynamicLibrary("kernel32.dll", 'identity', "")
+var heap = Memory.Heap()
+var raw = Raw()
+var overlapped: Long = 0
+
+func open_lock_file(lock_path: String): Long {
+    var read_and_write = -1073741824
+    var share_everything = 7
+    var open_always = 4
+    var normal = 128
+    var no_security: Long = 0
+    var no_template: Long = 0
+    var opened_handle = kernel.CreateFileA_as_long(
+        lock_path,
+        read_and_write,
+        share_everything,
+        no_security,
+        open_always,
+        normal,
+        no_template,
+    )
+    var opened = opened_handle != -1 and opened_handle != 0
+    crash opened
+    overlapped = heap.allocate(32)
+    clear_overlapped()
+    return opened_handle
+}
+
+func lock_file() {
+    var exclusive = 2
+    var locked = kernel.LockFileEx(handle, exclusive, 0, 1, 0, overlapped)
+    crash locked != 0
+}
+
+func unlock_file() {
+    var unlocked = kernel.UnlockFileEx(handle, 0, 1, 0, overlapped)
+    crash unlocked != 0
+}
+
+func close_lock_file() {
+    kernel.CloseHandle(handle)
+    heap.free(overlapped)
+}
+
+func clear_overlapped() {
+    var offset: Long = 0
+    while offset < 32 {
+        raw.write_long(overlapped, offset, 0)
+        offset = offset + 8
+    }
+}

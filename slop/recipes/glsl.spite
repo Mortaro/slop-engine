@@ -3,7 +3,7 @@ var sources = Recipes.Sources()
 var cookbook = Recipes.Cookbook()
 var console = Console()
 var program = Program()
-var c_runtime = DynamicLibrary("ucrtbase.dll", 'identity', "")
+var build = Build()
 
 func compile(root: String, id: String, stage: String) {
     var source_path = sources.path_in(root, id, "glsl")
@@ -32,7 +32,8 @@ func compile(root: String, id: String, stage: String) {
     var loaded = compiled.read_file(output_path)
     crash loaded
     cache.put(id, fingerprint, compiled)
-    c_runtime.remove(output_path)
+    var output_file = File(output_path)
+    output_file.remove()
     console.print("recipe: compiled {id} ({stage})")
 }
 
@@ -66,5 +67,8 @@ func included_text(source_path: String, id: String, text: String): String {
 func compiler_path(): String {
     var sdk = program.environment("VULKAN_SDK")
     crash sdk
-    return "{sdk}/Bin/glslangValidator.exe"
+    if build.target_operating_system == "windows" {
+        return "{sdk}/Bin/glslangValidator.exe"
+    }
+    return "{sdk}/bin/glslangValidator"
 }

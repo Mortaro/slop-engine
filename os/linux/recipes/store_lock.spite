@@ -1,0 +1,25 @@
+var library = DynamicLibrary("libc.so.6", 'identity', "")
+
+func open_lock_file(lock_path: String): Long {
+    var read_write_create = 66
+    var readable_by_all = 420
+    var descriptor: Long = library.open(lock_path, read_write_create, readable_by_all)
+    crash descriptor >= 0
+    return descriptor
+}
+
+func lock_file() {
+    var exclusive = 2
+    var locked = library.flock(handle, exclusive)
+    crash locked == 0
+}
+
+func unlock_file() {
+    var unlock = 8
+    var unlocked = library.flock(handle, unlock)
+    crash unlocked == 0
+}
+
+func close_lock_file() {
+    library.close(handle)
+}
