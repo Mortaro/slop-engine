@@ -217,3 +217,6 @@ Claude (2026-10-02), for Mortaro to confirm:
   copies inline components straight from the bundle (proposals by Claude, 2026-10-02): `stress` showed glibc merging
   the 1.2 million blocks a 200,000-entity spawn freed in whichever later tick first allocated or freed a large
   block, about 20 ms (INSIGHTS, "a tick that paid for the spawn").
+- GPU timings (a proposal by Claude, 2026-10-02, unconfirmed): `renderer.gpu_timings` with `begin(name)` answering
+  a query index and `end(index)`, averages per name until `clear()`, read two frames later at the frame's fence.
+  Named after the common engine practice of per-pass timestamp scopes; Mortaro decides the API.

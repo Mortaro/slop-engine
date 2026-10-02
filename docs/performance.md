@@ -28,6 +28,30 @@ Systems in one stage run in parallel, so a stage takes about as long as its slow
 system's time counts only the part on the frame (queueing its rows); the waits on its workers happen off the frame
 and are not in the report.
 
+## Measuring the GPU
+
+`RenderVulkan.Renderer` times its passes on the GPU with timestamp queries, one pool per frame in flight. A pass is
+timed by a begin and an end around its commands:
+
+```gdscript
+var timing = renderer.gpu_timings.begin("shadows")
+record_shadows(renderer, drawn, storage)
+renderer.gpu_timings.end(timing)
+```
+
+A frame's results are read when its fence is waited on, two frames later, so timing never stalls the GPU. Each
+name's average accumulates until `renderer.gpu_timings.clear()`; `average_milliseconds(name)` reads one and
+`describe()` lists every pass in microseconds. The engine times `frame` (the whole command buffer), `shadows`,
+`scene`, `tone map` and `ui`. `examples/render_bench` prints them for a fixed scene (optimized, 1920x1080, RTX 3090):
+
+```
+frame 527 us
+shadows 75 us
+scene 417 us
+tone map 16 us
+ui 0 us
+```
+
 ## Where the time goes
 
 - Every matched entity fills a row: each field is a typed read through `Slot<T>`, and a replaced component is written

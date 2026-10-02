@@ -1,0 +1,135 @@
+type Started {
+    frame: Added<Component.Frame>
+}
+
+var world = World()
+var environment = Environment()
+var scalar = Math.Scalar()
+var parts = ["chest", "boots", "gloves", "shorts_part_1", "shorts_part_2", "face_1", "hair_1"]
+
+func update_each(_started: Started) {
+    var window_bundle = Window.Bundle.Window()
+    window_bundle.window.title = "Render bench"
+    window_bundle.window.width = environment.width
+    window_bundle.window.height = environment.height
+    var window_entity = world.create_entity_from_bundle(window_bundle)
+    if not environment.show_window {
+        var hidden = Window.Component.Hidden()
+        window_entity.add_component(hidden)
+    }
+    var camera_entity = world.create_entity()
+    var camera = Camera.Component.Camera()
+    camera.eye_x = 0.0
+    camera.eye_y = 4.0
+    camera.eye_z = -9.0
+    camera.target_x = 0.0
+    camera.target_y = 1.2
+    camera.target_z = 6.0
+    camera.far = 1000.0
+    camera_entity.add_component(camera)
+    var daylight = Lighting.Bundle.Daylight()
+    daylight.sun.direction_x = 0.62
+    daylight.sun.direction_y = -0.45
+    daylight.sun.direction_z = 0.64
+    world.create_entity_from_bundle(daylight)
+    add_block(0.0, -0.1, 50.0, 200.0, 0.2, 200.0)
+    var pillar = 0
+    while pillar < environment.pillars {
+        var column: Float = pillar % 20
+        var row: Float = pillar / 20
+        var tall = 1.0 + pillar * 7 % 5
+        add_block(column * 6.0 - 57.0, tall * 0.5, row * 6.0 + 9.0, 0.8, tall, 0.8)
+        pillar = pillar + 1
+    }
+    var archer = 0
+    while archer < environment.archers {
+        spawn_archer(archer)
+        archer = archer + 1
+    }
+    var light = 0
+    while light < environment.lights {
+        add_light(light)
+        light = light + 1
+    }
+}
+
+func add_block(at_x: Float, at_y: Float, at_z: Float, size_x: Float, size_y: Float, size_z: Float) {
+    var block = world.create_entity()
+    var model = Scene.Component.Model()
+    model.mesh = "mesh.bench.cube"
+    block.add_component(model)
+    var transform = Transform.Component.Transform()
+    transform.position_x = at_x
+    transform.position_y = at_y
+    transform.position_z = at_z
+    transform.scale_x = size_x
+    transform.scale_y = size_y
+    transform.scale_z = size_z
+    block.add_component(transform)
+}
+
+func spawn_archer(archer: Integer) {
+    var row = archer / 8
+    var column: Float = archer % 8
+    var deep: Float = row
+    var along_x = column * 1.6 - 5.6
+    var along_z = deep * 2.5
+    var turn: Float = archer % 3
+    var facing: Float = 3.14159 + turn * 0.4 - 0.4
+    var index = 0
+    while index < parts.count() {
+        var part = parts[index]
+        spawn_part(part, along_x, along_z, facing, archer)
+        index = index + 1
+    }
+}
+
+func spawn_part(part: String, along_x: Float, along_z: Float, facing: Float, archer: Integer) {
+    var entity = world.create_entity()
+    var model = Scene.Component.Model()
+    model.mesh = "archer.body.{part}"
+    entity.add_component(model)
+    var transform = Transform.Component.Transform()
+    transform.position_x = along_x
+    transform.position_z = along_z
+    var half = facing * 0.5
+    transform.rotation_y = scalar.sine(half)
+    transform.rotation_w = scalar.cosine(half)
+    entity.add_component(transform)
+    var animator = Animation.Component.Animator()
+    animator.skeleton = "archer.skeleton"
+    animator.clip = "archer.animation.idle"
+    var offset: Float = archer
+    animator.time = offset * 0.037
+    animator.speed = 0.0
+    entity.add_component(animator)
+}
+
+func add_light(light: Integer) {
+    var entity = world.create_entity()
+    var point = Lighting.Component.PointLight()
+    var hue = light % 3
+    point.red = 1.0
+    point.green = 0.5
+    point.blue = 0.2
+    if hue == 1 {
+        point.red = 0.2
+        point.green = 0.5
+        point.blue = 1.0
+    }
+    if hue == 2 {
+        point.red = 0.3
+        point.green = 1.0
+        point.blue = 0.4
+    }
+    point.intensity = 40.0
+    point.range = 8.0
+    entity.add_component(point)
+    var transform = Transform.Component.Transform()
+    var column: Float = light % 8
+    var row: Float = light / 8
+    transform.position_x = column * 8.0 - 28.0
+    transform.position_y = 1.5
+    transform.position_z = row * 8.0 + 2.0
+    entity.add_component(transform)
+}

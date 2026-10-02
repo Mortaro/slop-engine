@@ -1,0 +1,163 @@
+var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
+var capacity = 64
+var pools = List<Long>()
+var used = List<Integer>()
+var query_names = List<String>()
+var command_buffer: Long = 0
+var slot = 0
+var period_nanoseconds: Float = 1.0
+var labels = List<String>()
+var totals = List<Float>()
+var samples = List<Integer>()
+
+func create(device: Long, frames_in_flight: Integer, period: Float) {
+    period_nanoseconds = period
+    var no_allocator: Long = 0
+    var index = 0
+    while index < frames_in_flight {
+        var creation = RenderVulkan.Structure(32)
+        creation.append_integer(11)
+        creation.append_long(0)
+        creation.append_integer(0)
+        var timestamp_queries = 2
+        creation.append_integer(timestamp_queries)
+        creation.append_integer(capacity)
+        creation.append_integer(0)
+        var made = RenderVulkan.Structure(8)
+        var result = vulkan.vkCreateQueryPool(device, creation.address, no_allocator, made.address)
+        crash result == 0
+        var pool = made.read_long(0)
+        pools.append(pool)
+        used.append(0)
+        var name_index = 0
+        while name_index < capacity {
+            query_names.append("")
+            name_index = name_index + 1
+        }
+        index = index + 1
+    }
+}
+
+func collect(device: Long, finished: Integer) {
+    var pool = pools[finished]
+    var count = used[finished]
+    assert pool and count
+    used[finished] = 0
+    assert count > 0
+    var results = RenderVulkan.Structure(count * 8)
+    var sixty_four_bit = 1
+    var stride: Long = 8
+    var bytes = count * 8
+    var result = vulkan.vkGetQueryPoolResults(device, pool, 0, count, bytes, results.address, stride, sixty_four_bit)
+    assert result == 0
+    var pair = 0
+    while pair + 1 < count {
+        var started = results.read_long(pair * 8)
+        var ended = results.read_long(pair * 8 + 8)
+        var ticks: Float = ended - started
+        var name = query_names[finished * capacity + pair]
+        crash name
+        add(name, ticks * period_nanoseconds / 1000000.0)
+        pair = pair + 2
+    }
+}
+
+func start(buffer: Long, frame_slot: Integer) {
+    command_buffer = buffer
+    slot = frame_slot
+    var pool = pools[slot]
+    assert pool
+    vulkan.vkCmdResetQueryPool(command_buffer, pool, 0, capacity)
+    used[slot] = 0
+}
+
+func begin(name: String): Integer {
+    var index = used[slot]
+    if not index {
+        return -1
+    }
+    if index + 2 > capacity {
+        return -1
+    }
+    used[slot] = index + 2
+    query_names[slot * capacity + index] = name
+    write(index)
+    return index
+}
+
+func end(index: Integer) {
+    assert index >= 0
+    write(index + 1)
+}
+
+func write(query: Integer) {
+    var bottom_of_pipe = 8192
+    var pool = pools[slot]
+    crash pool
+    vulkan.vkCmdWriteTimestamp(command_buffer, bottom_of_pipe, pool, query)
+}
+
+func add(name: String, milliseconds: Float) {
+    var index = 0
+    while index < labels.count() {
+        if labels[index] == name {
+            var total = totals[index]
+            var sampled = samples[index]
+            crash total and sampled
+            totals[index] = total + milliseconds
+            samples[index] = sampled + 1
+            return
+        }
+        index = index + 1
+    }
+    labels.append(name)
+    totals.append(milliseconds)
+    samples.append(1)
+}
+
+func average_milliseconds(name: String): Float {
+    var index = 0
+    while index < labels.count() {
+        if labels[index] == name {
+            var total = totals[index]
+            var sampled = samples[index]
+            crash total and sampled
+            var count: Float = sampled
+            return total / count
+        }
+        index = index + 1
+    }
+    return 0.0
+}
+
+func describe(): String {
+    var text = ""
+    var index = 0
+    while index < labels.count() {
+        var name = labels[index]
+        var average = average_milliseconds(name)
+        var microseconds: Integer = average * 1000.0
+        text = "{text}{name} {microseconds} us\n"
+        index = index + 1
+    }
+    return text
+}
+
+func clear() {
+    labels.clear()
+    totals.clear()
+    samples.clear()
+}
+
+func release(device: Long) {
+    var no_allocator: Long = 0
+    var index = 0
+    while index < pools.count() {
+        var pool = pools[index]
+        vulkan.vkDestroyQueryPool(device, pool, no_allocator)
+        index = index + 1
+    }
+    pools.clear()
+    used.clear()
+    query_names.clear()
+}
