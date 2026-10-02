@@ -350,7 +350,8 @@ func unfilter_sub(pixels: Long, stride: Integer, step: Integer) {
     while index < stride {
         var left = raw.read_byte(pixels, index - step)
         var value = raw.read_byte(pixels, index)
-        raw.write_byte(pixels, index, value + left)
+        var unfiltered = (value + left) % 256
+        raw.write_byte(pixels, index, unfiltered)
         index = index + 1
     }
 }
@@ -360,7 +361,8 @@ func unfilter_up(pixels: Long, previous: Long, stride: Integer) {
     while index < stride {
         var above = raw.read_byte(previous, index)
         var value = raw.read_byte(pixels, index)
-        raw.write_byte(pixels, index, value + above)
+        var unfiltered = (value + above) % 256
+        raw.write_byte(pixels, index, unfiltered)
         index = index + 1
     }
 }
@@ -375,7 +377,8 @@ func unfilter_average(pixels: Long, previous: Long, stride: Integer, step: Integ
         }
         var value = raw.read_byte(pixels, index)
         var average = (left + above) / 2
-        raw.write_byte(pixels, index, value + average)
+        var unfiltered = (value + average) % 256
+        raw.write_byte(pixels, index, unfiltered)
         index = index + 1
     }
 }
@@ -392,7 +395,8 @@ func unfilter_paeth(pixels: Long, previous: Long, stride: Integer, step: Integer
         }
         var value = raw.read_byte(pixels, index)
         var predicted = paeth(left, above, corner)
-        raw.write_byte(pixels, index, value + predicted)
+        var unfiltered = (value + predicted) % 256
+        raw.write_byte(pixels, index, unfiltered)
         index = index + 1
     }
 }
