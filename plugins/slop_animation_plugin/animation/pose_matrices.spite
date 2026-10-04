@@ -1,2 +1,2 @@
-var palette = List<Matrix4>()
-var bones = List<Matrix4>()
+var palette = List<Matrix4<Float>>()
+var bones = List<Matrix4<Float>>()

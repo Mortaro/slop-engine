@@ -21,7 +21,8 @@ func prepare() {
             var base = (encoded + 0.055) / 1.055
             linear = base.power(2.4)
         }
-        var scaled = (linear * 65535.0).round()
+        var scaled_unrounded = linear * 65535.0
+        var scaled = scaled_unrounded.round()
         var whole: Integer = scaled
         to_linear.append(whole)
         value = value + 1
@@ -35,7 +36,8 @@ func prepare() {
             var curve = linear.power(0.41666667)
             encoded = curve * 1.055 - 0.055
         }
-        var scaled = (encoded * 255.0).round()
+        var scaled_unrounded_2 = encoded * 255.0
+        var scaled = scaled_unrounded_2.round()
         var whole: Integer = scaled
         var clamped = whole.clamp(0, 255)
         to_srgb.append(clamped)
@@ -88,12 +90,16 @@ func filter_rows(
     next.reserve(next_width * rows * 4 + 8)
     var row = 0
     while row < rows {
-        var top = ((first_row + row) * 2).minimum(height - 1)
-        var bottom = ((first_row + row) * 2 + 1).minimum(height - 1)
+        var top_unclamped = (first_row + row) * 2
+        var top = top_unclamped.minimum(height - 1)
+        var bottom_unclamped = (first_row + row) * 2 + 1
+        var bottom = bottom_unclamped.minimum(height - 1)
         var column = 0
         while column < next_width {
-            var left = (column * 2).minimum(width - 1)
-            var right = (column * 2 + 1).minimum(width - 1)
+            var left_unclamped = column * 2
+            var left = left_unclamped.minimum(width - 1)
+            var right_unclamped = column * 2 + 1
+            var right = right_unclamped.minimum(width - 1)
             var top_left = raw.read_integer(source_address, (top * width + left) * 4)
             var top_right = raw.read_integer(source_address, (top * width + right) * 4)
             var bottom_left = raw.read_integer(source_address, (bottom * width + left) * 4)
@@ -193,7 +199,8 @@ func average_normal(top_left: Integer, top_right: Integer, bottom_left: Integer,
 }
 
 func unsigned_of(value: Float): Integer {
-    var scaled = ((value + 1.0) * 127.5).round()
+    var scaled_unrounded_3 = (value + 1.0) * 127.5
+    var scaled = scaled_unrounded_3.round()
     var whole: Integer = scaled
     return whole.clamp(0, 255)
 }

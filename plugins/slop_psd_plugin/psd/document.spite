@@ -356,8 +356,7 @@ func channel_plane(layer: Psd.Layer, identifier: Integer): Asset.Bytes {
         return decode_channel(channel, plane_width, plane_height)
     }
     crash identifier == -1
-    var opaque = Asset.Bytes()
-    return opaque
+    return Asset.Bytes()
 }
 
 func mask_plane(layer: Psd.Layer): Asset.Bytes {
@@ -368,8 +367,7 @@ func mask_plane(layer: Psd.Layer): Asset.Bytes {
             return masked_plane(layer, channel)
         }
     }
-    var uncovered = Asset.Bytes()
-    return uncovered
+    return Asset.Bytes()
 }
 
 func masked_plane(layer: Psd.Layer, channel: Psd.Channel): Asset.Bytes {
@@ -490,7 +488,8 @@ func undo_narrow_row(unpacked: Asset.Bytes, start: Integer, row_bytes: Integer) 
     var column = 1
     while column < row_bytes {
         var current = raw.read_byte(unpacked.address, start + column)
-        var sum = (previous + current).bits_and(255)
+        var sum_bits = previous + current
+        var sum = sum_bits.bits_and(255)
         raw.write_byte(unpacked.address, start + column, sum)
         previous = sum
         column = column + 1

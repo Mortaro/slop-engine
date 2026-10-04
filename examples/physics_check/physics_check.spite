@@ -66,7 +66,8 @@ func random_rotation(shape: Physics.Shape) {
     var turn_y = between(-1.0, 1.0)
     var turn_z = between(-1.0, 1.0)
     var turn_w = between(-1.0, 1.0)
-    var length = (turn_x * turn_x + turn_y * turn_y + turn_z * turn_z + turn_w * turn_w).square_root()
+    var length_squared = turn_x * turn_x + turn_y * turn_y + turn_z * turn_z + turn_w * turn_w
+    var length = length_squared.square_root()
     shape.set_rotation(turn_x / length, turn_y / length, turn_z / length, turn_w / length)
 }
 
@@ -189,7 +190,8 @@ func place(entity: Entity, position_x: Float, position_y: Float, position_z: Flo
         var turn_y = between(-1.0, 1.0)
         var turn_z = between(-1.0, 1.0)
         var turn_w = between(-1.0, 1.0)
-        var length = (turn_x * turn_x + turn_y * turn_y + turn_z * turn_z + turn_w * turn_w).square_root()
+        var length_squared_2 = turn_x * turn_x + turn_y * turn_y + turn_z * turn_z + turn_w * turn_w
+        var length = length_squared_2.square_root()
         transform.rotation_x = turn_x / length
         transform.rotation_y = turn_y / length
         transform.rotation_z = turn_z / length
@@ -226,8 +228,10 @@ func spawn_slope(low_x: Float, position_z: Float, degrees: Float, half_x: Float,
     transform.position_x = low_x + half_x * run + half_y * rise
     transform.position_y = half_x * rise - half_y * run
     transform.position_z = position_z
-    transform.rotation_z = (angle * 0.5).sine()
-    transform.rotation_w = (angle * 0.5).cosine()
+    var rotation_z_angle = angle * 0.5
+    transform.rotation_z = rotation_z_angle.sine()
+    var rotation_w_angle = angle * 0.5
+    transform.rotation_w = rotation_w_angle.cosine()
     entity.add_component(transform)
     var box = Physics.Component.BoxCollider()
     box.half_x = half_x
@@ -299,7 +303,8 @@ func pick_query(kind: Integer) {
     direction_x = between(-1.0, 1.0)
     direction_y = between(-1.0, 1.0)
     direction_z = between(-1.0, 1.0)
-    var length = (direction_x * direction_x + direction_y * direction_y + direction_z * direction_z).square_root()
+    var length_squared_3 = direction_x * direction_x + direction_y * direction_y + direction_z * direction_z
+    var length = length_squared_3.square_root()
     direction_x = direction_x / length
     direction_y = direction_y / length
     direction_z = direction_z / length
@@ -455,9 +460,11 @@ func check_query_kind(kind: Integer, total: Integer, marched: Integer): Integer 
         var brute_entity = found_entity
         var brute_distance = found_distance
         run_query(false)
-        var same = found == brute_found and (found_distance - brute_distance).absolute() < 0.0001
+        var same_signed = found_distance - brute_distance
+        var same = found == brute_found and same_signed.absolute() < 0.0001
         if same and found and found_entity != brute_entity {
-            same = (found_distance - brute_distance).absolute() < 0.00001
+            var same_signed_2 = found_distance - brute_distance
+            same = same_signed_2.absolute() < 0.00001
         }
         if not same {
             console.print(
@@ -482,7 +489,8 @@ func check_query_kind(kind: Integer, total: Integer, marched: Integer): Integer 
             var marched_distance = march()
             var agrees = true
             if marched_distance >= 0.0 {
-                agrees = found and (found_distance - marched_distance).absolute() < 0.05
+                var agrees_signed = found_distance - marched_distance
+                agrees = found and agrees_signed.absolute() < 0.05
             } else if found {
                 agrees = confirms(found_distance, found_entity)
             }
@@ -582,7 +590,8 @@ func check_characters(app: App): Boolean {
         var blocker = transforms.of(blocked)
         crash blocker
         if blocked_still < 5 {
-            if (blocker.position_x - blocked_before).absolute() < 0.0005 and grounded.has(blocked) {
+            var compared_signed = blocker.position_x - blocked_before
+            if compared_signed.absolute() < 0.0005 and grounded.has(blocked) {
                 blocked_still = blocked_still + 1
             } else {
                 blocked_still = 0
@@ -593,7 +602,8 @@ func check_characters(app: App): Boolean {
         var steeper = transforms.of(steep)
         crash steeper
         if steep_still < 5 {
-            if (steeper.position_x - steep_before).absolute() < 0.0005 and steeper.position_x > 2006.0 {
+            var compared_signed_2 = steeper.position_x - steep_before
+            if compared_signed_2.absolute() < 0.0005 and steeper.position_x > 2006.0 {
                 steep_still = steep_still + 1
             } else {
                 steep_still = 0
@@ -631,14 +641,17 @@ func check_characters(app: App): Boolean {
         "passed",
         slide_passed,
     )
-    var step_passed = (step_y - 0.25).absolute() < 0.03 and step_grounded
+    var step_passed_signed = step_y - 0.25
+    var step_passed = step_passed_signed.absolute() < 0.03 and step_grounded
     console.print("step up 0.25: y", step_y, "grounded", step_grounded, "passed", step_passed)
     var blocked_passed = blocked_x <= 2008.0 - 0.4 and blocked_x > 2007.5 and blocked_y.absolute() < 0.05
     console.print("block of 0.6: stopped at x", blocked_x, "y", blocked_y, "passed", blocked_passed)
     var steep_passed = steep_y < 0.1 and steep_x < 2008.0
     console.print("60 degree slope: stopped at x", steep_x, "y", steep_y, "passed", steep_passed)
-    var expected_y = (climb_x - 2008.0) * (20.0 * Float.pi / 180.0).tangent()
-    var climb_passed = (climb_y - expected_y).absolute() < 0.06 and climb_grounded and climb_airborne == 0
+    var expected_y_angle = 20.0 * Float.pi / 180.0
+    var expected_y = (climb_x - 2008.0) * expected_y_angle.tangent()
+    var climb_passed_signed = climb_y - expected_y
+    var climb_passed = climb_passed_signed.absolute() < 0.06 and climb_grounded and climb_airborne == 0
     console.print(
         "20 degree slope: x",
         climb_x,
@@ -708,8 +721,10 @@ func spawn_bumps() {
         while column <= 10 {
             var bump_x: Float = column * 2 - 10
             var bump_z: Float = row * 2 - 10
-            var wave_x = (bump_x * 0.7).sine()
-            var wave_z = (bump_z * 0.5).cosine()
+            var wave_x_angle = bump_x * 0.7
+            var wave_x = wave_x_angle.sine()
+            var wave_z_angle = bump_z * 0.5
+            var wave_z = wave_z_angle.cosine()
             var bump_y = wave_x * 0.4 + wave_z * 0.3
             bumps.add_vertex(bump_x, bump_y, bump_z)
             column = column + 1

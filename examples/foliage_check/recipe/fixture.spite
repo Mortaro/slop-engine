@@ -44,11 +44,15 @@ func build() {
 }
 
 func height_at(at_x: Float, at_z: Float): Float {
-    var rolling = (at_x * 0.09).sine() * (at_z * 0.07).cosine() * 0.5
+    var rolling_angle = at_x * 0.09
+    var rolling_angle_2 = at_z * 0.07
+    var rolling = rolling_angle.sine() * rolling_angle_2.cosine() * 0.5
     var across_x = at_x - lake_x
     var across_z = at_z - lake_z
-    var from_lake = (across_x * across_x + across_z * across_z).square_root()
-    var shore = ((from_lake - 10.0) / 16.0).clamp(0.0, 1.0)
+    var from_lake_squared = across_x * across_x + across_z * across_z
+    var from_lake = from_lake_squared.square_root()
+    var shore_unclamped = (from_lake - 10.0) / 16.0
+    var shore = shore_unclamped.clamp(0.0, 1.0)
     var smooth_shore = shore * shore * (3.0 - 2.0 * shore)
     return rolling - 4.0 * (1.0 - smooth_shore)
 }
@@ -77,7 +81,8 @@ func build_cell(fingerprint: String, cell_x: Integer, cell_z: Integer) {
             var south = height_at(world_x, world_z - 0.5)
             var slope_x = east - west
             var slope_z = north - south
-            var length = (slope_x * slope_x + 1.0 + slope_z * slope_z).square_root()
+            var length_squared = slope_x * slope_x + 1.0 + slope_z * slope_z
+            var length = length_squared.square_root()
             mesh.vertices.append(local_x)
             mesh.vertices.append(height)
             mesh.vertices.append(local_z)

@@ -64,7 +64,8 @@ func add_triangle(
     var normal_x = edge_y * other_z - edge_z * other_y
     var normal_y = edge_z * other_x - edge_x * other_z
     var normal_z = edge_x * other_y - edge_y * other_x
-    var length = (normal_x * normal_x + normal_y * normal_y + normal_z * normal_z).square_root()
+    var length_squared = normal_x * normal_x + normal_y * normal_y + normal_z * normal_z
+    var length = length_squared.square_root()
     assert length > 0.0
     var walkable: Byte = 0
     if normal_y / length >= minimum_normal_y {
@@ -105,21 +106,21 @@ func add_mesh(mesh: Asset.Mesh, transform: Transform.Component.Transform) {
     }
 }
 
-func placed_x(matrix: Matrix4, vertices: List<Float>, at: Integer): Float {
+func placed_x(matrix: Matrix4<Float>, vertices: List<Float>, at: Integer): Float {
     crash vertices[at]
     crash vertices[at + 1]
     crash vertices[at + 2]
     return matrix.column_0_row_0 * vertices[at] + matrix.column_1_row_0 * vertices[at + 1] + matrix.column_2_row_0 * vertices[at + 2] + matrix.column_3_row_0
 }
 
-func placed_y(matrix: Matrix4, vertices: List<Float>, at: Integer): Float {
+func placed_y(matrix: Matrix4<Float>, vertices: List<Float>, at: Integer): Float {
     crash vertices[at]
     crash vertices[at + 1]
     crash vertices[at + 2]
     return matrix.column_0_row_1 * vertices[at] + matrix.column_1_row_1 * vertices[at + 1] + matrix.column_2_row_1 * vertices[at + 2] + matrix.column_3_row_1
 }
 
-func placed_z(matrix: Matrix4, vertices: List<Float>, at: Integer): Float {
+func placed_z(matrix: Matrix4<Float>, vertices: List<Float>, at: Integer): Float {
     crash vertices[at]
     crash vertices[at + 1]
     crash vertices[at + 2]

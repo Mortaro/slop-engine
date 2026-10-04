@@ -29,11 +29,11 @@ var cascades = 0
 var fade_start: Float = 0.0
 var fade_end: Float = 0.0
 var transition: Float = 0.1
-var cascade_matrices = List<Matrix4>()
+var cascade_matrices = List<Matrix4<Float>>()
 var cascade_splits = List<Float>()
 var cascade_texels = List<Float>()
 var cascade_depths = List<Float>()
-var view_matrices = List<Matrix4>()
+var view_matrices = List<Matrix4<Float>>()
 var view_lefts = List<Integer>()
 var view_tops = List<Integer>()
 var view_sizes = List<Integer>()
@@ -58,7 +58,7 @@ var kept_tile_counts = List<Integer>()
 var kept_rendered = List<Boolean>()
 var kept_signatures = List<Float>()
 var kept_states = List<Float>()
-var kept_bases = List<Matrix4>()
+var kept_bases = List<Matrix4<Float>>()
 var kept_focals = List<Float>()
 var kept_fars = List<Float>()
 var state_floats = 8
@@ -84,7 +84,7 @@ func create(renderer: RenderVulkan.Renderer, owner: SceneVulkan.MeshRenderer) {
     create_atlas(renderer)
     pipeline = create_pipeline(renderer, owner)
     while cascade_matrices.count() < most_cascades {
-        var matrix = Matrix4()
+        var matrix = Matrix4<Float>()
         cascade_matrices.append(matrix)
         cascade_splits.append(0.0)
         cascade_texels.append(0.0)
@@ -181,7 +181,8 @@ func basis_around_forward() {
     var right_x = forward.y * hint_z - forward.z * hint_y
     var right_y = forward.z * 0.0 - forward.x * hint_z
     var right_z = forward.x * hint_y - forward.y * 0.0
-    var length = (right_x * right_x + right_y * right_y + right_z * right_z).square_root()
+    var length_squared = right_x * right_x + right_y * right_y + right_z * right_z
+    var length = length_squared.square_root()
     right.x = right_x / length
     right.y = right_y / length
     right.z = right_z / length
@@ -191,7 +192,8 @@ func basis_around_forward() {
 }
 
 func aim_cascade(camera: Scene.Component.ViewCamera, drawn: Scene.DrawSet, cascade: Integer, start: Float, end: Float) {
-    var down_tangent = (camera.field_of_view * 0.5).tangent()
+    var down_tangent_angle = camera.field_of_view * 0.5
+    var down_tangent = down_tangent_angle.tangent()
     var across_tangent = down_tangent * camera.aspect
     var spread = down_tangent * down_tangent + across_tangent * across_tangent
     var along = (start + end) * 0.5 * (1.0 + spread)
@@ -200,7 +202,8 @@ func aim_cascade(camera: Scene.Component.ViewCamera, drawn: Scene.DrawSet, casca
         along = end
         radius = end * spread.square_root()
     } else {
-        radius = ((end - along) * (end - along) + end * end * spread).square_root()
+        var radius_squared = (end - along) * (end - along) + end * end * spread
+        radius = radius_squared.square_root()
     }
     radius = radius.floor() + 1.0
     var size: Float = cascade_size
@@ -213,8 +216,10 @@ func aim_cascade(camera: Scene.Component.ViewCamera, drawn: Scene.DrawSet, casca
     var across = dot_right(center_x, center_y, center_z)
     var rise = dot_up(center_x, center_y, center_z)
     var deep = dot_forward(center_x, center_y, center_z)
-    var snapped_across = (across / texel).floor() * texel
-    var snapped_rise = (rise / texel).floor() * texel
+    var snapped_across_unrounded = across / texel
+    var snapped_across = snapped_across_unrounded.floor() * texel
+    var snapped_rise_unrounded = rise / texel
+    var snapped_rise = snapped_rise_unrounded.floor() * texel
     var farthest = deep + radius
     var nearest = deep - radius
     picked.clear()
@@ -306,7 +311,7 @@ func key_of(draw: Scene.Draw): Integer {
     return (draw.mesh_slot * sections_per_mesh + draw.section) * detail_levels_per_section + draw.detail_level
 }
 
-func add_view(drawn: Scene.DrawSet, matrix: Matrix4, left: Integer, top: Integer, size: Integer) {
+func add_view(drawn: Scene.DrawSet, matrix: Matrix4<Float>, left: Integer, top: Integer, size: Integer) {
     view_matrices.append(matrix)
     view_lefts.append(left)
     view_tops.append(top)
@@ -416,7 +421,8 @@ func rank_candidates(camera: Scene.Component.ViewCamera, lights: Scene.Lights, c
             var along_x = source[from] - camera.eye_x
             var along_y = source[from + 1] - camera.eye_y
             var along_z = source[from + 2] - camera.eye_z
-            var distance = (along_x * along_x + along_y * along_y + along_z * along_z).square_root()
+            var distance_squared_2 = along_x * along_x + along_y * along_y + along_z * along_z
+            var distance = distance_squared_2.square_root()
             var importance = source[from + 3] / distance.maximum(0.01)
             var at = 0
             while at < importances.count() and importances[at] >= importance {
@@ -589,7 +595,7 @@ func start_keeping(owner: Integer, first: Integer, needed: Integer): Integer {
     kept_tile_counts.append(needed)
     kept_rendered.append(false)
     kept_signatures.append(0.0)
-    var basis = Matrix4()
+    var basis = Matrix4<Float>()
     kept_bases.append(basis)
     kept_focals.append(1.0)
     kept_fars.append(1.0)
@@ -655,7 +661,8 @@ func state_changed(kept: Integer): Boolean {
     while field < state_floats {
         crash state[field]
         crash kept_states[kept * state_floats + field]
-        if (state[field] - kept_states[kept * state_floats + field]).absolute() > 0.0001 {
+        var compared_signed = state[field] - kept_states[kept * state_floats + field]
+        if compared_signed.absolute() > 0.0001 {
             return true
         }
         field = field + 1
@@ -671,7 +678,8 @@ func light_tangent(point: Boolean): Float {
     }
     crash state[7]
     var cosine = state[7].maximum(0.17)
-    var sine = (1.0 - cosine * cosine).square_root()
+    var sine_squared = 1.0 - cosine * cosine
+    var sine = sine_squared.square_root()
     return sine / cosine * widen
 }
 
@@ -731,7 +739,8 @@ func pick_in_frustum(drawn: Scene.DrawSet, tangent: Float) {
     var light_y = state[1]
     var light_z = state[2]
     var range = state[3]
-    var norm = (1.0 + tangent * tangent).square_root()
+    var norm_squared = 1.0 + tangent * tangent
+    var norm = norm_squared.square_root()
     var total = drawn.draws.count() + drawn.casters.count()
     var index = 0
     while index < total {
@@ -854,7 +863,7 @@ func render_light(drawn: Scene.DrawSet, lights: Scene.Lights, light: Integer, ke
     while face < faces {
         aim_face(point, face)
         pick_in_frustum(drawn, tangent)
-        var matrix = Matrix4()
+        var matrix = Matrix4<Float>()
         perspective_view(matrix, light_x, light_y, light_z, focal, far)
         var tile = first_tile + face
         var left = local_left + tile % tiles_across * tile_size
@@ -894,7 +903,7 @@ func render_light(drawn: Scene.DrawSet, lights: Scene.Lights, light: Integer, ke
     }
 }
 
-func perspective_view(matrix: Matrix4, light_x: Float, light_y: Float, light_z: Float, focal: Float, far: Float) {
+func perspective_view(matrix: Matrix4<Float>, light_x: Float, light_y: Float, light_z: Float, focal: Float, far: Float) {
     var depth_scale = far / (light_near - far)
     var depth_offset = light_near * far / (light_near - far)
     var along_right = dot_right(light_x, light_y, light_z)
@@ -939,8 +948,7 @@ func record_count(): Integer {
 func record_of_light(light: Integer): Float {
     var shadow_record = light_records[light]
     crash shadow_record
-    var value: Float = shadow_record
-    return value
+    return shadow_record
 }
 
 func write_records(drawn: Scene.DrawSet, draws_at: Long, base: Integer) {

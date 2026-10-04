@@ -32,7 +32,8 @@ func update_each(clock: GameClock, walking: Walking) {
     radius = character.radius
     height = greater(character.height, character.radius * 2.0)
     ignored = walking.entity.id
-    floor_limit = (character.slope_limit * Float.pi / 180.0).cosine()
+    var floor_limit_angle = character.slope_limit * Float.pi / 180.0
+    floor_limit = floor_limit_angle.cosine()
     var was_grounded = grounded_markers.has(ignored)
     push_out()
     var vertical_speed = walking.vertical.value
@@ -153,7 +154,8 @@ func slide(motion_x: Float, motion_y: Float, motion_z: Float, walking: Boolean) 
             ceiling_hit = true
         }
         if walking and normal_y < floor_limit {
-            var flat = (normal_x * normal_x + normal_z * normal_z).square_root()
+            var flat_squared = normal_x * normal_x + normal_z * normal_z
+            var flat = flat_squared.square_root()
             assert flat >= 0.0001
             normal_x = normal_x / flat
             normal_y = 0.0
@@ -176,7 +178,8 @@ func slide(motion_x: Float, motion_y: Float, motion_z: Float, walking: Boolean) 
                 var crease_x = first_y * normal_z - first_z * normal_y
                 var crease_y = first_z * normal_x - first_x * normal_z
                 var crease_z = first_x * normal_y - first_y * normal_x
-                var crease_length = (crease_x * crease_x + crease_y * crease_y + crease_z * crease_z).square_root()
+                var crease_length_squared = crease_x * crease_x + crease_y * crease_y + crease_z * crease_z
+                var crease_length = crease_length_squared.square_root()
                 assert crease_length >= 0.0001
                 crease_x = crease_x / crease_length
                 crease_y = crease_y / crease_length
@@ -277,7 +280,8 @@ func walkable(
     if normal_y >= floor_limit {
         return true
     }
-    var flat = (normal_x * normal_x + normal_z * normal_z).square_root()
+    var flat_squared_2 = normal_x * normal_x + normal_z * normal_z
+    var flat = flat_squared_2.square_root()
     if normal_y <= 0.0 or flat < 0.0001 {
         return false
     }
@@ -289,7 +293,8 @@ func walkable(
         return false
     }
     surface_y = probe_y - colliders.hit_fraction * 0.1
-    return (surface_y - touched_y).absolute() < 0.03
+    var walkable_signed = surface_y - touched_y
+    return walkable_signed.absolute() < 0.03
 }
 
 func lesser(first: Float, second: Float): Float {

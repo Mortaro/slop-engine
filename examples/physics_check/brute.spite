@@ -15,7 +15,8 @@ func segment_distance(
     var length = along_x * along_x + along_y * along_y + along_z * along_z
     var share: Float = 0.0
     if length > 0.0 {
-        share = (((point_x - start_x) * along_x + (point_y - start_y) * along_y + (point_z - start_z) * along_z) / length).clamp(
+        var share_unclamped = ((point_x - start_x) * along_x + (point_y - start_y) * along_y + (point_z - start_z) * along_z) / length
+        share = share_unclamped.clamp(
             0.0,
             1.0,
         )
@@ -23,7 +24,8 @@ func segment_distance(
     var across_x = point_x - start_x - along_x * share
     var across_y = point_y - start_y - along_y * share
     var across_z = point_z - start_z - along_z * share
-    return (across_x * across_x + across_y * across_y + across_z * across_z).square_root()
+    var segment_distance_squared = across_x * across_x + across_y * across_y + across_z * across_z
+    return segment_distance_squared.square_root()
 }
 
 func signed_distance(shape: Physics.Shape, point_x: Float, point_y: Float, point_z: Float): Float {
@@ -51,13 +53,17 @@ func box_distance(shape: Physics.Shape, point_x: Float, point_y: Float, point_z:
     var relative_x = point_x - shape.first_x
     var relative_y = point_y - shape.first_y
     var relative_z = point_z - shape.first_z
-    var out_x = (relative_x * shape.axis_x_x + relative_y * shape.axis_x_y + relative_z * shape.axis_x_z).absolute() - shape.half_x
-    var out_y = (relative_x * shape.axis_y_x + relative_y * shape.axis_y_y + relative_z * shape.axis_y_z).absolute() - shape.half_y
-    var out_z = (relative_x * shape.axis_z_x + relative_y * shape.axis_z_y + relative_z * shape.axis_z_z).absolute() - shape.half_z
+    var out_x_signed = relative_x * shape.axis_x_x + relative_y * shape.axis_x_y + relative_z * shape.axis_x_z
+    var out_x = out_x_signed.absolute() - shape.half_x
+    var out_y_signed = relative_x * shape.axis_y_x + relative_y * shape.axis_y_y + relative_z * shape.axis_y_z
+    var out_y = out_y_signed.absolute() - shape.half_y
+    var out_z_signed = relative_x * shape.axis_z_x + relative_y * shape.axis_z_y + relative_z * shape.axis_z_z
+    var out_z = out_z_signed.absolute() - shape.half_z
     var outside_x = out_x.maximum(0.0)
     var outside_y = out_y.maximum(0.0)
     var outside_z = out_z.maximum(0.0)
-    var outside = (outside_x * outside_x + outside_y * outside_y + outside_z * outside_z).square_root()
+    var outside_squared = outside_x * outside_x + outside_y * outside_y + outside_z * outside_z
+    var outside = outside_squared.square_root()
     var inside = out_x.maximum(out_y).maximum(out_z).minimum(0.0)
     return outside + inside
 }
@@ -72,7 +78,8 @@ func triangle_distance(shape: Physics.Shape, point_x: Float, point_y: Float, poi
     var face_x = edge_one_y * edge_two_z - edge_one_z * edge_two_y
     var face_y = edge_one_z * edge_two_x - edge_one_x * edge_two_z
     var face_z = edge_one_x * edge_two_y - edge_one_y * edge_two_x
-    var face_length = (face_x * face_x + face_y * face_y + face_z * face_z).square_root()
+    var face_length_squared = face_x * face_x + face_y * face_y + face_z * face_z
+    var face_length = face_length_squared.square_root()
     face_x = face_x / face_length
     face_y = face_y / face_length
     face_z = face_z / face_length

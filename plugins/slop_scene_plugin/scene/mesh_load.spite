@@ -120,7 +120,8 @@ func measure_bounds(loaded: Scene.LoadedMesh, mesh: Asset.Mesh, count: Integer) 
     var half_x = (high_x - low_x) * 0.5
     var half_y = (high_y - low_y) * 0.5
     var half_z = (high_z - low_z) * 0.5
-    var radius = (half_x * half_x + half_y * half_y + half_z * half_z).square_root()
+    var radius_squared = half_x * half_x + half_y * half_y + half_z * half_z
+    var radius = radius_squared.square_root()
     loaded.bound_radius = radius
 }
 

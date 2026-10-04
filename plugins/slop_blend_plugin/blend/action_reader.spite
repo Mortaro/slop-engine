@@ -12,8 +12,8 @@ func read(
     source: Blend.Document,
     action: Blend.View,
     skeleton: Asset.Skeleton,
-    rests: List<Matrix4>,
-    armature_world: Matrix4,
+    rests: List<Matrix4<Float>>,
+    armature_world: Matrix4<Float>,
 ): Asset.Animation {
     file = source
     file.enter(action)
@@ -152,8 +152,8 @@ func sample_frame(
     animation: Asset.Animation,
     frame: Float,
     skeleton: Asset.Skeleton,
-    rests: List<Matrix4>,
-    armature_world: Matrix4,
+    rests: List<Matrix4<Float>>,
+    armature_world: Matrix4<Float>,
 ) {
     var bone_count = skeleton.names.count()
     channels.clear()
@@ -172,8 +172,8 @@ func sample_frame(
         channels[channel_slot] = value
         curve = curve + 1
     }
-    var posed = List<Matrix4>()
-    var engine = List<Matrix4>()
+    var posed = List<Matrix4<Float>>()
+    var engine = List<Matrix4<Float>>()
     bone = 0
     while bone < bone_count {
         pose_bone(animation, bone, skeleton, rests, armature_world, posed, engine)
@@ -203,10 +203,10 @@ func pose_bone(
     animation: Asset.Animation,
     bone: Integer,
     skeleton: Asset.Skeleton,
-    rests: List<Matrix4>,
-    armature_world: Matrix4,
-    posed: List<Matrix4>,
-    engine: List<Matrix4>,
+    rests: List<Matrix4<Float>>,
+    armature_world: Matrix4<Float>,
+    posed: List<Matrix4<Float>>,
+    engine: List<Matrix4<Float>>,
 ) {
     var basis_pose = Math.Pose()
     basis_pose.position_x = channel(bone, 0)
@@ -220,7 +220,7 @@ func pose_bone(
     basis_pose.scale_y = channel(bone, 8)
     basis_pose.scale_z = channel(bone, 9)
     normalize_rotation(basis_pose)
-    var basis = Matrix4()
+    var basis = Matrix4<Float>()
     basis_pose.compose(basis)
     crash rests[bone]
     crash skeleton.parents[bone]
@@ -266,7 +266,8 @@ func pose_bone(
 }
 
 func normalize_rotation(pose: Math.Pose) {
-    var length = (pose.rotation_x * pose.rotation_x + pose.rotation_y * pose.rotation_y + pose.rotation_z * pose.rotation_z + pose.rotation_w * pose.rotation_w).square_root()
+    var length_squared = pose.rotation_x * pose.rotation_x + pose.rotation_y * pose.rotation_y + pose.rotation_z * pose.rotation_z + pose.rotation_w * pose.rotation_w
+    var length = length_squared.square_root()
     assert length > 0.0
     pose.rotation_x = pose.rotation_x / length
     pose.rotation_y = pose.rotation_y / length

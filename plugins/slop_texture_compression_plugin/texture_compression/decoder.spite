@@ -286,6 +286,5 @@ func peak_signal_to_noise(original: Asset.Bytes, decoded: Asset.Bytes, count: In
     var ratio: Double = 65025.0
     ratio = ratio / mean
     var decibels = ratio.logarithm_base_10() * 10.0
-    var narrowed: Float = decibels
-    return narrowed
+    return decibels
 }

@@ -85,14 +85,18 @@ func prepare(camera: Scene.Component.ViewCamera, aspect: Float) {
         far = near * 2.0
     }
     var slice_count: Float = slices
-    slice_scale = slice_count / (far / near).logarithm_base_2()
-    var tangent = (camera.field_of_view * 0.5).tangent()
+    var slice_scale_argument = far / near
+    slice_scale = slice_count / slice_scale_argument.logarithm_base_2()
+    var tangent_angle = camera.field_of_view * 0.5
+    var tangent = tangent_angle.tangent()
     down_scale = 1.0 / tangent
     across_scale = 1.0 / (tangent * aspect)
     down_tangent = tangent
     across_tangent = tangent * aspect
-    down_norm = (1.0 + down_tangent * down_tangent).square_root()
-    across_norm = (1.0 + across_tangent * across_tangent).square_root()
+    var down_norm_squared = 1.0 + down_tangent * down_tangent
+    down_norm = down_norm_squared.square_root()
+    var across_norm_squared = 1.0 + across_tangent * across_tangent
+    across_norm = across_norm_squared.square_root()
     visible.clear()
     spans.clear()
     while counts.count() < cluster_count {
@@ -119,7 +123,8 @@ func slice_of(depth: Float): Integer {
     if depth <= near {
         return 0
     }
-    var position: Integer = (depth / near).logarithm_base_2() * slice_scale
+    var position_argument = depth / near
+    var position: Integer = position_argument.logarithm_base_2() * slice_scale
     if position >= slices {
         return slices - 1
     }

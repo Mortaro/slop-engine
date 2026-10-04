@@ -161,18 +161,15 @@ func move_by(offset_x: Float, offset_y: Float, offset_z: Float) {
 }
 
 func reach_x(): Float {
-    var reach = half_x * axis_x_x.absolute() + half_y * axis_y_x.absolute() + half_z * axis_z_x.absolute()
-    return reach
+    return half_x * axis_x_x.absolute() + half_y * axis_y_x.absolute() + half_z * axis_z_x.absolute()
 }
 
 func reach_y(): Float {
-    var reach = half_x * axis_x_y.absolute() + half_y * axis_y_y.absolute() + half_z * axis_z_y.absolute()
-    return reach
+    return half_x * axis_x_y.absolute() + half_y * axis_y_y.absolute() + half_z * axis_z_y.absolute()
 }
 
 func reach_z(): Float {
-    var reach = half_x * axis_x_z.absolute() + half_y * axis_y_z.absolute() + half_z * axis_z_z.absolute()
-    return reach
+    return half_x * axis_x_z.absolute() + half_y * axis_y_z.absolute() + half_z * axis_z_z.absolute()
 }
 
 func lowest_x(): Float {

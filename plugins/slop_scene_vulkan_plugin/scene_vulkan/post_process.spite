@@ -65,7 +65,7 @@ var history_frames = 0
 var metered_frames = 0
 var jitter_x: Float = 0.0
 var jitter_y: Float = 0.0
-var previous_view_projection = Matrix4()
+var previous_view_projection = Matrix4<Float>()
 var pre_exposure: Float = 1.0
 var previous_pre_exposure: Float = 1.0
 var last_nanoseconds: Long = 0
@@ -488,7 +488,8 @@ func measure_time() {
     var passed = now - last_nanoseconds
     last_nanoseconds = now
     var nanoseconds: Float = passed
-    seconds = (nanoseconds / 1000000000.0).clamp(0.0, 0.25)
+    var seconds_unclamped = nanoseconds / 1000000000.0
+    seconds = seconds_unclamped.clamp(0.0, 0.25)
 }
 
 func read_exposure(renderer: RenderVulkan.Renderer, view: Scene.Component.View, metered: Boolean) {
@@ -532,8 +533,8 @@ func halton(index: Integer, base: Integer): Float {
     return result
 }
 
-func jittered(projection: Matrix4): Matrix4 {
-    var result = Matrix4()
+func jittered(projection: Matrix4<Float>): Matrix4<Float> {
+    var result = Matrix4<Float>()
     result.copy_from(projection)
     var width: Float = render_width
     var height: Float = render_height
@@ -789,8 +790,8 @@ func record(
     renderer: RenderVulkan.Renderer,
     view: Scene.Component.View,
     metered: Boolean,
-    projection: Matrix4,
-    view_projection: Matrix4,
+    projection: Matrix4<Float>,
+    view_projection: Matrix4<Float>,
     depth_image: Long,
 ) {
     write_sets(renderer)
@@ -846,7 +847,7 @@ func start_fresh(renderer: RenderVulkan.Renderer) {
     memory_barrier(renderer, 4096, 32 + 64, 4096, reads)
 }
 
-func record_occlusion(renderer: RenderVulkan.Renderer, view: Scene.Component.View, projection: Matrix4) {
+func record_occlusion(renderer: RenderVulkan.Renderer, view: Scene.Component.View, projection: Matrix4<Float>) {
     var push = RenderVulkan.Structure(48)
     var fade_start = view.ambient_occlusion_fade_distance - view.ambient_occlusion_fade_radius
     var width: Float = render_width
@@ -872,7 +873,7 @@ func record_occlusion(renderer: RenderVulkan.Renderer, view: Scene.Component.Vie
     render_pass(renderer, lit_image, lit_view, render_width, render_height, occlusion_pipeline, occlusion_set, push, 48)
 }
 
-func record_temporal(renderer: RenderVulkan.Renderer, view_projection: Matrix4) {
+func record_temporal(renderer: RenderVulkan.Renderer, view_projection: Matrix4<Float>) {
     crash history_images[parity]
     crash history_views[parity]
     crash temporal_sets[parity]
@@ -1001,7 +1002,8 @@ func record_bloom(renderer: RenderVulkan.Renderer, view: Scene.Component.View) {
         var radius = width * stage_sizes[level] * view.bloom_size_scale * 0.005
         radius = radius.clamp(0.5, 128.0)
         var sigma = radius * 0.5
-        var reach = (sigma * 3.0).clamp(1.0, 192.0)
+        var reach_unclamped = sigma * 3.0
+        var reach = reach_unclamped.clamp(1.0, 192.0)
         var across = RenderVulkan.Structure(32)
         put(across.address, 0, 1.0 / width, 0.0, reach, sigma)
         put(across.address, 4, 1.0, 0.0, 0.0, 0.0)

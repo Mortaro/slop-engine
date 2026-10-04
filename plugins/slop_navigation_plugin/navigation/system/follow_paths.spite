@@ -24,7 +24,8 @@ func update_each(walker: Walker, target: Target) {
     var transform = walker.transform
     var across = target.waypoint.position_x - transform.position_x
     var down = target.waypoint.position_z - transform.position_z
-    var distance = (across * across + down * down).square_root()
+    var distance_squared = across * across + down * down
+    var distance = distance_squared.square_root()
     if distance > reach {
         transform.position_x = transform.position_x + across / distance * reach
         transform.position_z = transform.position_z + down / distance * reach

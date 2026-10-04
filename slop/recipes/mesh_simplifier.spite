@@ -177,7 +177,8 @@ func normalize() {
     var half_x = (high_x - low_x) * 0.5
     var half_y = (high_y - low_y) * 0.5
     var half_z = (high_z - low_z) * 0.5
-    radius = (half_x * half_x + half_y * half_y + half_z * half_z).square_root()
+    var radius_squared = half_x * half_x + half_y * half_y + half_z * half_z
+    radius = radius_squared.square_root()
     if radius <= 0.0 {
         radius = 1.0
     }
@@ -293,7 +294,8 @@ func measure_normal(first: Integer, second: Integer, third: Integer): Float {
     normal_x = along_y * across_z - along_z * across_y
     normal_y = along_z * across_x - along_x * across_z
     normal_z = along_x * across_y - along_y * across_x
-    var length = (normal_x * normal_x + normal_y * normal_y + normal_z * normal_z).square_root()
+    var length_squared = normal_x * normal_x + normal_y * normal_y + normal_z * normal_z
+    var length = length_squared.square_root()
     if length > 0.0 {
         normal_x = normal_x / length
         normal_y = normal_y / length
@@ -329,12 +331,14 @@ func add_edge_quadric(corner: Integer) {
     var edge_x = x_of(to) - x_of(from)
     var edge_y = y_of(to) - y_of(from)
     var edge_z = z_of(to) - z_of(from)
-    var length = (edge_x * edge_x + edge_y * edge_y + edge_z * edge_z).square_root()
+    var length_squared_2 = edge_x * edge_x + edge_y * edge_y + edge_z * edge_z
+    var length = length_squared_2.square_root()
     assert length > 0.0
     normal_x = edge_y * face_z - edge_z * face_y
     normal_y = edge_z * face_x - edge_x * face_z
     normal_z = edge_x * face_y - edge_y * face_x
-    var size = (normal_x * normal_x + normal_y * normal_y + normal_z * normal_z).square_root()
+    var size_squared = normal_x * normal_x + normal_y * normal_y + normal_z * normal_z
+    var size = size_squared.square_root()
     assert size > 0.0
     normal_x = normal_x / size
     normal_y = normal_y / size
@@ -799,7 +803,8 @@ func skin_difference(from: Integer, into: Integer): Float {
         var weight = weight_of(from, slot)
         if weight > 0.0 {
             var other = weight_for(into, joint)
-            difference = difference + (weight - other).absolute()
+            var difference_signed = weight - other
+            difference = difference + difference_signed.absolute()
         }
         var into_joint = joint_of(into, slot)
         var into_weight = weight_of(into, slot)

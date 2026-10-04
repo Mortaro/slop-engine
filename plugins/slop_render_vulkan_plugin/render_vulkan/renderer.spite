@@ -699,7 +699,8 @@ func stream_stored_band() {
     var level_width = stream_texture.level_width(stream_level)
     var level_height = stream_texture.level_height(stream_level)
     var top = stream_row * block_side
-    var height = (rows * block_side).minimum(level_height - top)
+    var height_unclamped = rows * block_side
+    var height = height_unclamped.minimum(level_height - top)
     var region = Structure(56)
     var offset: Long = frame_staged
     region.append_long(offset)

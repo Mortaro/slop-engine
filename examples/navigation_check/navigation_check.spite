@@ -289,6 +289,5 @@ func can_step(grid: Navigation.Grid, column: Integer, row: Integer, across: Inte
 func random_below(limit: Integer): Integer {
     seed = (seed * 1103515245 + 12345) % 2147483648
     var value: Long = seed % limit
-    var whole: Integer = value
-    return whole
+    return value
 }

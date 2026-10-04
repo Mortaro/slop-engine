@@ -31,8 +31,7 @@ func bucket(column: Integer, row: Integer): Integer {
     var column_part = hashed_column.wrapping_multiply(73856093)
     var row_part = hashed_row.wrapping_multiply(19349663)
     var mixed = column_part.bits_exclusive_or(row_part)
-    var masked: Integer = mixed.bits_and(mask)
-    return masked
+    return mixed.bits_and(mask)
 }
 
 func span(lowest_x: Float, lowest_z: Float, highest_x: Float, highest_z: Float): Integer {

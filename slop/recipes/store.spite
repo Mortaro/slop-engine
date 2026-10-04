@@ -117,8 +117,7 @@ func store_size(): Long {
     if size {
         return size
     }
-    var nothing: Long = 0
-    return nothing
+    return 0
 }
 
 func load_index(): Boolean {

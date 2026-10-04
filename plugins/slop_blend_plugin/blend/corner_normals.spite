@@ -265,7 +265,8 @@ func arc_cosine(cosine: Float): Float {
     if size < 1.0 {
         clamped = 1.0 - (1.0 - size)
     }
-    var root = (1.0 - clamped).square_root()
+    var root_squared = 1.0 - clamped
+    var root = root_squared.square_root()
     var series = 0.077980478 + clamped * -0.02164095
     series = -0.213300989 + clamped * series
     series = 1.5707963267 + clamped * series

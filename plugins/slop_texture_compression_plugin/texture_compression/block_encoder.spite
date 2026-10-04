@@ -79,7 +79,8 @@ func expand6(value: Integer): Integer {
 
 func quantize(value: Integer, levels: Integer): Integer {
     var scaled = value * levels + 128
-    return (scaled + scaled.shifted_right(8)).shifted_right(8)
+    var quantize_bits = scaled + scaled.shifted_right(8)
+    return quantize_bits.shifted_right(8)
 }
 
 func packed565(red: Integer, green: Integer, blue: Integer): Integer {
@@ -318,14 +319,20 @@ func encode_solid_color(out: Asset.Bytes, red: Integer, green: Integer, blue: In
 func single_colour_pair(value: Integer, top: Integer) {
     var center = quantize(value, top)
     var best_error = 1000000
-    var first = (center - 2).maximum(0)
-    while first <= (center + 2).minimum(top) {
+    var first_unclamped = center - 2
+    var first = first_unclamped.maximum(0)
+    var last_unclamped = center + 2
+    var last = last_unclamped.minimum(top)
+    while first <= last {
         var first_expanded = expanded_bits(first, top)
-        var second = (center - 2).maximum(0)
-        while second <= (center + 2).minimum(top) {
+        var second_unclamped = center - 2
+        var second = second_unclamped.maximum(0)
+        while second <= last {
             var second_expanded = expanded_bits(second, top)
             var between = (2 * first_expanded + second_expanded) / 3
-            var error = (between - value).absolute() * 100 + (first_expanded - second_expanded).absolute() * 3
+            var error_signed = between - value
+            var error_signed_2 = first_expanded - second_expanded
+            var error = error_signed.absolute() * 100 + error_signed_2.absolute() * 3
             if error < best_error {
                 best_error = error
                 match_first = first
@@ -857,7 +864,8 @@ func match_bc7(): Integer {
             var offset_blue: Float = blue - a_blue
             var offset_alpha: Float = alpha - a_alpha
             var along = offset_red * line_red + offset_green * line_green + offset_blue * line_blue + offset_alpha * line_alpha
-            var scaled = (along / line_length * 15.0).round()
+            var scaled_unrounded = along / line_length * 15.0
+            var scaled = scaled_unrounded.round()
             guess = clamped_byte(scaled).minimum(15)
         }
         var best = 2147483647

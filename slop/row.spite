@@ -119,8 +119,7 @@ func removal_candidates(): List<Integer> {
         }
         index = index + 1
     }
-    var matching = found.filter(matches)
-    return matching
+    return found.filter(matches)
 }
 
 func estimate(): Integer {

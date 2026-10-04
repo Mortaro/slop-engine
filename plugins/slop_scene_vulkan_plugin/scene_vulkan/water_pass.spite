@@ -71,7 +71,7 @@ func record(
     renderer: RenderVulkan.Renderer,
     mesh_renderer: SceneVulkan.MeshRenderer,
     camera: Scene.Component.ViewCamera,
-    view_projection: Matrix4,
+    view_projection: Matrix4<Float>,
     storage: RenderVulkan.Structure,
 ) {
     release_retired(renderer)
@@ -264,7 +264,7 @@ func ensure_copy(renderer: RenderVulkan.Renderer, width: Integer, height: Intege
 func frame_data(
     mesh_renderer: SceneVulkan.MeshRenderer,
     camera: Scene.Component.ViewCamera,
-    view_projection: Matrix4,
+    view_projection: Matrix4<Float>,
 ): RenderVulkan.Structure {
     var data = RenderVulkan.Structure(frame_bytes + water.count * body_bytes)
     view_projection.write_to(floats, data.address)
@@ -340,7 +340,8 @@ func write_wave(data: RenderVulkan.Structure, written: Integer, index: Integer) 
     crash stored[from + 4]
     var direction_x = stored[from]
     var direction_z = stored[from + 1]
-    var length = (direction_x * direction_x + direction_z * direction_z).square_root()
+    var length_squared = direction_x * direction_x + direction_z * direction_z
+    var length = length_squared.square_root()
     if length < 0.000001 {
         direction_x = 1.0
         direction_z = 0.0
@@ -348,7 +349,8 @@ func write_wave(data: RenderVulkan.Structure, written: Integer, index: Integer) 
     }
     var wavelength = stored[from + 2].maximum(0.01)
     var wave_number = 2.0 * pi / wavelength
-    var angular_frequency = (gravity * wave_number).square_root()
+    var angular_frequency_squared = gravity * wave_number
+    var angular_frequency = angular_frequency_squared.square_root()
     var horizontal = stored[from + 4] / wave_number
     var at = written * wave_bytes
     write_floats(data, at, direction_x / length, direction_z / length, wave_number, stored[from + 3])

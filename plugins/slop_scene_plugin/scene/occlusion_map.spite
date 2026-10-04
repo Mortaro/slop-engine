@@ -1,5 +1,5 @@
 var ready = false
-var view = Matrix4()
+var view = Matrix4<Float>()
 var eye_x: Float = 0.0
 var eye_y: Float = 0.0
 var eye_z: Float = 0.0
@@ -24,7 +24,8 @@ func begin(camera: Scene.Component.ViewCamera, width: Integer, height: Integer, 
     eye_z = camera.eye_z
     near = camera.near
     far = camera.far
-    down_tangent = (camera.field_of_view * 0.5).tangent()
+    var down_tangent_angle = camera.field_of_view * 0.5
+    down_tangent = down_tangent_angle.tangent()
     across_tangent = down_tangent * camera.aspect
     screen_width = width
     screen_height = height

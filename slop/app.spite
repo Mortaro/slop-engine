@@ -160,8 +160,7 @@ func step_now(): Integer {
         step = longest_step
         unspent_nanoseconds = 0
     }
-    var whole: Integer = step
-    return whole
+    return step
 }
 
 func tick() {
@@ -222,8 +221,8 @@ func report_stage(report: Profile.Report, index: Integer) {
 
 func profile_json(): String {
     var report = profile()
-    var json = JsonWriter(report)
-    return json.write()
+    var json = JsonWriter<Profile.Report>()
+    return json.write(report)
 }
 
 func hold_ticking_thread() {

@@ -1,4 +1,4 @@
-var view = Matrix4()
+var view = Matrix4<Float>()
 var field_of_view: Float = 0.785398
 var near: Float = 0.1
 var far: Float = 500.0
@@ -20,8 +20,8 @@ func look_through(lens: Camera.Component.Camera) {
     view.set_look_at(eye, target, up)
 }
 
-func projection(aspect_ratio: Float): Matrix4 {
-    var result = Matrix4()
+func projection(aspect_ratio: Float): Matrix4<Float> {
+    var result = Matrix4<Float>()
     result.set_reversed_perspective(field_of_view, aspect_ratio, near, far)
     return result
 }

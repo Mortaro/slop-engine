@@ -1,4 +1,4 @@
-func set_product(left: Matrix4, right: Matrix4) {
+func set_product(left: Matrix4<$number_type>, right: Matrix4<$number_type>) {
     var product_0 = left.column_0_row_0 * right.column_0_row_0 + left.column_1_row_0 * right.column_0_row_1 + left.column_2_row_0 * right.column_0_row_2 + left.column_3_row_0 * right.column_0_row_3
     var product_1 = left.column_0_row_1 * right.column_0_row_0 + left.column_1_row_1 * right.column_0_row_1 + left.column_2_row_1 * right.column_0_row_2 + left.column_3_row_1 * right.column_0_row_3
     var product_2 = left.column_0_row_2 * right.column_0_row_0 + left.column_1_row_2 * right.column_0_row_1 + left.column_2_row_2 * right.column_0_row_2 + left.column_3_row_2 * right.column_0_row_3
@@ -33,7 +33,7 @@ func set_product(left: Matrix4, right: Matrix4) {
     column_3_row_3 = product_15
 }
 
-func copy_from(other: Matrix4) {
+func copy_from(other: Matrix4<$number_type>) {
     column_0_row_0 = other.column_0_row_0
     column_0_row_1 = other.column_0_row_1
     column_0_row_2 = other.column_0_row_2

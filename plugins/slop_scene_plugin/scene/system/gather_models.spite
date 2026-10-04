@@ -17,7 +17,7 @@ var off_views = Lookup<Component.OffView>()
 var skins = Lookup<Component.Skin>()
 var draws = Scene.Draws()
 var lights = Scene.Lights()
-var no_palette = List<Matrix4>()
+var no_palette = List<Matrix4<Float>>()
 var details = Scene.DetailPicker()
 var detail_levels = Lookup<Component.DetailLevel>()
 

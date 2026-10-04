@@ -123,8 +123,10 @@ func find_sphere(drawn: Scene.DrawSet, at_x: Float, at_z: Float): Scene.Draw? {
     var index = 0
     while index < drawn.draws.count() {
         var draw = drawn.draws[index]
-        var across = (draw.model.column_3_row_0 - at_x).absolute()
-        var along = (draw.model.column_3_row_2 - at_z).absolute()
+        var across_signed = draw.model.column_3_row_0 - at_x
+        var across = across_signed.absolute()
+        var along_signed = draw.model.column_3_row_2 - at_z
+        var along = along_signed.absolute()
         if draw.mesh_slot == slot and across < 0.01 and along < 0.01 {
             return draw
         }
@@ -163,7 +165,8 @@ func turn(drawn: Scene.DrawSet, angle: Float, direction: Integer) {
     never_hidden(drawn, -9.0, 20.0, "beside")
     never_hidden(drawn, 30.0, 10.0, "aside")
     var progress: Float = ticks
-    progress = (progress / 40.0).minimum(1.0)
+    var progress_unclamped = progress / 40.0
+    progress = progress_unclamped.minimum(1.0)
     var start_angle = 1.2490458 - angle
     var heading = start_angle + (angle - start_angle) * progress
     var camera = cameras.of(placed.camera)
@@ -223,7 +226,8 @@ func walk(drawn: Scene.DrawSet, view_camera: Scene.Component.ViewCamera, factor:
     var along_x = view_camera.eye_x
     var along_y = view_camera.eye_y - 1.0
     var along_z = view_camera.eye_z - 20.0
-    var seen = (along_x * along_x + along_y * along_y + along_z * along_z).square_root()
+    var seen_squared = along_x * along_x + along_y * along_y + along_z * along_z
+    var seen = seen_squared.square_root()
     var hidden = find_sphere(drawn, 0.0, 20.0)
     crash hidden
     var level = hidden.detail_level
@@ -259,7 +263,8 @@ func walk(drawn: Scene.DrawSet, view_camera: Scene.Component.ViewCamera, factor:
 func check_transition(view_camera: Scene.Component.ViewCamera, level: Integer, seen: Float) {
     var slot = sphere_slot()
     var loaded = meshes.mesh_at(slot)
-    var tangent = (view_camera.field_of_view * 0.5).tangent()
+    var tangent_angle = view_camera.field_of_view * 0.5
+    var tangent = tangent_angle.tangent()
     var radius = loaded.bound_radius * 2.0
     var going_out = level > last_level
     var crossed = level

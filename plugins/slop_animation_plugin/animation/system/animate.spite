@@ -24,8 +24,8 @@ var last_looping = false
 var last_fade_clip = -1
 var last_fade_time: Float = 0.0
 var last_share: Float = 0.0
-var last_palette = List<Matrix4>()
-var last_bones = List<Matrix4>()
+var last_palette = List<Matrix4<Float>>()
+var last_bones = List<Matrix4<Float>>()
 
 func update_each(animated: Animated, shelf: Shelf) {
     var step: Float = shelf.frame.step_milliseconds
@@ -220,7 +220,7 @@ func layer_clip_name_of(layer_id: Integer): String {
     return layer.clip
 }
 
-func copy_pose(source: List<Matrix4>, target: List<Matrix4>) {
+func copy_pose(source: List<Matrix4<Float>>, target: List<Matrix4<Float>>) {
     var count = source.count()
     sampler.fit(target, count)
     var index = 0

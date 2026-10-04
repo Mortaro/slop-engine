@@ -1,5 +1,5 @@
 var mesh_slot = 0
-var model = Matrix4()
+var model = Matrix4<Float>()
 var first_index = 0
 var index_count = 0
 var material_slot = 0

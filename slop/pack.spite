@@ -11,7 +11,7 @@ func kind(): String {
 }
 
 func schema(): Long {
-    var writer = BinaryWriter<$value_type>(null)
+    var writer = BinaryWriter<$value_type>()
     return writer.schema()
 }
 

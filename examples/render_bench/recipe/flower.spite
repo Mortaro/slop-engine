@@ -62,11 +62,13 @@ func add_petal_vertex(out_x: Float, out_z: Float, along: Integer, across: Intege
     length = length / petal_steps
     var side: Float = across
     side = side / petal_steps * 2.0 - 1.0
-    var width = 0.09 * (Float.pi * (0.1 + 0.85 * length)).sine()
+    var width_angle = Float.pi * (0.1 + 0.85 * length)
+    var width = 0.09 * width_angle.sine()
     var reach = 0.06 + length * 0.25
     var rise = 0.5 + 0.12 * length * length - 0.02 * side * side
     var slope = 0.24 * length
-    var lift = 1.0 / (1.0 + slope * slope).square_root()
+    var lift_squared = 1.0 + slope * slope
+    var lift = 1.0 / lift_squared.square_root()
     mesh.vertices.append(out_x * reach - out_z * side * width)
     mesh.vertices.append(rise)
     mesh.vertices.append(out_z * reach + out_x * side * width)

@@ -79,7 +79,9 @@ func bake_course(): Navigation.Asset.Walkability {
 func hills(column: Integer, row: Integer): Float {
     var across: Float = column
     var down: Float = row
-    var wave = (across * 0.05).sine() * (down * 0.07).cosine()
+    var wave_angle = across * 0.05
+    var wave_angle_2 = down * 0.07
+    var wave = wave_angle.sine() * wave_angle_2.cosine()
     return wave * 4.0
 }
 
@@ -340,8 +342,7 @@ func random_near(grid: Navigation.Grid, start: Integer, reach: Integer): Integer
 func random_below(limit: Integer): Integer {
     seed = (seed * 1103515245 + 12345) % 2147483648
     var value: Long = seed % limit
-    var whole: Integer = value
-    return whole
+    return value
 }
 
 func random_unit(): Float {

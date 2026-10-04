@@ -746,9 +746,12 @@ func overlaps(first: Physics.Shape, second: Physics.Shape): Boolean {
 }
 
 func box_extent(box: Physics.Shape, axis_x: Float, axis_y: Float, axis_z: Float): Float {
-    var on_x = (axis_x * box.axis_x_x + axis_y * box.axis_x_y + axis_z * box.axis_x_z).absolute() * box.half_x
-    var on_y = (axis_x * box.axis_y_x + axis_y * box.axis_y_y + axis_z * box.axis_y_z).absolute() * box.half_y
-    var on_z = (axis_x * box.axis_z_x + axis_y * box.axis_z_y + axis_z * box.axis_z_z).absolute() * box.half_z
+    var on_x_signed = axis_x * box.axis_x_x + axis_y * box.axis_x_y + axis_z * box.axis_x_z
+    var on_x = on_x_signed.absolute() * box.half_x
+    var on_y_signed = axis_x * box.axis_y_x + axis_y * box.axis_y_y + axis_z * box.axis_y_z
+    var on_y = on_y_signed.absolute() * box.half_y
+    var on_z_signed = axis_x * box.axis_z_x + axis_y * box.axis_z_y + axis_z * box.axis_z_z
+    var on_z = on_z_signed.absolute() * box.half_z
     return on_x + on_y + on_z
 }
 

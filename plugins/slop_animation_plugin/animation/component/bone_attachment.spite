@@ -13,12 +13,12 @@ var scale_z: Float = 1.0
 var resolved_bone = ""
 var resolved_index = -1
 
-func offset(): Matrix4 {
+func offset(): Matrix4<Float> {
     var translation = Vector3(position_x, position_y, position_z)
-    var rotation = Quaternion()
+    var rotation = Quaternion<Float>()
     rotation.set_parts(rotation_x, rotation_y, rotation_z, rotation_w)
     var scale = Vector3(scale_x, scale_y, scale_z)
-    var result = Matrix4()
+    var result = Matrix4<Float>()
     result.set_transform(translation, rotation, scale)
     return result
 }

@@ -1,4 +1,4 @@
-var view = Matrix4()
+var view = Matrix4<Float>()
 var near: Float = 0.1
 var far: Float = 500.0
 var across_tangent: Float = 1.0
@@ -18,13 +18,16 @@ func prepare(source: Scene.Component.ViewCamera) {
     eye_x = source.eye_x
     eye_y = source.eye_y
     eye_z = source.eye_z
-    down_tangent = (source.field_of_view * 0.5).tangent()
+    var down_tangent_angle = source.field_of_view * 0.5
+    down_tangent = down_tangent_angle.tangent()
     across_tangent = down_tangent * source.aspect
-    down_norm = (1.0 + down_tangent * down_tangent).square_root()
-    across_norm = (1.0 + across_tangent * across_tangent).square_root()
+    var down_norm_squared = 1.0 + down_tangent * down_tangent
+    down_norm = down_norm_squared.square_root()
+    var across_norm_squared = 1.0 + across_tangent * across_tangent
+    across_norm = across_norm_squared.square_root()
 }
 
-func place(model: Matrix4, mesh: Scene.LoadedMesh) {
+func place(model: Matrix4<Float>, mesh: Scene.LoadedMesh) {
     var bound = Vector3(mesh.bound_x, mesh.bound_y, mesh.bound_z)
     var moved = model.transform_point(bound)
     placed.x = moved.x
@@ -33,7 +36,7 @@ func place(model: Matrix4, mesh: Scene.LoadedMesh) {
     spread = 0.0
 }
 
-func place_posed(model: Matrix4, mesh: Scene.LoadedMesh, palette: List<Matrix4>) {
+func place_posed(model: Matrix4<Float>, mesh: Scene.LoadedMesh, palette: List<Matrix4<Float>>) {
     var count = mesh.used_joints.count()
     var palette_covers_the_joints = mesh.joint_limit <= palette.count()
     crash palette_covers_the_joints
@@ -82,10 +85,11 @@ func place_posed(model: Matrix4, mesh: Scene.LoadedMesh, palette: List<Matrix4>)
     placed.x = moved.x
     placed.y = moved.y
     placed.z = moved.z
-    spread = (half_x * half_x + half_y * half_y + half_z * half_z).square_root()
+    var spread_squared = half_x * half_x + half_y * half_y + half_z * half_z
+    spread = spread_squared.square_root()
 }
 
-func pose_center(mesh: Scene.LoadedMesh, palette: List<Matrix4>, bone: Integer): Vector3<Float> {
+func pose_center(mesh: Scene.LoadedMesh, palette: List<Matrix4<Float>>, bone: Integer): Vector3<Float> {
     crash palette[bone]
     var skinning = palette[bone]
     var bound = Vector3(mesh.bound_x, mesh.bound_y, mesh.bound_z)
@@ -122,7 +126,8 @@ func distance_to_eye(): Float {
     var along_x = placed.x - eye_x
     var along_y = placed.y - eye_y
     var along_z = placed.z - eye_z
-    return (along_x * along_x + along_y * along_y + along_z * along_z).square_root()
+    var distance_to_eye_squared = along_x * along_x + along_y * along_y + along_z * along_z
+    return distance_to_eye_squared.square_root()
 }
 
 func shades_view(radius: Float, toward_x: Float, toward_y: Float, toward_z: Float): Boolean {

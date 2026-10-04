@@ -16,8 +16,8 @@ func BlendMeshCheck() {
     }
     var text = File(reference_path).read()
     crash text
-    var reader = JsonReader<Reference>(text)
-    var reference = reader.read()
+    var reader = JsonReader<Reference>()
+    var reference = reader.read(text)
     crash reference
     var file = Blend.Document()
     file.open(blend_path)

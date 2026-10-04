@@ -81,7 +81,7 @@ func settled(): Boolean {
     return steady_ticks >= 30
 }
 
-func view_projection_of(camera: Scene.Component.ViewCamera, width: Integer, height: Integer): Matrix4 {
+func view_projection_of(camera: Scene.Component.ViewCamera, width: Integer, height: Integer): Matrix4<Float> {
     var across: Float = width
     var down: Float = height
     var projection = camera.projection(across / down)
@@ -89,7 +89,7 @@ func view_projection_of(camera: Scene.Component.ViewCamera, width: Integer, heig
 }
 
 func color_at(
-    matrix: Matrix4,
+    matrix: Matrix4<Float>,
     point_x: Float,
     point_y: Float,
     point_z: Float,

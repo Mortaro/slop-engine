@@ -68,7 +68,8 @@ func expect_last_level(source: Asset.Texture, setting: TextureCompression.Compre
     var last = compressed.levels - 1
     var restored = decoder.decode_level(compressed, last)
     var red = restored.byte_at(0)
-    var close = (red - wanted).absolute() <= 3
+    var close_signed = red - wanted
+    var close = close_signed.absolute() <= 3
     console.print(setting, "checkerboard's last level", red, "wanted", wanted, close)
     passed = passed and close
 }
@@ -84,12 +85,16 @@ func generated(translucent: Boolean): Asset.Texture {
         while column < 64 {
             seed = (seed * 1103 + 12345) % 65521
             var noise = seed.shifted_right(8).bits_and(15)
-            var red = (column * 4 + noise).minimum(255)
-            var green = (row * 4 + noise).minimum(255)
-            var blue = ((column + row) * 2).minimum(255)
+            var red_unclamped = column * 4 + noise
+            var red = red_unclamped.minimum(255)
+            var green_unclamped = row * 4 + noise
+            var green = green_unclamped.minimum(255)
+            var blue_unclamped = (column + row) * 2
+            var blue = blue_unclamped.minimum(255)
             var alpha = 255
             if translucent {
-                alpha = (column * 4).minimum(255)
+                var alpha_unclamped = column * 4
+                alpha = alpha_unclamped.minimum(255)
             }
             var value = pack_pixel(red, green, blue, alpha)
             texture.append_pixel(value)
@@ -144,7 +149,8 @@ func checkerboard(): Asset.Texture {
 }
 
 func encoded(value: Float): Integer {
-    var scaled = ((value + 1.0) * 127.5).round()
+    var scaled_unrounded = (value + 1.0) * 127.5
+    var scaled = scaled_unrounded.round()
     var whole: Integer = scaled
     return whole.clamp(0, 255)
 }

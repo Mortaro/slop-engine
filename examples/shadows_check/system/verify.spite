@@ -76,7 +76,8 @@ func frame_level(width: Integer, height: Integer): Float {
 }
 
 func pixels_steady(level: Float): Boolean {
-    var change = (level - last_level).absolute()
+    var change_signed = level - last_level
+    var change = change_signed.absolute()
     last_level = level
     if change <= 0.25 {
         steady_captures = steady_captures + 1
@@ -125,7 +126,8 @@ func check_step(checked: Checked) {
     if stage.step == 1 {
         var moved = edge_brightness(checked.camera, width, height)
         console.print("shadow edge", edge, "after the camera moved", moved)
-        var difference = (moved - edge).absolute()
+        var difference_signed = moved - edge
+        var difference = difference_signed.absolute()
         expect(difference <= 1.5, "the shadow edge holds still while the camera moves")
         aim(-60.0, 70.0, -50.0, -5.0, 0.0, 50.0)
         stage.step = 2
@@ -148,7 +150,8 @@ func check_step(checked: Checked) {
 }
 
 func edge_brightness(camera: Scene.Component.ViewCamera, width: Integer, height: Integer): Float {
-    var flat = (stage.sun_x * stage.sun_x + stage.sun_z * stage.sun_z).square_root()
+    var flat_squared = stage.sun_x * stage.sun_x + stage.sun_z * stage.sun_z
+    var flat = flat_squared.square_root()
     var across_x = stage.sun_x / flat
     var across_z = stage.sun_z / flat
     var side = 0.5 * (across_x.absolute() + across_z.absolute())
@@ -184,7 +187,8 @@ func check_box(
     tall: Float,
     touching: Boolean,
 ) {
-    var flat = (stage.sun_x * stage.sun_x + stage.sun_z * stage.sun_z).square_root()
+    var flat_squared_2 = stage.sun_x * stage.sun_x + stage.sun_z * stage.sun_z
+    var flat = flat_squared_2.square_root()
     var across_x = stage.sun_x / flat
     var across_z = stage.sun_z / flat
     var reach = tall * flat / (0.0 - stage.sun_y)
@@ -254,8 +258,10 @@ func brightness_at(
     var clip_w = both.column_0_row_3 * at_x + both.column_1_row_3 * at_y + both.column_2_row_3 * at_z + both.column_3_row_3
     var wide: Float = width
     var high: Float = height
-    var column_at = ((clip_x / clip_w * 0.5 + 0.5) * wide).floor()
-    var row_at = ((clip_y / clip_w * 0.5 + 0.5) * high).floor()
+    var column_at_unrounded = (clip_x / clip_w * 0.5 + 0.5) * wide
+    var column_at = column_at_unrounded.floor()
+    var row_at_unrounded = (clip_y / clip_w * 0.5 + 0.5) * high
+    var row_at = row_at_unrounded.floor()
     var column = column_at.to_integer()
     var row = row_at.to_integer()
     var inside = column > 1 and row > 1 and column < width - 2 and row < height - 2 and clip_w > 0.0

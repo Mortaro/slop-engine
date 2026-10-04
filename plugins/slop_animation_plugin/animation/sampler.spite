@@ -1,6 +1,6 @@
 var first = Math.Pose()
 var second = Math.Pose()
-var local = Matrix4()
+var local = Matrix4<Float>()
 var from_frame = 0
 var to_frame = 0
 var frame_blend: Float = 0.0
@@ -27,7 +27,8 @@ func clip_time(clip: Asset.Animation, time: Float, loop_start: Float, looping: B
         return start
     }
     var into = time - start
-    var wrapped = start + into - (into / period).floor() * period
+    var wrapped_unrounded = into / period
+    var wrapped = start + into - wrapped_unrounded.floor() * period
     if wrapped >= end {
         return start
     }
@@ -38,8 +39,8 @@ func sample(
     skeleton: Asset.Skeleton,
     clip: Asset.Animation,
     time: Float,
-    palette: List<Matrix4>,
-    globals: List<Matrix4>,
+    palette: List<Matrix4<Float>>,
+    globals: List<Matrix4<Float>>,
 ) {
     check(skeleton, clip)
     locate(clip, time)
@@ -83,8 +84,8 @@ func compose(
     skeleton: Asset.Skeleton,
     locals: List<Float>,
     total_weight: Float,
-    palette: List<Matrix4>,
-    globals: List<Matrix4>,
+    palette: List<Matrix4<Float>>,
+    globals: List<Matrix4<Float>>,
 ) {
     var weights_add_up_to_more_than_zero = total_weight > 0.0
     crash weights_add_up_to_more_than_zero
@@ -123,7 +124,8 @@ func check(skeleton: Asset.Skeleton, clip: Asset.Animation) {
 
 func locate(clip: Asset.Animation, time: Float) {
     var last: Float = clip.frame_count - 1
-    var position = (time * clip.frames_per_second).clamp(0.0, last)
+    var position_unclamped = time * clip.frames_per_second
+    var position = position_unclamped.clamp(0.0, last)
     var whole = position.floor()
     frame_blend = position - whole
     from_frame = whole
@@ -134,7 +136,7 @@ func locate(clip: Asset.Animation, time: Float) {
     }
 }
 
-func place_bone(skeleton: Asset.Skeleton, bone: Integer, palette: List<Matrix4>, globals: List<Matrix4>) {
+func place_bone(skeleton: Asset.Skeleton, bone: Integer, palette: List<Matrix4<Float>>, globals: List<Matrix4<Float>>) {
     crash skeleton.parents[bone]
     var parent = skeleton.parents[bone]
     crash globals[bone]
@@ -157,12 +159,12 @@ func place_bone(skeleton: Asset.Skeleton, bone: Integer, palette: List<Matrix4>,
     crash bone_matrix_is_finite or bone_name == ""
 }
 
-func fit(matrices: List<Matrix4>, count: Integer) {
+func fit(matrices: List<Matrix4<Float>>, count: Integer) {
     while matrices.count() > count {
         matrices.remove_last()
     }
     while matrices.count() < count {
-        var added = Matrix4()
+        var added = Matrix4<Float>()
         matrices.append(added)
     }
 }
@@ -244,11 +246,14 @@ func interpolate(blend: Float) {
     var from_weight = keep
     var to_weight = blend * sign
     if dot < 0.9995 {
-        var root = (1.0 - dot * dot).square_root()
+        var root_squared = 1.0 - dot * dot
+        var root = root_squared.square_root()
         var angle = root.arc_tangent_over(dot)
         var angle_sine = angle.sine()
-        from_weight = (keep * angle).sine() / angle_sine
-        to_weight = (blend * angle).sine() / angle_sine * sign
+        var from_weight_angle = keep * angle
+        from_weight = from_weight_angle.sine() / angle_sine
+        var to_weight_angle = blend * angle
+        to_weight = to_weight_angle.sine() / angle_sine * sign
     }
     first.rotation_x = first.rotation_x * from_weight + second.rotation_x * to_weight
     first.rotation_y = first.rotation_y * from_weight + second.rotation_y * to_weight
@@ -258,7 +263,8 @@ func interpolate(blend: Float) {
 }
 
 func normalize_rotation() {
-    var length = (first.rotation_x * first.rotation_x + first.rotation_y * first.rotation_y + first.rotation_z * first.rotation_z + first.rotation_w * first.rotation_w).square_root()
+    var length_squared = first.rotation_x * first.rotation_x + first.rotation_y * first.rotation_y + first.rotation_z * first.rotation_z + first.rotation_w * first.rotation_w
+    var length = length_squared.square_root()
     if length < 0.000001 {
         first.rotation_x = 0.0
         first.rotation_y = 0.0
@@ -272,7 +278,7 @@ func normalize_rotation() {
     first.rotation_w = first.rotation_w / length
 }
 
-func set_product_with_values(target: Matrix4, left: Matrix4, right: List<Float>, start: Integer) {
+func set_product_with_values(target: Matrix4<Float>, left: Matrix4<Float>, right: List<Float>, start: Integer) {
     var fits = start >= 0 and start + 16 <= right.count()
     crash fits
     crash right[start + 0]
@@ -325,7 +331,7 @@ func set_product_with_values(target: Matrix4, left: Matrix4, right: List<Float>,
     target.column_3_row_3 = product_15
 }
 
-func is_finite(matrix: Matrix4): Boolean {
+func is_finite(matrix: Matrix4<Float>): Boolean {
     var sum = matrix.column_0_row_0 + matrix.column_0_row_1 + matrix.column_0_row_2 + matrix.column_0_row_3 + matrix.column_1_row_0 + matrix.column_1_row_1 + matrix.column_1_row_2 + matrix.column_1_row_3 + matrix.column_2_row_0 + matrix.column_2_row_1 + matrix.column_2_row_2 + matrix.column_2_row_3 + matrix.column_3_row_0 + matrix.column_3_row_1 + matrix.column_3_row_2 + matrix.column_3_row_3
     return sum == sum and sum < 1000000000000.0 and sum > -1000000000000.0
 }

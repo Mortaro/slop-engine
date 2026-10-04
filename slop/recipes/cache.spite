@@ -108,8 +108,8 @@ func register_asset(asset: Symbol<Asset>) {
 func point_index(id: String, input_fingerprint: String) {
     assert fingerprints[id] != input_fingerprint
     fingerprints[id] = input_fingerprint
-    var json = JsonWriter(fingerprints)
-    var text = json.write()
+    var json = JsonWriter<Dictionary<String>>()
+    var text = json.write(fingerprints)
     var path = index_path()
     var index = File(path)
     index.write(text)
@@ -156,8 +156,8 @@ func load_index() {
     var index = File(path)
     var text = index.read()
     assert text
-    var json = JsonReader<Dictionary<String>>(text)
-    var parsed = json.read()
+    var json = JsonReader<Dictionary<String>>()
+    var parsed = json.read(text)
     assert parsed
     fingerprints = parsed
 }

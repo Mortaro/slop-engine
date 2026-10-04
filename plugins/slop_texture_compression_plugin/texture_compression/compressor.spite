@@ -120,7 +120,8 @@ func encode_level(texture: Asset.Texture, pixels: Asset.Bytes, width: Integer, h
     var first_block_row = 0
     while first_block_row < down {
         var first_row = first_block_row * 4
-        var last_row = ((first_block_row + block_rows_each) * 4).minimum(height)
+        var last_row_unclamped = (first_block_row + block_rows_each) * 4
+        var last_row = last_row_unclamped.minimum(height)
         var rows = last_row - first_row
         var job = TextureCompression.BandJob(texture.format, width, rows)
         job.source_address = pixels.address + first_row * width * 4

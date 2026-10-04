@@ -26,8 +26,7 @@ func write_integer(address: Memory.Address, offset: Long, value: Integer) {
 
 func read_byte(address: Memory.Address, offset: Long): Integer {
     var at = address + offset
-    var value: Integer = bytes.read_value(at, 0)
-    return value
+    return bytes.read_value(at, 0)
 }
 
 func write_byte(address: Memory.Address, offset: Long, value: Integer) {

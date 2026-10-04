@@ -143,7 +143,8 @@ func root_x(entity: Integer): Float {
 }
 
 func close(value: Float, wanted: Float): Boolean {
-    return (value - wanted).absolute() < 0.0001
+    var close_signed = value - wanted
+    return close_signed.absolute() < 0.0001
 }
 
 func check_blend(half: Integer, quarter: Integer): Boolean {
@@ -309,9 +310,11 @@ func check_unseen(hidden: Integer): Float {
 }
 
 func same_walk_time(first: Float, second: Float): Boolean {
-    var apart = (first - second).absolute()
+    var apart_signed = first - second
+    var apart = apart_signed.absolute()
     var walk_period: Float = 0.8
-    apart = apart - (apart / walk_period + 0.5).floor() * walk_period
+    var apart_unrounded = apart / walk_period + 0.5
+    apart = apart - apart_unrounded.floor() * walk_period
     return apart.absolute() < 0.0001
 }
 

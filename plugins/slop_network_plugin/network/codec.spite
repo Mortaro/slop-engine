@@ -20,8 +20,7 @@ func id(): Integer {
         hash = (hash * 31 + code) % 2147483647
         index = index + 1
     }
-    var narrow: Integer = hash
-    return narrow
+    return hash
 }
 
 func mirror(frames: Network.Frames, since: Integer) {

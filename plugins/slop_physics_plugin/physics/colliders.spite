@@ -582,7 +582,8 @@ func nearest(
 ): Boolean {
     ensure_prepared()
     next_stamp()
-    var length = (motion_x * motion_x + motion_y * motion_y + motion_z * motion_z).square_root()
+    var length_squared = motion_x * motion_x + motion_y * motion_y + motion_z * motion_z
+    var length = length_squared.square_root()
     var pieces: Integer = clamped(length / static_grid.cell_size, 0.0, 100000.0)
     pieces = pieces + 1
     if brute_force {
@@ -747,7 +748,8 @@ func sweep_capsule(
     maximum_distance: Float,
     hit: Physics.Hit,
 ): Boolean {
-    var length = (direction_x * direction_x + direction_y * direction_y + direction_z * direction_z).square_root()
+    var length_squared_2 = direction_x * direction_x + direction_y * direction_y + direction_z * direction_z
+    var length = length_squared_2.square_root()
     if length <= 0.0 or maximum_distance <= 0.0 {
         return false
     }

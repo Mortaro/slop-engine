@@ -455,6 +455,7 @@ field instead of by class need accesses per piece rather than per argument.
 | stress components stored inline, single-row systems on the `Stream` fast path (2026-09-26, D221) | about 8 ms |
 | Spite's reader-side singleton locks, lock skipped when no `Parallel` runs (2026-09-28) | 11.7 to 9.7 ms |
 | runner on `function.accesses`, then a large flush settles the allocator (2026-10-02, Linux 4-core cloud machine, so not comparable with the rows above) | 19.3 to 17.7 ms |
+| Spite `3a9d9c40`: `Columns.stage_counter` read past `Columns`' lock, an attribute atomic on its own (2026-10-04, another Linux 4-core cloud machine, medians of five against Spite `8e971f26` on the same machine) | about 60 to about 20 ms |
 
 ### Where the time went (estimated, 2026-09-25)
 

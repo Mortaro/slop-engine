@@ -61,8 +61,11 @@ func near(entity: Integer, want_x: Float, want_y: Float, want_z: Float): Boolean
     var transforms = Lookup<Transform.Component.Transform>()
     var transform = transforms.of(entity)
     crash transform
-    var off = (transform.position_x - want_x).absolute() + (transform.position_y - want_y).absolute()
-    off = off + (transform.position_z - want_z).absolute()
+    var off_signed = transform.position_x - want_x
+    var off_signed_2 = transform.position_y - want_y
+    var off = off_signed.absolute() + off_signed_2.absolute()
+    var off_signed_3 = transform.position_z - want_z
+    off = off + off_signed_3.absolute()
     console.print("entity", entity, "at", transform.position_x, transform.position_y, transform.position_z)
     return off < 0.001
 }

@@ -5,8 +5,7 @@ func remaining(now: Long): Integer {
     if left <= 0 {
         return 0
     }
-    var whole: Integer = left
-    return whole
+    return left
 }
 
 func remaining_seconds(now: Long): Float {
