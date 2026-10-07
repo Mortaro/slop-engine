@@ -71,15 +71,12 @@ ui                    1 us    1 us
 - `Row<T>` is a singleton with per-iteration state, so the compiler guards it, and the runner makes one guarded call
   per entity. Keep hot-path helpers such as `Slot<T>` free of state: a singleton that writes its attributes, or
   holds a plain class field, is guarded on every call.
-- A row of inline components is copied in from its columns before each call and written back after it if the
-  system writes that row ([ecs.md](ecs.md#storage)); a reference-stored component is handed over as it is, retained
-  and released.
+- A row holds the stored component objects ([ecs.md](ecs.md#storage)): each one fetched is retained and released.
 
 ## What already helps
 
 - A column's `ColumnIndex` is found once per system, not per entity.
 - `Column<T>`, `Slot<T>` and `Row<T>` are generic singletons, so there is no lookup by name on the hot path.
-- Components that fit a `Vector` are stored inline, contiguous in memory, with nothing declared.
 - Markers have no values, fetches or write-backs.
 
 ## No stutters
@@ -97,7 +94,7 @@ compiler, or for a lock, and no single frame takes on an unbounded amount of wor
 | Texture memory and upload size | recipes cook textures block-compressed with their mips (BC1 is 1/8 of RGBA8 with GPU mips, BC3, BC5 and BC7 1/4), so a load copies one block and an upload moves the GPU's own bytes |
 | Mesh memory | vertex and index buffers are device-local, filled through the staging buffer. A replaced mesh's old buffers are freed once the frames using them have finished |
 | A new font size | a size's glyph atlas starts at 256² and doubles when full |
-| Spawning many entities | a spawn copies each inline component straight from its bundle into the column |
+| Spawning many entities | a spawn copies each component of its bundle into the column |
 | Despawning many entities | removal records are per column (a tick-ordered list and a per-entity "last removed" stamp, so `Removed<T>` checks are one read), and each column removes the whole despawn list in one call |
 | Opening the cache | `store.bin.index` mirrors every record (key, offset, length), so opening the store is one read |
 | Re-cooking a changed source | recipes re-run on a worker, and the engine checks its loaded textures on another; the worst tick while a texture is re-cooked and reloaded is 2 ms |

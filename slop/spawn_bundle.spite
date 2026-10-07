@@ -17,10 +17,6 @@ func apply() {
 
 func insert_attribute(attribute: Symbol<$bundle_type>, value: $bundle_type) {
     var column = Column<attribute.class>()
-    if column.inline() {
-        column.insert_own(entity, value.attributes[attribute])
-        return
-    }
     var copied = value.attributes[attribute].deep_copy()
     column.insert_own(entity, copied)
 }

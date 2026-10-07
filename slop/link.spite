@@ -65,11 +65,7 @@ func refuse_dead_link(link: Symbol<$component_type>, value: $component_type) {
 }
 
 func target_at(row: Integer): Integer {
-    if column.inline() {
-        crash column.values[row]
-        return target_of(column.values[row])
-    }
-    var stored = column.at(row)
+    var stored = column.value_at(row)
     return target_of(stored)
 }
 

@@ -579,29 +579,24 @@ row and each entity's change stamp. `Column<T>` holds the values themselves. Rem
 `Column<T>`, `Slot<T>` and `Row<T>` are generic singletons, one per type, so a system's fill is typed code with no
 lookup by name on the hot path.
 
-Values are stored one of two ways:
+The values are a `List<T>`, one component object per row, whatever the component holds. A system's row holds the
+stored objects, so writing a field changes the component. A component that fits a `Vector` (its fields are numbers,
+`Boolean`, enums or `String`) is a value: adding one stores a copy, so the object a caller added stays its own.
 
-- **Inline**: every component that fits a `Vector` (its fields are numbers, `Boolean`, enums or `String`) is kept
-  in an `Items<T>`, contiguous in memory. Nothing is declared; `Column.inline()` works it out at compile
-  time, and `Row` tests the same thing.
-- **By reference**: any other component (one holding a list, another object, a nullable field) is a `List<T>`. A
-  system's row holds the stored object, so writing a field changes the component.
-
-`Lookup<T>().of(entity)` lends the stored item either way, so writing a field of what it returns changes the
-component. A borrowed result can't be replaced: `var layout = lookup.of(entity)` followed by `layout = made` is a
-compile error, so pass the found and the new item to a small writer function instead.
+`Lookup<T>().of(entity)` returns the stored object, so writing a field of what it returns changes the component.
+Replacing the local it was read into (`layout = made`) changes nothing stored: pass the found and the new item to a
+small writer function instead.
 
 Every `_each` system runs the same way. The runner gathers, for each row, the entities that match it, then calls
 the system once for each combination of them: it fills each row from the columns, calls the phase function, and
 writes the row back if the system writes it. A system with one row is one loop over the entities that match it; a
-system with two rows is called for every pair. A row of inline items holds a copy of each one, written back after
-the call; a row of components stored by reference holds the stored objects. The one exception to combinations is a
+system with two rows is called for every pair. The one exception to combinations is a
 link: when the first row holds a link component, the second row is filled from the entity the link names, never
 paired with every entity (see [Following a link](#following-a-link)).
 
-A `_all` system's rows are written back after it runs, like a single row's, so writing a field of an inline
-component in a list sticks; a list the system only reads is not written back. Its row objects are kept between runs and refilled, and each entity is matched once
-while the list is built, so a list system allocates its list and nothing per row.
+A `_all` system's rows hold the stored objects too, so writing a field of a component in a list sticks, and a list
+the system writes marks each of its entities written. Its row objects are kept between runs and refilled, and each
+entity is matched once while the list is built, so a list system allocates its list and nothing per row.
 
 ## IO systems
 
@@ -620,10 +615,9 @@ func update_each(pending: Pending, store: Store) {
   tick the runner calls the system on each queued row, one after another, so it never interleaves with a stage.
 - **Its row is a snapshot.** It runs after its frame, when the components may have moved or gone, so it changes the
   world through commands (`entity.add_component(...)`, `world.despawn(...)`), which apply at the next flush.
-  A reference-stored component in the row is the stored object itself, so a write to it lands (after the frame).
-  An inline component (any that fits a `Vector`, such as `Transform` or `Timer`) would be a copy, so **writing one is
-  a compile error** naming the line: the runner asks `function_writes_parameter` for every row that holds an
-  inline component. A file or socket call added for debugging turns a system into an IO system, so it can surface
+  Any other component in the row is the stored object itself, so a write to it lands (after the frame).
+  A component that fits a `Vector` (such as `Transform` or `Timer`) is a value, so **writing one is a compile
+  error** naming the line: the runner asks `function_writes_parameter` for every row that holds one. A file or socket call added for debugging turns a system into an IO system, so it can surface
   this error too.
 - A system with several rows queues each matching combination.
 

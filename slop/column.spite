@@ -2,8 +2,7 @@ singleton
 
 generic $component_type
 
-var values = Items<$component_type>()
-var references = List<$component_type>()
+var values = List<$component_type>()
 var columns = Columns()
 var own_key = ""
 var own_index = ColumnIndex()
@@ -21,7 +20,7 @@ func prepare_column() {
 
 func insert_object(entity: Integer, value: Anything, copying: Boolean) {
     if value == $component_type {
-        if copying {
+        if copying or $component_type.fits_vector() {
             var copied = value.deep_copy()
             insert(entity, copied)
         } else {
@@ -71,48 +70,24 @@ func insert(entity: Integer, value: $component_type) {
     changes.stamp_flushed(index, entity)
 }
 
-func inline(): Boolean {
-    if $component_type == Entity {
-        return false
-    }
-    return $component_type.fits_vector()
-}
-
 func record_column(name: String) {
     assert not columns.releasers.has(name)
     columns.record_releaser(name, this)
 }
 
 func append(index: ColumnIndex, entity: Integer, value: $component_type) {
-    if inline() {
-        values.append(value)
-    } else {
-        references.append(value)
-    }
+    values.append(value)
     index.add_row(entity, columns.stage_counter)
 }
 
 func value_at(row: Integer): $component_type {
-    if inline() {
-        crash values[row]
-        return values[row].copy()
-    }
-    crash references[row]
-    return references[row]
-}
-
-func at(row: Integer): $component_type {
-    crash references[row]
-    return references[row]
+    crash values[row]
+    return values[row]
 }
 
 func write_at(row: Integer, value: $component_type) {
-    if inline() {
-        values[row] = value
-        return
-    }
-    crash row < references.count()
-    references[row] = value
+    crash row < values.count()
+    values[row] = value
 }
 
 func get(entity: Integer): $component_type {
@@ -142,10 +117,6 @@ func remove_entity(index: ColumnIndex, entity: Integer) {
 }
 
 func remove_row(index: ColumnIndex, entity: Integer, row: Integer) {
-    if inline() {
-        values.remove_swapping(row)
-    } else {
-        references.remove_swapping(row)
-    }
+    values.remove_swapping(row)
     index.remove_row(entity, row)
 }

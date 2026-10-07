@@ -13,10 +13,8 @@ var related = -1
 var prepared = false
 var current: $row_type = $row_type()
 var cursor = 0
-var every_rows = List<$row_type>()
 var pooled_rows = List<$row_type>()
 var every_entities = List<Integer>()
-var holds_copies = false
 var filled_entity = -1
 var stream_driver = ColumnIndex()
 var stream_position = 0
@@ -33,9 +31,6 @@ func prepare() {
 }
 
 func describe_attribute(attribute: Symbol<$row_type>, row: $row_type) {
-    if attribute.class.fits_vector() and attribute.class != Entity {
-        holds_copies = true
-    }
     var key = columns.key(attribute.class)
     var slot = Slot<attribute.class>()
     var kind = slot.tracking_kind(row.attributes[attribute])
@@ -312,7 +307,6 @@ func store_attribute(attribute: Symbol<$row_type>, row: $row_type, _entity: Inte
 
 func every(): List<$row_type> {
     var every_row = List<$row_type>()
-    every_rows.clear()
     every_entities.clear()
     begin_stream()
     var index = 0
@@ -330,9 +324,6 @@ func every(): List<$row_type> {
         fill_attributes(row, entity)
         every_row.append(row)
         every_entities.append(entity)
-        if holds_copies {
-            every_rows.append(row)
-        }
         index = index + 1
         entity = next_match()
     }
@@ -347,25 +338,9 @@ func has_any(): Boolean {
 
 func store_every(writing: Boolean) {
     var index = 0
-    while writing and index < every_rows.count() {
-        store_listed(index)
-        index = index + 1
-    }
-    index = 0
-    while writing and not holds_copies and index < every_entities.count() {
+    while writing and index < every_entities.count() {
         stamp_written(every_entities[index])
         index = index + 1
     }
-    every_rows.clear()
     every_entities.clear()
-}
-
-func store_listed(index: Integer) {
-    crash every_entities[index]
-    var entity = every_entities[index]
-    assert matches(entity)
-    cursor = 0
-    crash every_rows[index]
-    store_attributes(every_rows[index], entity)
-    stamp_written(entity)
 }
