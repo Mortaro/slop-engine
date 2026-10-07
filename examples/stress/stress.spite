@@ -6,7 +6,6 @@ var clock = TickClock()
 func Stress() {
     load "../../slop"
     var app = App()
-    app.parallel = environment.parallel
     app.release_budget = environment.release_budget
     var description = app.describe()
     console.print(description)
@@ -26,7 +25,7 @@ func Stress() {
     var finished = clock.microseconds()
     var spawn_milliseconds = (spawned - spawn_start) / 1000
     var tick_microseconds = (finished - spawned) / environment.ticks
-    console.print("bodies", environment.bodies, "parallel", app.parallel)
+    console.print("bodies", environment.bodies)
     console.print("spawn milliseconds", spawn_milliseconds)
     console.print("average tick microseconds", tick_microseconds)
     var profile = app.profile_json()

@@ -27,7 +27,6 @@ var position = 0
 var related = -1
 var skipping = false
 var last_run = -1
-var buffer = 0
 var argument_count = 0
 var streamed = -1
 var plain_rows = false
@@ -50,7 +49,6 @@ var clock = Clock()
 
 func Runner() {
     name = columns.key(system.class)
-    buffer = world.register_runner()
     note_written_names()
     classify_attributes(system)
     place_phases_each()
@@ -163,11 +161,9 @@ func writes_argument(index: Integer): Boolean {
 
 func run_once() {
     var started = clock.elapsed_nanoseconds()
-    world.enter(buffer)
     run_phases_each()
     run_phases_all()
     last_run = columns.stage_counter
-    world.enter(0)
     var finished = clock.elapsed_nanoseconds()
     timing.record(finished - started)
 }

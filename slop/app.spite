@@ -21,17 +21,14 @@ var world = World()
 var program = Program()
 var scheduler = Scheduler()
 var frame_milliseconds = 16
+var release_budget = 4096
 var longest_step: Long = 100
 var measuring = false
 var last_tick_at: Long = 0
 var unspent_nanoseconds: Long = 0
-var parallel = true
-var release_budget = 4096
 var columns = Columns()
 var frame_column = Column<Component.Frame>()
 var rule_breaks = 0
-var ticking_thread = ThreadLocal<Integer>()
-var ticked = false
 
 func App() {
     var frame = Component.Frame()
@@ -164,7 +161,6 @@ func step_now(): Integer {
 }
 
 func tick() {
-    hold_ticking_thread()
     var frame_started = clock.elapsed_nanoseconds()
     var frames = Lookup<Component.Frame>()
     var frame = frames.of(world.entity)
@@ -225,53 +221,12 @@ func profile_json(): String {
     return json.write(report)
 }
 
-func hold_ticking_thread() {
-    if not ticked {
-        ticking_thread.set(1)
-        ticked = true
-    }
-    var pinned_components_stay_on_the_thread_that_created_them = ticking_thread.get()
-    crash pinned_components_stay_on_the_thread_that_created_them
-}
-
 func run_stage(stage: List<Runnable>) {
-    if not parallel or stage.count() == 1 {
-        stage.each(run_runner)
-        return
-    }
-    var running = List<Parallel<Nothing>>()
-    var own = own_thread_share(stage)
-    var index = 0
-    while index < stage.count() {
-        if not stage[index].pinned and index != own {
-            start_threaded(stage[index], running)
-        }
-        index = index + 1
-    }
-    index = 0
-    while index < stage.count() {
-        if stage[index].pinned or index == own {
-            stage[index].run_once()
-        }
-        index = index + 1
-    }
-    running.clear()
-}
-
-func own_thread_share(stage: List<Runnable>): Integer {
-    if stage.any_pinned() {
-        return -1
-    }
-    return stage.count() - 1
+    stage.each(run_runner)
 }
 
 func run_runner(runner: Runnable) {
     runner.run_once()
-}
-
-func start_threaded(runner: Runnable, running: List<Parallel<Nothing>>) {
-    var thread = Parallel(runner.run_once)
-    running.append(thread)
 }
 
 func start_waiting_runners() {

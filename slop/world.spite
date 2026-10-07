@@ -6,50 +6,13 @@ type Command {
 
 var next_entity = 1
 var entity = 0
-var buffers = List<List<Command>>()
-var despawn_buffers = List<List<Integer>>()
-var runner_buffer = ThreadLocal<Integer>()
-var id_lock = Lock()
+var commands = List<Command>()
+var despawns = List<Integer>()
 var columns = Columns()
 
 var spawned_typed = false
 var parents = Link<Component.Parent>()
 var frames = Lookup<Component.Frame>()
-var heap = Memory.Heap()
-var applied = 0
-var settling_threshold = 4096
-
-func prepare() {
-    assert buffers.count() == 0
-    add_buffer()
-}
-
-func add_buffer(): Integer {
-    var buffer = List<Command>()
-    buffers.append(buffer)
-    var despawn_buffer = List<Integer>()
-    despawn_buffers.append(despawn_buffer)
-    return buffers.count() - 1
-}
-
-func register_runner(): Integer {
-    prepare()
-    return add_buffer()
-}
-
-func enter(buffer: Integer) {
-    prepare()
-    runner_buffer.set(buffer)
-}
-
-func current(): Integer {
-    prepare()
-    var buffer = runner_buffer.get()
-    if buffer {
-        return buffer
-    }
-    return 0
-}
 
 func as_entity(): Entity {
     return entity_of(entity)
@@ -99,39 +62,33 @@ func add_bundle_attribute(made: Entity, attribute: Spite.Attribute) {
 }
 
 func spawn(): Integer {
-    prepare()
-    id_lock.lock()
     var spawned = next_entity
     next_entity = next_entity + 1
-    id_lock.unlock()
     return spawned
 }
 
 func queue(command: Command) {
-    var buffer = current()
-    crash buffers[buffer]
-    buffers[buffer].append(command)
+    commands.append(command)
 }
 
 func despawn(despawned: Integer) {
-    var buffer = current()
-    crash despawn_buffers[buffer]
-    despawn_buffers[buffer].append(despawned)
+    despawns.append(despawned)
 }
 
 func flush() {
-    prepare()
-    applied = 0
-    buffers.each(apply_buffer)
-    if applied >= settling_threshold {
-        settle_freed_memory()
-    }
-    var despawned = List<Integer>()
     var index = 0
-    while index < despawn_buffers.count() {
-        take_despawns(despawn_buffers[index], despawned)
+    while index < commands.count() {
+        commands[index].apply()
         index = index + 1
     }
+    commands.clear()
+    var despawned = List<Integer>()
+    index = 0
+    while index < despawns.count() {
+        despawned.append(despawns[index])
+        index = index + 1
+    }
+    despawns.clear()
     assert despawned.count() > 0
     despawned.each(columns.bury)
     var grown = true
@@ -140,30 +97,6 @@ func flush() {
     }
     columns.unlink_dead()
     columns.remove_entities(despawned)
-}
-
-func apply_buffer(commands: List<Command>) {
-    var index = 0
-    while index < commands.count() {
-        commands[index].apply()
-        index = index + 1
-    }
-    applied = applied + commands.count()
-    commands.clear()
-}
-
-func settle_freed_memory() {
-    var block = heap.allocate(4096)
-    heap.free(block)
-}
-
-func take_despawns(pending: List<Integer>, despawned: List<Integer>) {
-    var index = 0
-    while index < pending.count() {
-        despawned.append(pending[index])
-        index = index + 1
-    }
-    pending.clear()
 }
 
 func now(): Long {

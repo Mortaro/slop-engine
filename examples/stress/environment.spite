@@ -1,4 +1,3 @@
 var bodies = 200000
 var ticks = 20
-var parallel = true
 var release_budget = 4096
