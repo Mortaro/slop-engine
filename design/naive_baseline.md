@@ -16,6 +16,10 @@ unconfirmed.
 - Each benchmark ran 5 times (3 for the intermediate commits), stress and physics again 5 times interleaved
   hand/threads/storage/naive; the tables give the median. Threads: a sampler read each process's thread count and
   CPU time every 20 ms; "cores" is the highest CPU time over wall time in any 200 ms window.
+- Stage 1b (the plain runner and plain lists, below): 2026-10-07 again, Spite at `a3459207` (the compiler had not
+  moved for these programs), the machine shared with one other build; stress and physics only, the stage 1 build
+  (`50e8d79`), `48f81d0` and `0c2c278` run interleaved, 5 rounds, medians. The stage 1 build measured 25.3 ms a
+  stress tick in this round against 27.3 ms in the first, so compare numbers within a round.
 - Not measured: `render_bench` and `props_bench` do not build with today's compiler on `main` either (the
   `spite_truetype` package at `4963d04` trips the new "declared only to be returned" rule), and both need a GPU
   window.
@@ -24,25 +28,25 @@ unconfirmed.
 
 | Benchmark (what is timed) | Hand | Hand runs in parallel? | Naive | Naive / hand |
 |---|---|---|---|---|
-| `stress`: tick, 200,000 entities, `Move` and `Regenerate` | 7.0 ms | yes: 2 systems on 2 threads, 1.6 cores (12.8 ms with `--parallel=false`) | 27.3 ms | 3.9x slower |
-| `physics_bench`: tick, 5,000 characters, 10,000 boxes | 6.4 ms | no: 1.1 cores, systems conflict and run one by one | 9.8 ms | 1.5x slower |
+| `stress`: tick, 200,000 entities, `Move` and `Regenerate` | 7.0 ms | yes: 2 systems on 2 threads, 1.6 cores (12.8 ms with `--parallel=false`) | 27.3 ms; with the plain runner and lists (`0c2c278`) 112.1 ms | 3.9x slower; now 16x |
+| `physics_bench`: tick, 5,000 characters, 10,000 boxes | 6.4 ms | no: 1.1 cores, systems conflict and run one by one | 9.8 ms; with the plain runner and lists 16.1 ms | 1.5x slower; now 2.5x |
 | `navigation_bench`: one thread, goals within 125 cells | 10,761 queries/s | no | 11,905 queries/s | same (same code) |
 | `navigation_bench`: one thread, goals within 600 cells | 639 queries/s | no | 700 queries/s | same (same code) |
 | `navigation_bench`: 20,000 queries in batches | 2,533 queries/s on 32 threads, 28 cores busy | yes, and 4.2x slower than its own one-thread run | 11,882 queries/s in one job | 4.7x faster |
 | `navigation_bench`: 10,000 bots ask at once, all answered | 3,811 ms over ~4,600 ticks, worst tick 186 ms | yes (`RequestPaths` batches on the pool) | 890 ms over 2 ticks, worst tick 856 ms | 4.3x faster to answer, 4.6x worse worst tick |
-| `animation_bench`: `Animate` over 2,800 animators | 17.2 ms | no: 1.1 cores | 17.5 ms | same (within noise) |
+| `animation_bench`: `Animate` over 2,800 animators | 17.2 ms | no: 1.1 cores | 17.5 ms (not rerun since `Animate` lost the pair path) | same (within noise) |
 | `replication_bench`: `Send` per tick, 10,000 mirrored | 804 µs | no: 0.4 cores (paced at 16 ms) | 801 µs | same |
 
 Where each commit moved it (medians, µs):
 
-| Benchmark | Hand | Threads removed (`59fa628`) | + plain columns, IO drain, dials, navigation (`271cd9b`) | + physics objects, textures (`7e10761`) |
-|---|---|---|---|---|
-| `stress` tick | 7,000 | 13,295 | 27,148 | 27,312 |
-| `stress` `Move` / `Regenerate` | 6,600 / 6,352 | 6,868 / 6,403 | 10,641 / 17,312 | 10,405 / 17,110 |
-| `stress` despawn: sixty ticks | 22,757 | 22,210 | 54,832 | 55,412 |
-| `physics_bench` tick | 6,374 | 6,298 | 6,926 | 9,798 |
-| `physics_bench` `SortColliders` / `MoveCharacters` / `ReadCharacters` | 349 / 5,101 / 210 | 362 / 5,126 / 195 | 383 / 5,428 / 324 | 1,428 / 6,847 / 479 |
-| `navigation_bench` batch | 2,533 q/s | 2,636 q/s | 10,356 q/s | 11,882 q/s |
+| Benchmark | Hand | Threads removed (`59fa628`) | + plain columns, IO drain, dials, navigation (`271cd9b`) | + physics objects, textures (`7e10761`) | Stage 1b round: `7e10761` again | + one plain loop per system (`48f81d0`) | + every column a `List<T>` (`0c2c278`) |
+|---|---|---|---|---|---|---|---|
+| `stress` tick | 7,000 | 13,295 | 27,148 | 27,312 | 25,251 | 99,413 | 112,121 |
+| `stress` `Move` / `Regenerate` | 6,600 / 6,352 | 6,868 / 6,403 | 10,641 / 17,312 | 10,405 / 17,110 | 10,751 / 14,540 | 47,922 / 51,024 | 55,100 / 56,988 |
+| `stress` despawn: sixty ticks | 22,757 | 22,210 | 54,832 | 55,412 | 59,900 | 59,146 | 143,439 |
+| `physics_bench` tick | 6,374 | 6,298 | 6,926 | 9,798 | 10,700 | 15,657 | 16,108 |
+| `physics_bench` `SortColliders` / `MoveCharacters` / `ReadCharacters` | 349 / 5,101 / 210 | 362 / 5,126 / 195 | 383 / 5,428 / 324 | 1,428 / 6,847 / 479 | 1,608 / 7,564 / 547 | 1,611 / 10,480 / 1,566 | 1,819 / 10,786 / 1,677 |
+| `navigation_bench` batch | 2,533 q/s | 2,636 q/s | 10,356 q/s | 11,882 q/s | not rerun | not rerun | not rerun |
 
 Every check still passes and prints the same results (`healing`, `tracking`, `changed_check`, `without_check`,
 `use_potion`, `relations_check`, `timers_check`, `inline_string_probe`, `asset_round_trip`, `attachment_check`,
@@ -71,8 +75,9 @@ summaries (stage 2 of the plan, per field) are disjoint. Today the stage composi
 from `reads`/`writes` strings, so the stronger form is for the compiler to derive the stages: the engine would then
 only say the order of phases.
 
-Beyond that the real prize is **T1** inside one system: `Stream.run_positions` is a `while position < end` over
-200,000 rows whose body writes only its own row's items and calls `note_written`, which stamps that row's entity.
+Beyond that the real prize is **T1** inside one system: the runner's `while combination < total` over 200,000
+matched rows (the `Stream.run_positions` loop until `48f81d0`) has a body that writes only its own row's items and
+stamps that row's entity.
 Proof needed: each iteration writes only `Column<T>.values[row]` for its own row and `stamps[entity]` for its own
 entity (the driver column maps rows to distinct entities), and reads nothing another writes. Every system of every
 benchmark here is this loop; the hand engine never had it ("Parallel iteration inside one system: not built").
@@ -100,17 +105,44 @@ The same naive `stress` C built as one file with `clang -O3` ticks in 22.5 ms; S
 (units and thin LTO) ticks in 27.3 ms. The hand form is the same either way (6.7 ms both). The difference is the
 calls the naive form adds: `ColumnIndex_row_of`, `entity_at`, `List_ColumnIndex_get_at`. Pair **C4** (a call to a
 small function is inlined) applies, and it has to hold across units: the generator should keep a small function
-whose callers are in other units next to them, or emit it `static inline` in the header.
+whose callers are in other units next to them, or emit it `static inline` in the header. Gap 4 below found which
+calls they are and measured the fix; it is a new pair, C6.
 
-### 4. What is left of the stress gap after 1 to 3 (about 4 ms, not explained yet)
+### 4. The unexplained 4 ms: `Regenerate`'s match landed in a unit without the release (stress 6 ms, explained)
 
-With plain counts the naive tick is 17.0 ms against the hand form's 12.8 ms on one thread. `Regenerate` lost far
-more than `Move` (6.4 to 17.1 ms against 6.9 to 10.4 ms) although both stream two inline components; I did not find
-why in the generated C in the time I had. Candidates, each with its pair: the nullable `List<Integer>` reads
-(`rows[entity]`, `stamps[entity]`) that test `has_value` after a proven bound (C2, a proven read reads unchecked),
-the `crash keys[index]` narrowing that retains and releases a `String` per entity (B1), and the stamp written per row
-through `while stamps.count() <= entity` before `stamps[entity] = value` (the loop's bound is proven by the column
-having grown at insert: a hoisting proof).
+Measured on the stage 1 build (`50e8d79`), where both systems ran through `Stream`: `Move` 10.7 ms, `Regenerate`
+17.2 ms in the split build. Built as one C file (`SPITE_TRANSLATION_UNITS=1`), the same program gives `Move` 11.8 ms
+and `Regenerate` 11.5 ms: the whole difference is where the unit split put the functions, not anything
+`Regenerate` does that `Move` does not. Its C is the same as `Move`'s token for token (`find_row`, `match_into`, the
+stream loop, renamed).
+
+The per-entity call that matters is `Row.find_row`, run once per row field per entity. Its body reads
+`headers[index]` twice (a `crash` narrowing and a local), so it calls `ColumnIndex___release` four times per entity,
+and calls `List_Integer_get_at` and `List_Integer_set_at`. The split build puts each function in the unit its name's
+hash picks: `Move`'s `find_row` landed in the unit that defines `ColumnIndex___release`, `List_Integer_get_at` and
+`List_Integer_set_at`, so the C compiler inlined them before linking; `Regenerate`'s landed in another unit, and
+thin LTO then refused to inline `ColumnIndex___release` (its cost is 665 against a threshold of 225, because the
+function also holds the freeing path: five releases of its lists and the free), so every one of those is a real
+call around an atomic decrement. Clang's inlining remarks at link time (`/mllvm:-pass-remarks-missed=inline`) show
+it: `ColumnIndex___release` "not inlined" seven times into `Regenerate`'s `find_row` and never into `Move`'s.
+
+Hand-edited C, the same four units rebuilt with the same flags, 5 runs each:
+
+| Build of the stage 1 `stress` | tick | `Move` | `Regenerate` |
+|---|---|---|---|
+| units as generated | 28.0 ms | 10.7 ms | 17.2 ms |
+| `Regenerate`'s `match_into` moved into the stream loop's unit | 27.7 ms | 10.7 ms | 17.1 ms (no change) |
+| `Regenerate`'s `find_row` moved into the unit with the release and the list accessors | 22.8 ms | 11.5 ms | 11.2 ms |
+| units as generated, `ColumnIndex___release` split: a `static inline` decrement in the header, the freeing out of line | 23.0 ms | 10.4 ms | 12.6 ms |
+| one C file | 23.5 ms | 11.8 ms | 11.5 ms |
+
+Proposed pair **C6, a release is inlined everywhere**: the generator emits each class's `___release` as a
+`static inline` decrement and test in the header, calling an out-of-line function only for the free, and does the
+same for the small list accessors (`get_at`, `set_at`, `count`) that every unit calls. Proof: none; it is a code
+generation rule (the fast path is the same code in every unit). It is C4 made specific: a function is inlined
+across units when its common path is small, even if its rare path is not. What is left after the release split
+(12.6 against 11.2 ms) is the list accessors. In the current form (`0c2c278`) the split costs less in proportion
+(112.1 ms in units, 101.2 ms as one file), but the same calls are in every per-entity path.
 
 ### 5. Despawning 200,000 entities (stress: sixty ticks 22.8 ms become 55.4 ms)
 
@@ -164,6 +196,67 @@ so T1 applies; then **T6** decides bands by cost, where the cost model must coun
 million cells per copy), which the hand engine did not and paid for. With T1 at 16 cores the worst tick would be
 about 55 ms; spreading the answers over ticks is not something a plain program says (language gap 1).
 
+### 10. One plain loop per system instead of hand paths by row shape (stress 25.3 ms becomes 99.4 ms; physics 10.7 becomes 15.7)
+
+`48f81d0` removed the runner's hand paths: `Stream` (a one-row system walking the driver column and borrowing inline
+items in place), the clocked row (the game clock filled once beside a streamed row) and the pair path (the smaller
+row outside, the larger streamed inside). Every `_each` system now gathers each row's matching entities
+(`row.candidates()`), loops over their combinations, fills each row (`row.fill`), calls the system and stores the
+row back (`row.store`). A link in the first row still names the second row's entity (`run_related`): that is what a
+link means, not a shape. Per entity and tick, against `Stream`, the plain loop:
+
+- **copies each inline item to the heap and back**: `Slot.fetch` read `Column.value_at`, which returned
+  `values[row].copy()`, a `malloc` and later a `free` per component per row (800,000 of each per stress tick), and
+  `store` wrote the copy back with `values[row] = value`. Proposed pair **B2, a copy written back to where it came
+  from is the item itself**: a value copied out of a list slot, and written back to the same slot, with nothing
+  else reading or writing that slot in between, is the slot borrowed in place; no copy, no write-back. Proof: the
+  effect summary of the code between the copy and the write-back (the system's phase function) touches the slot
+  only through the copy. It is what `Stream` did by hand. Falls back: the copy.
+- **matches each entity twice**: `candidates()` runs `matches` to build the list and drops the row positions it
+  found; `fill` runs `matches` again to find them (a `crash found` that also fills `rows`). Proposed pair **L8, a
+  list built by one loop and read once in order by the next is fused into one loop**: the producer's per-item work
+  and the consumer's run in the same pass, the list is never built, and what the consumer recomputes from the item
+  (here the match) is the producer's value. Proof: the list is local to the function, read only by the consuming
+  loop in index order, and nothing in the consumer writes what the producer read (a system never writes column
+  membership; that changes only at the flush). It generalises the built "template chains run as one loop" from
+  library templates to any two loops. Removing the second match alone is not possible by hand: it is where the row
+  positions come from (replacing it by `true` in the C crashes, as it should).
+- **counts every reference atomically and enters a guarded singleton per call**: rows, `Row<T>`, `Slot<T>`,
+  `Column<T>` and the row `type` objects are retained and released through `SPITE_COUNT_UP`/`DOWN`, atomic because
+  asset loading starts threads; each `Row<T>` call also tests `spite_tasks_in_flight` atomically. Measured on the
+  `0c2c278` one-file C with plain counts and nothing else changed: 101.2 ms becomes 65.6 ms, the largest single
+  item. Pairs **C5** (plain counts for a class no task reaches) and **B1** (a borrowed read), now measured.
+- **builds a candidate list per row per tick** (a fresh `List<Integer>` of 200,000): L8 removes it; without L8,
+  **L6** (keep the storage of a list cleared and refilled every tick).
+
+Physics lost less (10.7 to 15.7 ms) because its hot systems do real work per row; `ReadCharacters` (547 to
+1,566 us) and `MoveCharacters` (the former clocked row, 7.6 to 10.5 ms) carry the same per-row costs.
+
+### 11. Every column a `List<T>` (stress 99.4 ms becomes 112.1 ms; despawn 59.1 becomes 143.4 ms; physics 15.7 becomes 16.1)
+
+`0c2c278` replaced `Items<T>` (inline, contiguous, chosen at compile time by `fits_vector`) by one `List<T>` for
+every component. Rows and lookups now hold the stored objects, so B2's copies are gone, but every component is its
+own heap object: each fetch is a pointer to follow and an (atomic) retain and release, and despawning 200,000
+entities frees 800,000 objects at the flush (sixty ticks 59.1 become 143.4 ms). Pair **L1** applies directly: a
+`List<T>` whose items have no identity outside it (every reference to a component is a row or a lookup that ends
+with the call) is stored as the items themselves, contiguous, as `Items<T>` did by hand; then the frees are one
+block's. Proof: no reference to an item escapes the call that read it (the row's objects are refilled every
+entity; `Lookup.of` returns it to a caller that may keep it, which is the escape to prove absent). Falls back: the
+list of objects. **M3** spreads the remaining frees if they still show.
+
+Three behaviours the change makes visible, all for Mortaro:
+
+- A component that fits a `Vector` is copied when it is added (`Column.insert_object`), so a caller's object stays
+  its own, as it was with `Items<T>`. With a list of references that copy is now a rule of the engine, not a side
+  effect of the storage.
+- `Lookup.of` no longer lends a borrowed item, so `var layout = lookup.of(entity)` followed by `layout = made`
+  compiles and changes nothing stored: a silent lost write (D244) that `Items<T>`'s borrow rule refused, and that
+  reference-stored components always had. The language needs the borrow rule for a reference read from a list too,
+  or the engine a writer API that makes the replacement impossible.
+- An IO system still may not write a component that fits a `Vector` of its rows (`snapshot_write_refused` passes),
+  but the reason ("the row holds a copy") is gone: the row now holds the stored object, as for every other
+  component. Whether the rule stays is Mortaro's decision.
+
 ### Even or better: animation, replication, navigation one-thread queries
 
 `animation_bench`, `replication_bench` and the one-thread navigation queries are the same within noise: their hot
@@ -206,19 +299,28 @@ thread is as fast as the hand form (6.30 against 6.37 ms) before its own layout 
   gap 3. `RenderVulkan.GpuTimings`' `no_allocator` is a Vulkan argument, not a Spite allocator.
 - **Byte buffers and codecs** (`Asset.Bytes`, recipe store, PNG, PSD, zstd tables, the draw list and the software
   canvas): language gap 2 for the file-facing ones; the tables could become `List<Integer>` now, not done.
-- **The runner's hand fast paths**: `Stream` (one-row systems borrowing inline items), the clocked row, the pair
-  path and the reused `_all` row objects are hand specialisations by row shape; the plain form is the general
-  combination path. Not measured yet; it is the next rewrite for `stress`.
-- **`Items<T>` in `Column<T>`**: the library's chosen-for-you storage, kept; the plainest form would be a `List<T>`
-  and the compiler's L1.
+- **The `_all` row objects** kept in `Row.pooled_rows` and refilled each run: a hand reuse of objects (a list
+  system allocates its list and nothing per row). The plain form makes a fresh row per entity; that needs M1 (a
+  frame arena) or L6 to cost nothing, not done.
 - **Generation stamps** in `Navigation.Search` and `Physics.Contacts`, and the last-pose memo in `Animate`: these are
   algorithms more than hand placement; rewriting `Search` to clear its four-million-cell tables per query would
   make each query cost the whole grid, so it needs L6 (a cleared list read only after it is written) first.
 - **`Recipes.StoreLock`**: an operating-system file lock between processes, not a thread lock.
+
+## Checks after stage 1b
+
+Every headless check listed above gives the same output after `48f81d0` and after `0c2c278`, except counts that
+depend on timing and differ between two runs of the same build too: `animation_check`'s skipped throttle ticks (14,
+15 or 21, from the tick its assets land), `replication_check`'s "busy one", `unreliable_check`'s datagram count and
+`clock_check`'s game times. `snapshot_write_refused` still refuses. One deliberate change: a waiting (IO) system
+that writes a row now stamps the row's entities written when they are queued, whatever its row count; before, only
+a one-row waiting system did (through the stream's write-back), and a waiting system of several rows wrote without
+`Changed<T>` seeing it, which was silent.
 
 ## Branch state
 
 `naive` on origin, 13 commits over `main`: `5d84fba` (physics hash fix), `59fa628` (stages in order, one command
 list), `596b4c7` (plain columns), `8f952d8` (IO drain), `379fa26` (dials), `205e64c` (navigation), `271cd9b`
 (format), `7399f59` (physics objects), `13767c1` (checks), `dbaaf4d` (decoder fix), `9f2b87a` (textures),
-`7e10761` (docs), and this report.
+`7e10761` (docs), and this report (`50e8d79`); then stage 1b: `48f81d0` (one plain loop per system),
+`0c2c278` (every column a `List<T>`) and its report.
