@@ -251,7 +251,12 @@ func put(at: Long, index: Integer, first: Float, second: Float, third: Float, fo
     floats.write_value(at, index + 3, fourth)
 }
 
-func record_runs(renderer: RenderVulkan.Renderer, drawn: Scene.DrawSet, view_projection: Matrix4<Float>, shadows: Boolean) {
+func record_runs(
+    renderer: RenderVulkan.Renderer,
+    drawn: Scene.DrawSet,
+    view_projection: Matrix4<Float>,
+    shadows: Boolean,
+) {
     var run = 0
     while run < run_starts.count() {
         crash run_draws[run]
