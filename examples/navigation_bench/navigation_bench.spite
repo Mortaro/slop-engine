@@ -3,7 +3,6 @@ var clock = Clock()
 var world = World()
 var map = Navigation.Map()
 var environment = Environment()
-var pool = ThreadPool()
 var seed: Long = 777
 var size = 2048
 
@@ -16,7 +15,7 @@ func NavigationBench() {
     var grid = map.grid
     query_alone(grid, 125, environment.queries)
     query_alone(grid, 600, environment.queries / 10)
-    query_in_parallel(125, environment.queries)
+    query_as_one_job(125, environment.queries)
     query_through_systems(environment.bots)
 }
 
@@ -159,47 +158,31 @@ func query_alone(grid: Navigation.Grid, reach: Integer, count: Integer) {
     )
 }
 
-func query_in_parallel(reach: Integer, count: Integer) {
+func query_as_one_job(reach: Integer, count: Integer) {
     var grid = map.grid
-    var workers = pool.size() + 1
-    var each = count / workers
-    var jobs = List<Parallel<Navigation.Found>>()
     var started = clock.elapsed_nanoseconds()
-    var worker = 0
-    while worker < workers {
-        var job = Navigation.SearchJob()
-        var asked = 0
-        while asked < each {
-            var start = random_open(grid)
-            var goal = random_near(grid, start, reach)
-            var start_x = grid.center_x(start % grid.columns)
-            var start_z = grid.center_z(start / grid.columns)
-            var goal_x = grid.center_x(goal % grid.columns)
-            var goal_z = grid.center_z(goal / grid.columns)
-            job.ask(asked, start_x, start_z, goal_x, goal_z)
-            asked = asked + 1
-        }
-        var running = Parallel(job.run)
-        jobs.append(running)
-        worker = worker + 1
+    var job = Navigation.SearchJob()
+    var asked = 0
+    while asked < count {
+        var start = random_open(grid)
+        var goal = random_near(grid, start, reach)
+        var start_x = grid.center_x(start % grid.columns)
+        var start_z = grid.center_z(start / grid.columns)
+        var goal_x = grid.center_x(goal % grid.columns)
+        var goal_z = grid.center_z(goal / grid.columns)
+        job.ask(asked, start_x, start_z, goal_x, goal_z)
+        asked = asked + 1
     }
-    var found = 0
-    while jobs.count() > 0 {
-        var job = jobs.remove_last()
-        crash job
-        var result: Navigation.Found = job
-        found = found + answered_in(result)
-    }
+    var result = job.run()
+    var found = answered_in(result)
     var took = clock.elapsed_nanoseconds() - started
-    var queries = each * workers
-    var wide_queries: Long = queries
+    var wide_queries: Long = count
     var per_second = wide_queries * 1000000000 / took
     console.print(
-        workers,
-        "threads, goals within",
+        "one job, goals within",
         reach,
         "cells:",
-        queries,
+        count,
         "queries,",
         found,
         "found,",

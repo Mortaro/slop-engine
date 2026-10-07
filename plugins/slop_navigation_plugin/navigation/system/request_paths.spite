@@ -10,28 +10,22 @@ var headings = Lookup<Navigation.Component.Heading>()
 var nexts = Lookup<Navigation.Component.Next>()
 
 func update_all(requests: List<Request>) {
-    var count = requests.count()
-    var size = searches.batch_size(count)
-    var first = 0
-    while first < requests.count() {
-        var job = Navigation.SearchJob()
-        var index = first
-        while index < requests.count() and index < first + size {
-            var request = requests[index]
-            var goal = request.destination.value
-            job.ask(
-                request.entity.id,
-                request.transform.position_x,
-                request.transform.position_z,
-                goal.position_x,
-                goal.position_z,
-            )
-            index = index + 1
-        }
-        var running = Parallel(job.run)
-        searches.add(running)
-        first = first + size
+    var job = Navigation.SearchJob()
+    var index = 0
+    while index < requests.count() {
+        var request = requests[index]
+        var goal = request.destination.value
+        job.ask(
+            request.entity.id,
+            request.transform.position_x,
+            request.transform.position_z,
+            goal.position_x,
+            goal.position_z,
+        )
+        index = index + 1
     }
+    var found = job.run()
+    searches.add(found)
     var marked = 0
     while marked < requests.count() {
         mark(requests[marked].entity)
