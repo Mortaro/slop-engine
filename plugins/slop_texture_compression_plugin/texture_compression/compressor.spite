@@ -8,13 +8,11 @@ enum Setting {
 }
 
 var mips = TextureCompression.MipChain()
-var pool = ThreadPool()
 var raw = Raw()
 var prepared = false
 var clock = Clock()
 var mip_milliseconds: Long = 0
 var encode_milliseconds: Long = 0
-var smallest_band_blocks = 1024
 
 func compress(source: Asset.Texture, setting: Setting): Asset.Texture {
     var uncompressed_source = source.format == "rgba8" and source.levels == 1
@@ -110,32 +108,10 @@ func encode_level(texture: Asset.Texture, pixels: Asset.Bytes, width: Integer, h
         append_red(texture.texels, pixels, width * height)
         return
     }
-    var across = (width + 3) / 4
-    var down = (height + 3) / 4
-    var bands = across * down / smallest_band_blocks
-    var workers = pool.size() * 2
-    bands = bands.clamp(1, workers).minimum(down)
-    var block_rows_each = (down + bands - 1) / bands
-    var runs = List<Parallel<Asset.Bytes>>()
-    var first_block_row = 0
-    while first_block_row < down {
-        var first_row = first_block_row * 4
-        var last_row_unclamped = (first_block_row + block_rows_each) * 4
-        var last_row = last_row_unclamped.minimum(height)
-        var rows = last_row - first_row
-        var job = TextureCompression.BandJob(texture.format, width, rows)
-        job.source_address = pixels.address + first_row * width * 4
-        var running = Parallel(job.run)
-        runs.append(running)
-        first_block_row = first_block_row + block_rows_each
-    }
-    var index = 0
-    while index < runs.count() {
-        var running = runs[index]
-        var encoded: Asset.Bytes = running
-        texture.texels.write_bytes(encoded.address, encoded.length)
-        index = index + 1
-    }
+    var job = TextureCompression.BandJob(texture.format, width, height)
+    job.source_address = pixels.address
+    var encoded = job.run()
+    texture.texels.write_bytes(encoded.address, encoded.length)
 }
 
 func append_red(texels: Asset.Bytes, pixels: Asset.Bytes, count: Integer) {

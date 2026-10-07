@@ -177,9 +177,6 @@ func measure(path: String) {
     var setting = environment.compression.to_setting()
     crash setting
     var compressor = TextureCompression.Compressor()
-    if environment.single_thread {
-        compressor.smallest_band_blocks = 1000000000
-    }
     var warm = 1
     while warm < environment.repeat {
         var discarded = compressor.compress(texture, setting)

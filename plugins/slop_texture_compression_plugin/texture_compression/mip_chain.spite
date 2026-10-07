@@ -5,8 +5,6 @@ enum Filter {
 }
 
 var raw = Raw()
-var pool = ThreadPool()
-var smallest_band_pixels = 65536
 var to_linear = List<Integer>()
 var to_srgb = List<Integer>()
 
@@ -46,35 +44,8 @@ func prepare() {
 }
 
 func next_level(source: Asset.Bytes, width: Integer, height: Integer, filter: Filter): Asset.Bytes {
-    var next_width = half_of(width)
     var next_height = half_of(height)
-    var bands = next_width * next_height / smallest_band_pixels
-    var workers = pool.size()
-    bands = bands.clamp(1, workers).minimum(next_height)
-    if bands <= 1 {
-        return filter_rows(source.address, width, height, 0, next_height, filter)
-    }
-    var rows_each = (next_height + bands - 1) / bands
-    var runs = List<Parallel<Asset.Bytes>>()
-    var first_row = 0
-    while first_row < next_height {
-        var rows = rows_each.minimum(next_height - first_row)
-        var job = TextureCompression.MipBandJob(width, height, first_row, rows, filter)
-        job.source_address = source.address
-        var running = Parallel(job.run)
-        runs.append(running)
-        first_row = first_row + rows_each
-    }
-    var next = Asset.Bytes()
-    next.reserve(next_width * next_height * 4 + 8)
-    var index = 0
-    while index < runs.count() {
-        var running = runs[index]
-        var filtered: Asset.Bytes = running
-        next.write_bytes(filtered.address, filtered.length)
-        index = index + 1
-    }
-    return next
+    return filter_rows(source.address, width, height, 0, next_height, filter)
 }
 
 func filter_rows(
