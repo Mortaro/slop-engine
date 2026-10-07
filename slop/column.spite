@@ -4,12 +4,10 @@ generic $component_type
 
 var values = Items<$component_type>()
 var references = List<$component_type>()
-var buried = List<$component_type>()
-var raw = Raw()
-var heap = Memory.Heap()
 var columns = Columns()
 var own_key = ""
-var own_header: Long = 0
+var own_index = ColumnIndex()
+var own_found = false
 var own_recorded = false
 var changes = Changes()
 
@@ -32,65 +30,45 @@ func insert_object(entity: Integer, value: Anything, copying: Boolean) {
     }
 }
 
-func header_now(): Long {
-    if own_header == 0 {
+func header_now(): ColumnIndex {
+    if not own_found {
+        own_found = true
         own_key = columns.key($component_type)
-        own_header = columns.header(own_key)
+        own_index = columns.header(own_key)
     }
-    return own_header
+    return own_index
 }
 
 func row_of_entity(entity: Integer): Integer {
     var looked_up_a_real_entity_not_a_negative_id = entity >= 0
     crash looked_up_a_real_entity_not_a_negative_id
-    var column_header = header_now()
-    var capacity = raw.read_long(column_header, 40)
-    if capacity <= entity {
-        return -1
-    }
-    var rows = raw.read_long(column_header, 32)
-    var stored = raw.read_long(rows, entity * 8)
-    return stored - 1
+    var index = header_now()
+    return index.row_of(entity)
 }
 
 func insert_own(entity: Integer, value: $component_type) {
-    if not own_recorded {
-        insert(entity, value)
-        return
-    }
-    var link = Link<$component_type>()
-    link.refuse_dead(value)
-    grow_rows(own_header, entity)
-    var rows = raw.read_long(own_header, 32)
-    var existing = raw.read_long(rows, entity * 8) - 1
-    if existing >= 0 {
-        write_at(existing, value)
-    } else {
-        append(own_header, entity, value)
-    }
-    changes.stamp_flushed(own_header, entity)
+    insert(entity, value)
 }
 
 func insert(entity: Integer, value: $component_type) {
     var link = Link<$component_type>()
     link.refuse_dead(value)
-    var column_header = header_now()
+    var index = header_now()
     if not own_recorded {
         own_recorded = true
         record_column(own_key)
     }
-    grow_rows(column_header, entity)
     var fields = FieldCount<$component_type>()
     if fields.is_marker(value) {
-        raw.write_long(column_header, 56, 1)
+        index.marker = true
     }
-    var existing = columns.row_of(column_header, entity)
+    var existing = index.row_of(entity)
     if existing >= 0 {
         write_at(existing, value)
     } else {
-        append(column_header, entity, value)
+        append(index, entity, value)
     }
-    changes.stamp_flushed(column_header, entity)
+    changes.stamp_flushed(index, entity)
 }
 
 func inline(): Boolean {
@@ -105,62 +83,13 @@ func record_column(name: String) {
     columns.record_releaser(name, this)
 }
 
-func append(column_header: Long, entity: Integer, value: $component_type) {
-    var count = raw.read_long(column_header, 0)
-    grow_values(column_header, count + 1)
-    var entities = raw.read_long(column_header, 24)
-    var rows = raw.read_long(column_header, 32)
-    var ticks = raw.read_long(column_header, 48)
+func append(index: ColumnIndex, entity: Integer, value: $component_type) {
     if inline() {
         values.append(value)
     } else {
         references.append(value)
     }
-    raw.write_long(ticks, count * 8, columns.stage_counter)
-    raw.write_long(entities, count * 8, entity)
-    raw.write_long(rows, entity * 8, count + 1)
-    raw.write_long(column_header, 0, count + 1)
-}
-
-func grow_values(column_header: Long, wanted: Integer) {
-    var capacity = raw.read_long(column_header, 8)
-    assert capacity < wanted
-    var grown = capacity * 2
-    if grown < 16 {
-        grown = 16
-    }
-    var entities = raw.read_long(column_header, 24)
-    var resized_entities = resized(entities, grown * 8)
-    var ticks = raw.read_long(column_header, 48)
-    var resized_ticks = resized(ticks, grown * 8)
-    raw.write_long(column_header, 48, resized_ticks)
-    raw.write_long(column_header, 24, resized_entities)
-    raw.write_long(column_header, 8, grown)
-}
-
-func grow_rows(column_header: Long, entity: Integer) {
-    var capacity = raw.read_long(column_header, 40)
-    assert capacity <= entity
-    var grown = capacity * 2
-    if grown <= entity {
-        grown = entity + 64
-    }
-    var rows = raw.read_long(column_header, 32)
-    var resized_rows = resized(rows, grown * 8)
-    var slot = capacity
-    while slot < grown {
-        raw.write_long(resized_rows, slot * 8, 0)
-        slot = slot + 1
-    }
-    raw.write_long(column_header, 32, resized_rows)
-    raw.write_long(column_header, 40, grown)
-}
-
-func resized(address: Long, bytes: Long): Long {
-    if address == 0 {
-        return heap.allocate(bytes)
-    }
-    return heap.resize(address, bytes)
+    index.add_row(entity, columns.stage_counter)
 }
 
 func value_at(row: Integer): $component_type {
@@ -187,78 +116,36 @@ func write_at(row: Integer, value: $component_type) {
 }
 
 func get(entity: Integer): $component_type {
-    var column_header = header_now()
-    var row = columns.row_of(column_header, entity)
+    var index = header_now()
+    var row = index.row_of(entity)
     crash row >= 0
     return value_at(row)
 }
 
-func remove_all(column_header: Long, entities: List<Integer>, records: Removals, tick: Integer) {
-    var capacity = raw.read_long(column_header, 40)
-    var index = 0
-    while index < entities.count() {
-        var entity = entities[index]
-        var row = row_below(column_header, capacity, entity)
+func remove_all(index: ColumnIndex, entities: List<Integer>, records: Removals, tick: Integer) {
+    var position = 0
+    while position < entities.count() {
+        var entity = entities[position]
+        var row = index.row_of(entity)
         if row >= 0 {
             records.note(entity, tick)
-            remove_row(column_header, entity, row)
+            remove_row(index, entity, row)
         }
-        index = index + 1
+        position = position + 1
     }
 }
 
-func row_below(column_header: Long, capacity: Long, entity: Integer): Integer {
-    if capacity <= entity {
-        return -1
-    }
-    var rows = raw.read_long(column_header, 32)
-    var stored = raw.read_long(rows, entity * 8)
-    return stored - 1
-}
-
-func remove_entity(column_header: Long, entity: Integer) {
-    var row = columns.row_of(column_header, entity)
+func remove_entity(index: ColumnIndex, entity: Integer) {
+    var row = index.row_of(entity)
     assert row >= 0
-    remove_row(column_header, entity, row)
+    remove_row(index, entity, row)
 }
 
-func remove_row(column_header: Long, entity: Integer, row: Integer) {
-    var count = raw.read_long(column_header, 0)
-    var last = count - 1
-    var entities = raw.read_long(column_header, 24)
-    var rows = raw.read_long(column_header, 32)
+func remove_row(index: ColumnIndex, entity: Integer, row: Integer) {
     if inline() {
         values.remove_swapping(row)
     } else {
-        remove_reference(row, last)
+        references.remove_swapping(row)
     }
-    if last != row {
-        var moved_entity = raw.read_long(entities, last * 8)
-        var ticks = raw.read_long(column_header, 48)
-        var moved_tick = raw.read_long(ticks, last * 8)
-        raw.write_long(ticks, row * 8, moved_tick)
-        raw.write_long(entities, row * 8, moved_entity)
-        raw.write_long(rows, moved_entity * 8, row + 1)
-    }
-    raw.write_long(rows, entity * 8, 0)
-    raw.write_long(column_header, 0, last)
-}
-
-func remove_reference(row: Integer, last: Integer) {
-    crash references[row]
-    buried.append(references[row])
-    if row != last {
-        crash references[last]
-        references[row] = references[last]
-    }
-    references.remove_last()
-}
-
-func release_buried(budget: Integer): Integer {
-    var released = 0
-    while released < budget and buried.count() > 0 {
-        buried.remove_last()
-        released = released + 1
-    }
-    return released
+    index.remove_row(entity, row)
 }

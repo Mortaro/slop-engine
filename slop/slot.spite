@@ -2,7 +2,6 @@ singleton
 
 generic $slot_type
 
-var raw = Raw()
 var column = Column<$slot_type>()
 var world = World()
 
@@ -30,32 +29,31 @@ func pinned(current: $slot_type): Boolean {
     return false
 }
 
-func fetch(entity: Integer, current: $slot_type, column_header: Long, row: Integer): $slot_type {
+func fetch(entity: Integer, current: $slot_type, index: ColumnIndex, row: Integer): $slot_type {
     if $slot_type.has_function("fill_from") {
-        current.fill_from(column_header, row)
+        current.fill_from(index, row)
         return current
     }
     if $slot_type == Entity {
         return world.entity_of(entity)
     }
-    crash column_header != 0
-    var entities = raw.read_long(column_header, 24)
-    crash raw.read_long(entities, row * 8) == entity
+    crash index.stored
+    crash index.entity_at(row) == entity
     return column.value_at(row)
 }
 
-func store(current: $slot_type, column_header: Long, row: Integer) {
+func store(current: $slot_type, index: ColumnIndex, row: Integer) {
     if $slot_type.has_function("fill_from") {
         crash row >= -1
     } else if $slot_type == Entity {
         crash row >= 0
     } else {
-        store_component(current, column_header, row)
+        store_component(current, index, row)
     }
 }
 
-func store_component(current: $slot_type, column_header: Long, row: Integer) {
-    assert column_header != 0
+func store_component(current: $slot_type, index: ColumnIndex, row: Integer) {
+    assert index.stored
     column.write_at(row, current)
 }
 

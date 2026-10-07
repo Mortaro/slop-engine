@@ -1,0 +1,7 @@
+var entity = 0
+var tick = 0
+
+func Removal(removed: Integer, removed_at: Integer) {
+    entity = removed
+    tick = removed_at
+}

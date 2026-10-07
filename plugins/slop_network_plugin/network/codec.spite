@@ -49,14 +49,13 @@ func mirror_column(frames: Network.Frames, since: Integer) {
     assert mirrored_here()
     var message = id()
     var hurried = unreliable()
-    var column_header = column.header_now()
-    var count: Integer = raw.read_long(column_header, 0)
+    var index = column.header_now()
+    var count = index.count()
     var row = 0
     while row < count {
-        var entities = raw.read_long(column_header, 24)
-        var entity: Integer = raw.read_long(entities, row * 8)
+        var entity = index.entity_at(row)
         var fresh = frames.touch(entity)
-        if fresh or changes.changed_since(column_header, entity, since) {
+        if fresh or changes.changed_since(index, entity, since) {
             var value = column.value_at(row)
             frames.scratch.clear()
             var remote = remote_of(entity)

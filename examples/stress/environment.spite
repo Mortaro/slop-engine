@@ -1,3 +1,2 @@
 var bodies = 200000
 var ticks = 20
-var release_budget = 4096

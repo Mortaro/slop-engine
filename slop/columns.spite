@@ -2,23 +2,20 @@ singleton
 
 type AnyColumn {
     insert_object(Integer, Anything, Boolean)
-    remove_entity(Long, Integer)
-    remove_all(Long, List<Integer>, Removals, Integer)
-    release_buried(Integer): Integer
+    remove_entity(ColumnIndex, Integer)
+    remove_all(ColumnIndex, List<Integer>, Removals, Integer)
 }
 
 type AnyLink {
     unlink()
 }
 
-var headers = Dictionary<Long>()
+var headers = Dictionary<ColumnIndex>()
 var releasers = Dictionary<AnyColumn>()
-var raw = Raw()
-var heap = Memory.Heap()
 var stage_counter = 0
 var removals = Dictionary<Removals>()
 var links = List<AnyLink>()
-var dead = List<Long>()
+var dead = List<Boolean>()
 
 func key(kind: Spite.Class): String {
     var namespace = namespace_of(kind)
@@ -35,17 +32,14 @@ func namespace_of(kind: Spite.Class): String {
     return kind.namespace.name_with_namespaces
 }
 
-func header(name: String): Long {
+func header(name: String): ColumnIndex {
     var known = headers[name]
     if known {
         return known
     }
-    var made = heap.allocate(64)
-    var offset = 0
-    while offset < 64 {
-        raw.write_long(made, offset, 0)
-        offset = offset + 8
-    }
+    var made = ColumnIndex()
+    made.key = name
+    made.stored = true
     headers[name] = made
     return made
 }
@@ -96,15 +90,6 @@ func trim_key(column_key: String, older_than: Integer) {
     records.trim(older_than)
 }
 
-func is_marker(column_header: Long): Boolean {
-    return raw.read_long(column_header, 56) == 1
-}
-
-func added_tick(column_header: Long, row: Integer): Integer {
-    var ticks = raw.read_long(column_header, 48)
-    return raw.read_long(ticks, row * 8)
-}
-
 func insert_object(entity: Integer, value: Anything, copying: Boolean) {
     var name = key(value.class)
     var releaser = releasers[name]
@@ -114,34 +99,11 @@ func insert_object(entity: Integer, value: Anything, copying: Boolean) {
 
 func remove_one(name: String, entity: Integer) {
     var column_header = header(name)
-    assert row_of(column_header, entity) >= 0
+    assert column_header.has(entity)
     var releaser = releasers[name]
     assert releaser
     note_removal(name, entity)
     releaser.remove_entity(column_header, entity)
-}
-
-func release_buried(budget: Integer): Integer {
-    var names = releasers.keys()
-    var remaining = budget
-    var index = 0
-    while remaining > 0 and index < names.count() {
-        remaining = remaining - release_buried_in(names, index, remaining)
-        index = index + 1
-    }
-    return budget - remaining
-}
-
-func release_buried_in(names: List<String>, index: Integer, remaining: Integer): Integer {
-    var name = names[index]
-    if not name {
-        return 0
-    }
-    var releaser = releasers[name]
-    if not releaser {
-        return 0
-    }
-    return releaser.release_buried(remaining)
 }
 
 func record_releaser(name: String, releaser: AnyColumn) {
@@ -151,28 +113,17 @@ func record_releaser(name: String, releaser: AnyColumn) {
 
 func count_of(name: String): Integer {
     var column_header = header(name)
-    return raw.read_long(column_header, 0)
+    return column_header.count()
 }
 
 func entity_at(name: String, row: Integer): Integer {
     var column_header = header(name)
-    var entities = raw.read_long(column_header, 24)
-    return raw.read_long(entities, row * 8)
+    return column_header.entity_at(row)
 }
 
 func has(name: String, entity: Integer): Boolean {
     var column_header = header(name)
-    return row_of(column_header, entity) >= 0
-}
-
-func row_of(column_header: Long, entity: Integer): Integer {
-    var capacity = raw.read_long(column_header, 40)
-    if capacity <= entity {
-        return -1
-    }
-    var rows = raw.read_long(column_header, 32)
-    var stored = raw.read_long(rows, entity * 8)
-    return stored - 1
+    return column_header.has(entity)
 }
 
 func remove_entities(entities: List<Integer>) {
@@ -187,34 +138,9 @@ func remove_entities(entities: List<Integer>) {
 func remove_from_column(name: String, entities: List<Integer>) {
     assert releasers[name]
     var column_header = header(name)
-    assert raw.read_long(column_header, 0) > 0
+    assert column_header.count() > 0
     var records = removals_of(name)
     releasers[name].remove_all(column_header, entities, records, stage_counter)
-}
-
-func drop() {
-    var names = headers.keys()
-    var index = 0
-    while index < names.count() {
-        release_column(names, index)
-        index = index + 1
-    }
-}
-
-func release_column(names: List<String>, index: Integer) {
-    assert names[index]
-    var column_header = header(names[index])
-    free_block(column_header, 24)
-    free_block(column_header, 32)
-    free_block(column_header, 48)
-    free_block(column_header, 16)
-    heap.free(column_header)
-}
-
-func free_block(column_header: Long, offset: Integer) {
-    var address = raw.read_long(column_header, offset)
-    assert address != 0
-    heap.free(address)
 }
 
 func add_link(link: AnyLink) {
@@ -230,23 +156,15 @@ func unlink_dead() {
 }
 
 func bury(despawned: Integer) {
-    var word = despawned / 64
-    while dead.count() <= word {
-        dead.append(0)
+    while dead.count() <= despawned {
+        dead.append(false)
     }
-    var bit: Long = 1
-    var shifted = bit.shifted_left(despawned % 64)
-    crash dead[word]
-    var buried = dead[word].bits_or(shifted)
-    dead[word] = buried
+    dead[despawned] = true
 }
 
 func is_dead(entity: Integer): Boolean {
-    var word = entity / 64
-    if entity < 0 or word >= dead.count() {
+    if entity < 0 or entity >= dead.count() {
         return false
     }
-    var bit: Long = 1
-    var shifted = bit.shifted_left(entity % 64)
-    return dead[word].bits_and(shifted) != 0
+    return dead[entity] == true
 }

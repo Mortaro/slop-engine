@@ -6,7 +6,6 @@ var clock = TickClock()
 func Stress() {
     load "../../slop"
     var app = App()
-    app.release_budget = environment.release_budget
     var description = app.describe()
     console.print(description)
     var spawn_start = clock.microseconds()
@@ -49,7 +48,7 @@ func despawn_every(app: App, ids: List<Integer>) {
         tick = tick + 1
     }
     var despawned = ids.count()
-    console.print("despawned", despawned, "release budget", app.release_budget)
+    console.print("despawned", despawned)
     console.print("worst tick microseconds", worst, "sixty ticks microseconds", total)
 }
 

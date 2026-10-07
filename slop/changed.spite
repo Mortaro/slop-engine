@@ -17,7 +17,7 @@ func tracked_pinned(): Boolean {
     return slot.pinned(value)
 }
 
-func fill_from(column_header: Long, row: Integer) {
-    assert column_header != 0 and row >= 0
+func fill_from(_index: ColumnIndex, row: Integer) {
+    assert row >= 0
     value = column.value_at(row)
 }

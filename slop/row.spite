@@ -3,10 +3,8 @@ singleton
 generic $row_type
 
 var columns = Columns()
-var raw = Raw()
-var header_reader = ColumnHeader()
 var keys = List<String>()
-var headers = List<Long>()
+var headers = List<ColumnIndex>()
 var rows = List<Integer>()
 var relation = -1
 var kinds = List<Integer>()
@@ -20,7 +18,7 @@ var pooled_rows = List<$row_type>()
 var every_entities = List<Integer>()
 var holds_copies = false
 var filled_entity = -1
-var stream_driver: Long = 0
+var stream_driver = ColumnIndex()
 var stream_position = 0
 var stream_total = 0
 var waiting_rows = List<$row_type>()
@@ -60,7 +58,7 @@ func describe_attribute(attribute: Symbol<$row_type>, row: $row_type) {
         note_link(attribute, row)
     }
     keys.append(key)
-    var header: Long = 0
+    var header = ColumnIndex()
     if key != "" and kind != 2 {
         header = columns.header(key)
     }
@@ -93,14 +91,13 @@ func component_keys(): List<String> {
 func candidates(): List<Integer> {
     var found = List<Integer>()
     var driver = smallest_header()
-    if driver == 0 {
+    if not driver.stored {
         return removal_candidates()
     }
-    var total = raw.read_long(driver, 0)
+    var total = driver.count()
     var row = 0
     while total > row {
-        var entities = raw.read_long(driver, 24)
-        var entity = raw.read_long(entities, row * 8)
+        var entity = driver.entity_at(row)
         if matches(entity) {
             found.append(entity)
         }
@@ -124,28 +121,24 @@ func removal_candidates(): List<Integer> {
 
 func estimate(): Integer {
     var driver = smallest_header()
-    if driver == 0 {
+    if not driver.stored {
         return removal_candidates().count()
     }
-    return raw.read_long(driver, 0)
+    return driver.count()
 }
 
-func present_in(header: Long, entity: Integer): Boolean {
-    if header == 0 {
+func present_in(header: ColumnIndex, entity: Integer): Boolean {
+    if not header.stored {
         return false
     }
-    var capacity = raw.read_long(header, 40)
-    if capacity <= entity {
-        return false
-    }
-    var sparse = raw.read_long(header, 32)
-    return raw.read_long(sparse, entity * 8) > 0
+    return header.has(entity)
 }
 
-func smallest_header(): Long {
-    var smallest: Long = 0
+func smallest_header(): ColumnIndex {
+    var smallest = ColumnIndex()
     var index = 0
     while index < headers.count() {
+        crash kinds[index]
         if kinds[index] != 4 {
             smallest = smaller(smallest, headers[index])
         }
@@ -154,16 +147,14 @@ func smallest_header(): Long {
     return smallest
 }
 
-func smaller(current_smallest: Long, candidate: Long): Long {
-    if candidate == 0 {
+func smaller(current_smallest: ColumnIndex, candidate: ColumnIndex): ColumnIndex {
+    if not candidate.stored {
         return current_smallest
     }
-    if current_smallest == 0 {
+    if not current_smallest.stored {
         return candidate
     }
-    var current_count = raw.read_long(current_smallest, 0)
-    var candidate_count = raw.read_long(candidate, 0)
-    if candidate_count < current_count {
+    if candidate.count() < current_smallest.count() {
         return candidate
     }
     return current_smallest
@@ -207,26 +198,24 @@ func find_row(index: Integer, entity: Integer, found: List<Integer>): Boolean {
         found[index] = -1
         return not present_in(header, entity)
     }
-    if header == 0 {
+    if not header.stored {
         found[index] = -1
         return true
     }
-    var capacity = raw.read_long(header, 40)
-    if capacity <= entity {
+    if entity >= header.rows.count() {
         return false
     }
-    var sparse = raw.read_long(header, 32)
-    var stored = raw.read_long(sparse, entity * 8)
-    found[index] = stored - 1
-    if stored <= 0 {
+    var row = header.row_of(entity)
+    found[index] = row
+    if row < 0 {
         return false
     }
-    return passes_tracking(kinds[index], header, stored - 1, entity)
+    return passes_tracking(kinds[index], header, row, entity)
 }
 
-func passes_tracking(kind: Integer, header: Long, row: Integer, entity: Integer): Boolean {
+func passes_tracking(kind: Integer, header: ColumnIndex, row: Integer, entity: Integer): Boolean {
     if kind == 1 {
-        return header_reader.added_tick(header, row) >= since
+        return header.added_tick(row) >= since
     }
     if kind == 5 {
         return changes.changed_since(header, entity, since)
@@ -238,11 +227,11 @@ func begin_stream() {
     stream_position = 0
     filled_entity = -1
     stream_driver = smallest_header()
-    if stream_driver == 0 {
+    if not stream_driver.stored {
         stream_list = removal_candidates()
         stream_total = stream_list.count()
     } else {
-        stream_total = raw.read_long(stream_driver, 0)
+        stream_total = stream_driver.count()
     }
 }
 
@@ -270,12 +259,11 @@ func advance(writing: Boolean): Integer {
 }
 
 func stream_entity(position: Integer): Integer {
-    if stream_driver == 0 {
+    if not stream_driver.stored {
         crash stream_list[position]
         return stream_list[position]
     }
-    var entities = raw.read_long(stream_driver, 24)
-    return raw.read_long(entities, position * 8)
+    return stream_driver.entity_at(position)
 }
 
 func fill_matched(entity: Integer) {
@@ -340,7 +328,7 @@ func stamp_written(entity: Integer) {
     var index = 0
     while index < headers.count() {
         crash kinds[index]
-        if kinds[index] == 0 and headers[index] != 0 {
+        if kinds[index] == 0 and headers[index].stored {
             changes.stamp_written(headers[index], entity)
         }
         index = index + 1
@@ -356,7 +344,7 @@ func store_attribute(attribute: Symbol<$row_type>, row: $row_type, _entity: Inte
     crash rows[position]
     var found = rows[position]
     crash kinds[position]
-    assert header != 0 and kinds[position] == 0
+    assert header.stored and kinds[position] == 0
     slot.store(row.attributes[attribute], header, found)
 }
 

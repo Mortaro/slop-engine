@@ -1,0 +1,70 @@
+var key = ""
+var stored = false
+var entities = List<Integer>()
+var rows = List<Integer>()
+var added = List<Integer>()
+var stamps = List<Long>()
+var marker = false
+
+func count(): Integer {
+    return entities.count()
+}
+
+func entity_at(row: Integer): Integer {
+    var entity = entities[row]
+    crash entity
+    return entity
+}
+
+func row_of(entity: Integer): Integer {
+    if entity < 0 or entity >= rows.count() {
+        return -1
+    }
+    return rows[entity] - 1
+}
+
+func has(entity: Integer): Boolean {
+    return row_of(entity) >= 0
+}
+
+func added_tick(row: Integer): Integer {
+    var tick = added[row]
+    crash tick
+    return tick
+}
+
+func add_row(entity: Integer, tick: Integer) {
+    while rows.count() <= entity {
+        rows.append(0)
+    }
+    entities.append(entity)
+    added.append(tick)
+    rows[entity] = entities.count()
+}
+
+func remove_row(entity: Integer, row: Integer) {
+    var last = entities.count() - 1
+    entities.remove_swapping(row)
+    added.remove_swapping(row)
+    if row != last {
+        var moved = entities[row]
+        crash moved
+        rows[moved] = row + 1
+    }
+    rows[entity] = 0
+}
+
+func stamp(entity: Integer, value: Long) {
+    while stamps.count() <= entity {
+        stamps.append(0)
+    }
+    stamps[entity] = value
+}
+
+func changed_since(entity: Integer, since: Integer): Boolean {
+    if entity >= stamps.count() {
+        return false
+    }
+    var stamped = stamps[entity]
+    return stamped > 0 and stamped - 2 >= since * 2 + 1
+}

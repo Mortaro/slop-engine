@@ -16,4 +16,4 @@ func tracked_pinned(): Boolean {
     return slot.pinned(probe)
 }
 
-func fill_from(_column_header: Long, _row: Integer) {}
+func fill_from(_index: ColumnIndex, _row: Integer) {}
