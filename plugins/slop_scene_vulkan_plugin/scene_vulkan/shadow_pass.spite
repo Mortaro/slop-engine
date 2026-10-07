@@ -903,7 +903,14 @@ func render_light(drawn: Scene.DrawSet, lights: Scene.Lights, light: Integer, ke
     }
 }
 
-func perspective_view(matrix: Matrix4<Float>, light_x: Float, light_y: Float, light_z: Float, focal: Float, far: Float) {
+func perspective_view(
+    matrix: Matrix4<Float>,
+    light_x: Float,
+    light_y: Float,
+    light_z: Float,
+    focal: Float,
+    far: Float,
+) {
     var depth_scale = far / (light_near - far)
     var depth_offset = light_near * far / (light_near - far)
     var along_right = dot_right(light_x, light_y, light_z)
