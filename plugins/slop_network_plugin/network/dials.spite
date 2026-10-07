@@ -2,14 +2,14 @@ singleton
 
 var dialers = List<Integer>()
 var tasks = List<Network.DialTask>()
-var jobs = List<Parallel<Socket?>>()
+var sockets = List<Socket?>()
 
 func start(dialer: Integer, host: String, port: Integer) {
     var task = Network.DialTask(host, port)
-    var job = Parallel(task.run)
+    var connected = task.run()
     dialers.append(dialer)
     tasks.append(task)
-    jobs.append(job)
+    sockets.append(connected)
 }
 
 func finished(dialer: Integer): Boolean {
@@ -17,19 +17,16 @@ func finished(dialer: Integer): Boolean {
     if index < 0 {
         return false
     }
-    crash jobs[index]
-    return jobs[index].finished
+    return true
 }
 
 func take(dialer: Integer): Socket? {
     var index = place_of(dialer)
     crash index >= 0
-    crash jobs[index]
-    var job = jobs[index]
-    var connected = job.finished_value()
+    var connected = sockets[index]
     dialers.remove_at(index)
     tasks.remove_at(index)
-    jobs.remove_at(index)
+    sockets.remove_at(index)
     assert connected
     return connected
 }
