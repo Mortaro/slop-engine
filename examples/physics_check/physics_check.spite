@@ -8,7 +8,6 @@ var brute = Brute()
 var first = Physics.Shape()
 var second = Physics.Shape()
 var probe = Physics.Shape()
-var loaded = Physics.Shape()
 var hit = Physics.Hit()
 var transforms = Lookup<Transform.Component.Transform>()
 var grounded = Lookup<Physics.Component.Grounded>()
@@ -367,14 +366,14 @@ func probe_at(distance: Float) {
     )
 }
 
-func probe_touches(slot: Integer): Boolean {
-    colliders.load_shape(slot, loaded, 0.0, 0.0, 0.0)
-    return geometry.overlaps(probe, loaded)
+func probe_touches(collider: Physics.Collider): Boolean {
+    var seen = collider.seen_from(0.0, 0.0, 0.0)
+    return geometry.overlaps(probe, seen)
 }
 
 func march(): Float {
     var step: Float = 0.01
-    var near = List<Integer>()
+    var near = List<Physics.Collider>()
     var travelled: Float = 0.0
     while travelled < reach {
         near.clear()
@@ -391,13 +390,14 @@ func march(): Float {
         var high_x = probe_high_x + direction_x.maximum(0.0) + 0.01
         var high_y = probe_high_y + direction_y.maximum(0.0) + 0.01
         var high_z = probe_high_z + direction_z.maximum(0.0) + 0.01
-        var slot = 0
-        while slot < colliders.kinds.count() {
-            var near_bounds = colliders.bounds_touch(slot, low_x, low_y, low_z, high_x, high_y, high_z)
-            if near_bounds and colliders.has_flag(slot, colliders.solid) {
-                near.append(slot)
+        var listed = 0
+        while listed < colliders.all.count() {
+            var collider = colliders.all[listed]
+            var near_bounds = collider.touches(low_x, low_y, low_z, high_x, high_y, high_z)
+            if near_bounds and collider.has_flag(colliders.solid) {
+                near.append(collider)
             }
-            slot = slot + 1
+            listed = listed + 1
         }
         var walked: Float = 0.0
         while walked < 1.0 {
@@ -419,24 +419,26 @@ func march(): Float {
 func confirms(distance: Float, entity: Integer): Boolean {
     probe_at(distance + 0.01)
     probe.radius = probe.radius + 0.01
-    var slot = 0
-    while slot < colliders.kinds.count() {
-        if colliders.kinds[slot] >= 0 and colliders.owner_of(slot) == entity and probe_touches(slot) {
+    var index = 0
+    while index < colliders.all.count() {
+        var collider = colliders.all[index]
+        if collider.alive and collider.owner == entity and probe_touches(collider) {
             return true
         }
-        slot = slot + 1
+        index = index + 1
     }
     return false
 }
 
 func starts_free(): Boolean {
     probe_at(0.0)
-    var slot = 0
-    while slot < colliders.kinds.count() {
-        if colliders.kinds[slot] >= 0 and colliders.has_flag(slot, colliders.solid) and probe_touches(slot) {
+    var index = 0
+    while index < colliders.all.count() {
+        var collider = colliders.all[index]
+        if collider.alive and collider.has_flag(colliders.solid) and probe_touches(collider) {
             return false
         }
-        slot = slot + 1
+        index = index + 1
     }
     return true
 }

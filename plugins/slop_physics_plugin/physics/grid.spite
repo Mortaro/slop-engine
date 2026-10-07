@@ -1,10 +1,9 @@
 var cell_size: Float = 4.0
 var largest_cells = 256
 var mask: UnsignedInteger = 15
-var starts = List<Integer>()
-var cursors = List<Integer>()
-var entries = List<Integer>()
-var large = List<Integer>()
+var buckets = List<List<Physics.Collider>>()
+var large = List<Physics.Collider>()
+var total = 0
 var first_column = 0
 var last_column = 0
 var first_row = 0
@@ -47,21 +46,19 @@ func span(lowest_x: Float, lowest_z: Float, highest_x: Float, highest_z: Float):
     return columns * rows
 }
 
-func span_of(slot: Integer, bounds: List<Float>): Integer {
-    var base = slot * 6
-    crash base + 5 < bounds.count()
-    return span(bounds[base], bounds[base + 2], bounds[base + 3], bounds[base + 5])
+func span_of(collider: Physics.Collider): Integer {
+    return span(collider.lowest_x, collider.lowest_z, collider.highest_x, collider.highest_z)
 }
 
-func build(slots: List<Integer>, bounds: List<Float>) {
+func build(colliders: List<Physics.Collider>) {
     large.clear()
-    var total = 0
+    total = 0
     var index = 0
-    while index < slots.count() {
-        var slot = slots[index]
-        var covered = span_of(slot, bounds)
+    while index < colliders.count() {
+        var collider = colliders[index]
+        var covered = span_of(collider)
         if covered > largest_cells {
-            large.append(slot)
+            large.append(collider)
         } else {
             total = total + covered
         }
@@ -72,72 +69,25 @@ func build(slots: List<Integer>, bounds: List<Float>) {
         size = size * 2
     }
     mask = size - 1
-    starts.clear()
-    cursors.clear()
-    var cleared = 0
-    while cleared <= size {
-        starts.append(0)
-        cursors.append(0)
-        cleared = cleared + 1
+    buckets.clear()
+    var made = 0
+    while made < size {
+        var bucket_list = List<Physics.Collider>()
+        buckets.append(bucket_list)
+        made = made + 1
     }
-    count_entries(slots, bounds)
-    var summed = 1
-    while summed < starts.count() {
-        crash starts[summed - 1]
-        starts[summed] = starts[summed] + starts[summed - 1]
-        summed = summed + 1
-    }
-    var copied = 0
-    while copied < starts.count() {
-        cursors[copied] = starts[copied]
-        copied = copied + 1
-    }
-    entries.clear()
-    var filled = 0
-    while filled < total {
-        entries.append(-1)
-        filled = filled + 1
-    }
-    fill_entries(slots, bounds)
-}
-
-func count_entries(slots: List<Integer>, bounds: List<Float>) {
-    var index = 0
-    while index < slots.count() {
-        var slot = slots[index]
-        var covered = span_of(slot, bounds)
-        if covered <= largest_cells {
-            var row = first_row
-            while row <= last_row {
-                var column = first_column
-                while column <= last_column {
-                    var counted = bucket(column, row) + 1
-                    crash starts[counted]
-                    starts[counted] = starts[counted] + 1
-                    column = column + 1
-                }
-                row = row + 1
-            }
-        }
-        index = index + 1
-    }
-}
-
-func fill_entries(slots: List<Integer>, bounds: List<Float>) {
-    var index = 0
-    while index < slots.count() {
-        var slot = slots[index]
-        var covered = span_of(slot, bounds)
+    index = 0
+    while index < colliders.count() {
+        var collider = colliders[index]
+        var covered = span_of(collider)
         if covered <= largest_cells {
             var row = first_row
             while row <= last_row {
                 var column = first_column
                 while column <= last_column {
                     var filled = bucket(column, row)
-                    crash cursors[filled]
-                    var at = cursors[filled]
-                    entries[at] = slot
-                    cursors[filled] = at + 1
+                    crash buckets[filled]
+                    buckets[filled].append(collider)
                     column = column + 1
                 }
                 row = row + 1
@@ -147,27 +97,24 @@ func fill_entries(slots: List<Integer>, bounds: List<Float>) {
     }
 }
 
-func gather(
-    lowest_x: Float,
-    lowest_z: Float,
-    highest_x: Float,
-    highest_z: Float,
-    found: List<Integer>,
-    stamps: List<Integer>,
-    stamp: Integer,
-) {
+func gather(lowest_x: Float, lowest_z: Float, highest_x: Float, highest_z: Float, found: List<Physics.Collider>) {
     var large_index = 0
     while large_index < large.count() {
-        note(large[large_index], found, stamps, stamp)
+        note(large[large_index], found)
         large_index = large_index + 1
     }
-    assert entries.count() != 0
+    assert total != 0
     var covered = span(lowest_x, lowest_z, highest_x, highest_z)
-    if covered > entries.count() {
-        var every = 0
-        while every < entries.count() {
-            note(entries[every], found, stamps, stamp)
-            every = every + 1
+    if covered > total {
+        var every_bucket = 0
+        while every_bucket < buckets.count() {
+            var every = buckets[every_bucket]
+            var each = 0
+            while each < every.count() {
+                note(every[each], found)
+                each = each + 1
+            }
+            every_bucket = every_bucket + 1
         }
         return
     }
@@ -176,12 +123,11 @@ func gather(
         var column = first_column
         while column <= last_column {
             var looked = bucket(column, row)
-            crash looked + 1 < starts.count()
-            var at = starts[looked]
-            var stop = starts[looked + 1]
-            while at < stop {
-                crash entries[at]
-                note(entries[at], found, stamps, stamp)
+            crash buckets[looked]
+            var entries = buckets[looked]
+            var at = 0
+            while at < entries.count() {
+                note(entries[at], found)
                 at = at + 1
             }
             column = column + 1
@@ -190,10 +136,9 @@ func gather(
     }
 }
 
-func note(slot: Integer, found: List<Integer>, stamps: List<Integer>, stamp: Integer) {
-    crash stamps[slot]
-    if stamps[slot] != stamp {
-        stamps[slot] = stamp
-        found.append(slot)
+func note(collider: Physics.Collider, found: List<Physics.Collider>) {
+    if not collider.gathered {
+        collider.gathered = true
+        found.append(collider)
     }
 }

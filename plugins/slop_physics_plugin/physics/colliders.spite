@@ -4,34 +4,24 @@ var solid = 1
 var trigger = 2
 var character = 4
 var moving = 8
-var kinds = List<Integer>()
-var flags = List<Integer>()
-var owners = List<Integer>()
-var shapes = List<Float>()
-var bounds = List<Float>()
-var stamps = List<Integer>()
-var first_slots = List<Integer>()
-var slot_counts = List<Integer>()
-var character_slots = List<Integer>()
-var static_slots = List<Integer>()
-var moving_slots = List<Integer>()
-var character_list = List<Integer>()
-var trigger_slots = List<Integer>()
+var all = List<Physics.Collider>()
+var owned = List<List<Physics.Collider>>()
+var characters = List<Physics.Collider?>()
+var statics = List<Physics.Collider>()
+var movers = List<Physics.Collider>()
+var walkers = List<Physics.Collider>()
+var triggers = List<Physics.Collider>()
 var static_grid = Physics.Grid()
 var moving_grid = Physics.Grid()
 var character_grid = Physics.Grid()
 var membership_changed = true
 var statics_changed = true
-var dead_count = 0
-var stamp = 0
 var brute_force = false
 var geometry = Physics.Geometry()
-var built = Physics.Shape()
-var target = Physics.Shape()
-var probe = Physics.Shape()
-var candidates = List<Integer>()
+var candidates = List<Physics.Collider>()
+var visited = List<Physics.Collider>()
 var world = World()
-var hit_slot = -1
+var hit_owner = -1
 var hit_fraction: Float = 0.0
 var hit_normal_x: Float = 0.0
 var hit_normal_y: Float = 0.0
@@ -66,118 +56,34 @@ func flag_for(is_trigger: Boolean, is_kinematic: Boolean): Integer {
 }
 
 func count(): Integer {
-    return kinds.count() - dead_count
+    return all.count_alive()
 }
 
-func has_flag(slot: Integer, flag: Integer): Boolean {
-    crash flags[slot]
-    return flags[slot].bits_and(flag) != 0
-}
-
-func owner_of(slot: Integer): Integer {
-    crash owners[slot]
-    return owners[slot]
-}
-
-func new_slot(owner: Integer, flag: Integer): Integer {
-    var slot = kinds.count()
-    kinds.append(0)
-    flags.append(flag)
-    owners.append(owner)
-    stamps.append(0)
-    var filled = 0
-    while filled < 24 {
-        shapes.append(0.0)
-        filled = filled + 1
-    }
-    var edges = 0
-    while edges < 6 {
-        bounds.append(0.0)
-        edges = edges + 1
-    }
+func add(owner: Integer, flag: Integer): Physics.Collider {
+    var made = Physics.Collider(owner, flag)
+    all.append(made)
     membership_changed = true
-    if flag.bits_and(moving) == 0 and flag.bits_and(solid) != 0 {
+    if made.has_flag(solid) and not made.has_flag(moving) {
         statics_changed = true
     }
-    return slot
+    return made
 }
 
 func ensure_entity(entity: Integer) {
-    while first_slots.count() <= entity {
-        first_slots.append(-1)
-        slot_counts.append(0)
-        character_slots.append(-1)
+    while owned.count() <= entity {
+        var held = List<Physics.Collider>()
+        owned.append(held)
+        characters.append(null)
     }
 }
 
-func store(slot: Integer, shape: Physics.Shape, length: Float, height: Float) {
-    kinds[slot] = shape.kind
-    var base = slot * 24
-    crash base + 23 < shapes.count()
-    shapes[base] = shape.first_x
-    shapes[base + 1] = shape.first_y
-    shapes[base + 2] = shape.first_z
-    shapes[base + 3] = shape.second_x
-    shapes[base + 4] = shape.second_y
-    shapes[base + 5] = shape.second_z
-    shapes[base + 6] = shape.third_x
-    shapes[base + 7] = shape.third_y
-    shapes[base + 8] = shape.third_z
-    shapes[base + 9] = shape.axis_x_x
-    shapes[base + 10] = shape.axis_x_y
-    shapes[base + 11] = shape.axis_x_z
-    shapes[base + 12] = shape.axis_y_x
-    shapes[base + 13] = shape.axis_y_y
-    shapes[base + 14] = shape.axis_y_z
-    shapes[base + 15] = shape.axis_z_x
-    shapes[base + 16] = shape.axis_z_y
-    shapes[base + 17] = shape.axis_z_z
-    shapes[base + 18] = shape.half_x
-    shapes[base + 19] = shape.half_y
-    shapes[base + 20] = shape.half_z
-    shapes[base + 21] = shape.radius
-    shapes[base + 22] = length
-    shapes[base + 23] = height
-    var edge = slot * 6
-    crash edge + 5 < bounds.count()
-    bounds[edge] = shape.lowest_x()
-    bounds[edge + 1] = shape.lowest_y()
-    bounds[edge + 2] = shape.lowest_z()
-    bounds[edge + 3] = shape.highest_x()
-    bounds[edge + 4] = shape.highest_y()
-    bounds[edge + 5] = shape.highest_z()
-}
-
-func load_shape(slot: Integer, shape: Physics.Shape, origin_x: Float, origin_y: Float, origin_z: Float) {
-    crash kinds[slot]
-    shape.kind = kinds[slot]
-    var base = slot * 24
-    crash base + 21 < shapes.count()
-    shape.first_x = shapes[base] - origin_x
-    shape.first_y = shapes[base + 1] - origin_y
-    shape.first_z = shapes[base + 2] - origin_z
-    shape.second_x = shapes[base + 3] - origin_x
-    shape.second_y = shapes[base + 4] - origin_y
-    shape.second_z = shapes[base + 5] - origin_z
-    shape.third_x = shapes[base + 6] - origin_x
-    shape.third_y = shapes[base + 7] - origin_y
-    shape.third_z = shapes[base + 8] - origin_z
-    shape.axis_x_x = shapes[base + 9]
-    shape.axis_x_y = shapes[base + 10]
-    shape.axis_x_z = shapes[base + 11]
-    shape.axis_y_x = shapes[base + 12]
-    shape.axis_y_y = shapes[base + 13]
-    shape.axis_y_z = shapes[base + 14]
-    shape.axis_z_x = shapes[base + 15]
-    shape.axis_z_y = shapes[base + 16]
-    shape.axis_z_z = shapes[base + 17]
-    shape.half_x = shapes[base + 18]
-    shape.half_y = shapes[base + 19]
-    shape.half_z = shapes[base + 20]
-    shape.radius = shapes[base + 21]
+func own(entity: Integer, collider: Physics.Collider) {
+    crash owned[entity]
+    owned[entity].append(collider)
 }
 
 func build_primitive(
+    built: Physics.Shape,
     transform: Transform.Component.Transform,
     box: Boolean,
     half_x: Float,
@@ -219,11 +125,11 @@ func place_primitive(
 ) {
     forget(entity)
     ensure_entity(entity)
-    var slot = new_slot(entity, flag)
-    first_slots[entity] = slot
-    slot_counts[entity] = 1
-    build_primitive(transform, box, half_x, half_y, half_z, radius, length)
-    store(slot, built, length, 0.0)
+    var collider = add(entity, flag)
+    own(entity, collider)
+    var built = Physics.Shape()
+    build_primitive(built, transform, box, half_x, half_y, half_z, radius, length)
+    collider.store(built, length, 0.0)
 }
 
 func place_box(
@@ -255,7 +161,6 @@ func place_mesh(entity: Integer, transform: Transform.Component.Transform, mesh:
     forget(entity)
     ensure_entity(entity)
     var matrix = transform.matrix()
-    var first = kinds.count()
     var triangle = 0
     var corners = mesh.indices.count() / 3
     while triangle < corners {
@@ -285,6 +190,7 @@ func place_mesh(entity: Integer, transform: Transform.Component.Transform, mesh:
             mesh.positions[third_corner + 2],
         )
         var corner_c = matrix.transform_point(source_c)
+        var built = Physics.Shape()
         built.set_triangle(
             corner_a.x,
             corner_a.y,
@@ -296,15 +202,14 @@ func place_mesh(entity: Integer, transform: Transform.Component.Transform, mesh:
             corner_c.y,
             corner_c.z,
         )
-        var slot = new_slot(entity, solid)
-        store(slot, built, 0.0, 0.0)
+        var collider = add(entity, solid)
+        own(entity, collider)
+        collider.store(built, 0.0, 0.0)
         triangle = triangle + 1
     }
-    first_slots[entity] = first
-    slot_counts[entity] = corners
 }
 
-func build_character(transform: Transform.Component.Transform, radius: Float, height: Float) {
+func build_character(built: Physics.Shape, transform: Transform.Component.Transform, radius: Float, height: Float) {
     var top = transform.position_y + height - radius
     var bottom = transform.position_y + radius
     if top < bottom {
@@ -324,109 +229,96 @@ func build_character(transform: Transform.Component.Transform, radius: Float, he
 func place_character(entity: Integer, transform: Transform.Component.Transform, radius: Float, height: Float) {
     forget_character(entity)
     ensure_entity(entity)
-    var slot = new_slot(entity, character + moving)
-    character_slots[entity] = slot
-    build_character(transform, radius, height)
-    store(slot, built, 0.0, height)
+    var collider = add(entity, character + moving)
+    characters[entity] = collider
+    var built = Physics.Shape()
+    build_character(built, transform, radius, height)
+    collider.store(built, 0.0, height)
 }
 
 func forget(entity: Integer) {
-    assert entity < first_slots.count()
-    var first = first_slots[entity]
-    assert first >= 0
-    crash slot_counts[entity]
-    var total = slot_counts[entity]
-    var index = 0
-    while index < total {
-        kill(first + index)
-        index = index + 1
-    }
-    first_slots[entity] = -1
-    slot_counts[entity] = 0
+    assert entity < owned.count()
+    var colliders = owned[entity]
+    assert colliders.count() > 0
+    colliders.each(kill)
+    colliders.clear()
 }
 
 func forget_character(entity: Integer) {
-    assert entity < character_slots.count()
-    var slot = character_slots[entity]
-    assert slot >= 0
-    kill(slot)
-    character_slots[entity] = -1
+    assert entity < characters.count()
+    var collider = characters[entity]
+    assert collider
+    kill(collider)
+    characters[entity] = null
 }
 
-func kill(slot: Integer) {
-    if has_flag(slot, solid) and not has_flag(slot, moving) {
+func kill(collider: Physics.Collider) {
+    if collider.has_flag(solid) and not collider.has_flag(moving) {
         statics_changed = true
     }
-    kinds[slot] = -1
-    flags[slot] = 0
-    dead_count = dead_count + 1
+    collider.alive = false
+    collider.flag = 0
     membership_changed = true
 }
 
 func move(entity: Integer, transform: Transform.Component.Transform) {
-    assert entity < first_slots.count()
-    var slot = first_slots[entity]
-    assert slot >= 0
-    crash kinds[slot]
-    var kind = kinds[slot]
-    assert kind != 2
-    var base = slot * 24
-    crash base + 22 < shapes.count()
+    assert entity < owned.count()
+    var colliders = owned[entity]
+    assert colliders.count() > 0
+    var collider = colliders[0]
+    var shape = collider.shape
+    assert shape.kind != 2
+    var built = Physics.Shape()
     build_primitive(
+        built,
         transform,
-        kind == 1,
-        shapes[base + 18],
-        shapes[base + 19],
-        shapes[base + 20],
-        shapes[base + 21],
-        shapes[base + 22],
+        shape.kind == 1,
+        shape.half_x,
+        shape.half_y,
+        shape.half_z,
+        shape.radius,
+        collider.length,
     )
-    store(slot, built, shapes[base + 22], 0.0)
-    if not has_flag(slot, moving) {
+    collider.store(built, collider.length, 0.0)
+    if not collider.has_flag(moving) {
         statics_changed = true
     }
 }
 
 func move_character(entity: Integer, transform: Transform.Component.Transform) {
-    assert entity < character_slots.count()
-    var slot = character_slots[entity]
-    assert slot >= 0
-    var base = slot * 24
-    crash base + 23 < shapes.count()
-    var radius = shapes[base + 21]
-    var height = shapes[base + 23]
+    assert entity < characters.count()
+    var collider = characters[entity]
+    assert collider
+    var shape = collider.shape
+    var radius = shape.radius
+    var height = collider.height
     var bottom = transform.position_y + radius
     var top = greater(transform.position_y + height - radius, bottom)
-    shapes[base] = transform.position_x
-    shapes[base + 1] = bottom
-    shapes[base + 2] = transform.position_z
-    shapes[base + 3] = transform.position_x
-    shapes[base + 4] = top
-    shapes[base + 5] = transform.position_z
-    var edge = slot * 6
-    crash edge + 5 < bounds.count()
-    bounds[edge] = transform.position_x - radius
-    bounds[edge + 1] = bottom - radius
-    bounds[edge + 2] = transform.position_z - radius
-    bounds[edge + 3] = transform.position_x + radius
-    bounds[edge + 4] = top + radius
-    bounds[edge + 5] = transform.position_z + radius
+    shape.first_x = transform.position_x
+    shape.first_y = bottom
+    shape.first_z = transform.position_z
+    shape.second_x = transform.position_x
+    shape.second_y = top
+    shape.second_z = transform.position_z
+    collider.lowest_x = transform.position_x - radius
+    collider.lowest_y = bottom - radius
+    collider.lowest_z = transform.position_z - radius
+    collider.highest_x = transform.position_x + radius
+    collider.highest_y = top + radius
+    collider.highest_z = transform.position_z + radius
 }
 
 func prepare() {
-    if dead_count > 1024 and dead_count * 2 > kinds.count() {
-        compact()
-    }
     if membership_changed {
         sort_membership()
     }
     if statics_changed {
-        static_grid.build(static_slots, bounds)
+        static_grid.build(statics)
         statics_changed = false
     }
-    moving_grid.build(moving_slots, bounds)
-    if trigger_slots.count() > 0 {
-        character_grid.build(character_list, bounds)
+    moving_grid.build(movers)
+    if triggers.count() > 0 {
+        character_grid.build(walkers)
     }
 }
 
@@ -437,134 +329,66 @@ func ensure_prepared() {
 }
 
 func sort_membership() {
-    static_slots.clear()
-    moving_slots.clear()
-    character_list.clear()
-    trigger_slots.clear()
-    var slot = 0
-    while slot < flags.count() {
-        var flag = flags[slot]
-        if flag.bits_and(trigger) != 0 {
-            trigger_slots.append(slot)
-        } else if flag.bits_and(character) != 0 {
-            character_list.append(slot)
-        } else if flag.bits_and(moving) != 0 {
-            moving_slots.append(slot)
-        } else if flag.bits_and(solid) != 0 {
-            static_slots.append(slot)
-        }
-        slot = slot + 1
-    }
-    membership_changed = false
-}
-
-func compact() {
-    var remap = List<Integer>()
-    var kept = 0
-    var slot = 0
-    while slot < kinds.count() {
-        if kinds[slot] < 0 {
-            remap.append(-1)
-        } else {
-            remap.append(kept)
-            move_slot(slot, kept)
-            kept = kept + 1
-        }
-        slot = slot + 1
-    }
-    kinds.truncate(kept)
-    flags.truncate(kept)
-    owners.truncate(kept)
-    stamps.truncate(kept)
-    shapes.truncate(kept * 24)
-    bounds.truncate(kept * 6)
-    remap_entities(first_slots, remap)
-    remap_entities(character_slots, remap)
-    dead_count = 0
-    membership_changed = true
-    statics_changed = true
-}
-
-func move_slot(from: Integer, to: Integer) {
-    crash kinds[from]
-    kinds[to] = kinds[from]
-    crash flags[from]
-    flags[to] = flags[from]
-    crash owners[from]
-    owners[to] = owners[from]
-    stamps[to] = 0
+    var living = List<Physics.Collider>()
+    statics.clear()
+    movers.clear()
+    walkers.clear()
+    triggers.clear()
     var index = 0
-    while index < 24 {
-        crash shapes[from * 24 + index]
-        shapes[to * 24 + index] = shapes[from * 24 + index]
+    while index < all.count() {
+        var collider = all[index]
+        if collider.alive {
+            living.append(collider)
+            if collider.has_flag(trigger) {
+                triggers.append(collider)
+            } else if collider.has_flag(character) {
+                walkers.append(collider)
+            } else if collider.has_flag(moving) {
+                movers.append(collider)
+            } else if collider.has_flag(solid) {
+                statics.append(collider)
+            }
+        }
         index = index + 1
     }
-    var edge = 0
-    while edge < 6 {
-        crash bounds[from * 6 + edge]
-        bounds[to * 6 + edge] = bounds[from * 6 + edge]
-        edge = edge + 1
-    }
-}
-
-func remap_entities(slots: List<Integer>, remap: List<Integer>) {
-    var entity = 0
-    while entity < slots.count() {
-        var old = slots[entity]
-        if old >= 0 {
-            crash remap[old]
-            slots[entity] = remap[old]
-        }
-        entity = entity + 1
-    }
-}
-
-func next_stamp() {
-    stamp = stamp + 1
-    if stamp > 2000000000 {
-        var index = 0
-        while index < stamps.count() {
-            stamps[index] = 0
-            index = index + 1
-        }
-        stamp = 1
-    }
+    all = living
+    membership_changed = false
 }
 
 func collect(lowest_x: Float, lowest_z: Float, highest_x: Float, highest_z: Float) {
     if brute_force {
-        var slot = 0
-        while slot < kinds.count() {
-            if kinds[slot] >= 0 and stamps[slot] != stamp {
-                stamps[slot] = stamp
-                candidates.append(slot)
+        var index = 0
+        while index < all.count() {
+            var collider = all[index]
+            if collider.alive and not collider.gathered {
+                collider.gathered = true
+                candidates.append(collider)
             }
-            slot = slot + 1
+            index = index + 1
         }
         return
     }
-    static_grid.gather(lowest_x, lowest_z, highest_x, highest_z, candidates, stamps, stamp)
-    moving_grid.gather(lowest_x, lowest_z, highest_x, highest_z, candidates, stamps, stamp)
+    static_grid.gather(lowest_x, lowest_z, highest_x, highest_z, candidates)
+    moving_grid.gather(lowest_x, lowest_z, highest_x, highest_z, candidates)
 }
 
-func bounds_touch(
-    slot: Integer,
-    lowest_x: Float,
-    lowest_y: Float,
-    lowest_z: Float,
-    highest_x: Float,
-    highest_y: Float,
-    highest_z: Float,
-): Boolean {
-    var edge = slot * 6
-    crash edge + 5 < bounds.count()
-    if bounds[edge] > highest_x or bounds[edge + 3] < lowest_x {
-        return false
+func set_aside_candidates() {
+    var index = 0
+    while index < candidates.count() {
+        visited.append(candidates[index])
+        index = index + 1
     }
-    if bounds[edge + 1] > highest_y or bounds[edge + 4] < lowest_y {
-        return false
+    candidates.clear()
+}
+
+func forget_candidates() {
+    set_aside_candidates()
+    var index = 0
+    while index < visited.count() {
+        visited[index].gathered = false
+        index = index + 1
     }
-    return bounds[edge + 2] <= highest_z and bounds[edge + 5] >= lowest_z
+    visited.clear()
 }
 
 func nearest(
@@ -581,7 +405,6 @@ func nearest(
     ignored: Integer,
 ): Boolean {
     ensure_prepared()
-    next_stamp()
     var length_squared = motion_x * motion_x + motion_y * motion_y + motion_z * motion_z
     var length = length_squared.square_root()
     var pieces: Integer = clamped(length / static_grid.cell_size, 0.0, 100000.0)
@@ -608,19 +431,19 @@ func nearest(
         var to: Float = piece + 1
         to = to / pieces
         if found and best < from {
+            forget_candidates()
             return true
         }
         var lowest_x = lesser(start_x, end_x) + lesser(motion_x, 0.0) * to + greater(motion_x, 0.0) * from - reach
         var lowest_z = lesser(start_z, end_z) + lesser(motion_z, 0.0) * to + greater(motion_z, 0.0) * from - reach
         var highest_x = greater(start_x, end_x) + greater(motion_x, 0.0) * to + lesser(motion_x, 0.0) * from + reach
         var highest_z = greater(start_z, end_z) + greater(motion_z, 0.0) * to + lesser(motion_z, 0.0) * from + reach
-        candidates.clear()
+        set_aside_candidates()
         collect(lowest_x, lowest_z, highest_x, highest_z)
         var index = 0
         while index < candidates.count() {
-            var slot = candidates[index]
-            var touches = bounds_touch(
-                slot,
+            var collider = candidates[index]
+            var touches = collider.touches(
                 whole_lowest_x,
                 whole_lowest_y,
                 whole_lowest_z,
@@ -628,8 +451,8 @@ func nearest(
                 whole_highest_y,
                 whole_highest_z,
             )
-            if touches and has_flag(slot, solid) and owner_of(slot) != ignored {
-                load_shape(slot, target, start_x, start_y, start_z)
+            if touches and collider.has_flag(solid) and collider.owner != ignored {
+                var target = collider.seen_from(start_x, start_y, start_z)
                 narrow_tests = narrow_tests + 1
                 var hit = geometry.sweep(
                     target,
@@ -648,18 +471,19 @@ func nearest(
                 if hit and (not found or geometry.fraction < best) {
                     found = true
                     best = geometry.fraction
-                    keep_hit(slot, start_x, start_y, start_z)
+                    keep_hit(collider, start_x, start_y, start_z)
                 }
             }
             index = index + 1
         }
         piece = piece + 1
     }
+    forget_candidates()
     return found
 }
 
-func keep_hit(slot: Integer, origin_x: Float, origin_y: Float, origin_z: Float) {
-    hit_slot = slot
+func keep_hit(collider: Physics.Collider, origin_x: Float, origin_y: Float, origin_z: Float) {
+    hit_owner = collider.owner
     hit_fraction = geometry.fraction
     hit_normal_x = geometry.normal_x
     hit_normal_y = geometry.normal_y
@@ -670,8 +494,7 @@ func keep_hit(slot: Integer, origin_x: Float, origin_y: Float, origin_z: Float) 
 }
 
 func fill_hit(hit: Physics.Hit, length: Float) {
-    var owner = owner_of(hit_slot)
-    hit.entity = world.entity_of(owner)
+    hit.entity = world.entity_of(hit_owner)
     hit.distance = hit_fraction * length
     hit.point_x = hit_point_x
     hit.point_y = hit_point_y
@@ -784,23 +607,22 @@ func deepest_overlap(
     ignored: Integer,
 ): Boolean {
     ensure_prepared()
-    next_stamp()
     var lowest_x = lesser(start_x, end_x) - radius
     var lowest_y = lesser(start_y, end_y) - radius
     var lowest_z = lesser(start_z, end_z) - radius
     var highest_x = greater(start_x, end_x) + radius
     var highest_y = greater(start_y, end_y) + radius
     var highest_z = greater(start_z, end_z) + radius
-    candidates.clear()
+    forget_candidates()
     collect(lowest_x, lowest_z, highest_x, highest_z)
     penetration_depth = 0.0
     var found = false
     var index = 0
     while index < candidates.count() {
-        var slot = candidates[index]
-        var touches = bounds_touch(slot, lowest_x, lowest_y, lowest_z, highest_x, highest_y, highest_z)
-        if touches and has_flag(slot, solid) and owner_of(slot) != ignored {
-            load_shape(slot, target, start_x, start_y, start_z)
+        var collider = candidates[index]
+        var touches = collider.touches(lowest_x, lowest_y, lowest_z, highest_x, highest_y, highest_z)
+        if touches and collider.has_flag(solid) and collider.owner != ignored {
+            var target = collider.seen_from(start_x, start_y, start_z)
             var squared = geometry.squared_distance_to(
                 target,
                 0.0,
@@ -822,6 +644,7 @@ func deepest_overlap(
         }
         index = index + 1
     }
+    forget_candidates()
     return found
 }
 
@@ -829,42 +652,39 @@ func find_trigger_overlaps() {
     ensure_prepared()
     pair_triggers.clear()
     pair_visitors.clear()
-    trigger_slots.each(overlaps_of_trigger)
+    triggers.each(overlaps_of_trigger)
 }
 
-func overlaps_of_trigger(slot: Integer) {
-    next_stamp()
-    var edge = slot * 6
-    crash edge + 5 < bounds.count()
-    var lowest_x = bounds[edge]
-    var lowest_y = bounds[edge + 1]
-    var lowest_z = bounds[edge + 2]
-    var highest_x = bounds[edge + 3]
-    var highest_y = bounds[edge + 4]
-    var highest_z = bounds[edge + 5]
-    load_shape(slot, probe, lowest_x, lowest_y, lowest_z)
-    var owner = owner_of(slot)
-    candidates.clear()
+func overlaps_of_trigger(collider: Physics.Collider) {
+    var lowest_x = collider.lowest_x
+    var lowest_y = collider.lowest_y
+    var lowest_z = collider.lowest_z
+    var highest_x = collider.highest_x
+    var highest_y = collider.highest_y
+    var highest_z = collider.highest_z
+    var probe = collider.seen_from(lowest_x, lowest_y, lowest_z)
+    var owner = collider.owner
+    forget_candidates()
     if brute_force {
         collect(lowest_x, lowest_z, highest_x, highest_z)
     } else {
-        moving_grid.gather(lowest_x, lowest_z, highest_x, highest_z, candidates, stamps, stamp)
-        character_grid.gather(lowest_x, lowest_z, highest_x, highest_z, candidates, stamps, stamp)
+        moving_grid.gather(lowest_x, lowest_z, highest_x, highest_z, candidates)
+        character_grid.gather(lowest_x, lowest_z, highest_x, highest_z, candidates)
     }
     var index = 0
     while index < candidates.count() {
         var visitor = candidates[index]
-        var touches = bounds_touch(visitor, lowest_x, lowest_y, lowest_z, highest_x, highest_y, highest_z)
-        if touches and has_flag(visitor, moving) and not has_flag(visitor, trigger) and owner_of(visitor) != owner {
-            load_shape(visitor, target, lowest_x, lowest_y, lowest_z)
+        var touches = visitor.touches(lowest_x, lowest_y, lowest_z, highest_x, highest_y, highest_z)
+        if touches and visitor.has_flag(moving) and not visitor.has_flag(trigger) and visitor.owner != owner {
+            var target = visitor.seen_from(lowest_x, lowest_y, lowest_z)
             if geometry.overlaps(probe, target) {
-                var visiting = owner_of(visitor)
                 pair_triggers.append(owner)
-                pair_visitors.append(visiting)
+                pair_visitors.append(visitor.owner)
             }
         }
         index = index + 1
     }
+    forget_candidates()
 }
 
 func lesser(first: Float, second: Float): Float {

@@ -1,0 +1,58 @@
+var owner = 0
+var flag = 0
+var alive = true
+var shape = Physics.Shape()
+var length: Float = 0.0
+var height: Float = 0.0
+var lowest_x: Float = 0.0
+var lowest_y: Float = 0.0
+var lowest_z: Float = 0.0
+var highest_x: Float = 0.0
+var highest_y: Float = 0.0
+var highest_z: Float = 0.0
+var gathered = false
+
+func Collider(owned_by: Integer, flagged: Integer) {
+    owner = owned_by
+    flag = flagged
+}
+
+func has_flag(wanted: Integer): Boolean {
+    return flag.bits_and(wanted) != 0
+}
+
+func store(stored: Physics.Shape, stored_length: Float, stored_height: Float) {
+    shape = stored
+    length = stored_length
+    height = stored_height
+    lowest_x = stored.lowest_x()
+    lowest_y = stored.lowest_y()
+    lowest_z = stored.lowest_z()
+    highest_x = stored.highest_x()
+    highest_y = stored.highest_y()
+    highest_z = stored.highest_z()
+}
+
+func seen_from(origin_x: Float, origin_y: Float, origin_z: Float): Physics.Shape {
+    var local = Physics.Shape()
+    local.copy_from(shape)
+    local.move_by(-origin_x, -origin_y, -origin_z)
+    return local
+}
+
+func touches(
+    query_lowest_x: Float,
+    query_lowest_y: Float,
+    query_lowest_z: Float,
+    query_highest_x: Float,
+    query_highest_y: Float,
+    query_highest_z: Float,
+): Boolean {
+    if lowest_x > query_highest_x or highest_x < query_lowest_x {
+        return false
+    }
+    if lowest_y > query_highest_y or highest_y < query_lowest_y {
+        return false
+    }
+    return lowest_z <= query_highest_z and highest_z >= query_lowest_z
+}
