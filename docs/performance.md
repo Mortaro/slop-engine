@@ -71,9 +71,9 @@ ui                    1 us    1 us
 - `Row<T>` is a singleton with per-iteration state, so the compiler guards it, and the runner makes one guarded call
   per entity. Keep hot-path helpers such as `Slot<T>` free of state: a singleton that writes its attributes, or
   holds a plain class field, is guarded on every call.
-- A single-row system streams its driver column: inline items are borrowed in place, with no copy and no reference
-  count ([ecs.md](ecs.md#storage)). A row of inline components costs a few tens of nanoseconds; a reference-stored
-  component in the row costs several times more, since each one fetched is retained and released.
+- A row of inline components is copied in from its columns before each call and written back after it if the
+  system writes that row ([ecs.md](ecs.md#storage)); a reference-stored component is handed over as it is, retained
+  and released.
 
 ## What already helps
 

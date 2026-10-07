@@ -28,20 +28,9 @@ var related = -1
 var skipping = false
 var last_run = -1
 var argument_count = 0
-var streamed = -1
-var plain_rows = false
-var plain_count = 0
-var clocked = false
-var clock_row = Row<GameClock>()
 var leading_relation = false
-var pair_sizes = List<Integer>()
-var pair_outer = 0
-var pair_entity = -1
-var pair_candidates = List<Integer>()
 var gate_open = true
-var streaming_phase = ""
 var pending = 0
-var world = World()
 var timing = Profile.Timing()
 var clock = Clock()
 
@@ -104,10 +93,6 @@ func place_phase_each(phase: Symbol<$system_type.phase_each>) {
 func prepare_argument(argument: Symbol<$system_type.phase_each>) {
     var row = Row<argument.class>()
     row.prepare()
-    plain_rows = row.is_plain()
-    if plain_rows {
-        plain_count = plain_count + 1
-    }
     if argument_count == 0 {
         leading_relation = row.relation >= 0
     }
@@ -167,47 +152,21 @@ func run_once() {
 }
 
 func run_phase_each(phase: Symbol<$system_type.phase_each>) {
+    candidates.clear()
+    gather_arguments()
+    var total = combinations()
     if $system_type.function_waits("<phase>_each") {
         refuse_snapshot_arguments()
         if argument_count == 0 {
             assert pending == 0
-            pending = 1
-        } else if argument_count == 1 {
-            begin_stream_arguments()
-            advance_stream_arguments()
-            while streamed >= 0 {
-                enqueue_arguments()
-                pending = pending + 1
-                advance_stream_arguments()
-            }
-        } else {
-            candidates.clear()
-            gather_arguments()
-            var total = combinations()
-            var combination = 0
-            while combination < total {
-                choose(combination)
-                position = 0
-                enqueue_chosen_arguments()
-                pending = pending + 1
-                combination = combination + 1
-            }
         }
-        return
-    }
-    if phase.argument_count() == 1 {
-        if plain_rows {
-            streaming_phase = phase.name
-            stream_arguments()
-            return
-        }
-    }
-    if argument_count == 1 {
-        begin_stream_arguments()
-        advance_stream_arguments()
-        while streamed >= 0 {
-            system.phase_each(row_arguments())
-            advance_stream_arguments()
+        var queued = 0
+        while queued < total {
+            choose(queued)
+            position = 0
+            enqueue_chosen_arguments()
+            pending = pending + 1
+            queued = queued + 1
         }
         return
     }
@@ -215,21 +174,6 @@ func run_phase_each(phase: Symbol<$system_type.phase_each>) {
         run_related(phase)
         return
     }
-    if phase.argument_count() == 2 {
-        streaming_phase = phase.name
-        clocked = false
-        if plain_count == 2 {
-            run_clocked_arguments()
-        }
-        assert not clocked
-    }
-    if argument_count == 2 {
-        run_pair(phase)
-        return
-    }
-    candidates.clear()
-    gather_arguments()
-    var total = combinations()
     var combination = 0
     while combination < total {
         choose(combination)
@@ -247,26 +191,19 @@ func run_phase_each(phase: Symbol<$system_type.phase_each>) {
     }
 }
 
-func stream_argument(argument: Symbol<$system_type.phase_each>) {
-    var stream = Stream<$system_type, argument.class>(system, last_run, streaming_phase)
-    stream.writing = writes_argument(argument.index)
-    stream.run_phases_each()
-}
-
 func enqueue_chosen_argument(argument: Symbol<$system_type.phase_each>) {
     var row = Row<argument.class>()
     crash chosen[position]
-    row.enqueue(chosen[position])
+    var entity = chosen[position]
+    row.enqueue(entity)
+    if writes_argument(argument.index) {
+        row.stamp_written(entity)
+    }
     position = position + 1
 }
 
 func refuse_snapshot_argument(argument: Symbol<$system_type.phase_each>) {
     crash not $system_type.function_writes_parameter("<phase>_each", argument.index) or not argument.class.any_attribute_fits_vector(Entity)
-}
-
-func enqueue_argument(argument: Symbol<$system_type.phase_each>) {
-    var row = Row<argument.class>()
-    row.enqueue(streamed)
 }
 
 func start_waiting() {
@@ -299,75 +236,7 @@ func gather_argument(argument: Symbol<$system_type.phase_each>) {
     candidates.append(found)
 }
 
-func run_pair(phase: Symbol<$system_type.phase_each>) {
-    pair_sizes.clear()
-    size_arguments()
-    pair_outer = 0
-    crash pair_sizes[1]
-    crash pair_sizes[0]
-    if pair_sizes[1] < pair_sizes[0] {
-        pair_outer = 1
-    }
-    pair_candidates.clear()
-    outer_candidates_arguments()
-    var index = 0
-    while index < pair_candidates.count() {
-        pair_entity = pair_candidates[index]
-        fill_outer_arguments()
-        begin_inner_arguments()
-        advance_inner_arguments()
-        while streamed >= 0 {
-            system.phase_each(row_arguments())
-            advance_inner_arguments()
-        }
-        store_outer_arguments()
-        index = index + 1
-    }
-}
-
-func size_argument(argument: Symbol<$system_type.phase_each>) {
-    var row = Row<argument.class>()
-    row.since = last_run
-    var size = row.estimate()
-    pair_sizes.append(size)
-}
-
-func outer_candidates_argument(argument: Symbol<$system_type.phase_each>) {
-    assert argument.index == pair_outer
-    var row = Row<argument.class>()
-    row.since = last_run
-    pair_candidates = row.candidates()
-}
-
-func fill_outer_argument(argument: Symbol<$system_type.phase_each>) {
-    assert argument.index == pair_outer
-    var row = Row<argument.class>()
-    row.fill(pair_entity)
-}
-
-func store_outer_argument(argument: Symbol<$system_type.phase_each>) {
-    assert argument.index == pair_outer and writes_argument(argument.index)
-    var row = Row<argument.class>()
-    row.store(pair_entity)
-}
-
-func begin_inner_argument(argument: Symbol<$system_type.phase_each>) {
-    assert argument.index != pair_outer
-    var row = Row<argument.class>()
-    row.since = last_run
-    row.begin_stream()
-}
-
-func advance_inner_argument(argument: Symbol<$system_type.phase_each>) {
-    assert argument.index != pair_outer
-    var row = Row<argument.class>()
-    var written = writes_argument(argument.index)
-    streamed = row.advance(written)
-}
-
 func run_related(phase: Symbol<$system_type.phase_each>) {
-    candidates.clear()
-    gather_arguments()
     crash candidates[0]
     var firsts = candidates[0]
     var index = 0
@@ -482,36 +351,5 @@ func choose(combination: Integer) {
         chosen.append(entity)
         remaining = remaining / count
         index = index + 1
-    }
-}
-
-func begin_stream_argument(argument: Symbol<$system_type.phase_each>) {
-    var row = Row<argument.class>()
-    row.since = last_run
-    row.begin_stream()
-}
-
-func advance_stream_argument(argument: Symbol<$system_type.phase_each>) {
-    var row = Row<argument.class>()
-    var written = writes_argument(argument.index)
-    streamed = row.advance(written)
-}
-
-func run_clocked_argument(argument: Symbol<$system_type.phase_each>) {
-    if argument.class == GameClock {
-        clock_row.fill(world.entity)
-        stream_clocked_arguments()
-        if writes_argument(argument.index) {
-            clock_row.store(world.entity)
-        }
-        clocked = true
-    }
-}
-
-func stream_clocked_argument(argument: Symbol<$system_type.phase_each>) {
-    if argument.class != GameClock {
-        var stream = Stream<$system_type, argument.class>(system, last_run, streaming_phase)
-        stream.writing = writes_argument(argument.index)
-        stream.run_phases_each()
     }
 }

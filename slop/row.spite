@@ -119,14 +119,6 @@ func removal_candidates(): List<Integer> {
     return found.filter(matches)
 }
 
-func estimate(): Integer {
-    var driver = smallest_header()
-    if not driver.stored {
-        return removal_candidates().count()
-    }
-    return driver.count()
-}
-
 func present_in(header: ColumnIndex, entity: Integer): Boolean {
     if not header.stored {
         return false
@@ -158,17 +150,6 @@ func smaller(current_smallest: ColumnIndex, candidate: ColumnIndex): ColumnIndex
         return candidate
     }
     return current_smallest
-}
-
-func is_plain(): Boolean {
-    var index = 0
-    while index < kinds.count() {
-        if kinds[index] == 1 or kinds[index] == 2 or kinds[index] == 4 or kinds[index] == 5 {
-            return false
-        }
-        index = index + 1
-    }
-    return true
 }
 
 func matches(entity: Integer): Boolean {
@@ -246,31 +227,12 @@ func next_match(): Integer {
     return -1
 }
 
-func advance(writing: Boolean): Integer {
-    if filled_entity >= 0 and writing {
-        store(filled_entity)
-    }
-    filled_entity = -1
-    var entity = next_match()
-    if entity >= 0 {
-        fill_matched(entity)
-    }
-    return entity
-}
-
 func stream_entity(position: Integer): Integer {
     if not stream_driver.stored {
         crash stream_list[position]
         return stream_list[position]
     }
     return stream_driver.entity_at(position)
-}
-
-func fill_matched(entity: Integer) {
-    filled_entity = entity
-    cursor = 0
-    related = -1
-    fill_attributes(current, entity)
 }
 
 func fill(entity: Integer) {

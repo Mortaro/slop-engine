@@ -356,7 +356,7 @@ Removal records are trimmed after two ticks.
 written when:
 
 - a system whose phase function writes a row holding `T` visits that entity (the row is written back, on every
-  path: one row, two rows, lists and the fast path);
+  path: one row, several rows and lists);
 - `Lookup<T>().of(entity)` lends it, since what it lends can be written in place;
 - `add_component` adds or replaces it (applied at the flush), so an added component is also a changed one.
 
@@ -482,9 +482,9 @@ millisecond add up, and at most 100 ms, so a hitch doesn't teleport anything, an
 in slow motion. A program that calls `app.tick()` itself, as tests and benchmarks do, gets `frame_milliseconds` every tick, so it stays
 repeatable.
 
-`TickTimers` is `input_each(clock: GameClock, running: Running)`: the runner fills the clock once and streams the
-running timers in place (the [clock row](#storage)); the timer row is only `entity` and `Ticking`, and `Timer` and
-`Repeating` are looked up on a ring. Ticking 10,000 timers costs about 0.27 ms a tick (`server_bench`, optimized).
+`TickTimers` is `input_each(clock: GameClock, running: Running)`: the runner calls it once for each running timer,
+with the world's clock beside it (a [combination](#storage) of one clock and every timer); the timer row is only `entity` and `Ticking`, and `Timer` and
+`Repeating` are looked up on a ring.
 `timers_check` tests it: a 50 ms repeating timer rings 6 times in 30 ticks of 10 ms and a 120 ms one-shot
 rings once, seen with its `Timer` on the ring tick; a paused timer stays paused, then rings three ticks after it
 resumes and is removed; a cooldown child with `Expires` is despawned and the link naming it goes; and 40 paced ticks
@@ -583,7 +583,7 @@ Values are stored one of two ways:
 
 - **Inline**: every component that fits a `Vector` (its fields are numbers, `Boolean`, enums or `String`) is kept
   in an `Items<T>`, contiguous in memory. Nothing is declared; `Column.inline()` works it out at compile
-  time, and `Row` and `Stream` test the same thing.
+  time, and `Row` tests the same thing.
 - **By reference**: any other component (one holding a list, another object, a nullable field) is a `List<T>`. A
   system's row holds the stored object, so writing a field changes the component.
 
@@ -591,25 +591,13 @@ Values are stored one of two ways:
 component. A borrowed result can't be replaced: `var layout = lookup.of(entity)` followed by `layout = made` is a
 compile error, so pass the found and the new item to a small writer function instead.
 
-A system with one row and no `Added`, `Changed` or `Removed` field runs on the fast path, `Stream<System, Row>`. It
-walks the driver column and fills each row straight from the columns: inline items are borrowed and written
-in place, with no copy and no reference counting, and references are handed over as they are. The runner picks
-it with `phase.argument_count() == 1`, so systems with several rows still compile and use the combination
-path. Other rows get a copy of inline items, which is written back after the system runs if it writes that row.
-
-A system with two rows (and no link in the first) takes the smaller row as the outer loop and streams the larger one
-inside it: `render_each(target: Target, modeled: Modeled)` fills the one window's row once and walks every model,
-instead of pairing them through the general combination path. Scene Gather is written this way (`BeginView`,
-`GatherModels`, `GatherCells`): it gathers 17,000 models in 8 ms, against 30 ms as a list system.
-
-**The clock row** is the fast path for a system that needs the game clock beside one other row: a row of the
-engine's class `GameClock` (`frame: Component.Frame`, the world entity's) is filled once per run, the other row is
-streamed through `Stream` exactly like a one-row system (inline items borrowed in place, no copy and no write-back
-per row), and the clock is written back after the walk. `TickTimers` is written this way: 10,000 timers in 0.27 ms,
-against 1.25 ms through the pair path. It is opted into by the row's class, not chosen for every two-row system:
-streaming a row borrows its columns for each call, which Spite refuses for a system that
-may add to them, as `Animate` and `FollowBones` may, so the runner builds the stream only where it is asked for.
-The other row may not have `Added`, `Changed` or `Removed` fields; with them, the pair path runs.
+Every `_each` system runs the same way. The runner gathers, for each row, the entities that match it, then calls
+the system once for each combination of them: it fills each row from the columns, calls the phase function, and
+writes the row back if the system writes it. A system with one row is one loop over the entities that match it; a
+system with two rows is called for every pair. A row of inline items holds a copy of each one, written back after
+the call; a row of components stored by reference holds the stored objects. The one exception to combinations is a
+link: when the first row holds a link component, the second row is filled from the entity the link names, never
+paired with every entity (see [Following a link](#following-a-link)).
 
 A `_all` system's rows are written back after it runs, like a single row's, so writing a field of an inline
 component in a list sticks; a list the system only reads is not written back. Its row objects are kept between runs and refilled, and each entity is matched once
