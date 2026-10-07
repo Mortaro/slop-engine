@@ -1,3 +1,2 @@
 var movers = 20000
 var ticks = 30
-var parallel = true

@@ -13,7 +13,6 @@ var last_seed = 0
 func ParallelCheck() {
     load "../../slop"
     var app = App()
-    app.parallel = environment.parallel
     var described = app.describe()
     console.print(described)
     var accessed = app.describe_accesses()
@@ -46,10 +45,10 @@ func ParallelCheck() {
     }
     var spawned = world.create_entity()
     last_seed = spawned.id
-    report(app.parallel)
+    report()
 }
 
-func report(parallel: Boolean) {
+func report() {
     var sum: Long = 0
     var alive = 0
     var id = 1
@@ -69,8 +68,6 @@ func report(parallel: Boolean) {
     crash weight
     crash seen
     console.print(
-        "parallel",
-        parallel,
         "alive",
         alive,
         "tally",

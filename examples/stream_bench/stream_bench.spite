@@ -1,12 +1,10 @@
 var world = World()
 var console = Console()
 var count = 100000
-var environment = Environment()
 
 func StreamBench() {
     load "../../slop"
     var app = App()
-    app.parallel = environment.parallel
     var index = 0
     while index < count {
         var entity = world.create_entity()
