@@ -19,9 +19,7 @@ var clock = Clock()
 var next_tick: Long = 0
 var world = World()
 var program = Program()
-var scheduler = Scheduler()
 var frame_milliseconds = 16
-var release_budget = 4096
 var longest_step: Long = 100
 var measuring = false
 var last_tick_at: Long = 0
@@ -33,7 +31,6 @@ var rule_breaks = 0
 func App() {
     var frame = Component.Frame()
     frame_column.insert(world.entity, frame)
-    scheduler.resume_only_when_asked()
     register_components()
     var components_follow_the_ecs_rules = rule_breaks == 0
     crash components_follow_the_ecs_rules
@@ -180,9 +177,7 @@ func tick() {
         columns.trim_removals(older_than)
         index = index + 1
     }
-    columns.release_buried(release_budget)
     start_waiting_runners()
-    scheduler.run_ready()
     var frame_finished = clock.elapsed_nanoseconds()
     frame_timing.record(frame_finished - frame_started)
 }

@@ -41,8 +41,6 @@ var pair_candidates = List<Integer>()
 var gate_open = true
 var streaming_phase = ""
 var pending = 0
-var workers: List<Concurrent<Nothing>>? = null
-var worker_limit = 8
 var world = World()
 var timing = Profile.Timing()
 var clock = Clock()
@@ -273,25 +271,8 @@ func enqueue_argument(argument: Symbol<$system_type.phase_each>) {
 
 func start_waiting() {
     assert pending > 0
-    if not workers {
-        var made = List<Concurrent<Nothing>>()
-        workers = made
-    }
-    var running = workers
-    crash running
-    var index = running.count() - 1
-    while index >= 0 {
-        crash running[index]
-        if running[index].finished {
-            running.remove_at(index)
-        }
-        index = index - 1
-    }
     if $system_type.function_waits("<phase>_each") {
-        while running.count() < worker_limit and running.count() < pending {
-            var worker = Concurrent(drain)
-            running.append(worker)
-        }
+        drain()
     }
 }
 
