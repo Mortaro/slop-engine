@@ -89,8 +89,7 @@ pack.encode(compressed, bytes)
 | `'user_interface'` | `TC_UserInterface2D` | RGBA8, unchanged, one level | none: the UI samples it pixel-exact |
 
 A BC4 texture is sampled as (r, r, r, 1) too. The mip chain is a 2x2 box filter (Unreal's SimpleAverage) down to 1x1;
-each level of a large texture is split into bands of rows, and every band is filtered and encoded as a `Parallel` job
-on the thread pool. The encoders fit each 4x4 block's endpoints along its colours' principal axis and refine them
+each level of a texture is filtered and encoded in one pass over its rows. The encoders fit each 4x4 block's endpoints along its colours' principal axis and refine them
 by least squares; a block of one colour gets the endpoint pair that reproduces it best. `TextureCompression.Decoder`
 decodes every format back to RGBA8 and measures `peak_signal_to_noise`, which `texture_compression_check` uses.
 

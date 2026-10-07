@@ -38,11 +38,8 @@ reading outside the column. An optional link is a component that is present or
 absent, never an id of −1.
 
 Changes are applied between stages, like Bevy's `Commands`, so a column never changes while a system is iterating
-it. **Each runner has its own command buffer**: before a system runs, its thread is marked with the runner's buffer (a
-`ThreadLocal<Integer>`), so `add_component` from systems running in parallel
-never contends, and the buffers are applied in runner order at the stage boundary, so the result is the same
-whichever thread finished first. New ids come from one counter behind a `Lock`. So a system that changes the world
-needs no stage of its own.
+it. The world keeps one list of commands and one of despawns, applied in the order they were queued at the stage
+boundary, and new ids come from one counter. So a system that changes the world needs no stage of its own.
 
 ## Components
 
@@ -310,9 +307,8 @@ Nothing in a system says how it is scheduled; the runner derives it at compile t
   writes every component class in the row; a row it only reads reads them. Markers, `Without<T>`, `Changed<T>` and
   `Removed<T>` are always reads. A `Lookup<T>` attribute and a resource (any singleton but `World`) always count as written,
   since what a lookup lends can be written in place. Two systems conflict when one writes a
-  class the other reads or writes, so systems that only read the same classes run at the same time.
-- **which thread**: any thread, unless it touches a component pinned to its thread ([below](#components-pinned-to-a-thread)).
-- **changing the world** costs nothing in scheduling: each runner queues into its own buffer (above).
+  class the other reads or writes, so systems that only read the same classes share a stage.
+- **changing the world** costs nothing in scheduling: every system queues into the world's one list (above).
 
 `app.describe_accesses()` prints what the runner derived, one line per system:
 
@@ -337,29 +333,21 @@ func pinned_to_creating_thread(): Boolean {
 }
 ```
 
-A pinned component belongs to the thread that created it, so every system that touches its class (in a row, as
-`Added`, `Removed` or `Without`, or through a `Lookup` attribute) runs on that thread: the app's own thread, the one
-that calls `app.tick()`. Every other system runs on the thread pool. A pinned system declares nothing and is
-scheduled like any other: it shares a stage with every system it does not conflict with, and `app.describe()` marks
-it `(pinned)`. Ticking the app from a different thread than the first tick crashes
-(`pinned_components_stay_on_the_thread_that_created_them`), since the components were created on that one.
-
-Vulkan has no thread affinity, so nothing of it is pinned; a system is pinned only by what its own rows and lookups
-touch, so `RenderVulkan.System.CreateRenderer`, which reads the window's `Handle` to make a surface, runs on the
-app's thread and the systems that draw do not.
+A pinned component belongs to the thread that created it. Every system runs on the app's own thread, the one
+that calls `app.tick()`, so a pinned component is always used where it was made; a system that touches a pinned
+class (in a row, as `Added`, `Removed` or `Without`, or through a `Lookup` attribute) declares nothing, and
+`app.describe()` marks it `(pinned)`.
 
 ## Freeing
 
 Removing a component (by `Remove` or a despawn) takes it out of its column at once, so no query or lookup sees it
-again; the object itself moves to its column's buried buffer and is freed later, at most `app.release_budget`
-(4,096) objects per tick, so unloading a region never frees everything in one frame. A component's `drop()` runs
-then, not at the removal.
+again, and the column lets the object go there and then: a component's `drop()` runs at the removal's flush.
 
 ## Change tracking
 
 There are no events. Every column records the tick at which each row was added and, per entity, the tick at which
-its component was last written; the core keeps a short log of removals per column (in raw memory: a tick-ordered
-log, and a per-entity stamp of its last removal), and each system remembers the tick at which it last ran. So
+its component was last written; the core keeps a short log of removals per column (a tick-ordered list of
+removals, and a per-entity stamp of its last removal), and each system remembers the tick at which it last ran. So
 `Added<T>`, `Changed<T>` and `Removed<T>` match each change exactly once for every system that asks, wherever it runs
 relative to the change: a system after the change sees it in the same tick, one before it sees it in the next.
 Removal records are trimmed after two ticks.
@@ -390,11 +378,9 @@ The engine owns the phases, in order:
 `input` → `after_input` → `update` → `prepare` → `layout` → `render` → `after_render` → `present` → `last`
 
 Inside a phase, systems run in the order of their dotted names. Consecutive systems that do not conflict
-([above](#what-decides-where-a-system-runs)) form a stage, and a stage's systems run at the same time: each on the
-thread pool, except the pinned ones, which run on the app's thread (and when none is pinned, the app's thread runs
-the last system instead of waiting idle). Queued changes are applied after each stage, in runner order, so a stage
-gives the same result however its threads interleave: `examples/parallel_check` compares parallel runs with a
-serial one. `app.describe()` prints the stages:
+([above](#what-decides-where-a-system-runs)) form a stage, and a stage's systems run one after another in that
+order. Queued changes are applied after each stage, so no system of a stage sees what another queued:
+`examples/parallel_check` checks that two runs agree. `app.describe()` prints the stages:
 
 ```
 stage 0 (input): System.Recook, System.RefreshCatalog, System.TickTimers
@@ -421,7 +407,6 @@ Ordering inside a phase is by name, not by data. The finer phase names carry the
 | `app.run()` | ticks at a fixed rate, one tick every `frame_milliseconds` (16; a server sets 50 for 20 Hz), until the world entity has `Component.Quit`, then ticks once more so systems can react to quitting. The pace is kept against the monotonic clock, so a tick's own time does not add up to drift; a tick that overruns is followed at once, and the next step is the time that really passed, so the game runs in real time whatever the frame rate |
 | `app.begin_pacing()`, `app.wait_for_next_tick()` | the two halves of that pacing, for a program that drives its own loop |
 | `app.tick()` | one tick: every stage in order, changes applied after each |
-| `app.parallel = false` | runs every stage's systems one after another |
 | `app.describe()` | the stages, as text |
 | `app.describe_accesses()` | what each system reads and writes, as text |
 
@@ -588,9 +573,9 @@ func update_each(slotted: Slotted) {
 
 ## Storage
 
-Each component class has a column: a sparse set whose bookkeeping lives in raw `Memory`, found by its dotted class
-name through `Columns`. The raw header holds the entity of each row, the tick each row was added, and a sparse
-array from entity to row. `Column<T>` holds the values themselves. Removal swaps the last row into the gap.
+Each component class has a column: a sparse set whose bookkeeping is a `ColumnIndex`, found by its dotted class
+name through `Columns`. It holds the entity of each row, the tick each row was added, a sparse list from entity to
+row and each entity's change stamp. `Column<T>` holds the values themselves. Removal swaps the last row into the gap.
 `Column<T>`, `Slot<T>` and `Row<T>` are generic singletons, one per type, so a system's fill is typed code with no
 lookup by name on the hot path.
 
@@ -643,10 +628,8 @@ func update_each(pending: Pending, store: Store) {
 }
 ```
 
-- It never runs inside a stage. Each matching row is copied into a queue during the stage, and after the tick the
-  app starts up to eight `Concurrent` workers per system on the main thread; the scheduler resumes them only
-  between frames (`Scheduler().resume_only_when_asked()` and `run_ready()` at the end of `App.tick()`), so a
-  database round trip never blocks a frame and never interleaves with a stage.
+- It never runs inside a stage. Each matching row is copied into a queue during the stage, and at the end of the
+  tick the runner calls the system on each queued row, one after another, so it never interleaves with a stage.
 - **Its row is a snapshot.** It runs after its frame, when the components may have moved or gone, so it changes the
   world through commands (`entity.add_component(...)`, `world.despawn(...)`), which apply at the next flush.
   A reference-stored component in the row is the stored object itself, so a write to it lands (after the frame).
@@ -658,8 +641,7 @@ func update_each(pending: Pending, store: Store) {
 
 Because the compiler finds every function that can wait, it also catches file reads on the frame path, which the
 no-stutter rule forbids: asset lookups go through `Recipes.Catalog`, which loads the cache index on the pool, and
-shaders through `Recipes.Blobs`. `examples/io_systems` runs three MongoDB lookups with a 200 ms wait each while
-frames keep ticking.
+shaders through `Recipes.Blobs`. `examples/io_systems` runs three MongoDB lookups with a 200 ms wait each.
 
 ---
 

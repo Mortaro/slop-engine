@@ -7,7 +7,7 @@ REPL and hot-reload builds are slower on purpose: they exist to show more while 
 swappable slots, breakpoints, live inspection), not to be fast, so a number measured on one describes the tooling,
 not the engine.
 
-`spite stress --optimized` runs 200,000 entities through `Move` and `Regenerate` in one parallel stage and prints
+`spite stress --optimized` runs 200,000 entities through `Move` and `Regenerate` in one stage and prints
 the tick time; `server_bench`, `stream_bench`, `props_bench` and `animate_bench` measure the server, row streaming,
 static props and skinned characters (see [testing.md](testing.md)).
 
@@ -24,9 +24,9 @@ each system as a `Profile.Entry` (name, phase, stage, runs, and average, last an
  "systems":[...,{"name":"System.Move","phase":"update","stage":1,"runs":20,"average_microseconds":9110,...}]}
 ```
 
-Systems in one stage run in parallel, so a stage takes about as long as its slowest system, not the sum. An IO
-system's time counts only the part on the frame (queueing its rows); the waits on its workers happen off the frame
-and are not in the report.
+Systems in one stage run one after another, so a stage takes the sum of its systems. An IO system's time counts
+only the part inside the stage (queueing its rows); the calls on its queued rows at the end of the tick count in the
+frame, not in the system.
 
 ## Measuring the GPU
 
@@ -68,17 +68,16 @@ ui                    1 us    1 us
   back if the system writes that row.
 - Every field counts, whether or not the system reads it; only markers are skipped. Ask only for the components a
   system uses.
-- Each system in a stage runs on the program's one thread pool; one system's rows are walked on one thread.
 - `Row<T>` is a singleton with per-iteration state, so the compiler guards it, and the runner makes one guarded call
-  per entity. Keep hot-path helpers such as `Raw`, `ColumnHeader` and `Slot<T>` free of state: a singleton that
-  writes its attributes, or holds a plain class field, is guarded on every call.
+  per entity. Keep hot-path helpers such as `Slot<T>` free of state: a singleton that writes its attributes, or
+  holds a plain class field, is guarded on every call.
 - A single-row system streams its driver column: inline items are borrowed in place, with no copy and no reference
   count ([ecs.md](ecs.md#storage)). A row of inline components costs a few tens of nanoseconds; a reference-stored
   component in the row costs several times more, since each one fetched is retained and released.
 
 ## What already helps
 
-- Column storage is raw memory, found once per system, not per entity.
+- A column's `ColumnIndex` is found once per system, not per entity.
 - `Column<T>`, `Slot<T>` and `Row<T>` are generic singletons, so there is no lookup by name on the hot path.
 - Components that fit a `Vector` are stored inline, contiguous in memory, with nothing declared.
 - Markers have no values, fetches or write-backs.
@@ -98,18 +97,15 @@ compiler, or for a lock, and no single frame takes on an unbounded amount of wor
 | Texture memory and upload size | recipes cook textures block-compressed with their mips (BC1 is 1/8 of RGBA8 with GPU mips, BC3, BC5 and BC7 1/4), so a load copies one block and an upload moves the GPU's own bytes |
 | Mesh memory | vertex and index buffers are device-local, filled through the staging buffer. A replaced mesh's old buffers are freed once the frames using them have finished |
 | A new font size | a size's glyph atlas starts at 256² and doubles when full |
-| Freeing big object graphs | a removed component's value moves (as raw bytes, no reference-count change) into its column's buried buffer, and each tick frees at most `app.release_budget` (4,096) of them |
-| Spawning many entities | a spawn copies each inline component straight from its bundle into the column, and a flush that applies 4,096 changes or more has the allocator merge the blocks it freed (the bundles) before it returns, so their cost lands in that flush and not in a later tick |
-| Despawning many entities | removal records are per column in raw memory (a tick-ordered log and a per-entity "last removed" stamp, so `Removed<T>` checks are one read and trimming is O(trimmed)), and each column removes the whole despawn list in one call. Despawning 200,000 entities of 4 components in one tick takes about 22 ms |
+| Spawning many entities | a spawn copies each inline component straight from its bundle into the column |
+| Despawning many entities | removal records are per column (a tick-ordered list and a per-entity "last removed" stamp, so `Removed<T>` checks are one read), and each column removes the whole despawn list in one call |
 | Opening the cache | `store.bin.index` mirrors every record (key, offset, length), so opening the store is one read |
 | Re-cooking a changed source | recipes re-run on a worker, and the engine checks its loaded textures on another; the worst tick while a texture is re-cooked and reloaded is 2 ms |
 
 ## Thread affinity
 
-Only where the data says so. A component that declares `pinned_to_creating_thread()` (the window's `Handle`) keeps
-the systems that touch it on the app's thread; Vulkan has no thread affinity, so drawing runs on the pool. Every
-other system runs on the thread pool, and when no system of a stage is pinned, the app's thread runs one of them
-instead of waiting idle ([ecs.md](ecs.md#components-pinned-to-a-thread)).
+Every system runs on the app's thread, so a component that declares `pinned_to_creating_thread()` (the window's
+`Handle`) is always used on the thread that made it ([ecs.md](ecs.md#components-pinned-to-a-thread)).
 
 ---
 

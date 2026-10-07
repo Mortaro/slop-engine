@@ -275,7 +275,7 @@ Connections are entities. Settings and state are components on the world entity:
 |---|---|---|
 | `input` | `CheckSchema` | on the first tick, hashes every replicated component and crashes if two share a message id |
 | `input` | `Accept` | opens the listener (and the datagram socket, when a component is sent unreliably) and adds `Listening`, accepts every waiting connection |
-| `input` | `Dial` | while there is no `Connected`: starts a connect on the thread pool (adding `Dialing`) and takes its socket once done; a failed dial waits 60 ticks |
+| `input` | `Dial` | while there is no `Connected`: connects (adding `Dialing`) and takes its socket; a failed dial waits 60 ticks |
 | `input` | `ReadDatagrams` | reads every waiting datagram and hands it to the connection its token names |
 | `input` | `FollowServerClock` | moves the game clock by the `ServerClock` offset, where `FollowServerClock` is set |
 | `after_input` | `Receive` | checks the peer's hello, reads every socket and datagram, decodes each frame, mirrors state, spawns arrived messages, answers pings |
@@ -284,8 +284,8 @@ Connections are entities. Settings and state are components on the world entity:
 | `last` | `ForgetOrphanedMessages` | despawns messages whose connection closed (their `Sender` went with it) |
 | `last` | `ForgetObservations` | despawns an observation whose connection closed (its `Observer` went with it) |
 
-Nothing blocks a frame: sockets are non-blocking and are polled once per tick, and the one call that can take
-seconds (a TCP connect to a port nobody listens on) runs on the thread pool.
+Sockets are non-blocking and are polled once per tick; the one call that can take seconds (a TCP connect to a port
+nobody listens on) is a plain call, made from `Dial`, which waits and so runs as an IO system at the end of the tick.
 
 ### A message lives until a handler consumes it
 

@@ -99,7 +99,7 @@ program's grid as `map.grid`.
 | `connected(first, second)` | whether a path can exist between two cells |
 
 `Navigation.Search` finds paths. It keeps scratch tables the size of the grid and reuses them, so a program keeps
-one per thread:
+one and asks it again:
 
 | Call | Does |
 |---|---|
@@ -128,7 +128,7 @@ plugin's systems answer and walk it:
 |---|---|---|
 | `Navigation.Component.Destination` | `position_x`, `position_z` | where the bot wants to go; adding it asks for a path |
 | `Navigation.Component.Speed` | `meters_per_second` (4) | how fast it walks; a bot without one gets its path but stays |
-| `Navigation.Component.Searching` | marker | a search for it is running on the thread pool |
+| `Navigation.Component.Searching` | marker | its path was asked for and is not landed yet |
 | `Navigation.Component.Heading` | link | the waypoint it walks toward |
 | `Navigation.Component.Waypoint` | `position_x`, `position_z` | on a waypoint entity, a child of the bot |
 | `Navigation.Component.Next` | link | on a waypoint: the one after it; the last has none |
@@ -142,15 +142,15 @@ to the one it walks toward with `Heading`. Walking is following a link, which is
 
 | System | Does |
 |---|---|
-| `Navigation.System.RequestPaths` (`update`) | on `Added<Destination>`: clears the bot's old path, `Arrived` and `Unreachable`, adds `Searching`, and hands the requests of the tick to the thread pool in batches (one per pool thread, from 16 to 128 requests each), one `Parallel` each, kept in the `Navigation.Searches` resource |
+| `Navigation.System.RequestPaths` (`update`) | on `Added<Destination>`: clears the bot's old path, `Arrived` and `Unreachable`, adds `Searching`, and answers the requests of the tick as one `Navigation.SearchJob`, whose answers wait in the `Navigation.Searches` resource |
 | `Navigation.System.LandPaths` (`input`) | takes finished batches, up to 512 bots a tick so a burst of answers is spread over ticks: spawns each bot's waypoints and adds `Heading`, or adds `Unreachable`, and removes `Searching`; a result for a destination that has changed since is dropped |
 | `Navigation.System.FollowPaths` (`update`) | moves each bot toward its `Heading` waypoint by its speed times the tick's step, stands it on the grid's height, and on reaching the waypoint heads for the `Next` one, or removes `Heading` and adds `Arrived` |
 | `Navigation.System.CancelPaths` (`update`) | on `Removed<Destination>` (and no new one): despawns the path and removes `Heading`, `Arrived` and `Unreachable` |
 
 A search starts at the walkable cell nearest the bot and ends at the one nearest the destination (within four
-cells); the last waypoint is the destination itself when it lies in a walkable cell. Each search thread keeps its own
-`Navigation.Search` (in a `ThreadLocal`, `Navigation.Searchers`), and reads the grid, which nothing writes while the
-app runs. So a tick never waits for a search: the path lands on a later tick, and the bot has `Searching` meanwhile.
+cells); the last waypoint is the destination itself when it lies in a walkable cell. The searches share one
+`Navigation.Search` (`Navigation.Searchers`) and read the grid, which nothing writes while the app runs. The answers
+land in `LandPaths` on the next tick, and the bot has `Searching` meanwhile.
 
 Replacing a `Destination` that is already there changes its values in place, which `Added` does not see. To send
 a bot somewhere new, remove its `Destination` and add the new one in the same tick: the old path goes and the new
