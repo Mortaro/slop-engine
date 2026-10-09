@@ -1,6 +1,6 @@
 singleton
 
-var meshes = Dictionary<Physics.TriangleMesh>()
+var meshes = Dictionary<String, Physics.TriangleMesh>()
 
 func add(name: String, mesh: Physics.TriangleMesh) {
     meshes[name] = mesh

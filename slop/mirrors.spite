@@ -1,7 +1,7 @@
 singleton
 
-var known = Dictionary<Integer>()
-var remotes = Dictionary<Integer>()
+var known = Dictionary<Integer, Integer>()
+var remotes = Dictionary<Integer, Integer>()
 var world_field = -10
 var receivers_own_first = -100
 var created = List<Integer>()

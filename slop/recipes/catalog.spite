@@ -7,7 +7,7 @@ var loading: Parallel<Recipes.CacheReader>? = null
 var watcher: Recipes.Watcher? = null
 var refreshing: Parallel<Recipes.CacheReader>? = null
 var revision = 0
-var changed_at = Dictionary<Integer>()
+var changed_at = Dictionary<String, Integer>()
 
 func ready(): Boolean {
     if reader {

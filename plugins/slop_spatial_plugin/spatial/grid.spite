@@ -1,6 +1,6 @@
 singleton
 
-var spaces = Dictionary<Spatial.Space>()
+var spaces = Dictionary<Integer, Spatial.Space>()
 var space_list = List<Spatial.Space>()
 var next = List<Integer>()
 var xs = List<Float>()

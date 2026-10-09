@@ -1,10 +1,10 @@
 singleton
 
 var sources = Recipes.Sources()
-var fingerprints = Dictionary<String>()
+var fingerprints = Dictionary<String, String>()
 var store: Recipes.Store? = null
 var loaded = false
-var schemas = Dictionary<Long>()
+var schemas = Dictionary<String, Long>()
 
 func folder(): String {
     return sources.cache_folder()
@@ -108,7 +108,7 @@ func register_asset(asset: Symbol<Asset>) {
 func point_index(id: String, input_fingerprint: String) {
     assert fingerprints[id] != input_fingerprint
     fingerprints[id] = input_fingerprint
-    var json = JsonWriter<Dictionary<String>>()
+    var json = JsonWriter<Dictionary<String, String>>()
     var text = json.write(fingerprints)
     var path = index_path()
     var index = File(path)
@@ -156,7 +156,7 @@ func load_index() {
     var index = File(path)
     var text = index.read()
     assert text
-    var json = JsonReader<Dictionary<String>>()
+    var json = JsonReader<Dictionary<String, String>>()
     var parsed = json.read(text)
     assert parsed
     fingerprints = parsed

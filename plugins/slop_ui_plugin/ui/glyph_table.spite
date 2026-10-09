@@ -1,4 +1,4 @@
-var codes = Dictionary<Integer>()
+var codes = Dictionary<String, Integer>()
 var lefts = List<Integer>()
 var tops = List<Integer>()
 var widths = List<Integer>()

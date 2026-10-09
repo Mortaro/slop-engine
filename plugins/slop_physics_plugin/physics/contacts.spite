@@ -3,7 +3,7 @@ singleton
 var keys = List<Long>()
 var contacts = List<Integer>()
 var seen = List<Integer>()
-var positions = Dictionary<Integer>()
+var positions = Dictionary<Long, Integer>()
 var entered = List<Integer>()
 var left = List<Integer>()
 var stamp = 0

@@ -3,10 +3,10 @@ singleton
 var blobs = Recipes.Blobs()
 var world = World()
 var raw = Raw()
-var faces = Dictionary<TrueType.Face>()
+var faces = Dictionary<String, TrueType.Face>()
 var waiting_faces = List<String>()
-var atlases = Dictionary<Ui.Component.GlyphAtlas>()
-var atlas_entities = Dictionary<Integer>()
+var atlases = Dictionary<String, Ui.Component.GlyphAtlas>()
+var atlas_entities = Dictionary<String, Integer>()
 var atlas_names = List<String>()
 var first_atlas_side = 256
 var largest_atlas_side = 4096

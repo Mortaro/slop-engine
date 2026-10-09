@@ -1,3 +1,3 @@
 var name = ""
 var size = 0
-var fields = Dictionary<Blend.ShapeField>()
+var fields = Dictionary<String, Blend.ShapeField>()

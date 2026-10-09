@@ -10,10 +10,10 @@ type AnyLink {
     unlink()
 }
 
-var headers = Dictionary<ColumnIndex>()
-var releasers = Dictionary<AnyColumn>()
+var headers = Dictionary<String, ColumnIndex>()
+var releasers = Dictionary<String, AnyColumn>()
 var stage_counter = 0
-var removals = Dictionary<Removals>()
+var removals = Dictionary<String, Removals>()
 var links = List<AnyLink>()
 var dead = List<Boolean>()
 
