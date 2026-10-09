@@ -1,6 +1,5 @@
 var kernel = DynamicLibrary("kernel32.dll", 'identity', "")
 var heap = Memory.Heap()
-var raw = Raw()
 var overlapped: Long = 0
 
 func open_lock_file(lock_path: String): Long {
@@ -43,9 +42,10 @@ func close_lock_file() {
 }
 
 func clear_overlapped() {
+    var structure = ForeignBytes(overlapped, 32)
     var offset: Long = 0
     while offset < 32 {
-        raw.write_long(overlapped, offset, 0)
+        structure.write_long(offset, 0)
         offset = offset + 8
     }
 }

@@ -4,7 +4,7 @@ var sources = Recipes.Sources()
 var build = Build()
 var reader: Recipes.CacheReader? = null
 var loading: Parallel<Recipes.CacheReader>? = null
-var watcher: Recipes.Watcher? = null
+var watcher: FileSystemWatcher? = null
 var refreshing: Parallel<Recipes.CacheReader>? = null
 var revision = 0
 var changed_at = Dictionary<String, Integer>()
@@ -44,9 +44,7 @@ func refresh() {
     if not watcher {
         var cache_folder = sources.cache_folder()
         var folders = [cache_folder, build.program]
-        var started = Recipes.Watcher()
-        started.start(folders)
-        watcher = started
+        watcher = watch(folders)
     }
     if refreshing {
         take_refresh()
@@ -54,11 +52,26 @@ func refresh() {
     }
     var watching = watcher
     crash watching
-    assert watching.take_change()
+    var changed = watching.changes()
+    assert not changed.is_empty()
     var cache_folder = sources.cache_folder()
     var index_path = sources.index_path()
     var task = Recipes.IndexLoad(cache_folder, index_path)
     refreshing = Parallel(task.run)
+}
+
+func watch(paths: List<String>): FileSystemWatcher {
+    var watching = FileSystemWatcher()
+    var index = 0
+    while index < paths.count() {
+        var path = paths[index]
+        var directory = Directory(path)
+        var file = File(path)
+        var watched = watching.watch_for_changes(directory) or watching.watch_for_changes(file)
+        crash watched
+        index = index + 1
+    }
+    return watching
 }
 
 func take_refresh() {

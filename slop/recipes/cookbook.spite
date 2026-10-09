@@ -8,7 +8,7 @@ var recipes = List<Buildable>()
 var sources = List<List<String>>()
 var stamps = List<List<String>>()
 var current = -1
-var watcher: Recipes.Watcher? = null
+var watcher: FileSystemWatcher? = null
 
 func cook() {
     cook_recipes()
@@ -49,8 +49,16 @@ func watch() {
         recipe = recipe + 1
     }
     assert folders.count() > 0
-    var started = Recipes.Watcher()
-    started.start(folders)
+    var started = FileSystemWatcher()
+    var index = 0
+    while index < folders.count() {
+        var path = folders[index]
+        var directory = Directory(path)
+        var file = File(path)
+        var watched = started.watch_for_changes(directory) or started.watch_for_changes(file)
+        crash watched
+        index = index + 1
+    }
     watcher = started
 }
 
@@ -76,7 +84,8 @@ func folder_of(path: String): String {
 
 func take_stale(): List<Integer>? {
     assert watcher
-    assert watcher.take_change()
+    var changed = watcher.changes()
+    assert not changed.is_empty()
     return restamp_stale()
 }
 
