@@ -174,7 +174,6 @@ and the click test passed for 5 and 12 clicks.
 
 ## [scene.md](../docs/scene.md)
 
-- Normal, roughness and metallic maps are not read yet.
 - Levels of detail and occlusion culling (2026-10-02), known gaps:
   - every level shares the mesh's full vertex buffer (a level is only indices), so levels cut triangles and vertex
     shading but not vertex memory;
@@ -192,7 +191,20 @@ and the click test passed for 5 and 12 clicks.
     with levels of detail, 16.3 ms with occlusion culling and 0.93 ms with both (4,619 of 7,144 draws hidden, 0.45
     million scene triangles instead of 145 million). Gathering the 3,600 flowers costs about 0.4 ms more CPU with
     occlusion on. The flower cooks into 8 levels in 2.3 s.
-- Dithered fades (Unreal's OccluderDither at a non-zero fade) are not built yet.
+- Materials, known gaps (2026-10-02):
+  - decals land on every surface: there is no per-model opt-out (Unreal's Receives Decals), which needs a stencil
+    bit in the depth buffer; decals have no normal map, angle fade or sort order, and are not time-driven;
+  - a one-sided material on a model with a negative-determinant transform culls its front faces;
+  - translucent sections cast no shadow, are sorted by their model's origin only, and have no refraction or
+    per-pixel lighting order beyond that;
+  - the reader does not follow Bump nodes, a Mix Shader other than Transparent-then-surface, or material custom
+    properties, so the time-driven parameters are set by recipes; Unreal's ambient occlusion input has no Principled
+    BSDF socket, so no occlusion map is read;
+  - one-sided culling is not applied in the shadow pass, which draws both faces of everything;
+  - grass has no `Asset.Material`: its own fragment shader lights it with the default material;
+  - a cached point or spot light tile is not redrawn when a `DitherFade` opacity changes, and temporal
+    anti-aliasing reprojects translucent sections and decals by the opaque depth beneath them.
+MATERIALS_TIMINGS
 - A light that is a child of a moving entity reads only its own position (proposal: follow the parent once
   transforms have a world pass).
 - Point and spot lights, not built yet:

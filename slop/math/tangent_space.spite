@@ -1,0 +1,210 @@
+var sums = List<Float>()
+var signs = List<Integer>()
+var stride = 8
+
+func fill(mesh: Asset.Mesh) {
+    sums.clear()
+    signs.clear()
+    var count = mesh.vertices.count() / stride
+    var vertex = 0
+    while vertex < count {
+        add_vertex_slot()
+        vertex = vertex + 1
+    }
+    var corner = 0
+    while corner + 2 < mesh.indices.count() {
+        add_triangle(mesh, corner)
+        corner = corner + 3
+    }
+    mesh.tangents.clear()
+    count = mesh.vertices.count() / stride
+    vertex = 0
+    while vertex < count {
+        finish(mesh, vertex)
+        vertex = vertex + 1
+    }
+}
+
+func add_vertex_slot() {
+    sums.append(0.0)
+    sums.append(0.0)
+    sums.append(0.0)
+    signs.append(0)
+}
+
+func value(list: List<Float>, index: Integer): Float {
+    crash list[index]
+    return list[index]
+}
+
+func corner_vertex(mesh: Asset.Mesh, corner: Integer): Integer {
+    crash mesh.indices[corner]
+    return mesh.indices[corner]
+}
+
+func add_triangle(mesh: Asset.Mesh, corner: Integer) {
+    var first = corner_vertex(mesh, corner)
+    var second = corner_vertex(mesh, corner + 1)
+    var third = corner_vertex(mesh, corner + 2)
+    var origin_x = value(mesh.vertices, first * stride)
+    var origin_y = value(mesh.vertices, first * stride + 1)
+    var origin_z = value(mesh.vertices, first * stride + 2)
+    var edge_x = value(mesh.vertices, second * stride) - origin_x
+    var edge_y = value(mesh.vertices, second * stride + 1) - origin_y
+    var edge_z = value(mesh.vertices, second * stride + 2) - origin_z
+    var other_x = value(mesh.vertices, third * stride) - origin_x
+    var other_y = value(mesh.vertices, third * stride + 1) - origin_y
+    var other_z = value(mesh.vertices, third * stride + 2) - origin_z
+    var across = value(mesh.vertices, first * stride + 6)
+    var rise = 0.0 - value(mesh.vertices, first * stride + 7)
+    var edge_across = value(mesh.vertices, second * stride + 6) - across
+    var edge_rise = 0.0 - value(mesh.vertices, second * stride + 7) - rise
+    var other_across = value(mesh.vertices, third * stride + 6) - across
+    var other_rise = 0.0 - value(mesh.vertices, third * stride + 7) - rise
+    var area = edge_across * other_rise - other_across * edge_rise
+    assert area.absolute() > 0.000000000001
+    var tangent_x = (edge_x * other_rise - other_x * edge_rise) / area
+    var tangent_y = (edge_y * other_rise - other_y * edge_rise) / area
+    var tangent_z = (edge_z * other_rise - other_z * edge_rise) / area
+    var bitangent_x = (other_x * edge_across - edge_x * other_across) / area
+    var bitangent_y = (other_y * edge_across - edge_y * other_across) / area
+    var bitangent_z = (other_z * edge_across - edge_z * other_across) / area
+    var face_x = edge_y * other_z - edge_z * other_y
+    var face_y = edge_z * other_x - edge_x * other_z
+    var face_z = edge_x * other_y - edge_y * other_x
+    var crossed_x = face_y * tangent_z - face_z * tangent_y
+    var crossed_y = face_z * tangent_x - face_x * tangent_z
+    var crossed_z = face_x * tangent_y - face_y * tangent_x
+    var sign = 1
+    if crossed_x * bitangent_x + crossed_y * bitangent_y + crossed_z * bitangent_z < 0.0 {
+        sign = -1
+    }
+    var place = 0
+    while place < 3 {
+        var at = corner + place
+        var vertex = owned_vertex(mesh, at, sign)
+        var before = corner + (place + 2) % 3
+        var after = corner + (place + 1) % 3
+        var before_vertex = corner_vertex(mesh, before)
+        var after_vertex = corner_vertex(mesh, after)
+        var weight = corner_angle(mesh, vertex, before_vertex, after_vertex)
+        add_projected(mesh, vertex, tangent_x, tangent_y, tangent_z, weight)
+        place = place + 1
+    }
+}
+
+func owned_vertex(mesh: Asset.Mesh, at: Integer, sign: Integer): Integer {
+    var vertex = corner_vertex(mesh, at)
+    crash signs[vertex]
+    var held = signs[vertex]
+    if held == 0 {
+        signs[vertex] = sign
+        return vertex
+    }
+    if held == sign {
+        return vertex
+    }
+    var copy = split_vertex(mesh, vertex)
+    signs[copy] = sign
+    mesh.indices[at] = copy
+    return copy
+}
+
+func split_vertex(mesh: Asset.Mesh, vertex: Integer): Integer {
+    var copy = mesh.vertices.count() / stride
+    var skinned = mesh.joints.count() == copy
+    var index = 0
+    while index < stride {
+        var copied = value(mesh.vertices, vertex * stride + index)
+        mesh.vertices.append(copied)
+        index = index + 1
+    }
+    if skinned {
+        crash mesh.joints[vertex]
+        mesh.joints.append(mesh.joints[vertex])
+        index = 0
+        while index < 4 {
+            var weight = value(mesh.weights, vertex * 4 + index)
+            mesh.weights.append(weight)
+            index = index + 1
+        }
+    }
+    add_vertex_slot()
+    return copy
+}
+
+func corner_angle(mesh: Asset.Mesh, vertex: Integer, before: Integer, after: Integer): Float {
+    var here_x = value(mesh.vertices, vertex * stride)
+    var here_y = value(mesh.vertices, vertex * stride + 1)
+    var here_z = value(mesh.vertices, vertex * stride + 2)
+    var to_before_x = value(mesh.vertices, before * stride) - here_x
+    var to_before_y = value(mesh.vertices, before * stride + 1) - here_y
+    var to_before_z = value(mesh.vertices, before * stride + 2) - here_z
+    var to_after_x = value(mesh.vertices, after * stride) - here_x
+    var to_after_y = value(mesh.vertices, after * stride + 1) - here_y
+    var to_after_z = value(mesh.vertices, after * stride + 2) - here_z
+    var before_length = (to_before_x * to_before_x + to_before_y * to_before_y + to_before_z * to_before_z).square_root()
+    var after_length = (to_after_x * to_after_x + to_after_y * to_after_y + to_after_z * to_after_z).square_root()
+    var lengths = before_length * after_length
+    if lengths < 0.000000000001 {
+        return 0.0
+    }
+    var cosine = (to_before_x * to_after_x + to_before_y * to_after_y + to_before_z * to_after_z) / lengths
+    if cosine > 1.0 {
+        cosine = 1.0
+    }
+    if cosine < -1.0 {
+        cosine = -1.0
+    }
+    return cosine.arc_cosine()
+}
+
+func add_projected(mesh: Asset.Mesh, vertex: Integer, along_x: Float, along_y: Float, along_z: Float, angle: Float) {
+    var normal_x = value(mesh.vertices, vertex * stride + 3)
+    var normal_y = value(mesh.vertices, vertex * stride + 4)
+    var normal_z = value(mesh.vertices, vertex * stride + 5)
+    var toward = along_x * normal_x + along_y * normal_y + along_z * normal_z
+    var flat_x = along_x - normal_x * toward
+    var flat_y = along_y - normal_y * toward
+    var flat_z = along_z - normal_z * toward
+    var length = (flat_x * flat_x + flat_y * flat_y + flat_z * flat_z).square_root()
+    assert length > 0.000000000001
+    var weight = angle / length
+    sums[vertex * 3] = value(sums, vertex * 3) + flat_x * weight
+    sums[vertex * 3 + 1] = value(sums, vertex * 3 + 1) + flat_y * weight
+    sums[vertex * 3 + 2] = value(sums, vertex * 3 + 2) + flat_z * weight
+}
+
+func finish(mesh: Asset.Mesh, vertex: Integer) {
+    var normal_x = value(mesh.vertices, vertex * stride + 3)
+    var normal_y = value(mesh.vertices, vertex * stride + 4)
+    var normal_z = value(mesh.vertices, vertex * stride + 5)
+    var tangent_x = value(sums, vertex * 3)
+    var tangent_y = value(sums, vertex * 3 + 1)
+    var tangent_z = value(sums, vertex * 3 + 2)
+    var toward = tangent_x * normal_x + tangent_y * normal_y + tangent_z * normal_z
+    tangent_x = tangent_x - normal_x * toward
+    tangent_y = tangent_y - normal_y * toward
+    tangent_z = tangent_z - normal_z * toward
+    var length = (tangent_x * tangent_x + tangent_y * tangent_y + tangent_z * tangent_z).square_root()
+    if length < 0.000001 {
+        tangent_x = 1.0 - normal_x * normal_x
+        tangent_y = 0.0 - normal_x * normal_y
+        tangent_z = 0.0 - normal_x * normal_z
+        if normal_x.absolute() > 0.9 {
+            tangent_x = 0.0 - normal_y * normal_x
+            tangent_y = 1.0 - normal_y * normal_y
+            tangent_z = 0.0 - normal_y * normal_z
+        }
+        length = (tangent_x * tangent_x + tangent_y * tangent_y + tangent_z * tangent_z).square_root()
+    }
+    mesh.tangents.append(tangent_x / length)
+    mesh.tangents.append(tangent_y / length)
+    mesh.tangents.append(tangent_z / length)
+    crash signs[vertex]
+    var sign: Float = 1.0
+    if signs[vertex] < 0 {
+        sign = -1.0
+    }
+    mesh.tangents.append(sign)
+}

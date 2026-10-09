@@ -189,16 +189,24 @@ vec3 local_radiance(Surface surface, vec3 position) {
     return radiance;
 }
 
-// material_terms: roughness, specular, metallic
-vec4 lit_color(vec3 base, vec3 surface_normal, vec3 material_terms) {
+// The sky light's share of the last lit_radiance, which finished writes to ambient_color.
+vec3 sky_share = vec3(0.0);
+
+// The surface normal turned toward the eye, so both faces of a two-sided surface are lit.
+vec3 facing_normal(vec3 surface_normal, vec3 position) {
+    vec3 normal = normalize(surface_normal);
+    if (dot(normal, lighting.eye.xyz - position) < 0.0) {
+        normal = -normal;
+    }
+    return normal;
+}
+
+// material_terms: roughness, specular, metallic; the normal is unit length and faces the eye.
+vec3 lit_radiance(vec3 base, vec3 normal, vec3 material_terms, vec3 position) {
     float roughness = material_terms.x;
     float specular = material_terms.y;
     float metallic = material_terms.z;
-    vec3 normal = normalize(surface_normal);
-    vec3 toward_eye = normalize(lighting.eye.xyz - world_position);
-    if (dot(normal, toward_eye) < 0.0) {
-        normal = -normal;
-    }
+    vec3 toward_eye = normalize(lighting.eye.xyz - position);
     vec3 diffuse_color = base * (1.0 - metallic);
     vec3 specular_color = mix(vec3(0.08 * specular), base, metallic);
     float at_grazing = clamp(50.0 * specular_color.g, 0.0, 1.0);
@@ -208,16 +216,30 @@ vec4 lit_color(vec3 base, vec3 surface_normal, vec3 material_terms) {
     vec3 toward_light = normalize(lighting.sun_toward.xyz);
     vec3 radiance = vec3(0.0);
     if (dot(normal, toward_light) > 0.0) {
-        radiance = reflectance(surface, toward_light) * sun_visibility(world_position, normal) * lighting.sun_radiance.rgb;
+        radiance = reflectance(surface, toward_light) * sun_visibility(position, normal) * lighting.sun_radiance.rgb;
     }
-    radiance += local_radiance(surface, world_position);
+    radiance += local_radiance(surface, position);
     float upness = normal.y * 0.5 + 0.5;
     vec3 ambient = mix(lighting.ground_radiance.rgb, lighting.sky_radiance.rgb, upness);
     vec3 sky_light = (diffuse_color + specular_color * 0.25) * ambient;
+    sky_share = sky_light;
     radiance += sky_light;
-    float depth = fog_optical_depth(lighting.eye.xyz, world_position);
+    return radiance;
+}
+
+// Fog over the path from the eye: the radiance that reaches the eye, and the sky light share in ambient_color,
+// fogged alike so ambient occlusion takes back only what is left of it.
+vec4 finished(vec3 radiance, vec3 position, float coverage) {
+    float depth = fog_optical_depth(lighting.eye.xyz, position);
     float transmittance = exp(-depth);
-    ambient_color = vec4(min(sky_light * transmittance, vec3(60000.0)), 1.0);
-    radiance = radiance * transmittance + lighting.sky_radiance.rgb * (1.0 - transmittance);
-    return vec4(min(radiance, vec3(60000.0)), 1.0);
+    ambient_color = vec4(min(sky_share * transmittance, vec3(60000.0)), coverage);
+    vec3 fogged = radiance * transmittance + lighting.sky_radiance.rgb * (1.0 - transmittance);
+    return vec4(min(fogged, vec3(60000.0)), coverage);
+}
+
+// material_terms: roughness, specular, metallic
+vec4 lit_color(vec3 base, vec3 surface_normal, vec3 material_terms) {
+    vec3 normal = facing_normal(surface_normal, world_position);
+    vec3 radiance = lit_radiance(base, normal, material_terms, world_position);
+    return finished(radiance, world_position, 1.0);
 }

@@ -956,6 +956,7 @@ func write_records(drawn: Scene.DrawSet, draws_at: Long, base: Integer) {
             masked = 1
         }
         raw.write_integer(record_at, 68, masked)
+        floats.write_value(record_at, 18, draw.fade)
         index = index + 1
     }
 }
@@ -1158,16 +1159,20 @@ func record_view(
         crash run_records[run]
         crash run_instances[run]
         var draw = draw_of(drawn, run_draws[run])
-        owner.record_instances(
-            renderer,
-            draw.mesh_slot,
-            draw.first_index,
-            draw.index_count,
-            draw.texture_slot,
-            record_base + run_records[run],
-            run_instances[run],
-            matrix,
-        )
+        if owner.mesh_uploaded(draw.mesh_slot) {
+            var culled = false
+            owner.materials.bind(renderer, owner.pipeline_layout, draw, drawn.seconds, culled)
+            owner.push_and_draw(
+                renderer,
+                draw.mesh_slot,
+                draw.first_index,
+                draw.index_count,
+                record_base + run_records[run],
+                run_instances[run],
+                matrix,
+                owner.pipeline_layout,
+            )
+        }
         run = run + 1
     }
     var cell = view_first_cells[view]
@@ -1399,15 +1404,7 @@ func create_pipeline(renderer: RenderVulkan.Renderer, owner: SceneVulkan.MeshRen
     blend.append_float(0.0)
     blend.append_float(0.0)
     blend.append_float(0.0)
-    var dynamic_states = RenderVulkan.Structure(8)
-    dynamic_states.append_integer(0)
-    dynamic_states.append_integer(1)
-    var dynamic = RenderVulkan.Structure(32)
-    dynamic.append_integer(27)
-    dynamic.append_long(0)
-    dynamic.append_integer(0)
-    dynamic.append_integer(2)
-    dynamic.append_pointer(dynamic_states)
+    var dynamic = owner.cull_dynamic_state()
     var description = RenderVulkan.Structure(160)
     description.append_integer(28)
     description.append_pointer(rendering)

@@ -15,6 +15,7 @@ var meshes = Scene.Meshes()
 
 var off_views = Lookup<Component.OffView>()
 var skins = Lookup<Component.Skin>()
+var fades = Lookup<Component.DitherFade>()
 var draws = Scene.Draws()
 var lights = Scene.Lights()
 var no_palette = List<Matrix4>()
@@ -70,6 +71,11 @@ func add_draw(target: Target, modeled: Modeled) {
             index = index + 1
         }
     }
+    var fade: Float = 1.0
+    var faded = fades.of(modeled.entity.id)
+    if faded {
+        fade = faded.opacity
+    }
     var section = 0
     while section * 3 + 2 < loaded.sections.count() {
         var draw = Scene.Draw()
@@ -82,6 +88,7 @@ func add_draw(target: Target, modeled: Modeled) {
         draw.radius = radius
         draw.detail_level = level
         draw.occluded = occluded
+        draw.fade = fade
         add_section(drawn, loaded, draw, section, in_view)
         section = section + 1
     }
@@ -99,12 +106,23 @@ func add_section(drawn: Scene.DrawSet, loaded: Scene.LoadedMesh, draw: Scene.Dra
     details.narrow(draw, loaded, section_count)
     assert draw.index_count > 0
     var material = loaded.sections[at + 2]
+    draw.material = material
     draw.masked = loaded.masked_materials.contains(material)
     if material < loaded.textures.count() {
         var texture = loaded.textures[material]
         if not texture.is_empty() {
             draw.texture_slot = textures.request(texture)
         }
+    }
+    var settings = loaded.materials[material]
+    if settings {
+        draw.translucent = settings.translucent
+    }
+    if draw.translucent {
+        if in_view and not draw.occluded {
+            drawn.translucent_draws.append(draw)
+        }
+        return
     }
     if in_view {
         drawn.draws.append(draw)

@@ -553,6 +553,62 @@ func attachment(
     return description
 }
 
+func color_pair(
+    first_view: Long,
+    second_view: Long,
+    image_layout: Integer,
+    load_operation: Integer,
+    store_operation: Integer,
+): RenderVulkan.Structure {
+    var pair = RenderVulkan.Structure(144)
+    var views = List<Long>()
+    views.append(first_view)
+    views.append(second_view)
+    var index = 0
+    while index < views.count() {
+        pair.align(8)
+        pair.append_integer(1000044001)
+        pair.append_long(0)
+        pair.append_long(views[index])
+        pair.append_integer(image_layout)
+        pair.append_integer(0)
+        pair.append_long(0)
+        pair.append_integer(0)
+        pair.append_integer(load_operation)
+        pair.append_integer(store_operation)
+        pair.append_float(0.0)
+        pair.append_float(0.0)
+        pair.append_float(0.0)
+        pair.append_float(0.0)
+        index = index + 1
+    }
+    return pair
+}
+
+func begin_rendering_pair(
+    renderer: RenderVulkan.Renderer,
+    width: Integer,
+    height: Integer,
+    colors: RenderVulkan.Structure,
+    depth_address: Long,
+) {
+    var rendering = RenderVulkan.Structure(80)
+    rendering.append_integer(1000044000)
+    rendering.append_long(0)
+    rendering.append_integer(0)
+    rendering.append_integer(0)
+    rendering.append_integer(0)
+    rendering.append_integer(width)
+    rendering.append_integer(height)
+    rendering.append_integer(1)
+    rendering.append_integer(0)
+    rendering.append_integer(2)
+    rendering.append_pointer(colors)
+    rendering.append_long(depth_address)
+    rendering.append_long(0)
+    vulkan.vkCmdBeginRendering(renderer.frame.command_buffer, rendering.address)
+}
+
 func begin_rendering(
     renderer: RenderVulkan.Renderer,
     width: Integer,

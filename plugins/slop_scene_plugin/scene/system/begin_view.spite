@@ -11,6 +11,7 @@ var cameras = Lookup<Component.ViewCamera>()
 var occlusion_cullings = Lookup<Component.OcclusionCulling>()
 var forced_levels = Lookup<Component.ForcedDetailLevel>()
 var draws = Scene.Draws()
+var world = World()
 
 func prepare_each(target: Target, viewing: Viewing) {
     var view = target.view
@@ -18,6 +19,8 @@ func prepare_each(target: Target, viewing: Viewing) {
     var drawn = draws.of(owner.id)
     drawn.begin()
     switch_culling(drawn, owner)
+    var milliseconds: Double = world.now()
+    drawn.seconds = milliseconds / 1000.0
     var existing = cameras.of(owner.id)
     if existing {
         existing.look_through(viewing.camera)

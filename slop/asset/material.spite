@@ -1,0 +1,45 @@
+var base_red: Float = 1.0
+var base_green: Float = 1.0
+var base_blue: Float = 1.0
+var normal = ""
+var normal_strength: Float = 1.0
+var roughness: Float = 0.7
+var roughness_map = ""
+var roughness_channel = 0
+var metallic: Float = 0.0
+var metallic_map = ""
+var metallic_channel = 0
+var specular: Float = 0.5
+var emissive_red: Float = 0.0
+var emissive_green: Float = 0.0
+var emissive_blue: Float = 0.0
+var emissive_map = ""
+var opacity: Float = 1.0
+var opacity_map = ""
+var opacity_channel = 3
+var opacity_from_base = false
+var two_sided = true
+var unlit = false
+var translucent = false
+var scroll_across: Float = 0.0
+var scroll_down: Float = 0.0
+var pulse_speed: Float = 0.0
+var pulse_minimum: Float = 1.0
+
+func rename_map(image: String, id: String) {
+    if normal == image {
+        normal = id
+    }
+    if roughness_map == image {
+        roughness_map = id
+    }
+    if metallic_map == image {
+        metallic_map = id
+    }
+    if emissive_map == image {
+        emissive_map = id
+    }
+    if opacity_map == image {
+        opacity_map = id
+    }
+}

@@ -1,0 +1,370 @@
+var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
+var raw = Raw()
+var floats = TypedMemory<Float>()
+var meshes = Scene.Meshes()
+var textures = Render.Textures()
+var layout: Long = 0
+var pool: Long = 0
+var default_set: Long = 0
+var bindings = 6
+var sections_per_mesh = 64
+var sets = List<Long>()
+var views = List<Long>()
+var map_slots = List<Integer>()
+var generations = List<Integer>()
+var ready_maps = 0
+var retired_sets = List<Long>()
+var retired_at = List<Integer>()
+var painted = Asset.Material()
+var cull_none = 0
+var cull_back = 2
+
+func create(renderer: RenderVulkan.Renderer) {
+    var no_allocator: Long = 0
+    var described = RenderVulkan.Structure(24 * bindings)
+    var binding = 0
+    while binding < bindings {
+        described.append_integer(binding)
+        described.append_integer(1)
+        described.append_integer(1)
+        described.append_integer(16)
+        described.append_long(0)
+        binding = binding + 1
+    }
+    var layout_creation = RenderVulkan.Structure(32)
+    layout_creation.append_integer(32)
+    layout_creation.append_long(0)
+    layout_creation.append_integer(0)
+    layout_creation.append_integer(bindings)
+    layout_creation.append_pointer(described)
+    var made = RenderVulkan.Structure(8)
+    var layout_result = vulkan.vkCreateDescriptorSetLayout(
+        renderer.device,
+        layout_creation.address,
+        no_allocator,
+        made.address,
+    )
+    crash layout_result == 0
+    layout = made.read_long(0)
+    var sizes = RenderVulkan.Structure(8)
+    sizes.append_integer(1)
+    sizes.append_integer(4096 * bindings)
+    var pool_creation = RenderVulkan.Structure(40)
+    pool_creation.append_integer(33)
+    pool_creation.append_long(0)
+    var free_descriptor_set = 1
+    pool_creation.append_integer(free_descriptor_set)
+    pool_creation.append_integer(4096)
+    pool_creation.append_integer(1)
+    pool_creation.append_pointer(sizes)
+    var pool_result = vulkan.vkCreateDescriptorPool(renderer.device, pool_creation.address, no_allocator, made.address)
+    crash pool_result == 0
+    pool = made.read_long(0)
+    var whites = List<Long>()
+    while whites.count() < bindings {
+        whites.append(renderer.white_view)
+    }
+    default_set = allocate(renderer, whites)
+}
+
+func allocate(renderer: RenderVulkan.Renderer, chosen: List<Long>): Long {
+    var layouts = RenderVulkan.Structure(8)
+    layouts.append_long(layout)
+    var allocation = RenderVulkan.Structure(40)
+    allocation.append_integer(34)
+    allocation.append_long(0)
+    allocation.append_long(pool)
+    allocation.append_integer(1)
+    allocation.append_pointer(layouts)
+    var made = RenderVulkan.Structure(8)
+    var result = vulkan.vkAllocateDescriptorSets(renderer.device, allocation.address, made.address)
+    var material_descriptor_pool_has_room = result == 0
+    crash material_descriptor_pool_has_room
+    var set = made.read_long(0)
+    var images = RenderVulkan.Structure(24 * bindings)
+    var writes = RenderVulkan.Structure(64 * bindings)
+    var binding = 0
+    while binding < bindings {
+        crash chosen[binding]
+        images.append_long(renderer.scene_sampler)
+        images.append_long(chosen[binding])
+        images.append_integer(5)
+        binding = binding + 1
+    }
+    binding = 0
+    while binding < bindings {
+        writes.append_integer(35)
+        writes.append_long(0)
+        writes.append_long(set)
+        writes.append_integer(binding)
+        writes.append_integer(0)
+        writes.append_integer(1)
+        writes.append_integer(1)
+        var image_at: Long = images.address + binding * 24
+        writes.append_long(image_at)
+        writes.append_long(0)
+        writes.append_long(0)
+        binding = binding + 1
+    }
+    var no_copies: Long = 0
+    vulkan.vkUpdateDescriptorSets(renderer.device, bindings, writes.address, 0, no_copies)
+    return set
+}
+
+func settings_of(mesh_slot: Integer, material: Integer): Asset.Material {
+    var loaded = meshes.mesh_at(mesh_slot)
+    var found = loaded.materials[material]
+    if found {
+        return found
+    }
+    return painted
+}
+
+func ensure_key(key: Integer) {
+    while sets.count() <= key {
+        sets.append(0)
+        generations.append(0)
+        var index = 0
+        while index < bindings {
+            views.append(0)
+            index = index + 1
+        }
+        index = 0
+        while index < bindings - 1 {
+            map_slots.append(-1)
+            index = index + 1
+        }
+    }
+}
+
+func resolve_maps(key: Integer, settings: Asset.Material) {
+    var ids = List<String>()
+    ids.append(settings.normal)
+    ids.append(settings.roughness_map)
+    ids.append(settings.metallic_map)
+    ids.append(settings.emissive_map)
+    ids.append(settings.opacity_map)
+    var index = 0
+    while index < ids.count() {
+        var id = ids[index]
+        var slot = -1
+        if not id.is_empty() {
+            slot = textures.request(id)
+        }
+        map_slots[key * (bindings - 1) + index] = slot
+        index = index + 1
+    }
+}
+
+func view_or_white(renderer: RenderVulkan.Renderer, slot: Integer): Long {
+    var view = renderer.texture_view(slot)
+    if view == 0 {
+        return renderer.white_view
+    }
+    return view
+}
+
+func set_for(renderer: RenderVulkan.Renderer, draw: Scene.Draw): Long {
+    var settings = settings_of(draw.mesh_slot, draw.material)
+    var section_fits = draw.material < sections_per_mesh
+    crash section_fits
+    var key = draw.mesh_slot * sections_per_mesh + draw.material
+    ensure_key(key)
+    var generation = meshes.generation(draw.mesh_slot)
+    crash generations[key]
+    if generations[key] != generation {
+        resolve_maps(key, settings)
+        generations[key] = generation
+    }
+    var wanted = List<Long>()
+    var base_view = view_or_white(renderer, draw.texture_slot)
+    wanted.append(base_view)
+    ready_maps = 0
+    var changed = false
+    var index = 0
+    while index < bindings - 1 {
+        crash map_slots[key * (bindings - 1) + index]
+        var slot = map_slots[key * (bindings - 1) + index]
+        var view = renderer.white_view
+        if slot >= 0 {
+            var resident = renderer.texture_view(slot)
+            if resident != 0 {
+                view = resident
+                var bit = 1
+                bit = bit.shifted_left(index)
+                ready_maps = ready_maps.bits_or(bit)
+            }
+        }
+        wanted.append(view)
+        index = index + 1
+    }
+    index = 0
+    while index < bindings {
+        crash views[key * bindings + index]
+        crash wanted[index]
+        if views[key * bindings + index] != wanted[index] {
+            changed = true
+        }
+        index = index + 1
+    }
+    crash sets[key]
+    if not changed and sets[key] != 0 {
+        return sets[key]
+    }
+    if sets[key] != 0 {
+        retired_sets.append(sets[key])
+        retired_at.append(renderer.frame_number)
+    }
+    var set = allocate(renderer, wanted)
+    sets[key] = set
+    index = 0
+    while index < bindings {
+        crash wanted[index]
+        views[key * bindings + index] = wanted[index]
+        index = index + 1
+    }
+    return set
+}
+
+func is_lean(draw: Scene.Draw): Boolean {
+    var settings = settings_of(draw.mesh_slot, draw.material)
+    var maps = settings.normal.is_empty() and settings.roughness_map.is_empty() and settings.metallic_map.is_empty()
+    maps = maps and settings.emissive_map.is_empty() and settings.opacity_map.is_empty()
+    return maps and not settings.unlit
+}
+
+func bind(renderer: RenderVulkan.Renderer, pipeline_layout: Long, draw: Scene.Draw, seconds: Double, culled: Boolean) {
+    var settings = settings_of(draw.mesh_slot, draw.material)
+    var set = set_for(renderer, draw)
+    bind_set(renderer, pipeline_layout, set)
+    push(renderer, pipeline_layout, settings, draw.masked, seconds)
+    var cull = cull_none
+    if culled and not settings.two_sided {
+        cull = cull_back
+    }
+    vulkan.vkCmdSetCullMode(renderer.frame.command_buffer, cull)
+}
+
+func bind_default(renderer: RenderVulkan.Renderer, pipeline_layout: Long) {
+    bind_set(renderer, pipeline_layout, default_set)
+    ready_maps = 0
+    push(renderer, pipeline_layout, painted, false, 0.0)
+    vulkan.vkCmdSetCullMode(renderer.frame.command_buffer, cull_none)
+}
+
+func bind_set(renderer: RenderVulkan.Renderer, pipeline_layout: Long, set: Long) {
+    var chosen = RenderVulkan.Structure(8)
+    chosen.append_long(set)
+    var no_offsets: Long = 0
+    vulkan.vkCmdBindDescriptorSets(
+        renderer.frame.command_buffer,
+        0,
+        pipeline_layout,
+        0,
+        1,
+        chosen.address,
+        0,
+        no_offsets,
+    )
+}
+
+func flags_of(settings: Asset.Material, masked: Boolean): Integer {
+    var flags = ready_maps
+    var opacity_channel = settings.opacity_channel
+    if settings.opacity_from_base {
+        flags = flags.bits_or(32)
+    }
+    var opacity_has_a_source = flags.bits_and(48) != 0
+    if masked and not opacity_has_a_source {
+        flags = flags.bits_or(32)
+        opacity_channel = 3
+    }
+    if settings.unlit {
+        flags = flags.bits_or(64)
+    }
+    if settings.translucent {
+        flags = flags.bits_or(128)
+    }
+    var roughness_channel = settings.roughness_channel.bits_and(3)
+    var metallic_channel = settings.metallic_channel.bits_and(3)
+    var opacity_bits = opacity_channel.bits_and(3)
+    var roughness_bits = roughness_channel.shifted_left(8)
+    var metallic_bits = metallic_channel.shifted_left(10)
+    var opacity_shifted = opacity_bits.shifted_left(12)
+    flags = flags.bits_or(roughness_bits)
+    flags = flags.bits_or(metallic_bits)
+    flags = flags.bits_or(opacity_shifted)
+    return flags
+}
+
+func cycle(seconds: Double, rate: Float): Float {
+    var turns: Double = seconds * rate
+    var whole = turns.floor()
+    var part: Float = turns - whole
+    return part
+}
+
+func push(
+    renderer: RenderVulkan.Renderer,
+    pipeline_layout: Long,
+    settings: Asset.Material,
+    masked: Boolean,
+    seconds: Double,
+) {
+    var constants = RenderVulkan.Structure(60)
+    var flags = flags_of(settings, masked)
+    raw.write_integer(constants.address, 0, flags)
+    var opacity = settings.opacity
+    if settings.pulse_speed != 0.0 {
+        var phase = cycle(seconds, settings.pulse_speed)
+        var swing = 0.5 + 0.5 * (phase * 6.2831853).sine()
+        opacity = opacity * (settings.pulse_minimum + (1.0 - settings.pulse_minimum) * swing)
+    }
+    var at = constants.address
+    floats.write_value(at, 1, settings.normal_strength)
+    floats.write_value(at, 2, opacity)
+    floats.write_value(at, 3, settings.base_red)
+    floats.write_value(at, 4, settings.base_green)
+    floats.write_value(at, 5, settings.base_blue)
+    floats.write_value(at, 6, settings.roughness)
+    floats.write_value(at, 7, settings.emissive_red)
+    floats.write_value(at, 8, settings.emissive_green)
+    floats.write_value(at, 9, settings.emissive_blue)
+    floats.write_value(at, 10, settings.metallic)
+    var across = cycle(seconds, settings.scroll_across)
+    var down = cycle(seconds, settings.scroll_down)
+    floats.write_value(at, 11, across)
+    floats.write_value(at, 12, down)
+    floats.write_value(at, 13, settings.specular)
+    floats.write_value(at, 14, 0.0)
+    var fragment_stage = 16
+    vulkan.vkCmdPushConstants(renderer.frame.command_buffer, pipeline_layout, fragment_stage, 68, 60, at)
+}
+
+func release_retired(renderer: RenderVulkan.Renderer) {
+    var index = retired_sets.count() - 1
+    while index >= 0 {
+        crash retired_at[index]
+        if retired_at[index] + renderer.frames_in_flight < renderer.frame_number {
+            crash retired_sets[index]
+            var freed = RenderVulkan.Structure(8)
+            freed.append_long(retired_sets[index])
+            vulkan.vkFreeDescriptorSets(renderer.device, pool, 1, freed.address)
+            retired_sets.remove_at(index)
+            retired_at.remove_at(index)
+        }
+        index = index - 1
+    }
+}
+
+func release(renderer: RenderVulkan.Renderer) {
+    var no_allocator: Long = 0
+    vulkan.vkDestroyDescriptorPool(renderer.device, pool, no_allocator)
+    vulkan.vkDestroyDescriptorSetLayout(renderer.device, layout, no_allocator)
+    sets.clear()
+    views.clear()
+    map_slots.clear()
+    generations.clear()
+    retired_sets.clear()
+    retired_at.clear()
+}

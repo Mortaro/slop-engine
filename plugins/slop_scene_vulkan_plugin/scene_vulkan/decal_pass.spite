@@ -1,0 +1,398 @@
+var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
+var floats = TypedMemory<Float>()
+var builder = SceneVulkan.PipelineBuilder()
+var shader_vertex: Long = 0
+var shader_fragment: Long = 0
+var set_layout: Long = 0
+var pipeline_layout: Long = 0
+var pipeline: Long = 0
+var pool: Long = 0
+var frame_sets = List<Long>()
+var buffers = List<Long>()
+var memories = List<Long>()
+var mapped = List<Long>()
+var capacities = List<Integer>()
+var written_depth = List<Long>()
+var stride = 160
+var cull_front = 1
+
+func create(renderer: RenderVulkan.Renderer, owner: SceneVulkan.MeshRenderer) {
+    shader_vertex = renderer.create_shader("shader.decal.vertex")
+    shader_fragment = renderer.create_shader("shader.decal.fragment")
+    var no_allocator: Long = 0
+    var bindings = RenderVulkan.Structure(48)
+    bindings.append_integer(0)
+    bindings.append_integer(1)
+    bindings.append_integer(1)
+    bindings.append_integer(16)
+    bindings.append_long(0)
+    bindings.append_integer(1)
+    bindings.append_integer(7)
+    bindings.append_integer(1)
+    bindings.append_integer(17)
+    bindings.append_long(0)
+    var layout_creation = RenderVulkan.Structure(32)
+    layout_creation.append_integer(32)
+    layout_creation.append_long(0)
+    layout_creation.append_integer(0)
+    layout_creation.append_integer(2)
+    layout_creation.append_pointer(bindings)
+    var made = RenderVulkan.Structure(8)
+    var layout_result = vulkan.vkCreateDescriptorSetLayout(
+        renderer.device,
+        layout_creation.address,
+        no_allocator,
+        made.address,
+    )
+    crash layout_result == 0
+    set_layout = made.read_long(0)
+    var frames = renderer.frames_in_flight
+    var sizes = RenderVulkan.Structure(16)
+    sizes.append_integer(1)
+    sizes.append_integer(frames)
+    sizes.append_integer(7)
+    sizes.append_integer(frames)
+    var pool_creation = RenderVulkan.Structure(40)
+    pool_creation.append_integer(33)
+    pool_creation.append_long(0)
+    pool_creation.append_integer(0)
+    pool_creation.append_integer(frames)
+    pool_creation.append_integer(2)
+    pool_creation.append_pointer(sizes)
+    var pool_result = vulkan.vkCreateDescriptorPool(renderer.device, pool_creation.address, no_allocator, made.address)
+    crash pool_result == 0
+    pool = made.read_long(0)
+    var slot = 0
+    while slot < frames {
+        allocate_frame_slot(renderer)
+        slot = slot + 1
+    }
+    create_layout(renderer, owner.storage_layout)
+    pipeline = create_pipeline(renderer, owner)
+}
+
+func allocate_frame_slot(renderer: RenderVulkan.Renderer) {
+    var layouts = RenderVulkan.Structure(8)
+    layouts.append_long(set_layout)
+    var allocation = RenderVulkan.Structure(40)
+    allocation.append_integer(34)
+    allocation.append_long(0)
+    allocation.append_long(pool)
+    allocation.append_integer(1)
+    allocation.append_pointer(layouts)
+    var made = RenderVulkan.Structure(8)
+    var result = vulkan.vkAllocateDescriptorSets(renderer.device, allocation.address, made.address)
+    crash result == 0
+    var set = made.read_long(0)
+    frame_sets.append(set)
+    buffers.append(0)
+    memories.append(0)
+    mapped.append(0)
+    capacities.append(0)
+    written_depth.append(0)
+}
+
+func create_layout(renderer: RenderVulkan.Renderer, storage_layout: Long) {
+    var no_allocator: Long = 0
+    var set_layouts = RenderVulkan.Structure(24)
+    set_layouts.append_long(set_layout)
+    set_layouts.append_long(storage_layout)
+    set_layouts.append_long(renderer.descriptor_layout)
+    var push_range = RenderVulkan.Structure(12)
+    var vertex_and_fragment = 17
+    push_range.append_integer(vertex_and_fragment)
+    push_range.append_integer(0)
+    push_range.append_integer(128)
+    var creation = RenderVulkan.Structure(48)
+    creation.append_integer(30)
+    creation.append_long(0)
+    creation.append_integer(0)
+    creation.append_integer(3)
+    creation.append_pointer(set_layouts)
+    creation.append_integer(1)
+    creation.append_pointer(push_range)
+    var made = RenderVulkan.Structure(8)
+    var result = vulkan.vkCreatePipelineLayout(renderer.device, creation.address, no_allocator, made.address)
+    crash result == 0
+    pipeline_layout = made.read_long(0)
+}
+
+func create_pipeline(renderer: RenderVulkan.Renderer, owner: SceneVulkan.MeshRenderer): Long {
+    var formats = RenderVulkan.Structure(8)
+    formats.append_integer(97)
+    formats.append_integer(owner.post.ambient_format)
+    var rendering = RenderVulkan.Structure(40)
+    rendering.append_integer(1000044002)
+    rendering.append_long(0)
+    rendering.append_integer(0)
+    rendering.append_integer(2)
+    rendering.append_pointer(formats)
+    rendering.append_integer(0)
+    rendering.append_integer(0)
+    var stages = RenderVulkan.Structure(96)
+    stages.append_integer(18)
+    stages.append_long(0)
+    stages.append_integer(0)
+    stages.append_integer(1)
+    stages.append_long(shader_vertex)
+    stages.append_text("main")
+    stages.append_long(0)
+    stages.append_integer(18)
+    stages.append_long(0)
+    stages.append_integer(0)
+    stages.append_integer(16)
+    stages.append_long(shader_fragment)
+    stages.append_text("main")
+    stages.append_long(0)
+    var vertex_input = RenderVulkan.Structure(48)
+    vertex_input.append_integer(19)
+    vertex_input.append_long(0)
+    vertex_input.append_integer(0)
+    vertex_input.append_integer(0)
+    vertex_input.append_long(0)
+    vertex_input.append_integer(0)
+    vertex_input.append_long(0)
+    var assembly = RenderVulkan.Structure(32)
+    assembly.append_integer(20)
+    assembly.append_long(0)
+    assembly.append_integer(0)
+    assembly.append_integer(3)
+    assembly.append_integer(0)
+    var viewport = RenderVulkan.Structure(48)
+    viewport.append_integer(22)
+    viewport.append_long(0)
+    viewport.append_integer(0)
+    viewport.append_integer(1)
+    viewport.append_long(0)
+    viewport.append_integer(1)
+    viewport.append_long(0)
+    var rasterization = RenderVulkan.Structure(64)
+    rasterization.append_integer(23)
+    rasterization.append_long(0)
+    rasterization.append_integer(0)
+    rasterization.append_integer(0)
+    rasterization.append_integer(0)
+    rasterization.append_integer(0)
+    rasterization.append_integer(cull_front)
+    rasterization.append_integer(0)
+    rasterization.append_integer(0)
+    rasterization.append_float(0.0)
+    rasterization.append_float(0.0)
+    rasterization.append_float(0.0)
+    rasterization.append_float(1.0)
+    var multisample = RenderVulkan.Structure(48)
+    multisample.append_integer(24)
+    multisample.append_long(0)
+    multisample.append_integer(0)
+    multisample.append_integer(1)
+    multisample.append_integer(0)
+    multisample.append_float(0.0)
+    multisample.append_long(0)
+    multisample.append_integer(0)
+    multisample.append_integer(0)
+    var blend = owner.blended_state()
+    var dynamic_states = RenderVulkan.Structure(8)
+    dynamic_states.append_integer(0)
+    dynamic_states.append_integer(1)
+    var dynamic = RenderVulkan.Structure(32)
+    dynamic.append_integer(27)
+    dynamic.append_long(0)
+    dynamic.append_integer(0)
+    dynamic.append_integer(2)
+    dynamic.append_pointer(dynamic_states)
+    var description = RenderVulkan.Structure(160)
+    description.append_integer(28)
+    description.append_pointer(rendering)
+    description.append_integer(0)
+    description.append_integer(2)
+    description.append_pointer(stages)
+    description.append_pointer(vertex_input)
+    description.append_pointer(assembly)
+    description.append_long(0)
+    description.append_pointer(viewport)
+    description.append_pointer(rasterization)
+    description.append_pointer(multisample)
+    description.append_long(0)
+    description.append_pointer(blend)
+    description.append_pointer(dynamic)
+    description.append_long(pipeline_layout)
+    description.append_long(0)
+    description.append_integer(0)
+    description.append_long(0)
+    description.append_integer(-1)
+    var no_cache: Long = 0
+    var no_allocator: Long = 0
+    var made = RenderVulkan.Structure(8)
+    var result = vulkan.vkCreateGraphicsPipelines(
+        renderer.device,
+        no_cache,
+        1,
+        description.address,
+        no_allocator,
+        made.address,
+    )
+    crash result == 0
+    return made.read_long(0)
+}
+
+func ensure_buffer(renderer: RenderVulkan.Renderer, slot: Integer, count: Integer) {
+    crash capacities[slot]
+    assert count > capacities[slot]
+    crash buffers[slot]
+    crash memories[slot]
+    var no_allocator: Long = 0
+    if buffers[slot] != 0 {
+        vulkan.vkDestroyBuffer(renderer.device, buffers[slot], no_allocator)
+        vulkan.vkFreeMemory(renderer.device, memories[slot], no_allocator)
+    }
+    var capacity = count * 2 + 16
+    var bytes = capacity * stride
+    var storage_usage = 32
+    var buffer = renderer.create_buffer(bytes, storage_usage)
+    var memory = renderer.host_memory_for(buffer)
+    buffers[slot] = buffer
+    memories[slot] = memory
+    mapped[slot] = renderer.map(memory, bytes)
+    capacities[slot] = capacity
+    written_depth[slot] = 0
+}
+
+func write_set(renderer: RenderVulkan.Renderer, slot: Integer, depth_view: Long) {
+    crash written_depth[slot]
+    assert written_depth[slot] != depth_view
+    crash frame_sets[slot]
+    crash buffers[slot]
+    var depth_information = RenderVulkan.Structure(24)
+    depth_information.append_long(renderer.sampler)
+    depth_information.append_long(depth_view)
+    var depth_read_only = 4
+    depth_information.append_integer(depth_read_only)
+    var whole: Long = -1
+    var buffer_information = RenderVulkan.Structure(24)
+    buffer_information.append_long(buffers[slot])
+    buffer_information.append_long(0)
+    buffer_information.append_long(whole)
+    var writes = RenderVulkan.Structure(128)
+    writes.append_integer(35)
+    writes.append_long(0)
+    writes.append_long(frame_sets[slot])
+    writes.append_integer(0)
+    writes.append_integer(0)
+    writes.append_integer(1)
+    writes.append_integer(1)
+    writes.append_pointer(depth_information)
+    writes.append_long(0)
+    writes.append_long(0)
+    writes.append_integer(35)
+    writes.append_long(0)
+    writes.append_long(frame_sets[slot])
+    writes.append_integer(1)
+    writes.append_integer(0)
+    writes.append_integer(1)
+    writes.append_integer(7)
+    writes.append_long(0)
+    writes.append_pointer(buffer_information)
+    writes.append_long(0)
+    var no_copies: Long = 0
+    vulkan.vkUpdateDescriptorSets(renderer.device, 2, writes.address, 0, no_copies)
+    written_depth[slot] = depth_view
+}
+
+func write_decals(drawn: Scene.DrawSet, slot: Integer) {
+    crash mapped[slot]
+    var at = mapped[slot]
+    var index = 0
+    while index < drawn.decals.count() {
+        var decal = drawn.decals[index]
+        var record_at = at + index * stride
+        decal.model.write_to(floats, record_at)
+        decal.inverse.write_to(floats, record_at + 64)
+        floats.write_value(record_at, 32, decal.red)
+        floats.write_value(record_at, 33, decal.green)
+        floats.write_value(record_at, 34, decal.blue)
+        floats.write_value(record_at, 35, decal.opacity)
+        floats.write_value(record_at, 36, decal.emissive)
+        var unlit: Float = 0.0
+        if decal.unlit {
+            unlit = 1.0
+        }
+        floats.write_value(record_at, 37, unlit)
+        floats.write_value(record_at, 38, 0.0)
+        floats.write_value(record_at, 39, 0.0)
+        index = index + 1
+    }
+}
+
+func record(
+    renderer: RenderVulkan.Renderer,
+    owner: SceneVulkan.MeshRenderer,
+    drawn: Scene.DrawSet,
+    texture_sets: List<Long>,
+    slot: Integer,
+    storage_set: Long,
+    view_projection: Matrix4,
+) {
+    var count = drawn.decals.count()
+    assert count > 0
+    var inverse = view_projection.inverse()
+    assert inverse
+    ensure_buffer(renderer, slot, count)
+    write_set(renderer, slot, owner.depth_view)
+    write_decals(drawn, slot)
+    var command_buffer = renderer.frame.command_buffer
+    var keep_contents = 0
+    var store_contents = 0
+    var color_layout = 2
+    var colors = builder.color_pair(
+        owner.high_dynamic_range_view,
+        owner.post.ambient_view,
+        color_layout,
+        keep_contents,
+        store_contents,
+    )
+    var no_depth: Long = 0
+    builder.begin_rendering_pair(renderer, owner.post.render_width, owner.post.render_height, colors, no_depth)
+    vulkan.vkCmdBindPipeline(command_buffer, 0, pipeline)
+    owner.record_viewport(renderer)
+    var sets = RenderVulkan.Structure(16)
+    crash frame_sets[slot]
+    sets.append_long(frame_sets[slot])
+    sets.append_long(storage_set)
+    var no_offsets: Long = 0
+    vulkan.vkCmdBindDescriptorSets(command_buffer, 0, pipeline_layout, 0, 2, sets.address, 0, no_offsets)
+    var push = RenderVulkan.Structure(128)
+    view_projection.write_to(floats, push.address)
+    inverse.write_to(floats, push.address + 64)
+    var vertex_and_fragment = 17
+    vulkan.vkCmdPushConstants(command_buffer, pipeline_layout, vertex_and_fragment, 0, 128, push.address)
+    var index = 0
+    while index < count {
+        crash texture_sets[index]
+        var texture = RenderVulkan.Structure(8)
+        texture.append_long(texture_sets[index])
+        vulkan.vkCmdBindDescriptorSets(command_buffer, 0, pipeline_layout, 2, 1, texture.address, 0, no_offsets)
+        vulkan.vkCmdDraw(command_buffer, 36, 1, 0, index)
+        index = index + 1
+    }
+    vulkan.vkCmdEndRendering(command_buffer)
+}
+
+func release(renderer: RenderVulkan.Renderer) {
+    var no_allocator: Long = 0
+    var slot = 0
+    while slot < buffers.count() {
+        crash memories[slot]
+        if buffers[slot] != 0 {
+            vulkan.vkDestroyBuffer(renderer.device, buffers[slot], no_allocator)
+            vulkan.vkFreeMemory(renderer.device, memories[slot], no_allocator)
+            buffers[slot] = 0
+        }
+        slot = slot + 1
+    }
+    vulkan.vkDestroyPipeline(renderer.device, pipeline, no_allocator)
+    vulkan.vkDestroyPipelineLayout(renderer.device, pipeline_layout, no_allocator)
+    vulkan.vkDestroyDescriptorPool(renderer.device, pool, no_allocator)
+    vulkan.vkDestroyDescriptorSetLayout(renderer.device, set_layout, no_allocator)
+    vulkan.vkDestroyShaderModule(renderer.device, shader_vertex, no_allocator)
+    vulkan.vkDestroyShaderModule(renderer.device, shader_fragment, no_allocator)
+}

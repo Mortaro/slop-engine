@@ -28,11 +28,14 @@ func run(): Scene.LoadedMesh {
     loaded.masked_materials = mesh.masked_materials
     loaded.detail_sections = mesh.detail_sections
     loaded.detail_screen_sizes = mesh.detail_screen_sizes
+    loaded.materials = mesh.materials
     var count = mesh.vertices.count() / vertex_floats
     var skinned = mesh.joints.count() == count
+    var tangent_space = mesh.tangents.count() == count * 4
     var vertex = 0
     while vertex < count {
         write_vertex(loaded.vertices, mesh, vertex, skinned)
+        write_tangent(loaded.vertices, mesh, vertex, tangent_space)
         vertex = vertex + 1
     }
     measure_bounds(loaded, mesh, count)
@@ -73,6 +76,72 @@ func write_vertex(target: Asset.Bytes, mesh: Asset.Mesh, vertex: Integer, skinne
         target.write_float(0.0)
         target.write_float(0.0)
     }
+}
+
+func write_tangent(target: Asset.Bytes, mesh: Asset.Mesh, vertex: Integer, tangent_space: Boolean) {
+    if tangent_space {
+        crash mesh.tangents[vertex * 4]
+        crash mesh.tangents[vertex * 4 + 1]
+        crash mesh.tangents[vertex * 4 + 2]
+        crash mesh.tangents[vertex * 4 + 3]
+        var along_x = mesh.tangents[vertex * 4]
+        var along_y = mesh.tangents[vertex * 4 + 1]
+        var along_z = mesh.tangents[vertex * 4 + 2]
+        var handedness = mesh.tangents[vertex * 4 + 3]
+        write_packed_tangent(target, along_x, along_y, along_z, handedness)
+        return
+    }
+    crash mesh.vertices[vertex * vertex_floats + 3]
+    var normal_x = mesh.vertices[vertex * vertex_floats + 3]
+    crash mesh.vertices[vertex * vertex_floats + 4]
+    var normal_y = mesh.vertices[vertex * vertex_floats + 4]
+    crash mesh.vertices[vertex * vertex_floats + 5]
+    var normal_z = mesh.vertices[vertex * vertex_floats + 5]
+    var tangent_x = 1.0 - normal_x * normal_x
+    var tangent_y = 0.0 - normal_x * normal_y
+    var tangent_z = 0.0 - normal_x * normal_z
+    if normal_x.absolute() > 0.9 {
+        tangent_x = 0.0 - normal_y * normal_x
+        tangent_y = 1.0 - normal_y * normal_y
+        tangent_z = 0.0 - normal_y * normal_z
+    }
+    var length = (tangent_x * tangent_x + tangent_y * tangent_y + tangent_z * tangent_z).square_root()
+    write_packed_tangent(target, tangent_x / length, tangent_y / length, tangent_z / length, 1.0)
+}
+
+func write_packed_tangent(target: Asset.Bytes, along_x: Float, along_y: Float, along_z: Float, handedness: Float) {
+    var packed: Long = snorm_ten(along_x)
+    var green: Long = snorm_ten(along_y)
+    var blue: Long = snorm_ten(along_z)
+    var sign: Long = 1
+    if handedness < 0.0 {
+        sign = 3
+    }
+    packed = packed + green * 1024 + blue * 1048576 + sign * 1073741824
+    if packed >= 2147483648 {
+        packed = packed - 4294967296
+    }
+    var word: Integer = packed
+    target.write_integer(word)
+}
+
+func snorm_ten(value: Float): Integer {
+    var scaled = value * 511.0
+    if scaled > 511.0 {
+        scaled = 511.0
+    }
+    if scaled < -511.0 {
+        scaled = -511.0
+    }
+    var rounded = scaled + 0.5
+    if scaled < 0.0 {
+        rounded = scaled - 0.5
+    }
+    var whole: Integer = rounded
+    if whole < 0 {
+        whole = whole + 1024
+    }
+    return whole
 }
 
 func note_joints(packed: Integer) {
@@ -120,6 +189,9 @@ func measure_bounds(loaded: Scene.LoadedMesh, mesh: Asset.Mesh, count: Integer) 
     var half_x = (high_x - low_x) * 0.5
     var half_y = (high_y - low_y) * 0.5
     var half_z = (high_z - low_z) * 0.5
+    loaded.half_x = half_x
+    loaded.half_y = half_y
+    loaded.half_z = half_z
     var radius = (half_x * half_x + half_y * half_y + half_z * half_z).square_root()
     loaded.bound_radius = radius
 }

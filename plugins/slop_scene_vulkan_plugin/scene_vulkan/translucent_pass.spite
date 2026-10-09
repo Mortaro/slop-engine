@@ -1,0 +1,101 @@
+var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
+var builder = SceneVulkan.PipelineBuilder()
+var pipeline: Long = 0
+var order = List<Integer>()
+var distances = List<Float>()
+
+func sort_back_to_front(drawn: Scene.DrawSet, camera: Scene.Component.ViewCamera) {
+    order.clear()
+    distances.clear()
+    var index = 0
+    while index < drawn.translucent_draws.count() {
+        var model = drawn.translucent_draws[index].model
+        var along_x = model.column_3_row_0 - camera.eye_x
+        var along_y = model.column_3_row_1 - camera.eye_y
+        var along_z = model.column_3_row_2 - camera.eye_z
+        var distance = along_x * along_x + along_y * along_y + along_z * along_z
+        var at = order.count()
+        while at > 0 and farther(distance, at - 1) {
+            at = at - 1
+        }
+        order.insert(at, index)
+        distances.insert(at, distance)
+        index = index + 1
+    }
+}
+
+func farther(distance: Float, at: Integer): Boolean {
+    crash distances[at]
+    return distance > distances[at]
+}
+
+func record(
+    renderer: RenderVulkan.Renderer,
+    owner: SceneVulkan.MeshRenderer,
+    drawn: Scene.DrawSet,
+    camera: Scene.Component.ViewCamera,
+    first_record: Integer,
+    storage_set: Long,
+    view_projection: Matrix4,
+) {
+    assert drawn.translucent_draws.count() > 0
+    sort_back_to_front(drawn, camera)
+    var command_buffer = renderer.frame.command_buffer
+    var keep_contents = 0
+    var store_contents = 0
+    var dont_care = 1
+    var color_layout = 2
+    var depth_read_only_layout = 4
+    var colors = builder.color_pair(
+        owner.high_dynamic_range_view,
+        owner.post.ambient_view,
+        color_layout,
+        keep_contents,
+        store_contents,
+    )
+    var depth = builder.attachment(owner.depth_view, depth_read_only_layout, keep_contents, dont_care)
+    builder.begin_rendering_pair(renderer, owner.post.render_width, owner.post.render_height, colors, depth.address)
+    vulkan.vkCmdBindPipeline(command_buffer, 0, pipeline)
+    owner.record_viewport(renderer)
+    var sets = RenderVulkan.Structure(8)
+    sets.append_long(storage_set)
+    var no_offsets: Long = 0
+    vulkan.vkCmdBindDescriptorSets(command_buffer, 0, owner.pipeline_layout, 1, 1, sets.address, 0, no_offsets)
+    var place = 0
+    while place < order.count() {
+        var index = order[place]
+        var draw = drawn.translucent_draws[index]
+        crash draw
+        draw_one(renderer, owner, drawn, draw, first_record + index, view_projection)
+        place = place + 1
+    }
+    vulkan.vkCmdEndRendering(command_buffer)
+}
+
+func draw_one(
+    renderer: RenderVulkan.Renderer,
+    owner: SceneVulkan.MeshRenderer,
+    drawn: Scene.DrawSet,
+    draw: Scene.Draw,
+    record_index: Integer,
+    view_projection: Matrix4,
+) {
+    assert owner.mesh_uploaded(draw.mesh_slot)
+    var culled = true
+    owner.materials.bind(renderer, owner.pipeline_layout, draw, drawn.seconds, culled)
+    owner.push_and_draw(
+        renderer,
+        draw.mesh_slot,
+        draw.first_index,
+        draw.index_count,
+        record_index,
+        1,
+        view_projection,
+        owner.pipeline_layout,
+    )
+}
+
+func release(renderer: RenderVulkan.Renderer) {
+    var no_allocator: Long = 0
+    vulkan.vkDestroyPipeline(renderer.device, pipeline, no_allocator)
+}

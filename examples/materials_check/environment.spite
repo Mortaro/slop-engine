@@ -1,0 +1,4 @@
+var show_window = false
+var width = 1280
+var height = 720
+var capture = ""

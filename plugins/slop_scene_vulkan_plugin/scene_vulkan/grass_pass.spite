@@ -18,6 +18,7 @@ var linear_sampler: Long = 0
 var shader_capture: Long = 0
 var shader_scatter: Long = 0
 var shader_vertex: Long = 0
+var shader_fragment: Long = 0
 var capture_pipeline: Long = 0
 var scatter_set_layout: Long = 0
 var scatter_layout: Long = 0
@@ -58,6 +59,7 @@ func create(renderer: RenderVulkan.Renderer, mesh_renderer: SceneVulkan.MeshRend
     shader_capture = renderer.create_shader("shader.grass.capture")
     shader_scatter = renderer.create_shader("shader.grass.scatter")
     shader_vertex = renderer.create_shader("shader.grass.vertex")
+    shader_fragment = renderer.create_shader("shader.grass.fragment")
     nearest_sampler = builder.sampler(renderer, 0)
     linear_sampler = builder.sampler(renderer, 1)
     create_ground(renderer)
@@ -91,7 +93,7 @@ func create(renderer: RenderVulkan.Renderer, mesh_renderer: SceneVulkan.MeshRend
     builder.depth_compare = 4
     builder.depth_write = 1
     builder.second_color_format = mesh_renderer.post.ambient_format
-    draw_pipeline = builder.graphics(renderer, mesh_renderer, shader_vertex, mesh_renderer.shader_fragment, draw_layout)
+    draw_pipeline = builder.graphics(renderer, mesh_renderer, shader_vertex, shader_fragment, draw_layout)
     builder.second_color_format = 0
     builder.color_format = ground_format
     builder.depth_compare = 1
@@ -123,7 +125,8 @@ func shaders_ready(renderer: RenderVulkan.Renderer): Boolean {
     var capture_ready = renderer.shader_ready("shader.grass.capture")
     var scatter_ready = renderer.shader_ready("shader.grass.scatter")
     var vertex_ready = renderer.shader_ready("shader.grass.vertex")
-    return capture_ready and scatter_ready and vertex_ready
+    var fragment_ready = renderer.shader_ready("shader.grass.fragment")
+    return capture_ready and scatter_ready and vertex_ready and fragment_ready
 }
 
 func prepare(
@@ -685,6 +688,7 @@ func release(renderer: RenderVulkan.Renderer) {
     vulkan.vkDestroyShaderModule(renderer.device, shader_capture, no_allocator)
     vulkan.vkDestroyShaderModule(renderer.device, shader_scatter, no_allocator)
     vulkan.vkDestroyShaderModule(renderer.device, shader_vertex, no_allocator)
+    vulkan.vkDestroyShaderModule(renderer.device, shader_fragment, no_allocator)
 }
 
 func set_viewport(renderer: RenderVulkan.Renderer, width: Integer, height: Integer) {

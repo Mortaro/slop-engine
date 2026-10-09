@@ -140,3 +140,10 @@ func shades_view(radius: Float, toward_x: Float, toward_y: Float, toward_z: Floa
     placed.z = center_z
     return shaded
 }
+
+func place_point(at_x: Float, at_y: Float, at_z: Float) {
+    placed.x = at_x
+    placed.y = at_y
+    placed.z = at_z
+    spread = 0.0
+}

@@ -5,6 +5,7 @@ layout(location = 1) in vec3 normal;
 layout(location = 2) in vec2 texture_coordinate;
 layout(location = 3) in uvec4 joints;
 layout(location = 4) in vec4 weights;
+layout(location = 5) in vec4 tangent;
 
 layout(push_constant) uniform Push {
     mat4 view_projection;
@@ -15,7 +16,7 @@ struct Draw {
     mat4 model;
     uint palette_first;
     uint masked;
-    uint padding_two;
+    float fade;
     uint padding_three;
 };
 
@@ -31,6 +32,8 @@ layout(location = 0) out vec3 world_normal;
 layout(location = 1) out vec2 surface_coordinate;
 layout(location = 2) out vec3 world_position;
 layout(location = 3) flat out uint surface_masked;
+layout(location = 4) flat out float surface_fade;
+layout(location = 5) out vec4 world_tangent;
 
 void main() {
     Draw draw = draws[push.draw + gl_InstanceIndex];
@@ -44,5 +47,7 @@ void main() {
     surface_coordinate = texture_coordinate;
     world_position = placed.xyz;
     surface_masked = draw.masked;
+    surface_fade = draw.fade;
+    world_tangent = vec4(normalize(mat3(world) * tangent.xyz), tangent.w);
     gl_Position = push.view_projection * placed;
 }

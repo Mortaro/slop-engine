@@ -7,6 +7,8 @@ var textures = List<String>()
 var masked_materials = List<Integer>()
 var detail_sections = List<Integer>()
 var detail_screen_sizes = List<Float>()
+var materials = List<Asset.Material>()
+var tangents = List<Float>()
 
 func add_section(first: Integer, count: Integer, texture: String) {
     sections.append(first)
@@ -14,6 +16,36 @@ func add_section(first: Integer, count: Integer, texture: String) {
     var material = textures.count()
     sections.append(material)
     textures.append(texture)
+}
+
+func add_material_section(first: Integer, count: Integer, texture: String, material: Asset.Material) {
+    while materials.count() < textures.count() {
+        var painted = Asset.Material()
+        materials.append(painted)
+    }
+    add_section(first, count, texture)
+    materials.append(material)
+}
+
+func material_of(slot: Integer): Asset.Material {
+    var found = materials[slot]
+    if found {
+        return found
+    }
+    return Asset.Material()
+}
+
+func rename_map(image: String, id: String) {
+    var index = 0
+    while index < materials.count() {
+        materials[index].rename_map(image, id)
+        index = index + 1
+    }
+}
+
+func compute_tangents() {
+    var space = Math.TangentSpace()
+    space.fill(this)
 }
 
 func detail_level_count(): Integer {

@@ -56,6 +56,30 @@ func update_each(_started: Started) {
         add_light(light)
         light = light + 1
     }
+    var decal = 0
+    while decal < environment.decals {
+        add_decal(decal)
+        decal = decal + 1
+    }
+}
+
+func add_decal(decal: Integer) {
+    var entity = world.create_entity()
+    var projected = Scene.Component.Decal()
+    projected.red = 0.9
+    projected.green = 0.15
+    projected.blue = 0.1
+    projected.opacity = 0.6
+    entity.add_component(projected)
+    var transform = Transform.Component.Transform()
+    var column: Float = decal % 8
+    var row: Float = decal / 8
+    transform.position_x = column * 1.6 - 5.6
+    transform.position_z = row * 2.5
+    transform.scale_x = 1.2
+    transform.scale_y = 1.0
+    transform.scale_z = 1.2
+    entity.add_component(transform)
 }
 
 func add_field() {
@@ -139,6 +163,10 @@ func spawn_part(part: String, along_x: Float, along_z: Float, facing: Float, arc
     animator.time = offset * 0.037
     animator.speed = 0.0
     entity.add_component(animator)
+    if archer < environment.faded_archers {
+        var fade = Scene.Component.DitherFade()
+        entity.add_component(fade)
+    }
 }
 
 func add_light(light: Integer) {

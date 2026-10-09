@@ -43,10 +43,11 @@ A frame's results are read when its fence is waited on, two frames later, so tim
 name's average accumulates until `renderer.gpu_timings.clear()`; `average_milliseconds(name)` reads one and
 `describe()` lists every pass in microseconds. The engine times `frame` (the whole command buffer), `grass scatter`,
 `shadows` (the sun's cascades), `local shadows` (point and spot light tiles), `scene` (with `grass` timed inside it),
-`water`, the [post-processing](scene.md#post-processing) passes (`ambient occlusion`, `temporal aa`, `exposure` when
-metered, `bloom`, `tone map`), `occlusion depth` and `ui`. `examples/render_bench` prints them for a fixed scene
-with no grass and no water, with levels of detail, occlusion culling and block-compressed textures (optimized,
-1920x1080, RTX 3090, `--shadowed-lights=8`), here at 100% and at `--screen-percentage=67`:
+`decals`, `water`, `translucent` (decals and translucent only on a frame that has some), the
+[post-processing](scene.md#post-processing) passes (`ambient occlusion`, `temporal aa`, `exposure` when metered,
+`bloom`, `tone map`), `occlusion depth` and `ui`. `examples/render_bench` prints them for a fixed scene with no grass
+and no water, with levels of detail, occlusion culling and block-compressed textures (optimized, 1920x1080, RTX 3090,
+`--shadowed-lights=8`), here at 100% and at `--screen-percentage=67`:
 
 ```
                      100%     67%

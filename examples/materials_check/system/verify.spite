@@ -1,0 +1,328 @@
+type Checked {
+    entity: Entity
+    view: Scene.Component.View
+    camera: Scene.Component.ViewCamera
+    draw_list: Render.Component.DrawList
+}
+
+type Quitting {
+    frame: Component.Frame
+    running: Without<Component.Quit>
+}
+
+var renderer = RenderVulkan.Renderer()
+var textures = Render.Textures()
+var meshes = Scene.Meshes()
+var draws = Scene.Draws()
+var console = Console()
+var environment = Environment()
+var world = World()
+var settled_ticks = 0
+var sampled = 0
+var requested = false
+var failures = 0
+var pixel_x = 0
+var pixel_y = 0
+var plain_low = 100000
+var plain_high = -1
+var scroll_low = 100000
+var scroll_high = -1
+var pulse_low = 100000
+var pulse_high = -1
+
+func last_each(checked: Checked, _quitting: Quitting) {
+    var drawn = draws.of(checked.entity.id)
+    assert drawn.draws.count() > 0
+    if settled_ticks < 30 {
+        if renderer.uploads_pending(textures) {
+            settled_ticks = 0
+        } else {
+            settled_ticks = settled_ticks + 1
+        }
+        return
+    }
+    if requested {
+        sample(checked)
+    }
+    requested = true
+    var request = RenderVulkan.Component.CaptureRequested()
+    checked.entity.add_component(request)
+}
+
+func sample(checked: Checked) {
+    sampled = sampled + 1
+    var plain = brightness_at(checked, -4.5, 0.0, 0.0)
+    var scroll = brightness_at(checked, -3.0, 0.0, 1.5)
+    var pulse = brightness_at(checked, -1.5, 0.25, 1.5)
+    plain_low = smaller(plain_low, plain)
+    plain_high = larger(plain_high, plain)
+    scroll_low = smaller(scroll_low, scroll)
+    scroll_high = larger(scroll_high, scroll)
+    pulse_low = smaller(pulse_low, pulse)
+    pulse_high = larger(pulse_high, pulse)
+    assert sampled == 150
+    check_materials()
+    check_pixels(checked)
+    check(plain_high - plain_low < 6, "a still material keeps its colour", plain_low, plain_high)
+    check(scroll_high - scroll_low > 200, "a scrolling material moves its stripes", scroll_low, scroll_high)
+    check(pulse_high - pulse_low > 60, "a pulsing material changes its opacity", pulse_low, pulse_high)
+    if not environment.capture.is_empty() {
+        save(checked.draw_list.width, checked.draw_list.height)
+    }
+    console.print("materials check failures", failures)
+    crash failures == 0
+    var quit = Component.Quit()
+    world.as_entity().add_component(quit)
+}
+
+func check(passed: Boolean, what: String, first: Integer, second: Integer) {
+    console.print(what, first, second, "passed", passed)
+    if not passed {
+        failures = failures + 1
+    }
+}
+
+func smaller(first: Integer, second: Integer): Integer {
+    if second < first {
+        return second
+    }
+    return first
+}
+
+func larger(first: Integer, second: Integer): Integer {
+    if second > first {
+        return second
+    }
+    return first
+}
+
+func settings(id: String): Asset.Material {
+    var slot = meshes.request(id)
+    var loaded = meshes.mesh_at(slot)
+    var found = loaded.materials[0]
+    crash found
+    return found
+}
+
+func check_materials() {
+    var metal = settings("materials.metal")
+    var metal_reads_channels = metal.roughness_channel == 1 and metal.metallic_channel == 2
+    var metal_maps = not metal.roughness_map.is_empty() and metal.roughness_map == metal.metallic_map
+    check(
+        metal_reads_channels and metal_maps,
+        "roughness and metallic come from one packed map",
+        metal.roughness_channel,
+        metal.metallic_channel,
+    )
+    var specular: Integer = metal.specular * 100.0
+    check(specular == 25, "the specular level is read", specular, 25)
+    var bump = settings("materials.bumpright")
+    var strength: Integer = bump.normal_strength * 100.0
+    var has_normal = not bump.normal.is_empty()
+    check(has_normal and strength == 100, "a normal map is read", strength, 100)
+    var glow = settings("materials.glow")
+    var emissive: Integer = glow.emissive_red
+    var has_emission_map = not glow.emissive_map.is_empty()
+    check(has_emission_map and emissive == 4, "an emission map and strength are read", emissive, 4)
+    var unlit = settings("materials.unlit")
+    var unlit_strength: Integer = unlit.emissive_green
+    check(unlit.unlit and unlit_strength == 2, "an emission surface is unlit", unlit_strength, 2)
+    var one_sided = settings("materials.onesided")
+    var two_sided = settings("materials.twosided")
+    check(not one_sided.two_sided and two_sided.two_sided, "backface culling is read", 0, 0)
+    var ring = settings("materials.ring")
+    var ring_reads = ring.unlit and ring.translucent and ring.opacity_from_base and ring.opacity_channel == 3
+    check(ring_reads, "a transparent mix with an emission is unlit and translucent", ring.opacity_channel, 3)
+    var glass = settings("materials.glass")
+    var opacity: Integer = glass.opacity * 100.0
+    check(glass.translucent and opacity == 50, "a blended material is translucent", opacity, 50)
+}
+
+func check_pixels(checked: Checked) {
+    var sky = color_at_pixel(5, 5)
+    var plain = brightness_at(checked, -4.5, 0.0, 0.0)
+    var right = brightness_at(checked, -3.0, 0.0, 0.0)
+    var left = brightness_at(checked, -1.5, 0.0, 0.0)
+    check(right * 10 > plain * 11, "a normal map tilted toward the sun is brighter", right, plain)
+    check(left * 10 < plain * 9, "a normal map tilted away from the sun is darker", left, plain)
+    var metal = brightness_at(checked, 0.0, 0.0, 0.0)
+    var metal_differs = metal * 10 < plain * 9 or metal * 10 > plain * 11
+    check(metal_differs, "a rough metal shades unlike the painted default", metal, plain)
+    var glow = color_at(checked, 1.5, 0.0, 0.0)
+    var glow_red = red_of(glow)
+    var glow_blue = blue_of(glow)
+    check(glow_red > 150 and glow_red > glow_blue + 60, "an emissive material glows orange", glow_red, glow_blue)
+    var unlit = color_at(checked, 3.0, 0.0, 0.0)
+    var unlit_green = green_of(unlit)
+    var unlit_red = red_of(unlit)
+    check(
+        unlit_green > 120 and unlit_green > unlit_red + 40,
+        "an unlit material shows its colour",
+        unlit_green,
+        unlit_red,
+    )
+    var one_sided = color_at(checked, 4.5, 0.0, 0.0)
+    var culled = alike(one_sided, sky)
+    check(culled, "a one-sided face seen from behind is culled", one_sided, sky)
+    var two_sided = color_at(checked, 4.5, 0.0, 1.5)
+    var drawn = not alike(two_sided, sky)
+    check(drawn, "a two-sided face seen from behind is drawn", two_sided, sky)
+    var glass = color_at(checked, -4.5, 0.25, 1.5)
+    var glass_red = red_of(glass)
+    var glass_blue = blue_of(glass)
+    check(
+        glass_blue > glass_red + 20 and glass_red > 40,
+        "a translucent material blends over what is behind",
+        glass_red,
+        glass_blue,
+    )
+    var decal = color_at(checked, 2.0, 0.0, 1.5)
+    var decal_red = red_of(decal)
+    var decal_green = green_of(decal)
+    check(decal_red > 120 and decal_red > decal_green * 2, "a decal projects onto the slab", decal_red, decal_green)
+    var slab = color_at(checked, 2.85, 0.0, 1.5)
+    var slab_red = red_of(slab)
+    var slab_green = green_of(slab)
+    check(slab_red < slab_green + 12, "the decal stays inside its box", slab_red, slab_green)
+    var hole = color_at(checked, 6.0, 0.0, 0.0)
+    var band = color_at(checked, 6.37, 0.0, 0.0)
+    var hole_clear = alike(hole, sky)
+    var band_red = red_of(band)
+    var band_blue = blue_of(band)
+    check(
+        hole_clear and band_red > band_blue + 40,
+        "an unlit translucent ring shows only its band",
+        band_red,
+        band_blue,
+    )
+    check_dither(checked, sky)
+}
+
+func check_dither(checked: Checked, sky: Integer) {
+    var sky_brightness = red_of(sky) + green_of(sky) + blue_of(sky)
+    var faded = window_brightness(checked, 0.0, 1.0, 1.5)
+    var opaque = window_brightness(checked, 0.0, 1.0, 3.0)
+    var share = (faded - sky_brightness) * 100 / (opaque - sky_brightness)
+    check(
+        share > 25 and share < 75,
+        "a dither fade at half opacity, resolved by temporal anti-aliasing, covers about half",
+        share,
+        50,
+    )
+}
+
+func window_brightness(checked: Checked, at_x: Float, at_y: Float, at_z: Float): Integer {
+    project(checked, at_x, at_y, at_z)
+    var total = 0
+    var row = pixel_y - 6
+    while row < pixel_y + 6 {
+        var column = pixel_x - 6
+        while column < pixel_x + 6 {
+            var pixel = color_at_pixel(column, row)
+            total = total + red_of(pixel) + green_of(pixel) + blue_of(pixel)
+            column = column + 1
+        }
+        row = row + 1
+    }
+    return total / 144
+}
+
+func alike(first: Integer, second: Integer): Boolean {
+    var red = red_of(first) - red_of(second)
+    var green = green_of(first) - green_of(second)
+    var blue = blue_of(first) - blue_of(second)
+    return red.absolute() <= 3 and green.absolute() <= 3 and blue.absolute() <= 3
+}
+
+func project(checked: Checked, at_x: Float, at_y: Float, at_z: Float) {
+    var width: Float = checked.draw_list.width
+    var height: Float = checked.draw_list.height
+    var aspect = width / height
+    var projection = checked.camera.projection(aspect)
+    var matrix = projection * checked.camera.view
+    var clip_x = matrix.column_0_row_0 * at_x + matrix.column_1_row_0 * at_y + matrix.column_2_row_0 * at_z
+    clip_x = clip_x + matrix.column_3_row_0
+    var clip_y = matrix.column_0_row_1 * at_x + matrix.column_1_row_1 * at_y + matrix.column_2_row_1 * at_z
+    clip_y = clip_y + matrix.column_3_row_1
+    var clip_w = matrix.column_0_row_3 * at_x + matrix.column_1_row_3 * at_y + matrix.column_2_row_3 * at_z
+    clip_w = clip_w + matrix.column_3_row_3
+    var across = (clip_x / clip_w + 1.0) * 0.5 * width
+    var down = (clip_y / clip_w + 1.0) * 0.5 * height
+    pixel_x = across
+    pixel_y = down
+}
+
+func color_at(checked: Checked, at_x: Float, at_y: Float, at_z: Float): Integer {
+    project(checked, at_x, at_y, at_z)
+    return color_at_pixel(pixel_x, pixel_y)
+}
+
+func color_at_pixel(column: Integer, row: Integer): Integer {
+    return renderer.pixel_at(column, row)
+}
+
+func brightness_at(checked: Checked, at_x: Float, at_y: Float, at_z: Float): Integer {
+    var pixel = color_at(checked, at_x, at_y, at_z)
+    var red = red_of(pixel)
+    var green = green_of(pixel)
+    var blue = blue_of(pixel)
+    return red + green + blue
+}
+
+func red_of(pixel: Integer): Integer {
+    return pixel.shifted_right(16).bits_and(255)
+}
+
+func green_of(pixel: Integer): Integer {
+    return pixel.shifted_right(8).bits_and(255)
+}
+
+func blue_of(pixel: Integer): Integer {
+    return pixel.bits_and(255)
+}
+
+func save(width: Integer, height: Integer) {
+    var row_bytes = width * 3
+    var padding = (4 - row_bytes % 4) % 4
+    var data_bytes = (row_bytes + padding) * height
+    var image = Asset.Bytes()
+    image.write_byte(66)
+    image.write_byte(77)
+    image.write_integer(54 + data_bytes)
+    image.write_integer(0)
+    image.write_integer(54)
+    image.write_integer(40)
+    image.write_integer(width)
+    image.write_integer(height)
+    image.write_byte(1)
+    image.write_byte(0)
+    image.write_byte(24)
+    image.write_byte(0)
+    image.write_integer(0)
+    image.write_integer(data_bytes)
+    image.write_integer(2835)
+    image.write_integer(2835)
+    image.write_integer(0)
+    image.write_integer(0)
+    var row = height - 1
+    while row >= 0 {
+        var column = 0
+        while column < width {
+            var texel = renderer.pixel_at(column, row)
+            var blue = blue_of(texel)
+            var green = green_of(texel)
+            var red = red_of(texel)
+            image.write_byte(blue)
+            image.write_byte(green)
+            image.write_byte(red)
+            column = column + 1
+        }
+        var pad = 0
+        while pad < padding {
+            image.write_byte(0)
+            pad = pad + 1
+        }
+        row = row - 1
+    }
+    image.save(environment.capture)
+}
