@@ -357,3 +357,13 @@ prints the gentle ramp's height as `1.746` where the old build printed `1.746000
 every windowed example) or `spite_mongodb_driver` (`fd2aa14`: `io_systems`, `mongodb_check`) still does not compile:
 those packages read files and sockets through addresses and trip the "declared only to be returned" rule, and they
 live in their own repositories.
+
+Both packages are migrated in their own repositories (`spite_truetype` `6c7b076`, `spite_mongodb_driver`
+`fbb6653`: byte lists through `ForeignBytes`, locals returned directly) and the engine pins them. Every example
+now builds on both branches except the two that must fail to compile (`list_component_refused`,
+`snapshot_write_refused`). On `naive`, the
+scene's occlusion pass lost an attribute it never read, which the compiler refused once the UI plugin compiled
+again. `mongodb_check` prints `accounts 1 passed true` on both branches. `io_systems` passes on `main` (31 frames
+while waiting) and fails its own check on `naive` (3 frames): the naive runner drains an IO system's rows between
+frames with a plain call (`8f952d8`), so frames no longer advance while the lookups wait, and the example's
+`frames > 10` check predates that.

@@ -1,5 +1,4 @@
 var vulkan = DynamicLibrary("vulkan-1.dll", 'identity', "")
-var raw = Raw()
 var floats = TypedMemory<Float>()
 var block = 16
 var push_bytes = 20
