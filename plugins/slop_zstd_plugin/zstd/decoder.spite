@@ -1,12 +1,9 @@
-var raw = Raw()
-var heap = Memory.Heap()
 var powers = Zstd.Powers()
-var input: Long = 0
+var input = Asset.Bytes()
 var input_length = 0
 var position = 0
 var output = Asset.Bytes()
-var literals: Long = 0
-var literals_capacity = 0
+var literals = Asset.Bytes()
 var literal_count = 0
 var literal_read = 0
 var huffman = Zstd.HuffmanTable()
@@ -161,8 +158,9 @@ var match_length_default = [
 var offset_default = [1, 1, 1, 1, 1, 1, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, -1, -1, -1, -1, -1]
 
 func decompress(source: Asset.Bytes): Asset.Bytes {
-    input = source.address
+    input = source
     input_length = source.length
+    reader.source = source
     position = 0
     output = Asset.Bytes()
     while position < input_length {
@@ -173,11 +171,7 @@ func decompress(source: Asset.Bytes): Asset.Bytes {
 
 func byte_at(index: Integer): Integer {
     crash index >= 0 and index < input_length
-    var value: Integer = raw.read_byte(input, index)
-    if value < 0 {
-        value = value + 256
-    }
-    return value
+    return input.byte_at(index)
 }
 
 func little(index: Integer, count: Integer): Long {
@@ -229,7 +223,6 @@ func read_frame_header() {
         content_size = content_size + 256
     }
     position = position + size_bytes
-    output.reserve(content_size + output.length)
     repeat_one = 1
     repeat_two = 4
     repeat_three = 8
@@ -260,7 +253,7 @@ func decode_blocks() {
 func decode_block(block_type: Integer, size: Integer) {
     crash block_type != 3
     if block_type == 0 {
-        output.write_bytes(input + position, size)
+        output.write_bytes(input, position, size)
         position = position + size
     } else if block_type == 1 {
         var value = byte_at(position)
@@ -275,22 +268,12 @@ func decode_block(block_type: Integer, size: Integer) {
 }
 
 func repeat_byte(value: Integer, count: Integer) {
-    output.reserve(output.length + count)
-    var index = 0
-    while index < count {
-        raw.write_byte(output.address, output.length + index, value)
-        index = index + 1
-    }
-    output.length = output.length + count
+    output.repeat_byte(value, count)
 }
 
 func ensure_literals(count: Integer) {
-    assert count > literals_capacity
-    if literals != 0 {
-        heap.free(literals)
-    }
-    literals_capacity = count + 1024
-    literals = heap.allocate(literals_capacity)
+    literals.clear()
+    literals.resize(count)
 }
 
 func decode_literals(cursor: Integer): Integer {
@@ -321,15 +304,13 @@ func decode_simple_literals(cursor: Integer, block_type: Integer, size_format: I
     literal_count = regenerated
     var data = cursor + header_size
     if block_type == 0 {
-        raw.copy(input + data, literals, regenerated)
+        literals.clear()
+        literals.write_bytes(input, data, regenerated)
         return data + regenerated
     }
     var value = byte_at(data)
-    var index = 0
-    while index < regenerated {
-        raw.write_byte(literals, index, value)
-        index = index + 1
-    }
+    literals.clear()
+    literals.repeat_byte(value, regenerated)
     return data + 1
 }
 
@@ -386,11 +367,11 @@ func decode_four_streams(data: Integer, stream_bytes: Integer, regenerated: Inte
 }
 
 func decode_stream(start: Integer, size: Integer, first: Integer, count: Integer) {
-    reader.start_backward(input + start, size)
+    reader.start_backward(start, size)
     var index = 0
     while index < count {
         var symbol = huffman.decode(reader)
-        raw.write_byte(literals, first + index, symbol)
+        literals.set_byte(first + index, symbol)
         index = index + 1
     }
 }
@@ -420,9 +401,9 @@ func read_huffman_tree(at: Integer): Integer {
 
 func read_compressed_weights(at: Integer, size: Integer, weights: List<Integer>) {
     var table = Zstd.FseTable()
-    reader.start_forward(input + at, size)
+    reader.start_forward(at, size)
     var used = table.read_description(reader, 255)
-    reader.start_backward(input + at + used, size - used)
+    reader.start_backward(at + used, size - used)
     var first_state = reader.read(table.accuracy)
     var second_state = reader.read(table.accuracy)
     var decoding = true
@@ -475,7 +456,7 @@ func decode_sequences(start: Integer, end: Integer) {
         run_sequences(cursor, end, count)
     }
     var remaining = literal_count - literal_read
-    output.write_bytes(literals + literal_read, remaining)
+    output.write_bytes(literals, literal_read, remaining)
 }
 
 func prepare_tables(start: Integer, end: Integer): Integer {
@@ -507,16 +488,16 @@ func prepare_table(
         table.build_rle(symbol)
         return cursor + 1
     } else if mode == 2 {
-        reader.start_forward(input + cursor, end - cursor)
+        reader.start_forward(cursor, end - cursor)
         var used = table.read_description(reader, maximum_symbol)
         return cursor + used
     }
-    crash table.symbols != 0
+    crash table.symbols.count() > 0
     return cursor
 }
 
 func run_sequences(start: Integer, end: Integer, count: Integer) {
-    reader.start_backward(input + start, end - start)
+    reader.start_backward(start, end - start)
     var literal_length_state = reader.read(literal_length_table.accuracy)
     var offset_state = reader.read(offset_table.accuracy)
     var match_length_state = reader.read(match_length_table.accuracy)
@@ -603,30 +584,15 @@ func resolve_offset(offset_value: Long, literal_length: Integer): Long {
 
 func execute(literal_length: Integer, match_length: Integer, offset: Long) {
     crash literal_read + literal_length <= literal_count
-    output.write_bytes(literals + literal_read, literal_length)
+    output.write_bytes(literals, literal_read, literal_length)
     literal_read = literal_read + literal_length
     crash offset > 0 and offset <= output.length
-    output.reserve(output.length + match_length)
     var length: Long = output.length
     var from = length - offset
-    if offset >= match_length {
-        raw.copy(output.address + from, output.address + output.length, match_length)
-    } else {
-        copy_overlapping(from, match_length)
-    }
-    output.length = output.length + match_length
-}
-
-func copy_overlapping(from: Long, count: Integer) {
     var index = 0
-    while index < count {
-        var value = raw.read_byte(output.address, from + index)
-        raw.write_byte(output.address, output.length + index, value)
+    while index < match_length {
+        var value = output.byte_at(from + index)
+        output.write_byte(value)
         index = index + 1
     }
-}
-
-func drop() {
-    assert literals != 0
-    heap.free(literals)
 }

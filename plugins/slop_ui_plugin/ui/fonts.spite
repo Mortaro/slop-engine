@@ -2,7 +2,7 @@ singleton
 
 var blobs = Recipes.Blobs()
 var world = World()
-var raw = Raw()
+var heap = Memory.Heap()
 var faces = Dictionary<String, TrueType.Face>()
 var waiting_faces = List<String>()
 var atlases = Dictionary<String, Ui.Component.GlyphAtlas>()
@@ -68,7 +68,10 @@ func face_of_name(font: String, face_index: Integer, name: String): TrueType.Fac
         waiting = waiting - 1
     }
     var data = TrueType.FontData()
-    data.copy_bytes(cooked.address, cooked.length)
+    var staged = heap.allocate(cooked.length)
+    ForeignBytes(staged, cooked.length).write_bytes(0, cooked.data)
+    data.copy_bytes(staged, cooked.length)
+    heap.free(staged)
     var face = TrueType.Face(data, face_index)
     faces[name] = face
     return face
@@ -215,7 +218,6 @@ func copy_into_atlas(atlas: Ui.Component.GlyphAtlas, left: Integer, top: Integer
 func fill_blank(texture: Asset.Texture, side: Integer) {
     texture.width = side
     texture.height = side
-    texture.texels.reserve(side * side * 4 + 4)
     var blank = 0
     while blank < side * side {
         texture.append_pixel(16777215)
@@ -242,9 +244,12 @@ func grow(atlas: Ui.Component.GlyphAtlas) {
 }
 
 func copy_row(old_texture: Asset.Texture, old_side: Integer, texture: Asset.Texture, side: Integer, row: Integer) {
-    var source = old_texture.texels.address + row * old_side * 4
-    var target = texture.texels.address + row * side * 4
-    raw.copy(source, target, old_side * 4)
+    var column = 0
+    while column < old_side {
+        var texel = old_texture.pixel(row * old_side + column)
+        texture.set_pixel(row * side + column, texel)
+        column = column + 1
+    }
 }
 
 func glyph_left(atlas: Ui.Component.GlyphAtlas, glyph: Integer): Integer {

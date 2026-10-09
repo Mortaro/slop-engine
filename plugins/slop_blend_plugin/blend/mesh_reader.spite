@@ -619,5 +619,5 @@ func read_image_node(node: Blend.View, material: Integer) {
     var data_offset = block_offset(data_address_3)
     assert data_offset >= 0
     crash image_bytes[material]
-    image_bytes[material].write_bytes(file.bytes.address + data_offset, size)
+    image_bytes[material].write_bytes(file.bytes, data_offset, size)
 }

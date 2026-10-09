@@ -2,7 +2,7 @@ var format = ""
 var kind = 7
 var width = 0
 var rows = 0
-var source_address: Long = 0
+var source = Asset.Bytes()
 
 func BandJob(band_format: String, band_width: Integer, band_rows: Integer) {
     format = band_format
@@ -25,16 +25,11 @@ func run(): Asset.Bytes {
     var across = (width + 3) / 4
     var down = (rows + 3) / 4
     var out = Asset.Bytes()
-    var block_bytes = 16
-    if kind == 1 or kind == 4 {
-        block_bytes = 8
-    }
-    out.reserve(across * down * block_bytes + 16)
     var block_y = 0
     while block_y < down {
         var block_x = 0
         while block_x < across {
-            encoder.gather(source_address, width, rows, block_x, block_y)
+            encoder.gather(source, width, rows, block_x, block_y)
             encode_block(encoder, out)
             block_x = block_x + 1
         }

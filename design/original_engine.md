@@ -21,6 +21,7 @@ compiler, never from the engine's code (decisions D506, D550 and D557 in the lan
 | Physics | colliders as slots in parallel float arrays, tombstones and stamps | colliders as objects |
 | Texture compression | bands per level | one plain call per level |
 | Network dials | a `Parallel` per connection | a plain call |
+| Bytes and tables | `Asset.Bytes` as a malloc'd address with capacity, `Raw` reads and writes at an address, `heap.allocate`d tables in the zstd, PNG, PSD, texture compression and network code, `raw.copy` between them | `Asset.Bytes` keeps a plain `List<Byte>` and reads and writes numbers by position; tables are `List<Integer>`; a copy is `write_bytes(source, start, count)`; mapped GPU memory is written through `ForeignBytes` (`store_at`) |
 | File watching | `Recipes.Watcher` with `inotify` and `ReadDirectoryChangesW` bindings per operating system, a hand settle time, buffers from `Memory.Heap` | the library's `FileSystemWatcher`; the file lock between processes (`Recipes.StoreLock`) stays, the library has no such lock |
 | Matrix products | `set_product`, `copy_from` and a flat-float `set_product_with_values` reopened into the library's `Matrix4`, to multiply in place | `a * b` of the library, a fresh matrix each time; a copy is `a * Matrix4<Float>()` |
 
@@ -28,9 +29,21 @@ The full history, gap by gap with the measurements of each step, is in [naive_ba
 
 ## Not converted yet
 
-Asset loading still uses `Parallel`; the Vulkan, Windows and XInput bindings still use `Memory` for structs (the
-language's plain foreign structs are decided, not built); a few byte tables, the reused `_all` row objects, and the
-generation stamps in navigation and contacts remain. See naive_baseline.md, "What is not converted yet".
+Asset loading still uses `Parallel`; the reused `_all` row objects, and the generation stamps in navigation and
+contacts remain. See naive_baseline.md, "What is not converted yet".
+
+Still on hand memory (`Raw`, `Memory.Heap`, `TypedMemory`), waiting for the language's plain foreign structs:
+
+- the Vulkan bindings (`render_vulkan/renderer.spite`, `structure.spite`, and the scene_vulkan passes: grass, mesh,
+  occlusion, post process, shadow, terrain, water), the Windows plugin (`pump_messages`, `track_window_size`,
+  `window_class`), the XInput `poll_gamepads`, and the `OVERLAPPED` struct of `os/windows/recipes/store_lock.spite`
+  (written through `ForeignBytes`; the library has no lock between processes, so the file lock stays);
+- `Matrix4.write_to` in `slop/matrix4.spite` and `Raw` in `slop/raw.spite`, which only those bindings use;
+- tables the render code keeps for the GPU: `render/component/draw_list.spite` (rectangle records), the software
+  renderer's `canvas.spite` pixels and `present.spite` bitmap header, and `scene/light_clusters.spite`, which writes
+  cluster ranges straight into mapped memory;
+- `ui/fonts.spite` stages the cooked font in a heap block because the `spite_truetype` package's
+  `FontData.copy_bytes` takes a `Memory.Address`; it needs to take a `List<Byte>`.
 
 ## The numbers to beat
 

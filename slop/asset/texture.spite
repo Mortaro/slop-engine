@@ -11,13 +11,13 @@ func pixel_count(): Integer {
 func pixel(index: Integer): Integer {
     var inside = format == "rgba8" and index >= 0 and index * 4 + 4 <= texels.length
     crash inside
-    return texels.raw.read_integer(texels.address, index * 4)
+    return texels.integer_at(index * 4)
 }
 
 func set_pixel(index: Integer, value: Integer) {
     var inside = format == "rgba8" and index >= 0 and index * 4 + 4 <= texels.length
     crash inside
-    texels.raw.write_integer(texels.address, index * 4, value)
+    texels.set_integer(index * 4, value)
 }
 
 func append_pixel(value: Integer) {

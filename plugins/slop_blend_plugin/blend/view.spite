@@ -1,7 +1,6 @@
 var file: Blend.Document? = null
 var shape = Blend.Shape()
 var offset = 0
-var floats = TypedMemory<Float>()
 
 func field(name: String): Blend.ShapeField {
     crash shape.fields.has(name)
@@ -44,8 +43,7 @@ func small_integer(name: String): Integer {
 func float_at(name: String, index: Integer): Float {
     var described = field(name)
     crash file
-    var address = file.bytes.address + offset + described.offset + index * 4
-    return floats.read_value(address, 0)
+    return file.bytes.float_at(offset + described.offset + index * 4)
 }
 
 func long_value(name: String): Long {

@@ -1270,8 +1270,7 @@ func copy_part(renderer: RenderVulkan.Renderer, bytes: Asset.Bytes, done: Intege
     if part > room {
         part = room
     }
-    var source = bytes.address + done
-    var offset = renderer.stage(source, part)
+    var offset = renderer.stage(bytes, done, part)
     var region = RenderVulkan.Structure(24)
     var source_offset: Long = offset
     var target_offset: Long = done

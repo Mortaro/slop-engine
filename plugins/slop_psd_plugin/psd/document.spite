@@ -1,7 +1,5 @@
 var bytes = Asset.Bytes()
 var layers = List<Psd.Layer>()
-var heap = Memory.Heap()
-var raw = Raw()
 var depth = 8
 var canvas_width = 0
 var canvas_height = 0
@@ -173,7 +171,7 @@ func read_record(): Psd.Layer {
     var ranges_length = read_unsigned()
     skip(ranges_length)
     var pascal_length = bytes.read_byte()
-    record.name = bytes.raw.text(bytes.address + bytes.position, pascal_length)
+    record.name = bytes.lossy_text_at(bytes.position, pascal_length)
     var padding = (4 - (pascal_length + 1) % 4) % 4
     skip(pascal_length + padding)
     read_extra_blocks(record, extra_end)
@@ -249,18 +247,18 @@ func read_extra_block(record: Psd.Layer): Boolean {
 
 func read_unicode_name(): String {
     var count = read_unsigned()
-    var buffer = heap.allocate(count + 1)
+    var letters = Asset.Bytes()
     var index = 0
     while index < count {
         var code = read_short()
         if code > 127 {
             code = 63
         }
-        raw.write_byte(buffer, index, code)
+        letters.write_byte(code)
         index = index + 1
     }
-    var name = raw.text(buffer, count)
-    heap.free(buffer)
+    var name = letters.text_at(0, count)
+    crash name
     return name
 }
 
@@ -310,14 +308,13 @@ func pixels_of(layer: Psd.Layer): Asset.Texture {
     var mask = mask_plane(layer)
     var count = texture.width * texture.height
     var texels = texture.texels
-    texels.reserve(count * 4 + 8)
+    texels.clear()
     var pixel = 0
     while pixel < count {
         var value = pack_pixel(red, green, blue, alpha, mask, pixel)
-        raw.write_integer(texels.address, pixel * 4, value)
+        texels.write_integer(value)
         pixel = pixel + 1
     }
-    texels.length = count * 4
     return texture
 }
 
@@ -329,15 +326,15 @@ func pack_pixel(
     mask: Asset.Bytes,
     pixel: Integer,
 ): Integer {
-    var red_value = raw.read_byte(red.address, pixel).bits_and(255)
-    var green_value = raw.read_byte(green.address, pixel).bits_and(255)
-    var blue_value = raw.read_byte(blue.address, pixel).bits_and(255)
+    var red_value = red.byte_at(pixel)
+    var green_value = green.byte_at(pixel)
+    var blue_value = blue.byte_at(pixel)
     var masked = 255
     if alpha.length > 0 {
-        masked = raw.read_byte(alpha.address, pixel).bits_and(255)
+        masked = alpha.byte_at(pixel)
     }
     if mask.length > 0 {
-        var cover = raw.read_byte(mask.address, pixel).bits_and(255)
+        var cover = mask.byte_at(pixel)
         masked = (masked * cover + 127) / 255
     }
     var green_bits = green_value.shifted_left(8)
@@ -375,9 +372,6 @@ func masked_plane(layer: Psd.Layer, channel: Psd.Channel): Asset.Bytes {
     var mask_height = layer.mask_bottom - layer.mask_top
     var stored = decode_channel(channel, mask_width, mask_height)
     var plane = Asset.Bytes()
-    var plane_width = layer.width()
-    var plane_height = layer.height()
-    plane.reserve(plane_width * plane_height + 8)
     var row = 0
     while row < layer.height() {
         append_mask_row(layer, stored, plane, row)
@@ -408,7 +402,6 @@ func decode_channel(channel: Psd.Channel, plane_width: Integer, plane_height: In
     var sample_bytes = depth / 8
     var row_bytes = plane_width * sample_bytes
     var stored = Asset.Bytes()
-    stored.reserve(row_bytes * plane_height + 8)
     if channel.compression == 1 {
         decode_run_length(channel, row_bytes, plane_height, stored)
     } else if channel.compression >= 2 {
@@ -426,14 +419,12 @@ func decode_channel(channel: Psd.Channel, plane_width: Integer, plane_height: In
 func high_bytes(stored: Asset.Bytes): Asset.Bytes {
     var plane = Asset.Bytes()
     var count = stored.length / 2
-    plane.reserve(count + 8)
     var index = 0
     while index < count {
-        var high = raw.read_byte(stored.address, index * 2)
-        raw.write_byte(plane.address, index, high)
+        var high = stored.byte_at(index * 2)
+        plane.write_byte(high)
         index = index + 1
     }
-    plane.length = count
     return plane
 }
 
@@ -445,7 +436,7 @@ func decode_zip(channel: Psd.Channel, row_bytes: Integer, plane_height: Integer,
         first = channel.plane * wanted
     }
     crash first + wanted <= unpacked.length
-    stored.write_bytes(unpacked.address + first, wanted)
+    stored.write_bytes(unpacked, first, wanted)
 }
 
 func inflated(channel: Psd.Channel, row_bytes: Integer, plane_height: Integer): Asset.Bytes {
@@ -456,7 +447,7 @@ func inflated(channel: Psd.Channel, row_bytes: Integer, plane_height: Integer): 
     }
     var rows = plane_height * channel.planes
     var packed = Asset.Bytes()
-    packed.write_bytes(bytes.address + channel.offset, channel.length)
+    packed.write_bytes(bytes, channel.offset, channel.length)
     var wanted = row_bytes * rows
     var unpacked = inflate.decompress(packed, wanted)
     crash not inflate.failed
@@ -484,13 +475,13 @@ func undo_prediction(unpacked: Asset.Bytes, row_bytes: Integer, plane_height: In
 
 func undo_narrow_row(unpacked: Asset.Bytes, start: Integer, row_bytes: Integer) {
     crash start + row_bytes <= unpacked.length
-    var previous = raw.read_byte(unpacked.address, start)
+    var previous = unpacked.byte_at(start)
     var column = 1
     while column < row_bytes {
-        var current = raw.read_byte(unpacked.address, start + column)
+        var current = unpacked.byte_at(start + column)
         var sum_bits = previous + current
         var sum = sum_bits.bits_and(255)
-        raw.write_byte(unpacked.address, start + column, sum)
+        unpacked.set_byte(start + column, sum)
         previous = sum
         column = column + 1
     }
@@ -502,8 +493,8 @@ func undo_wide_row(unpacked: Asset.Bytes, start: Integer, row_bytes: Integer) {
         var previous = unpacked.byte_at(start + column - 2) * 256 + unpacked.byte_at(start + column - 1)
         var current = unpacked.byte_at(start + column) * 256 + unpacked.byte_at(start + column + 1)
         var sum = (previous + current) % 65536
-        raw.write_byte(unpacked.address, start + column, sum / 256)
-        raw.write_byte(unpacked.address, start + column + 1, sum % 256)
+        unpacked.set_byte(start + column, sum / 256)
+        unpacked.set_byte(start + column + 1, sum % 256)
         column = column + 2
     }
 }
@@ -531,20 +522,20 @@ func decode_pack_bits(start: Integer, length: Integer, wanted: Integer, plane: A
     var written = 0
     while written < wanted {
         crash read < end
-        var header = raw.read_byte(bytes.address, read).bits_and(255)
+        var header = bytes.byte_at(read)
         read = read + 1
         if header < 128 {
             var copy = header + 1
             crash read + copy <= end
             crash written + copy <= wanted
-            plane.write_bytes(bytes.address + read, copy)
+            plane.write_bytes(bytes, read, copy)
             read = read + copy
             written = written + copy
         } else if header > 128 {
             var repeat = 257 - header
             crash read < end
             crash written + repeat <= wanted
-            var value = raw.read_byte(bytes.address, read)
+            var value = bytes.byte_at(read)
             plane.repeat_byte(value, repeat)
             read = read + 1
             written = written + repeat
@@ -555,11 +546,11 @@ func decode_pack_bits(start: Integer, length: Integer, wanted: Integer, plane: A
 
 func copy_bytes(from: Integer, count: Integer, plane: Asset.Bytes) {
     crash from + count <= bytes.length
-    plane.write_bytes(bytes.address + from, count)
+    plane.write_bytes(bytes, from, count)
 }
 
 func read_tag(): String {
-    var text = bytes.raw.text(bytes.address + bytes.position, 4)
+    var text = bytes.lossy_text_at(bytes.position, 4)
     skip(4)
     return text
 }

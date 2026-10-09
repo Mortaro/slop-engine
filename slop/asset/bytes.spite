@@ -1,123 +1,85 @@
-var raw = Raw()
-var heap = Memory.Heap()
-var floats = TypedMemory<Float>()
-var doubles = TypedMemory<Double>()
-var address: Long = 0
+var data = List<Byte>()
 var length = 0
-var capacity = 0
 var position = 0
 var untrusted = false
 var failed = false
 
-func reserve(wanted: Integer) {
-    if wanted > capacity {
-        grow(wanted)
+func resize(count: Integer) {
+    assert count >= 0
+    if count < data.count() {
+        data.truncate(count)
     }
-}
-
-func grow(wanted: Integer) {
-    var grown = capacity * 2
-    if grown < wanted {
-        grown = wanted + 64
+    while data.count() < count {
+        var zero: Byte = 0
+        data.append(zero)
     }
-    if address == 0 {
-        address = heap.allocate(grown)
-    } else {
-        address = heap.resize(address, grown)
-    }
-    capacity = grown
+    length = count
 }
 
 func write_byte(value: Integer) {
-    reserve(length + 1)
-    raw.write_byte(address, length, value)
-    length = length + 1
+    var narrow: Byte = value
+    data.append(narrow)
+    length = data.count()
 }
 
 func write_integer(value: Integer) {
-    reserve(length + 4)
-    raw.write_integer(address, length, value)
-    length = length + 4
+    data.append_integer(value)
+    length = data.count()
 }
 
 func write_long(value: Long) {
-    reserve(length + 8)
-    raw.write_long(address, length, value)
-    length = length + 8
+    data.append_long(value)
+    length = data.count()
 }
 
 func write_float(value: Float) {
-    reserve(length + 4)
-    floats.write_value(address + length, 0, value)
-    length = length + 4
+    data.append_float(value)
+    length = data.count()
 }
 
 func write_double(value: Double) {
-    reserve(length + 8)
-    doubles.write_value(address + length, 0, value)
-    length = length + 8
+    data.append_double(value)
+    length = data.count()
 }
 
 func write_text(text: String) {
-    var text_length = text.length()
-    write_integer(text_length)
-    var index = 0
-    while index < text_length {
-        var code = text.code_at(index)
-        write_byte(code)
-        index = index + 1
-    }
+    var text_bytes = text.to_bytes()
+    var text_count = text_bytes.count()
+    write_integer(text_count)
+    append_list(text_bytes)
 }
 
-func write_bytes(source: Long, count: Integer) {
-    reserve(length + count)
-    raw.copy(source, address + length, count)
-    length = length + count
+func append_text_bytes(text: String) {
+    var text_bytes = text.to_bytes()
+    append_list(text_bytes)
+}
+
+func append_list(other: List<Byte>) {
+    var other_count = other.count()
+    data.append_bytes(other, 0, other_count)
+    length = data.count()
+}
+
+func write_bytes(source: Asset.Bytes, start: Integer, count: Integer) {
+    data.append_bytes(source.data, start, count)
+    length = data.count()
 }
 
 func write_block(block: Asset.Bytes) {
     write_integer(block.length)
-    if block.length > 0 {
-        write_bytes(block.address, block.length)
-    }
+    write_bytes(block, 0, block.length)
 }
 
 func repeat_byte(value: Integer, count: Integer) {
-    reserve(length + count + 1)
-    var end = length + count
-    var at = length
-    while at < end {
-        raw.write_byte(address, at, value)
-        at = at + 1
+    var index = 0
+    while index < count {
+        write_byte(value)
+        index = index + 1
     }
-    length = end
 }
 
 func zeroes(count: Integer) {
-    reserve(length + count + 8)
-    var end = length + count
-    var at = length
-    while at + 8 <= end {
-        raw.write_long(address, at, 0)
-        at = at + 8
-    }
-    while at < end {
-        raw.write_byte(address, at, 0)
-        at = at + 1
-    }
-    length = end
-}
-
-func append_text_bytes(text: String) {
-    var text_length = text.length()
-    reserve(length + text_length)
-    var index = 0
-    while index < text_length {
-        var code = text.code_at(index)
-        raw.write_byte(address, length + index, code)
-        index = index + 1
-    }
-    length = length + text_length
+    repeat_byte(0, count)
 }
 
 func fits(count: Integer): Boolean {
@@ -141,6 +103,7 @@ func count_fits(count: Integer): Boolean {
 }
 
 func clear() {
+    data.clear()
     length = 0
     position = 0
     failed = false
@@ -154,10 +117,7 @@ func read_byte(): Integer {
     if not fits(1) {
         return 0
     }
-    var value: Integer = raw.read_byte(address, position)
-    if value < 0 {
-        value = value + 256
-    }
+    var value = byte_at(position)
     position = position + 1
     return value
 }
@@ -166,7 +126,7 @@ func read_integer(): Integer {
     if not fits(4) {
         return 0
     }
-    var value = raw.read_integer(address, position)
+    var value = integer_at(position)
     position = position + 4
     return value
 }
@@ -175,7 +135,7 @@ func read_long(): Long {
     if not fits(8) {
         return 0
     }
-    var value = raw.read_long(address, position)
+    var value = long_at(position)
     position = position + 8
     return value
 }
@@ -184,7 +144,8 @@ func read_float(): Float {
     if not fits(4) {
         return 0.0
     }
-    var value = floats.read_value(address + position, 0)
+    var value = data.read_float(position)
+    crash value
     position = position + 4
     return value
 }
@@ -193,7 +154,8 @@ func read_double(): Double {
     if not fits(8) {
         return 0.0
     }
-    var value = doubles.read_value(address + position, 0)
+    var value = data.read_double(position)
+    crash value
     position = position + 8
     return value
 }
@@ -203,7 +165,8 @@ func read_text(): String {
     if text_length < 0 or not fits(text_length) {
         return ""
     }
-    var text = raw.text(address + position, text_length)
+    var text = text_at(position, text_length)
+    crash text
     position = position + text_length
     return text
 }
@@ -214,62 +177,112 @@ func read_block(): Asset.Bytes {
     if not count_fits(count) or count == 0 {
         return block
     }
-    block.write_bytes(address + position, count)
+    block.data.append_bytes(data, position, count)
+    block.length = count
     position = position + count
     return block
 }
 
-func byte_at(offset: Integer): Integer {
-    crash offset >= 0 and offset < length
-    var value: Integer = raw.read_byte(address, offset)
-    if value < 0 {
-        value = value + 256
+func list_from(start: Integer, count: Integer): List<Byte> {
+    var part = List<Byte>()
+    part.append_bytes(data, start, count)
+    return part
+}
+
+func store_at(address: Long, start: Integer, count: Integer) {
+    var foreign = ForeignBytes(address, count)
+    var part = list_from(start, count)
+    foreign.write_bytes(0, part)
+}
+
+func text_at(offset: Integer, count: Integer): String? {
+    var part = List<Byte>()
+    part.append_bytes(data, offset, count)
+    return part.to_utf8_text()
+}
+
+func lossy_text_at(offset: Integer, count: Integer): String {
+    var text = text_at(offset, count)
+    if text {
+        return text
     }
+    var letters = Asset.Bytes()
+    var index = 0
+    while index < count {
+        var code = byte_at(offset + index)
+        if code > 127 {
+            code = 63
+        }
+        letters.write_byte(code)
+        index = index + 1
+    }
+    var plain = letters.text_at(0, count)
+    crash plain
+    return plain
+}
+
+func byte_at(offset: Integer): Integer {
+    var value = data[offset]
+    crash value
     return value
 }
 
+func integer_at(offset: Integer): Integer {
+    var value = data.read_integer(offset)
+    crash value
+    return value
+}
+
+func long_at(offset: Integer): Long {
+    var value = data.read_long(offset)
+    crash value
+    return value
+}
+
+func float_at(offset: Integer): Float {
+    var value = data.read_float(offset)
+    crash value
+    return value
+}
+
+func set_byte(offset: Integer, value: Integer) {
+    var narrow: Byte = value
+    data[offset] = narrow
+}
+
+func set_integer(offset: Integer, value: Integer) {
+    data.write_integer(offset, value)
+}
+
+func set_long(offset: Integer, value: Long) {
+    data.write_long(offset, value)
+}
+
 func big_endian_short(offset: Integer): Integer {
-    var high = byte_at(offset)
-    var low = byte_at(offset + 1)
-    return high * 256 + low
+    var value = data.read_unsigned_short_big_endian(offset)
+    crash value
+    return value
 }
 
 func big_endian_integer(offset: Integer): Integer {
-    var high = big_endian_short(offset)
-    var low = big_endian_short(offset + 2)
-    return high * 65536 + low
+    var value = data.read_integer_big_endian(offset)
+    crash value
+    return value
 }
 
 func read_file(path: String): Boolean {
     var file = File(path)
-    var size = file.size()
-    if not size {
-        return false
-    }
-    length = 0
-    position = 0
-    var wanted: Integer = size
-    reserve(wanted + 1)
-    var start: Long = 0
-    var read = file.read_bytes_at(start, wanted)
+    var read = file.read_bytes()
     if not read {
         return false
     }
-    var got: Long = read.count()
-    ForeignBytes(address, got).write_bytes(0, read)
-    length = wanted
-    return got == size
+    data = read
+    length = data.count()
+    position = 0
+    return true
 }
 
 func save(path: String): Boolean {
     var file = File(path)
-    var count: Long = length
-    var bytes = ForeignBytes(address, count).read_bytes(0, length)
-    crash bytes
-    return file.write_bytes(bytes)
-}
-
-func drop() {
-    assert address != 0
-    heap.free(address)
+    return file.write_bytes(data)
 }

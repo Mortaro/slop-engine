@@ -4,7 +4,6 @@ enum Filter {
     'normal'
 }
 
-var raw = Raw()
 var to_linear = List<Integer>()
 var to_srgb = List<Integer>()
 
@@ -45,11 +44,11 @@ func prepare() {
 
 func next_level(source: Asset.Bytes, width: Integer, height: Integer, filter: Filter): Asset.Bytes {
     var next_height = half_of(height)
-    return filter_rows(source.address, width, height, 0, next_height, filter)
+    return filter_rows(source, width, height, 0, next_height, filter)
 }
 
 func filter_rows(
-    source_address: Long,
+    source: Asset.Bytes,
     width: Integer,
     height: Integer,
     first_row: Integer,
@@ -58,7 +57,6 @@ func filter_rows(
 ): Asset.Bytes {
     var next_width = half_of(width)
     var next = Asset.Bytes()
-    next.reserve(next_width * rows * 4 + 8)
     var row = 0
     while row < rows {
         var top_unclamped = (first_row + row) * 2
@@ -71,10 +69,10 @@ func filter_rows(
             var left = left_unclamped.minimum(width - 1)
             var right_unclamped = column * 2 + 1
             var right = right_unclamped.minimum(width - 1)
-            var top_left = raw.read_integer(source_address, (top * width + left) * 4)
-            var top_right = raw.read_integer(source_address, (top * width + right) * 4)
-            var bottom_left = raw.read_integer(source_address, (bottom * width + left) * 4)
-            var bottom_right = raw.read_integer(source_address, (bottom * width + right) * 4)
+            var top_left = source.integer_at((top * width + left) * 4)
+            var top_right = source.integer_at((top * width + right) * 4)
+            var bottom_left = source.integer_at((bottom * width + left) * 4)
+            var bottom_right = source.integer_at((bottom * width + right) * 4)
             var averaged = 0
             if filter == 'srgb' {
                 averaged = average_srgb(top_left, top_right, bottom_left, bottom_right)
@@ -83,12 +81,11 @@ func filter_rows(
             } else {
                 averaged = average_linear(top_left, top_right, bottom_left, bottom_right)
             }
-            raw.write_integer(next.address, (row * next_width + column) * 4, averaged)
+            next.write_integer(averaged)
             column = column + 1
         }
         row = row + 1
     }
-    next.length = next_width * rows * 4
     return next
 }
 

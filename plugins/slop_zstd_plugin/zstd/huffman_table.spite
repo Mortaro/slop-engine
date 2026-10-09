@@ -1,9 +1,7 @@
-var raw = Raw()
-var heap = Memory.Heap()
 var powers = Zstd.Powers()
 var maximum_bits = 0
-var symbols: Long = 0
-var lengths: Long = 0
+var symbols = List<Integer>()
+var lengths = List<Integer>()
 var ready = false
 
 func build(weights: List<Integer>) {
@@ -28,8 +26,12 @@ func build(weights: List<Integer>) {
 func fill_table(weights: List<Integer>) {
     release_table()
     var size = powers.of(maximum_bits)
-    symbols = heap.allocate(size * 4)
-    lengths = heap.allocate(size * 4)
+    var entry: Long = 0
+    while entry < size {
+        symbols.append(0)
+        lengths.append(0)
+        entry = entry + 1
+    }
     var starts = List<Long>()
     var start: Long = 0
     var weight = 0
@@ -70,18 +72,16 @@ func place_symbol(weights: List<Integer>, symbol: Integer, starts: List<Long>) {
     var length = maximum_bits + 1 - weight
     var slot = begin
     while slot < begin + span {
-        raw.write_integer(symbols, slot * 4, symbol)
-        raw.write_integer(lengths, slot * 4, length)
+        symbols[slot] = symbol
+        lengths[slot] = length
         slot = slot + 1
     }
     starts[weight] = begin + span
 }
 
 func release_table() {
-    assert symbols != 0
-    heap.free(symbols)
-    heap.free(lengths)
-    symbols = 0
+    symbols.clear()
+    lengths.clear()
 }
 
 func decode(reader: Zstd.BitReader): Integer {
@@ -96,8 +96,10 @@ func decode(reader: Zstd.BitReader): Integer {
         var shift = nothing - position
         peeked = low * powers.of(shift)
     }
-    var symbol = raw.read_integer(symbols, peeked * 4)
-    var length = raw.read_integer(lengths, peeked * 4)
+    var symbol = symbols[peeked]
+    var length = lengths[peeked]
+    crash symbol
+    crash length
     reader.bit_position = reader.bit_position - length
     return symbol
 }

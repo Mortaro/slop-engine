@@ -1,46 +1,52 @@
-var raw = Raw()
-var heap = Memory.Heap()
 var powers = Zstd.Powers()
 var accuracy = 0
 var size = 0
-var symbols: Long = 0
-var bits: Long = 0
-var baselines: Long = 0
+var symbols = List<Integer>()
+var bits = List<Integer>()
+var baselines = List<Integer>()
 
 func allocate_table(new_accuracy: Integer) {
     release_table()
     accuracy = new_accuracy
     size = powers.of(accuracy)
-    symbols = heap.allocate(size * 4)
-    bits = heap.allocate(size * 4)
-    baselines = heap.allocate(size * 4)
+    var slot = 0
+    while slot < size {
+        symbols.append(0)
+        bits.append(0)
+        baselines.append(0)
+        slot = slot + 1
+    }
 }
 
 func release_table() {
-    assert symbols != 0
-    heap.free(symbols)
-    heap.free(bits)
-    heap.free(baselines)
-    symbols = 0
+    symbols.clear()
+    bits.clear()
+    baselines.clear()
 }
 
 func symbol_at(state: Integer): Integer {
-    return raw.read_integer(symbols, state * 4)
+    var value = symbols[state]
+    crash value
+    return value
 }
 
 func bits_at(state: Integer): Integer {
-    return raw.read_integer(bits, state * 4)
+    var value = bits[state]
+    crash value
+    return value
 }
 
 func baseline_at(state: Integer): Integer {
-    return raw.read_integer(baselines, state * 4)
+    var value = baselines[state]
+    crash value
+    return value
 }
 
 func build_rle(symbol: Integer) {
     allocate_table(0)
-    raw.write_integer(symbols, 0, symbol)
-    raw.write_integer(bits, 0, 0)
-    raw.write_integer(baselines, 0, 0)
+    symbols[0] = symbol
+    bits[0] = 0
+    baselines[0] = 0
 }
 
 func build(normalized: List<Integer>, new_accuracy: Integer) {
@@ -51,7 +57,7 @@ func build(normalized: List<Integer>, new_accuracy: Integer) {
     while symbol < normalized.count() {
         var probability = normalized[symbol]
         if probability == -1 {
-            raw.write_integer(symbols, high_threshold * 4, symbol)
+            symbols[high_threshold] = symbol
             high_threshold = high_threshold - 1
             next_state.append(1)
         } else {
@@ -75,7 +81,7 @@ func spread(normalized: List<Integer>, high_threshold: Integer) {
         var count = normalized[symbol]
         var placed = 0
         while placed < count {
-            raw.write_integer(symbols, position * 4, symbol)
+            symbols[position] = symbol
             position = (position + step) % size
             while position > high_threshold {
                 position = (position + step) % size
@@ -93,8 +99,8 @@ func finish_state(state: Integer, next_state: List<Integer>) {
     next_state[symbol] = next + 1
     var number_of_bits = accuracy - powers.highest_bit(next)
     var baseline = powers.of(number_of_bits) * next - size
-    raw.write_integer(bits, state * 4, number_of_bits)
-    raw.write_integer(baselines, state * 4, baseline)
+    bits[state] = number_of_bits
+    baselines[state] = baseline
 }
 
 func read_description(reader: Zstd.BitReader, maximum_symbol: Integer): Integer {

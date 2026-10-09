@@ -3,21 +3,17 @@ var offset: Long = 0
 var length: Long = 0
 var key = ""
 var console = Console()
-var heap = Memory.Heap()
-var raw = Raw()
 
 func read(): Asset.Bytes {
     var file = File(path)
     check_header(file)
     var bytes = Asset.Bytes()
     var wanted: Integer = length
-    bytes.reserve(wanted + 1)
     var got = file.read_bytes_at(offset, wanted)
     crash got
     var got_count: Long = got.count()
     crash got_count == length
-    ForeignBytes(bytes.address, got_count).write_bytes(0, got)
-    bytes.length = wanted
+    bytes.append_list(got)
     return bytes
 }
 
@@ -25,24 +21,27 @@ func check_header(file: File) {
     var key_size = key.length()
     var header_size: Long = 4 + key_size + 8
     var header_at = offset - header_size
-    var header = heap.allocate(header_size)
     var header_count: Integer = header_size
     var got = file.read_bytes_at(header_at, header_count)
-    var whole = false
-    if got {
-        var got_count: Long = got.count()
-        ForeignBytes(header, got_count).write_bytes(0, got)
-        whole = got_count == header_size
-    }
     var stored_key_size = -1
     var stored_key = ""
     var stored_length: Long = -1
-    if whole {
-        stored_key_size = raw.read_integer(header, 0)
-        stored_key = raw.text(header + 4, key_size)
-        stored_length = raw.read_long(header, 4 + key_size)
+    if got {
+        var got_count: Long = got.count()
+        if got_count == header_size {
+            var read_size = got.read_integer(0)
+            var read_length = got.read_long(4 + key_size)
+            var read_key = Asset.Bytes()
+            read_key.append_list(got)
+            var key_text = read_key.text_at(4, key_size)
+            crash read_size
+            crash read_length
+            crash key_text
+            stored_key_size = read_size
+            stored_key = key_text
+            stored_length = read_length
+        }
     }
-    heap.free(header)
     var store_entry_at_its_offset_is_the_key_asked_for = stored_key_size == key_size and stored_key == key and stored_length == length
     if not store_entry_at_its_offset_is_the_key_asked_for {
         console.error("store entry at {offset} in {path} is not {key}: found '{stored_key}' ({stored_length} bytes)")

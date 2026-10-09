@@ -1,6 +1,4 @@
-var raw = Raw()
-var heap = Memory.Heap()
-var entries: Long = 0
+var entries = List<Integer>()
 var maximum_bits = 1
 var mask: Long = 1
 
@@ -80,7 +78,7 @@ func place_symbol(symbol: Integer, length: Integer, next_codes: List<Integer>) {
     entry = entry.bits_or(length)
     var size = mask + 1
     while size > slot {
-        raw.write_integer(entries, slot * 4, entry)
+        entries[slot] = entry
         slot = slot + step
     }
 }
@@ -100,20 +98,16 @@ func reversed(code: Integer, length: Integer): Integer {
 }
 
 func reserve_entries() {
-    assert entries == 0
-    entries = heap.allocate(131072)
+    while entries.count() < 32768 {
+        entries.append(0)
+    }
 }
 
 func clear_entries() {
     var size = mask + 1
     var slot = 0
     while size > slot {
-        raw.write_integer(entries, slot * 4, 0)
+        entries[slot] = 0
         slot = slot + 1
     }
-}
-
-func drop() {
-    assert entries != 0
-    heap.free(entries)
 }

@@ -16,7 +16,6 @@ var encodes = 0
 var scratch = Asset.Bytes()
 var spliced = Asset.Bytes()
 var nothing = Asset.Bytes()
-var raw = Raw()
 
 func begin() {
     tick = tick + 1
@@ -61,15 +60,15 @@ func put(entity: Integer, message: Integer, unreliable: Boolean) {
     var stored = full[entity]
     var at = frame_with(stored, message)
     var size = scratch.length
-    assert at < 0 or raw.read_integer(stored.address, at) + 4 != size or not same_bytes(stored, at, size)
+    assert at < 0 or stored.integer_at(at) + 4 != size or not same_bytes(stored, at, size)
     splice(stored, at)
     if unreliable and fresh[entity] != tick {
         var quickly = quick_for(entity)
-        quickly.write_bytes(scratch.address, size)
+        quickly.write_bytes(scratch, 0, size)
         return
     }
     var changes = delta_for(entity)
-    changes.write_bytes(scratch.address, size)
+    changes.write_bytes(scratch, 0, size)
 }
 
 func strip(entity: Integer, message: Integer) {
@@ -78,7 +77,7 @@ func strip(entity: Integer, message: Integer) {
     var stored = full[entity]
     var at = frame_with(stored, message)
     assert at >= 0
-    var remote = raw.read_integer(stored.address, at + 8)
+    var remote = stored.integer_at(at + 8)
     scratch.clear()
     splice(stored, at)
     var changes = delta_for(entity)
@@ -90,17 +89,17 @@ func strip(entity: Integer, message: Integer) {
 
 func splice(stored: Asset.Bytes, at: Integer) {
     if at < 0 {
-        stored.write_bytes(scratch.address, scratch.length)
+        stored.write_bytes(scratch, 0, scratch.length)
         return
     }
-    var old_size = raw.read_integer(stored.address, at) + 4
+    var old_size = stored.integer_at(at) + 4
     var after = at + old_size
     spliced.clear()
-    spliced.write_bytes(stored.address, at)
-    spliced.write_bytes(scratch.address, scratch.length)
-    spliced.write_bytes(stored.address + after, stored.length - after)
+    spliced.write_bytes(stored, 0, at)
+    spliced.write_bytes(scratch, 0, scratch.length)
+    spliced.write_bytes(stored, after, stored.length - after)
     stored.clear()
-    stored.write_bytes(spliced.address, spliced.length)
+    stored.write_bytes(spliced, 0, spliced.length)
 }
 
 func delta_for(entity: Integer): Asset.Bytes {
@@ -170,13 +169,13 @@ func settle_frames(entity: Integer, before: Asset.Bytes, now: Asset.Bytes) {
     var stored = full[entity]
     var at = 0
     while at < before.length {
-        var size = raw.read_integer(before.address, at) + 4
-        var message = raw.read_integer(before.address, at + 4)
+        var size = before.integer_at(at) + 4
+        var message = before.integer_at(at + 4)
         var current = frame_with(stored, message)
         if frame_with(now, message) < 0 and current >= 0 {
-            var current_size = raw.read_integer(stored.address, current) + 4
+            var current_size = stored.integer_at(current) + 4
             var changes = delta_for(entity)
-            changes.write_bytes(stored.address + current, current_size)
+            changes.write_bytes(stored, current, current_size)
         }
         at = at + size
     }
@@ -218,10 +217,10 @@ func frame_with(frames: Asset.Bytes, message: Integer): Integer {
     var at = 0
     var found = -1
     while found < 0 and at < frames.length {
-        if raw.read_integer(frames.address, at + 4) == message {
+        if frames.integer_at(at + 4) == message {
             found = at
         }
-        at = at + raw.read_integer(frames.address, at) + 4
+        at = at + frames.integer_at(at) + 4
     }
     return found
 }

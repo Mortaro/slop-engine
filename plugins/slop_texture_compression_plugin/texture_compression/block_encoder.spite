@@ -1,10 +1,9 @@
-var raw = Raw()
-var samples = Asset.Bytes()
-var chosen = Asset.Bytes()
-var trial = Asset.Bytes()
-var palette = Asset.Bytes()
-var best_endpoints = Asset.Bytes()
-var scratch_bytes = 4096
+var samples = List<Integer>()
+var chosen = List<Integer>()
+var trial = List<Integer>()
+var palette = List<Integer>()
+var best_endpoints = List<Integer>()
+var scratch_count = 64
 var match_first = 0
 var match_second = 0
 var bc7_weights = [0, 4, 9, 13, 17, 21, 26, 30, 34, 38, 43, 47, 51, 55, 60, 64]
@@ -13,14 +12,18 @@ var high_bits: Long = 0
 var bit_position = 0
 
 func prepare() {
-    samples.zeroes(scratch_bytes)
-    chosen.zeroes(scratch_bytes)
-    trial.zeroes(scratch_bytes)
-    palette.zeroes(scratch_bytes)
-    best_endpoints.zeroes(scratch_bytes)
+    var index = 0
+    while index < scratch_count {
+        samples.append(0)
+        chosen.append(0)
+        trial.append(0)
+        palette.append(0)
+        best_endpoints.append(0)
+        index = index + 1
+    }
 }
 
-func gather(source_address: Long, width: Integer, rows: Integer, block_x: Integer, block_y: Integer) {
+func gather(source: Asset.Bytes, width: Integer, rows: Integer, block_x: Integer, block_y: Integer) {
     var index = 0
     while index < 16 {
         var column = block_x * 4 + index % 4
@@ -31,33 +34,33 @@ func gather(source_address: Long, width: Integer, rows: Integer, block_x: Intege
         if row >= rows {
             row = rows - 1
         }
-        var pixel = raw.read_integer(source_address, (row * width + column) * 4)
+        var pixel = source.integer_at((row * width + column) * 4)
         var red = pixel.bits_and(255)
         var green = pixel.shifted_right(8).bits_and(255)
         var blue = pixel.shifted_right(16).bits_and(255)
         var alpha = pixel.shifted_right(24).bits_and(255)
-        raw.write_integer(samples.address, index * 4, red)
-        raw.write_integer(samples.address, (16 + index) * 4, green)
-        raw.write_integer(samples.address, (32 + index) * 4, blue)
-        raw.write_integer(samples.address, (48 + index) * 4, alpha)
+        samples[index] = red
+        samples[16 + index] = green
+        samples[32 + index] = blue
+        samples[48 + index] = alpha
         index = index + 1
     }
 }
 
 func sample(channel: Integer, index: Integer): Integer {
-    return raw.read_integer(samples.address, (channel * 16 + index) * 4)
+    return table_value(samples, channel * 16 + index)
 }
 
 func chosen_at(index: Integer): Integer {
-    return raw.read_integer(chosen.address, index * 4)
+    return table_value(chosen, index)
 }
 
 func trial_at(index: Integer): Integer {
-    return raw.read_integer(trial.address, index * 4)
+    return table_value(trial, index)
 }
 
 func keep_trial() {
-    raw.copy(trial.address, chosen.address, 64)
+    chosen = trial.copy()
 }
 
 func write_short(out: Asset.Bytes, value: Integer) {
@@ -310,7 +313,7 @@ func encode_solid_color(out: Asset.Bytes, red: Integer, green: Integer, blue: In
     var second = second_red.bits_or(second_green).bits_or(match_second)
     var index = 0
     while index < 16 {
-        raw.write_integer(chosen.address, index * 4, 2)
+        chosen[index] = 2
         index = index + 1
     }
     write_color_block(out, first, second)
@@ -424,7 +427,7 @@ func match_colors(first: Integer, second: Integer): Integer {
             best = other
             picked = 3
         }
-        raw.write_integer(trial.address, index * 4, picked)
+        trial[index] = picked
         total = total + best
         index = index + 1
     }
@@ -544,7 +547,7 @@ func match_single(channel: Integer, first: Integer, second: Integer): Integer {
     var entry = 0
     while entry < 8 {
         var value = single_palette(first, second, entry)
-        raw.write_integer(palette.address, entry * 4, value)
+        palette[entry] = value
         entry = entry + 1
     }
     var span = first - second
@@ -565,7 +568,7 @@ func match_single(channel: Integer, first: Integer, second: Integer): Integer {
         } else if position == 0 {
             picked = 1
         }
-        var best_difference = value - raw.read_integer(palette.address, picked * 4)
+        var best_difference = value - table_value(palette, picked)
         var best = best_difference * best_difference
         var neighbour = position - 1
         while neighbour <= position + 1 {
@@ -576,7 +579,7 @@ func match_single(channel: Integer, first: Integer, second: Integer): Integer {
                 } else if neighbour == 0 {
                     candidate = 1
                 }
-                var difference = value - raw.read_integer(palette.address, candidate * 4)
+                var difference = value - table_value(palette, candidate)
                 var squared = difference * difference
                 if squared < best {
                     best = squared
@@ -585,7 +588,7 @@ func match_single(channel: Integer, first: Integer, second: Integer): Integer {
             }
             neighbour = neighbour + 1
         }
-        raw.write_integer(trial.address, index * 4, picked)
+        trial[index] = picked
         total = total + best
         index = index + 1
     }
@@ -710,7 +713,7 @@ func encode_bc7(out: Asset.Bytes) {
     set_bc7_endpoints(a_red, a_green, a_blue, a_alpha, b_red, b_green, b_blue, b_alpha)
     var error = match_bc7()
     keep_trial()
-    raw.copy(palette.address, best_endpoints.address, 40)
+    best_endpoints = palette.copy()
     var round = 0
     while round < 2 {
         round = round + 1
@@ -767,7 +770,7 @@ func encode_bc7(out: Asset.Bytes) {
         if refined_error < error {
             error = refined_error
             keep_trial()
-            raw.copy(palette.address, best_endpoints.address, 40)
+            best_endpoints = palette.copy()
         } else {
             round = 2
         }
@@ -795,13 +798,13 @@ func set_bc7_endpoints(
     store_seven_bits(5, b_green, b_parity)
     store_seven_bits(6, b_blue, b_parity)
     store_seven_bits(7, b_alpha, b_parity)
-    raw.write_integer(palette.address, 32, a_parity)
-    raw.write_integer(palette.address, 36, b_parity)
+    palette[8] = a_parity
+    palette[9] = b_parity
 }
 
 func store_seven_bits(slot: Integer, value: Integer, parity: Integer) {
     var stored = seven_bits(value, parity)
-    raw.write_integer(palette.address, slot * 4, stored)
+    palette[slot] = stored
 }
 
 func seven_bits(value: Integer, parity: Integer): Integer {
@@ -831,8 +834,8 @@ func best_parity(red: Integer, green: Integer, blue: Integer, alpha: Integer): I
 }
 
 func endpoint(channel: Integer, which: Integer): Integer {
-    var stored = raw.read_integer(palette.address, (which * 4 + channel) * 4)
-    var parity = raw.read_integer(palette.address, (8 + which) * 4)
+    var stored = table_value(palette, which * 4 + channel)
+    var parity = table_value(palette, 8 + which)
     return stored.shifted_left(1).bits_or(parity)
 }
 
@@ -887,14 +890,14 @@ func match_bc7(): Integer {
             }
             candidate = candidate + 1
         }
-        raw.write_integer(trial.address, index * 4, picked)
+        trial[index] = picked
         total = total + best
         index = index + 1
     }
     return total
 }
 
-func write_bc7_block(out: Asset.Bytes, endpoints: Asset.Bytes) {
+func write_bc7_block(out: Asset.Bytes, endpoints: List<Integer>) {
     var swap = chosen_at(0) >= 8
     var first = 0
     var second = 1
@@ -908,14 +911,14 @@ func write_bc7_block(out: Asset.Bytes, endpoints: Asset.Bytes) {
     put_bits(64, 7)
     var channel = 0
     while channel < 4 {
-        var first_value = raw.read_integer(endpoints.address, (first * 4 + channel) * 4)
-        var second_value = raw.read_integer(endpoints.address, (second * 4 + channel) * 4)
+        var first_value = table_value(endpoints, first * 4 + channel)
+        var second_value = table_value(endpoints, second * 4 + channel)
         put_bits(first_value, 7)
         put_bits(second_value, 7)
         channel = channel + 1
     }
-    var first_parity = raw.read_integer(endpoints.address, (8 + first) * 4)
-    var second_parity = raw.read_integer(endpoints.address, (8 + second) * 4)
+    var first_parity = table_value(endpoints, 8 + first)
+    var second_parity = table_value(endpoints, 8 + second)
     put_bits(first_parity, 1)
     put_bits(second_parity, 1)
     var index = 0
@@ -933,4 +936,10 @@ func write_bc7_block(out: Asset.Bytes, endpoints: Asset.Bytes) {
     }
     out.write_long(low_bits)
     out.write_long(high_bits)
+}
+
+func table_value(table: List<Integer>, index: Integer): Integer {
+    var value = table[index]
+    crash value
+    return value
 }

@@ -3,7 +3,7 @@ var height = 0
 var first_row = 0
 var rows = 0
 var filter: TextureCompression.MipChain.Filter = 'srgb'
-var source_address: Long = 0
+var source = Asset.Bytes()
 
 func MipBandJob(
     source_width: Integer,
@@ -24,5 +24,5 @@ func run(): Asset.Bytes {
     if filter == 'srgb' {
         mips.prepare()
     }
-    return mips.filter_rows(source_address, width, height, first_row, rows, filter)
+    return mips.filter_rows(source, width, height, first_row, rows, filter)
 }

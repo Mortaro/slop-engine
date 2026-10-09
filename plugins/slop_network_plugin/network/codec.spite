@@ -4,7 +4,6 @@ var column = Column<$component_type>()
 var columns = Columns()
 var world = World()
 var build = Build()
-var raw = Raw()
 var changes = Changes()
 
 func key(): String {
@@ -162,7 +161,7 @@ func write_frame(frames: Asset.Bytes, message: Integer, entity: Integer, value: 
         pack.write(value, frames)
     }
     var size = frames.length - start - 4
-    raw.write_integer(frames.address, start, size)
+    frames.set_integer(start, size)
 }
 
 func remote_of(entity: Integer): Integer {

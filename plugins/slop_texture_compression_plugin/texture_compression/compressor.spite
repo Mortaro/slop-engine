@@ -8,7 +8,6 @@ enum Setting {
 }
 
 var mips = TextureCompression.MipChain()
-var raw = Raw()
 var prepared = false
 var clock = Clock()
 var mip_milliseconds: Long = 0
@@ -70,7 +69,7 @@ func has_alpha(source: Asset.Texture): Boolean {
     var count = source.width * source.height
     var index = 0
     while index < count {
-        var alpha = raw.read_byte(source.texels.address, index * 4 + 3).bits_and(255)
+        var alpha = source.texels.byte_at(index * 4 + 3)
         if alpha != 255 {
             return true
         }
@@ -109,18 +108,16 @@ func encode_level(texture: Asset.Texture, pixels: Asset.Bytes, width: Integer, h
         return
     }
     var job = TextureCompression.BandJob(texture.format, width, height)
-    job.source_address = pixels.address
+    job.source = pixels
     var encoded = job.run()
-    texture.texels.write_bytes(encoded.address, encoded.length)
+    texture.texels.write_bytes(encoded, 0, encoded.length)
 }
 
 func append_red(texels: Asset.Bytes, pixels: Asset.Bytes, count: Integer) {
-    texels.reserve(texels.length + count + 8)
     var index = 0
     while index < count {
-        var red = raw.read_byte(pixels.address, index * 4)
-        raw.write_byte(texels.address, texels.length + index, red)
+        var red = pixels.byte_at(index * 4)
+        texels.write_byte(red)
         index = index + 1
     }
-    texels.length = texels.length + count
 }

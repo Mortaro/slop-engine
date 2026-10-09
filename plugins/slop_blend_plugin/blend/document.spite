@@ -1,6 +1,4 @@
 var bytes = Asset.Bytes()
-var raw = Raw()
-var floats = TypedMemory<Float>()
 var blocks = List<Blend.Block>()
 var by_address = Dictionary<Long, Integer>()
 var same_address = List<Integer>()
@@ -32,12 +30,11 @@ func open(path: String) {
 }
 
 func text_at(offset: Integer, length: Integer): String {
-    return raw.text(bytes.address + offset, length)
+    return bytes.lossy_text_at(offset, length)
 }
 
 func float_at(offset: Integer): Float {
-    var at = bytes.address + offset
-    return floats.read_value(at, 0)
+    return bytes.float_at(offset)
 }
 
 func view_at(address: Long): Blend.View? {
@@ -79,11 +76,11 @@ func id_name(view: Blend.View): String {
 }
 
 func integer_at(offset: Integer): Integer {
-    return raw.read_integer(bytes.address, offset)
+    return bytes.integer_at(offset)
 }
 
 func long_at(offset: Integer): Long {
-    return raw.read_long(bytes.address, offset)
+    return bytes.long_at(offset)
 }
 
 func short_at(offset: Integer): Integer {

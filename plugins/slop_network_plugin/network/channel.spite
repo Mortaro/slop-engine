@@ -1,4 +1,3 @@
-var raw = Raw()
 var socket = Socket()
 var inbound = Asset.Bytes()
 var outbound = Asset.Bytes()
@@ -30,12 +29,7 @@ func receive_all() {
     while reading and inbound.length < inbound_limit {
         var received_bytes = socket.read_bytes_now()
         var received = received_bytes.count()
-        inbound.reserve(inbound.length + received)
-        if received > 0 {
-            var free_at = inbound.address + inbound.length
-            ForeignBytes(free_at, received).write_bytes(0, received_bytes)
-        }
-        inbound.length = inbound.length + received
+        inbound.append_list(received_bytes)
         reading = received > 0
     }
     if socket.closed {
@@ -55,7 +49,7 @@ func next_frame(frame: Asset.Bytes): Boolean {
         keep_partial()
         return false
     }
-    var size = raw.read_integer(inbound.address, inbound.position)
+    var size = inbound.integer_at(inbound.position)
     if size < 8 or size > frame_limit {
         closed = true
         return false
@@ -66,8 +60,7 @@ func next_frame(frame: Asset.Bytes): Boolean {
     }
     frame.clear()
     frame.untrusted = true
-    var start = inbound.address + inbound.position + 4
-    frame.write_bytes(start, size)
+    frame.write_bytes(inbound, inbound.position + 4, size)
     inbound.position = inbound.position + 4 + size
     return true
 }
@@ -77,8 +70,7 @@ func keep_partial() {
     var rest = Asset.Bytes()
     var left = inbound.remaining()
     if left > 0 {
-        var start = inbound.address + inbound.position
-        rest.write_bytes(start, left)
+        rest.write_bytes(inbound, inbound.position, left)
     }
     inbound = rest
 }
@@ -101,17 +93,13 @@ func take_byte(value: Byte) {
 }
 
 func queue(frames: Asset.Bytes) {
-    if frames.length > 0 {
-        outbound.write_bytes(frames.address, frames.length)
-    }
+    outbound.write_bytes(frames, 0, frames.length)
 }
 
 func flush() {
     var left = outbound.remaining()
     assert left != 0
-    var start = outbound.address + outbound.position
-    var pending = ForeignBytes(start, left).read_bytes(0, left)
-    crash pending
+    var pending = outbound.list_from(outbound.position, left)
     var sent = socket.write_bytes_now(pending)
     outbound.position = outbound.position + sent
     sent_bytes = sent_bytes + sent

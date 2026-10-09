@@ -4,8 +4,6 @@ var offsets = Dictionary<String, Long>()
 var lengths = Dictionary<String, Long>()
 var end: Long = 0
 var scanned = false
-var raw = Raw()
-var heap = Memory.Heap()
 var lock = Recipes.StoreLock()
 
 func Store(store_path: String) {
@@ -49,7 +47,7 @@ func write(key: String, data: Asset.Bytes) {
     record.write_text(key)
     var data_length: Long = data.length
     record.write_long(data_length)
-    record.write_bytes(data.address, data.length)
+    record.write_bytes(data, 0, data.length)
     var start = append_bytes(path, record)
     var header_length: Long = 4 + key.length() + 8
     var data_offset = start + header_length
@@ -81,10 +79,7 @@ func write_entry(entry: Asset.Bytes, key: String) {
 
 func append_bytes(file_path: String, bytes: Asset.Bytes): Long {
     var file = File(file_path)
-    var count: Long = bytes.length
-    var listed = ForeignBytes(bytes.address, count).read_bytes(0, bytes.length)
-    crash listed
-    var start = file.append_bytes(listed)
+    var start = file.append_bytes(bytes.data)
     crash start
     return start
 }
@@ -154,44 +149,40 @@ func rewrite_index() {
 
 func scan_records() {
     var file = File(path)
-    var header = heap.allocate(8)
     var position: Long = 0
     while position >= 0 {
-        position = read_record(file, header, position)
+        position = read_record(file, position)
     }
-    heap.free(header)
 }
 
-func read_record(file: File, header: Long, position: Long): Long {
+func read_record(file: File, position: Long): Long {
     var four: Long = 4
     var eight: Long = 8
-    var got_key_length = read_at(file, position, four, header)
-    if got_key_length != four {
+    var header = read_at(file, position, four)
+    if not header or header.count() != 4 {
         return -1
     }
-    var key_length = raw.read_integer(header, 0)
+    var key_length = header.read_integer(0)
     var key_size: Long = key_length
-    var key_bytes = heap.allocate(key_length + 1)
     var key_position = position + four
-    var got_key = read_at(file, key_position, key_size, key_bytes)
-    var key = raw.text(key_bytes, key_length)
-    heap.free(key_bytes)
+    var key_bytes = read_at(file, key_position, key_size)
     var length_position = key_position + key_size
-    var got_data_length = read_at(file, length_position, eight, header)
-    if got_key != key_size or got_data_length != eight {
+    var length_bytes = read_at(file, length_position, eight)
+    if not key_bytes or not length_bytes {
         return -1
     }
-    var data_length = raw.read_long(header, 0)
+    if key_size != key_bytes.count() or length_bytes.count() != 8 {
+        return -1
+    }
+    var key = key_bytes.to_utf8_text()
+    crash key
+    var data_length = length_bytes.read_long(0)
     var data_offset = length_position + eight
     note(key, data_offset, data_length)
     return data_offset + data_length
 }
 
-func read_at(file: File, position: Long, count: Long, address: Long): Long? {
+func read_at(file: File, position: Long, count: Long): List<Byte>? {
     var wanted: Integer = count
-    var got = file.read_bytes_at(position, wanted)
-    assert got
-    var got_count: Long = got.count()
-    ForeignBytes(address, got_count).write_bytes(0, got)
-    return got_count
+    return file.read_bytes_at(position, wanted)
 }

@@ -333,7 +333,7 @@ func upload_layer(renderer: RenderVulkan.Renderer, array: Scene.LoadedArray, pla
     var staging_memory = renderer.host_memory_for(staging)
     var mapped = renderer.map(staging_memory, bytes)
     var layer_offset = layer * bytes
-    raw.copy(array.raw.address + layer_offset, mapped, bytes)
+    array.raw.store_at(mapped, layer_offset, bytes)
     renderer.frame.in_flight_stagings.append(staging)
     renderer.frame.in_flight_staging_memories.append(staging_memory)
     var command_buffer = renderer.frame.command_buffer
@@ -386,7 +386,7 @@ func upload_stored_layer(
     var staging = renderer.create_buffer(bytes, transfer_source)
     var staging_memory = renderer.host_memory_for(staging)
     var mapped = renderer.map(staging_memory, bytes)
-    raw.copy(array.raw.address + layer * bytes, mapped, bytes)
+    array.raw.store_at(mapped, layer * bytes, bytes)
     renderer.frame.in_flight_stagings.append(staging)
     renderer.frame.in_flight_staging_memories.append(staging_memory)
     var command_buffer = renderer.frame.command_buffer

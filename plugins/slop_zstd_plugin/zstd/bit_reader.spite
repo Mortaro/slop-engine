@@ -1,11 +1,11 @@
-var raw = Raw()
 var powers = Zstd.Powers()
-var address: Long = 0
+var source = Asset.Bytes()
+var base: Long = 0
 var length = 0
 var bit_position: Long = 0
 
-func start_backward(new_address: Long, new_length: Integer) {
-    address = new_address
+func start_backward(new_base: Long, new_length: Integer) {
+    base = new_base
     length = new_length
     crash length > 0
     var last = byte_at(length - 1)
@@ -14,8 +14,8 @@ func start_backward(new_address: Long, new_length: Integer) {
     bit_position = (length - 1) * 8 + marker
 }
 
-func start_forward(new_address: Long, new_length: Integer) {
-    address = new_address
+func start_forward(new_base: Long, new_length: Integer) {
+    base = new_base
     length = new_length
     bit_position = 0
 }
@@ -24,11 +24,7 @@ func byte_at(index: Long): Long {
     if index < 0 or index >= length {
         return 0
     }
-    var value: Long = raw.read_byte(address, index)
-    if value < 0 {
-        value = value + 256
-    }
-    return value
+    return source.byte_at(base + index)
 }
 
 func extract(position: Long, count: Integer): Long {

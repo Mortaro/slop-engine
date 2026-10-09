@@ -12,7 +12,8 @@ func ZstdProbe() {
     var started = clock.elapsed_milliseconds()
     var plain = decoder.decompress(compressed)
     var finished = clock.elapsed_milliseconds()
-    var header = plain.raw.text(plain.address, 24)
+    var header = plain.text_at(0, 24)
+    crash header
     var took = finished - started
     console.print("compressed", compressed.length, "plain", plain.length, "milliseconds", took)
     console.print(header)

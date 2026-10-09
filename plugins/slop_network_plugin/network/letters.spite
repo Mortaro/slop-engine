@@ -47,8 +47,8 @@ func gather(into: Asset.Bytes) {
         crash tails[index]
         var head = heads[index]
         var tail = tails[index]
-        into.write_bytes(head.address, head.length)
-        into.write_bytes(tail.address, tail.length)
+        into.write_bytes(head, 0, head.length)
+        into.write_bytes(tail, 0, tail.length)
         index = index + 1
     }
 }

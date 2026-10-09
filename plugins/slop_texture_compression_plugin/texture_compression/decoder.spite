@@ -1,12 +1,13 @@
-var raw = Raw()
 var bc7_weights = [0, 4, 9, 13, 17, 21, 26, 30, 34, 38, 43, 47, 51, 55, 60, 64]
-var colours = Asset.Bytes()
-var values = Asset.Bytes()
+var colours = List<Integer>()
+var values = List<Integer>()
 
 func decode_level(texture: Asset.Texture, level: Integer): Asset.Bytes {
-    if colours.length == 0 {
-        colours.zeroes(4 * 4 * 4)
-        values.zeroes(8 * 4)
+    while colours.count() < 16 {
+        colours.append(0)
+    }
+    while values.count() < 8 {
+        values.append(0)
     }
     var width = texture.level_width(level)
     var height = texture.level_height(level)
@@ -14,7 +15,8 @@ func decode_level(texture: Asset.Texture, level: Integer): Asset.Bytes {
     var pixels = Asset.Bytes()
     pixels.zeroes(width * height * 4)
     if texture.format == "rgba8" {
-        raw.copy(texture.texels.address + start, pixels.address, width * height * 4)
+        pixels.clear()
+        pixels.write_bytes(texture.texels, start, width * height * 4)
         return pixels
     }
     if texture.format == "r8" {
@@ -22,7 +24,7 @@ func decode_level(texture: Asset.Texture, level: Integer): Asset.Bytes {
         while index < width * height {
             var red = texture.texels.byte_at(start + index)
             var grey = opaque_grey(red)
-            raw.write_integer(pixels.address, index * 4, grey)
+            pixels.set_integer(index * 4, grey)
             index = index + 1
         }
         return pixels
@@ -55,7 +57,7 @@ func decode_block(
 ) {
     var index = 0
     while index < 16 {
-        raw.write_integer(colours.address, index * 4, -16777216)
+        colours[index] = -16777216
         index = index + 1
     }
     if format == "bc1" {
@@ -77,8 +79,8 @@ func decode_block(
         var column = block_x * 4 + index % 4
         var row = block_y * 4 + index / 4
         if column < width and row < height {
-            var colour = raw.read_integer(colours.address, index * 4)
-            raw.write_integer(pixels.address, (row * width + column) * 4, colour)
+            var colour = table_value(colours, index)
+            pixels.set_integer((row * width + column) * 4, colour)
         }
         index = index + 1
     }
@@ -87,9 +89,9 @@ func decode_block(
 func replicate_red() {
     var index = 0
     while index < 16 {
-        var red = raw.read_integer(colours.address, index * 4).bits_and(255)
+        var red = table_value(colours, index).bits_and(255)
         var grey = opaque_grey(red)
-        raw.write_integer(colours.address, index * 4, grey)
+        colours[index] = grey
         index = index + 1
     }
 }
@@ -143,15 +145,15 @@ func decode_colour(texels: Asset.Bytes, at: Integer, three_colour_allowed: Boole
             third_value = (2 * start_value + end_value) / 3
             fourth_value = (start_value + 2 * end_value) / 3
         }
-        raw.write_integer(values.address, 0, start_value)
-        raw.write_integer(values.address, 4, end_value)
-        raw.write_integer(values.address, 8, third_value)
-        raw.write_integer(values.address, 12, fourth_value)
+        values[0] = start_value
+        values[1] = end_value
+        values[2] = third_value
+        values[3] = fourth_value
         var index = 0
         while index < 16 {
             var byte = texels.byte_at(at + 4 + index / 4)
             var selected = byte.shifted_right(index % 4 * 2).bits_and(3)
-            var value = raw.read_integer(values.address, selected * 4)
+            var value = table_value(values, selected)
             set_channel(index, shift * 8, value)
             index = index + 1
         }
@@ -163,7 +165,7 @@ func decode_colour(texels: Asset.Bytes, at: Integer, three_colour_allowed: Boole
             var byte = texels.byte_at(at + 4 + index / 4)
             var selected = byte.shifted_right(index % 4 * 2).bits_and(3)
             if selected == 3 {
-                raw.write_integer(colours.address, index * 4, 0)
+                colours[index] = 0
             }
             index = index + 1
         }
@@ -171,12 +173,12 @@ func decode_colour(texels: Asset.Bytes, at: Integer, three_colour_allowed: Boole
 }
 
 func set_channel(index: Integer, shift: Integer, value: Integer) {
-    var colour = raw.read_integer(colours.address, index * 4)
+    var colour = table_value(colours, index)
     var keep = 255
     keep = keep.shifted_left(shift).bits_inverted()
     var placed = value.shifted_left(shift)
     var updated = colour.bits_and(keep).bits_or(placed)
-    raw.write_integer(colours.address, index * 4, updated)
+    colours[index] = updated
 }
 
 func decode_single(texels: Asset.Bytes, at: Integer, shift: Integer) {
@@ -185,7 +187,7 @@ func decode_single(texels: Asset.Bytes, at: Integer, shift: Integer) {
     var entry = 0
     while entry < 8 {
         var value = single_entry(first, second, entry)
-        raw.write_integer(values.address, entry * 4, value)
+        values[entry] = value
         entry = entry + 1
     }
     var index = 0
@@ -199,7 +201,7 @@ func decode_single(texels: Asset.Bytes, at: Integer, shift: Integer) {
         var shifted_high = high.shifted_left(8)
         var pair = low.bits_or(shifted_high)
         var selected = pair.shifted_right(bit % 8).bits_and(7)
-        var value = raw.read_integer(values.address, selected * 4)
+        var value = table_value(values, selected)
         set_channel(index, shift, value)
         index = index + 1
     }
@@ -266,8 +268,8 @@ func peak_signal_to_noise(original: Asset.Bytes, decoded: Asset.Bytes, count: In
     var squared: Double = 0.0
     var index = 0
     while index < count {
-        var first = raw.read_integer(original.address, index * 4)
-        var second = raw.read_integer(decoded.address, index * 4)
+        var first = original.integer_at(index * 4)
+        var second = decoded.integer_at(index * 4)
         var channel = 0
         while channel < channels {
             var start_value = first.shifted_right(channel * 8).bits_and(255)
@@ -286,4 +288,10 @@ func peak_signal_to_noise(original: Asset.Bytes, decoded: Asset.Bytes, count: In
     var ratio: Double = 65025.0
     ratio = ratio / mean
     return ratio.logarithm_base_10() * 10.0
+}
+
+func table_value(table: List<Integer>, index: Integer): Integer {
+    var value = table[index]
+    crash value
+    return value
 }

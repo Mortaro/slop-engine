@@ -11,7 +11,6 @@ type Observation {
 var world = World()
 var build = Build()
 var clock = Clock()
-var raw = Raw()
 var schema = Network.Schema()
 var datagrams = Network.Datagrams()
 var hello = Asset.Bytes()
@@ -203,7 +202,7 @@ func queue_hello(stream: Network.Channel) {
     hello.write_integer(port)
     hello.write_text(build.environment)
     var size = hello.length - 4
-    raw.write_integer(hello.address, 0, size)
+    hello.set_integer(0, size)
     stream.queue(hello)
 }
 
@@ -297,11 +296,11 @@ func dropped(): Boolean {
 func hurry(stream: Network.Channel, hurried: Asset.Bytes) {
     var at = 0
     while at < hurried.length {
-        var size = raw.read_integer(hurried.address, at) + 4
+        var size = hurried.integer_at(at) + 4
         if datagram.length + size > datagram_limit and datagram.length > 8 {
             send_datagram(stream)
         }
-        datagram.write_bytes(hurried.address + at, size)
+        datagram.write_bytes(hurried, at, size)
         at = at + size
     }
 }

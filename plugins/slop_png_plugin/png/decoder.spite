@@ -1,4 +1,3 @@
-var raw = Raw()
 var inflate = Png.Inflate()
 var width = 0
 var height = 0
@@ -14,7 +13,6 @@ var key_red = 0
 var key_green = 0
 var key_blue = 0
 var data = Asset.Bytes()
-var zero_row = Asset.Bytes()
 var broken = false
 var ended = false
 var column_starts = [0, 4, 0, 2, 0, 1, 0, 0]
@@ -84,7 +82,7 @@ func read_chunk(bytes: Asset.Bytes, offset: Integer): Integer {
     if broken {
         return 0
     }
-    var kind = raw.text(bytes.address + offset + 4, 4)
+    var kind = bytes.lossy_text_at(offset + 4, 4)
     var body = offset + 8
     if kind == "IHDR" {
         read_header(bytes, body, length)
@@ -93,7 +91,7 @@ func read_chunk(bytes: Asset.Bytes, offset: Integer): Integer {
     } else if kind == "tRNS" {
         read_transparency(bytes, body, length)
     } else if kind == "IDAT" {
-        data.write_bytes(bytes.address + body, length)
+        data.write_bytes(bytes, body, length)
     } else if kind == "IEND" {
         ended = true
     }
@@ -265,11 +263,6 @@ func pass_size(columns: Integer, rows: Integer, stride: Integer): Integer {
 }
 
 func decode_passes(inflated: Asset.Bytes, texture: Asset.Texture): Boolean {
-    var widest = stride_of(width)
-    zero_row.clear()
-    while zero_row.length < widest {
-        zero_row.write_byte(0)
-    }
     var bytes_per_pixel = channels * depth / 8
     if bytes_per_pixel < 1 {
         bytes_per_pixel = 1
@@ -282,8 +275,7 @@ func decode_passes(inflated: Asset.Bytes, texture: Asset.Texture): Boolean {
         var columns = pass_columns(pass)
         var rows = pass_rows(pass)
         var stride = stride_of(columns)
-        var start = inflated.address + offset
-        valid = decode_pass(start, pass, columns, rows, stride, bytes_per_pixel, texture)
+        valid = decode_pass(inflated, offset, pass, columns, rows, stride, bytes_per_pixel, texture)
         offset = offset + pass_size(columns, rows, stride)
         pass = pass + 1
     }
@@ -291,7 +283,8 @@ func decode_passes(inflated: Asset.Bytes, texture: Asset.Texture): Boolean {
 }
 
 func decode_pass(
-    start: Long,
+    inflated: Asset.Bytes,
+    start: Integer,
     pass: Integer,
     columns: Integer,
     rows: Integer,
@@ -306,92 +299,101 @@ func decode_pass(
     crash column_steps[pass]
     crash row_starts[pass]
     crash row_steps[pass]
-    var previous = zero_row.address
+    var previous = -1
     var valid = true
     var row = 0
     while row < rows and valid {
         var line = start + row * (stride + 1)
-        var filter = raw.read_byte(line, 0)
+        var filter = inflated.byte_at(line)
         var pixels = line + 1
-        valid = unfilter(filter, pixels, previous, stride, bytes_per_pixel)
+        valid = unfilter(inflated, filter, pixels, previous, stride, bytes_per_pixel)
         var target_row = row_starts[pass] + row * row_steps[pass]
-        place_row(pixels, columns, target_row, column_starts[pass], column_steps[pass], texture)
+        place_row(inflated, pixels, columns, target_row, column_starts[pass], column_steps[pass], texture)
         previous = pixels
         row = row + 1
     }
     return valid
 }
 
-func unfilter(filter: Integer, pixels: Long, previous: Long, stride: Integer, step: Integer): Boolean {
+func unfilter(
+    rows: Asset.Bytes,
+    filter: Integer,
+    pixels: Integer,
+    previous: Integer,
+    stride: Integer,
+    step: Integer,
+): Boolean {
     if filter == 1 {
-        unfilter_sub(pixels, stride, step)
+        unfilter_sub(rows, pixels, stride, step)
     } else if filter == 2 {
-        unfilter_up(pixels, previous, stride)
+        unfilter_up(rows, pixels, previous, stride)
     } else if filter == 3 {
-        unfilter_average(pixels, previous, stride, step)
+        unfilter_average(rows, pixels, previous, stride, step)
     } else if filter == 4 {
-        unfilter_paeth(pixels, previous, stride, step)
+        unfilter_paeth(rows, pixels, previous, stride, step)
     }
     return filter >= 0 and filter <= 4
 }
 
-func unsigned_at(address: Long, index: Integer): Integer {
-    var value = raw.read_byte(address, index)
-    return value.bits_and(255)
+func unsigned_at(rows: Asset.Bytes, row: Integer, index: Integer): Integer {
+    if row < 0 {
+        return 0
+    }
+    return rows.byte_at(row + index)
 }
 
-func unfilter_sub(pixels: Long, stride: Integer, step: Integer) {
+func unfilter_sub(rows: Asset.Bytes, pixels: Integer, stride: Integer, step: Integer) {
     var index = step
     while index < stride {
-        var left = raw.read_byte(pixels, index - step)
-        var value = raw.read_byte(pixels, index)
+        var left = unsigned_at(rows, pixels, index - step)
+        var value = unsigned_at(rows, pixels, index)
         var unfiltered = (value + left) % 256
-        raw.write_byte(pixels, index, unfiltered)
+        rows.set_byte(pixels + index, unfiltered)
         index = index + 1
     }
 }
 
-func unfilter_up(pixels: Long, previous: Long, stride: Integer) {
+func unfilter_up(rows: Asset.Bytes, pixels: Integer, previous: Integer, stride: Integer) {
     var index = 0
     while index < stride {
-        var above = raw.read_byte(previous, index)
-        var value = raw.read_byte(pixels, index)
+        var above = unsigned_at(rows, previous, index)
+        var value = unsigned_at(rows, pixels, index)
         var unfiltered = (value + above) % 256
-        raw.write_byte(pixels, index, unfiltered)
+        rows.set_byte(pixels + index, unfiltered)
         index = index + 1
     }
 }
 
-func unfilter_average(pixels: Long, previous: Long, stride: Integer, step: Integer) {
+func unfilter_average(rows: Asset.Bytes, pixels: Integer, previous: Integer, stride: Integer, step: Integer) {
     var index = 0
     while index < stride {
-        var above = unsigned_at(previous, index)
+        var above = unsigned_at(rows, previous, index)
         var left = 0
         if index >= step {
-            left = unsigned_at(pixels, index - step)
+            left = unsigned_at(rows, pixels, index - step)
         }
-        var value = raw.read_byte(pixels, index)
+        var value = unsigned_at(rows, pixels, index)
         var average = (left + above) / 2
         var unfiltered = (value + average) % 256
-        raw.write_byte(pixels, index, unfiltered)
+        rows.set_byte(pixels + index, unfiltered)
         index = index + 1
     }
 }
 
-func unfilter_paeth(pixels: Long, previous: Long, stride: Integer, step: Integer) {
+func unfilter_paeth(rows: Asset.Bytes, pixels: Integer, previous: Integer, stride: Integer, step: Integer) {
     var index = 0
     while index < stride {
-        var above = unsigned_at(previous, index)
+        var above = unsigned_at(rows, previous, index)
         var left = 0
         var corner = 0
         if index >= step {
-            left = unsigned_at(pixels, index - step)
-            corner = unsigned_at(previous, index - step)
+            left = unsigned_at(rows, pixels, index - step)
+            corner = unsigned_at(rows, previous, index - step)
         }
-        var value = raw.read_byte(pixels, index)
+        var value = unsigned_at(rows, pixels, index)
         var predicted = paeth(left, above, corner)
         var unfiltered = (value + predicted) % 256
-        raw.write_byte(pixels, index, unfiltered)
+        rows.set_byte(pixels + index, unfiltered)
         index = index + 1
     }
 }
@@ -417,7 +419,8 @@ func distance_between(first: Integer, second: Integer): Integer {
 }
 
 func place_row(
-    pixels: Long,
+    rows: Asset.Bytes,
+    pixels: Integer,
     columns: Integer,
     target_row: Integer,
     column_start: Integer,
@@ -427,36 +430,36 @@ func place_row(
     var first = target_row * width + column_start
     var column = 0
     while column < columns {
-        var texel = texel_at(pixels, column)
+        var texel = texel_at(rows, pixels, column)
         texture.set_pixel(first + column * column_step, texel)
         column = column + 1
     }
 }
 
-func texel_at(pixels: Long, column: Integer): Integer {
+func texel_at(rows: Asset.Bytes, pixels: Integer, column: Integer): Integer {
     switch color_type {
-        6: return rgba_texel(pixels, column)
-        2: return rgb_texel(pixels, column)
-        3: return palette_texel(pixels, column)
-        4: return grey_alpha_texel(pixels, column)
-        _: return grey_texel(pixels, column)
+        6: return rgba_texel(rows, pixels, column)
+        2: return rgb_texel(rows, pixels, column)
+        3: return palette_texel(rows, pixels, column)
+        4: return grey_alpha_texel(rows, pixels, column)
+        _: return grey_texel(rows, pixels, column)
     }
 }
 
-func rgba_texel(pixels: Long, column: Integer): Integer {
+func rgba_texel(rows: Asset.Bytes, pixels: Integer, column: Integer): Integer {
     var index = column * 4
-    var red = sample(pixels, index)
-    var green = sample(pixels, index + 1)
-    var blue = sample(pixels, index + 2)
-    var alpha = sample(pixels, index + 3)
+    var red = sample(rows, pixels, index)
+    var green = sample(rows, pixels, index + 1)
+    var blue = sample(rows, pixels, index + 2)
+    var alpha = sample(rows, pixels, index + 3)
     return pack_samples(red, green, blue, alpha)
 }
 
-func rgb_texel(pixels: Long, column: Integer): Integer {
+func rgb_texel(rows: Asset.Bytes, pixels: Integer, column: Integer): Integer {
     var index = column * 3
-    var red = sample(pixels, index)
-    var green = sample(pixels, index + 1)
-    var blue = sample(pixels, index + 2)
+    var red = sample(rows, pixels, index)
+    var green = sample(rows, pixels, index + 1)
+    var blue = sample(rows, pixels, index + 2)
     var alpha = opaque_sample()
     if has_key and red == key_red and green == key_green and blue == key_blue {
         alpha = 0
@@ -464,15 +467,15 @@ func rgb_texel(pixels: Long, column: Integer): Integer {
     return pack_samples(red, green, blue, alpha)
 }
 
-func grey_alpha_texel(pixels: Long, column: Integer): Integer {
+func grey_alpha_texel(rows: Asset.Bytes, pixels: Integer, column: Integer): Integer {
     var index = column * 2
-    var grey = sample(pixels, index)
-    var alpha = sample(pixels, index + 1)
+    var grey = sample(rows, pixels, index)
+    var alpha = sample(rows, pixels, index + 1)
     return pack_samples(grey, grey, grey, alpha)
 }
 
-func grey_texel(pixels: Long, column: Integer): Integer {
-    var grey = sample(pixels, column)
+func grey_texel(rows: Asset.Bytes, pixels: Integer, column: Integer): Integer {
+    var grey = sample(rows, pixels, column)
     var alpha = opaque_sample()
     if has_key and grey == key_red {
         alpha = 0
@@ -480,8 +483,8 @@ func grey_texel(pixels: Long, column: Integer): Integer {
     return pack_samples(grey, grey, grey, alpha)
 }
 
-func palette_texel(pixels: Long, column: Integer): Integer {
-    var index = sample(pixels, column)
+func palette_texel(rows: Asset.Bytes, pixels: Integer, column: Integer): Integer {
+    var index = sample(rows, pixels, column)
     if index < palette.count() {
         return palette[index]
     }
@@ -494,17 +497,17 @@ func opaque_sample(): Integer {
     return shifted - 1
 }
 
-func sample(pixels: Long, index: Integer): Integer {
+func sample(rows: Asset.Bytes, pixels: Integer, index: Integer): Integer {
     if depth == 8 {
-        return unsigned_at(pixels, index)
+        return unsigned_at(rows, pixels, index)
     } else if depth == 16 {
-        var high = unsigned_at(pixels, index * 2)
-        var low = unsigned_at(pixels, index * 2 + 1)
+        var high = unsigned_at(rows, pixels, index * 2)
+        var low = unsigned_at(rows, pixels, index * 2 + 1)
         return high * 256 + low
     }
     var bit = index * depth
     var byte_index = bit.shifted_right(3)
-    var packed = unsigned_at(pixels, byte_index)
+    var packed = unsigned_at(rows, pixels, byte_index)
     var within = bit.bits_and(7)
     var shift = 8 - depth - within
     var shifted = packed.shifted_right(shift)

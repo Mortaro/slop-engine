@@ -9,7 +9,6 @@ var console = Console()
 var clock = Clock()
 var schema = Network.Schema()
 var datagrams = Network.Datagrams()
-var raw = Raw()
 var server_clocks = Lookup<Network.Component.ServerClock>()
 var frame = Asset.Bytes()
 var reply = Asset.Bytes()
@@ -158,7 +157,7 @@ func read_datagrams(peer: Peer) {
 func read_datagram(peer: Peer, inbox: Asset.Bytes, start: Integer, size: Integer) {
     var stream = peer.connection.stream
     assert size >= 8 and size <= inbox.length - start and stream.greeted
-    var tick = raw.read_integer(inbox.address, start + 4)
+    var tick = inbox.integer_at(start + 4)
     if tick < stream.highest_tick {
         stream.stale_datagrams = stream.stale_datagrams + 1
         return
@@ -173,19 +172,19 @@ func read_datagram(peer: Peer, inbox: Asset.Bytes, start: Integer, size: Integer
     var end = start + size
     understood = true
     while understood and at + 12 <= end {
-        var frame_size = raw.read_integer(inbox.address, at)
+        var frame_size = inbox.integer_at(at)
         understood = frame_size >= 8 and at + 4 + frame_size <= end
         if understood {
-            decode_datagram_frame(peer, inbox.address + at + 4, frame_size)
+            decode_datagram_frame(peer, inbox, at + 4, frame_size)
         }
         at = at + 4 + frame_size
     }
 }
 
-func decode_datagram_frame(peer: Peer, address: Long, frame_size: Integer) {
+func decode_datagram_frame(peer: Peer, source: Asset.Bytes, start: Integer, frame_size: Integer) {
     frame.clear()
     frame.untrusted = true
-    frame.write_bytes(address, frame_size)
+    frame.write_bytes(source, start, frame_size)
     var message = frame.read_integer()
     var remote = frame.read_integer()
     understood = false

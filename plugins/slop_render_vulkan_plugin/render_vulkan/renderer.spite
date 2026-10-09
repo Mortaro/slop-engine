@@ -372,7 +372,7 @@ func create_shader(id: String): Long {
     var length = code.length
     crash length > 0 and length % 4 == 0
     var words = Structure(length)
-    raw.copy(code.address, words.address, length)
+    code.store_at(words.address, 0, length)
     var creation = Structure(40)
     creation.append_integer(16)
     creation.append_long(0)
@@ -656,8 +656,7 @@ func stream_band() {
         rows = left
     }
     var bytes = rows * row_bytes
-    var source = stream_pixels.address + stream_row * row_bytes
-    raw.copy(source, frame.staging_mapped + frame_staged, bytes)
+    stream_pixels.store_at(frame.staging_mapped + frame_staged, stream_row * row_bytes, bytes)
     var region = Structure(56)
     var offset: Long = frame_staged
     region.append_long(offset)
@@ -694,8 +693,7 @@ func stream_stored_band() {
     rows = rows.minimum(block_rows - stream_row)
     var bytes = rows * row_bytes
     var level_start = stream_texture.level_offset(stream_level)
-    var source = stream_pixels.address + level_start + stream_row * row_bytes
-    raw.copy(source, frame.staging_mapped + frame_staged, bytes)
+    stream_pixels.store_at(frame.staging_mapped + frame_staged, level_start + stream_row * row_bytes, bytes)
     var level_width = stream_texture.level_width(stream_level)
     var level_height = stream_texture.level_height(stream_level)
     var top = stream_row * block_side
@@ -778,7 +776,7 @@ func stage_white() {
     var staging = create_buffer(bytes, transfer_source)
     var staging_memory = host_memory_for(staging)
     var mapped = map(staging_memory, bytes)
-    raw.copy(pixels.address, mapped, bytes)
+    pixels.store_at(mapped, 0, bytes)
     var mips = mip_count_of(width, height)
     var image = create_texture_image(width, height, mips)
     pending_images.append(image)
@@ -1287,11 +1285,11 @@ func staging_room(): Integer {
     return upload_budget_bytes - frame_staged
 }
 
-func stage(source: Long, count: Integer): Integer {
+func stage(source: Asset.Bytes, start: Integer, count: Integer): Integer {
     var fits = count > 0 and count <= staging_room()
     crash fits
     var offset = frame_staged
-    raw.copy(source, frame.staging_mapped + offset, count)
+    source.store_at(frame.staging_mapped + offset, start, count)
     frame_staged = frame_staged + count
     return offset
 }
