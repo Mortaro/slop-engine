@@ -1,11 +1,11 @@
-type Connected {
-    connected: Added<Mongo.Component.Connection>
+type Opened {
+    records: Added<Component.Records>
 }
 
 var world = World()
 var names = ["first", "second", "third"]
 
-func update_each(_connected: Connected) {
+func update_each(_opened: Opened) {
     names.each(ask)
 }
 

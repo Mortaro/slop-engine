@@ -632,21 +632,24 @@ while the list is built, so a list system allocates its list and nothing per row
 
 ## IO systems
 
-A system whose phase function can reach a wait (a socket or file read, a sleep, a database call) is an **IO system**,
+A system whose phase function can reach a wait (a socket or file read, a sleep, a call into a database package) is an **IO system**,
 found at compile time (`$system_type.function_waits`). Nothing marks it; writing straight-line code is enough:
 
 ```gdscript
 func update_each(pending: Pending, store: Store) {
-    var accounts = store.client.collection("accounts")
-    var found = accounts.find_one(filter)
-    ...
+    program.sleep(200)
+    var file = File("{store.records.folder}/{pending.request.value.name}.txt")
+    if file.exists() {
+        var text = file.read()
+        ...
+    }
 }
 ```
 
 - It never runs inside a stage. Each matching row is copied into a queue during the stage, and after the tick the
   app starts up to eight `Concurrent` workers per system on the main thread; the scheduler resumes them only
   between frames (`Scheduler().resume_only_when_asked()` and `run_ready()` at the end of `App.tick()`), so a
-  database round trip never blocks a frame and never interleaves with a stage.
+  slow read or a round trip to a server never blocks a frame and never interleaves with a stage.
 - **Its row is a snapshot.** It runs after its frame, when the components may have moved or gone, so it changes the
   world through commands (`entity.add_component(...)`, `world.despawn(...)`), which apply at the next flush.
   A reference-stored component in the row is the stored object itself, so a write to it lands (after the frame).
@@ -658,8 +661,9 @@ func update_each(pending: Pending, store: Store) {
 
 Because the compiler finds every function that can wait, it also catches file reads on the frame path, which the
 no-stutter rule forbids: asset lookups go through `Recipes.Catalog`, which loads the cache index on the pool, and
-shaders through `Recipes.Blobs`. `examples/io_systems` runs three MongoDB lookups with a 200 ms wait each while
-frames keep ticking.
+shaders through `Recipes.Blobs`. `examples/io_systems` runs three lookups of record files written beforehand, each after a 200 ms
+wait, while frames keep ticking, and checks that more than ten frames passed meanwhile. The engine ships no database:
+a game that keeps its data in one loads that database's package itself and queries it from IO systems the same way.
 
 ---
 
