@@ -491,6 +491,10 @@ The benchmarks to race are ecs_bench_suite's: `add_remove` and `schedule` look w
 
 ## [testing.md](../docs/testing.md)
 
+- On Spite master `8ba6a9fa` (2026-10-09), after removing the MongoDB plugin (storage is a game's, not the engine's):
+  every example builds except the two that must fail to compile, and the headless programs in testing.md pass
+  balanced under `--debug-memory`, with every `test.sh` passing. `io_systems` now reads record files written before
+  the app starts, each lookup after a 200 ms sleep, and passes with 30 frames while waiting; `mongodb_check` is gone.
 - On Linux (2026-10-02, Spite master): the headless core and its examples build and run, balanced under
   `--debug-memory`; the store lock goes through `flock` there (`os/linux/`). Still Windows-only: the window, input
   and XInput plugins, the software presenter (GDI) and Vulkan's `vulkan-1.dll`; those examples were compiled for
