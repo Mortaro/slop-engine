@@ -222,16 +222,6 @@ entity, and the `MarkObserved` and `Gather` systems that keep an observation (a 
 `Network.Component.Observer`) on every indexed entity in a viewer's range. It
 loads the network and spatial plugins. See [networking.md](networking.md#area-of-interest).
 
-## slop_mongodb_plugin
-
-The engine side of MongoDB. The driver itself (BSON, OP_MSG, `Mongo.Client`, `Mongo.Collection`,
-`Mongo.TypedCollection<T>`, the compile-time `Mongo.Codec<T>`) is its own package, `spite_mongodb_driver`, beside
-this repository, so programs that are not games use it too. The plugin loads it
-(`load "../../../../spite_mongodb_driver@fbb6653/mongodb"`, a pinned commit) and adds `Mongo.Component.Database` (host, port, database
-name) and `Mongo.Component.Connection` (a connection pool and the database it names), which `database.connect()` makes;
-`Mongo.System.ConnectDatabases` (`input`) adds one beside every database that has none. Queries run in
-[IO systems](ecs.md#io-systems), between frames.
-
 ---
 
 Next: [UI](ui.md), elements as entities and layout as one component per CSS property.

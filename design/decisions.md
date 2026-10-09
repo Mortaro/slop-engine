@@ -75,6 +75,10 @@ parts are Claude's proposals. Mortaro decides the API; a proposal stays marked h
 - Held keys are entities (a proposal by Claude).
 - The spatial grid (a proposal by Claude).
 - MongoDB queries as IO systems come with the compiler's "does this function wait" (D209).
+- The engine is not tied to a database (Mortaro, 2026-10-09: "the engine should not be locked to mongodb, that's a
+  ... implementation, not an engine one"). `slop_mongodb_plugin` and `examples/mongodb_check` are removed, and
+  `examples/io_systems` waits on record files written beforehand instead of a MongoDB server. A game that uses
+  MongoDB loads the standalone driver package directly and keeps its own database components.
 
 ## [ui.md](../docs/ui.md)
 
