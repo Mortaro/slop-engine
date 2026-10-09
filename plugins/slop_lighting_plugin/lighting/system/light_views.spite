@@ -24,6 +24,8 @@ func render_each(lit: Lit, target: Target) {
     view.sun_green = sun.green
     view.sun_blue = sun.blue
     view.sun_illuminance = sun.illuminance
+    view.shadow_distance = sun.shadow_distance
+    view.cascade_distribution_exponent = sun.cascade_distribution_exponent
     var sky = lit.sky
     view.sky_red = sky.red
     view.sky_green = sky.green

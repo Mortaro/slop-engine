@@ -18,7 +18,7 @@ var hdr_view: Long = 0
 var lighting_buffers = List<Long>()
 var lighting_memories = List<Long>()
 var lighting_mapped = List<Long>()
-var lighting_bytes = 256
+var lighting_bytes = 512
 var clusters = Scene.LightClusters()
 var lights = Scene.Lights()
 var terrain = SceneVulkan.TerrainPass()
@@ -52,8 +52,16 @@ var shadow_image: Long = 0
 var shadow_memory: Long = 0
 var shadow_view: Long = 0
 var shadow_sampler: Long = 0
-var shadow_size = 2048
-var light_view_projection = Math.Matrix4()
+var shadow_size = 4096
+var cascade_size = 2048
+var cascade_count = 4
+var cascade_projections = List<Math.Matrix4>()
+var cascade_splits = List<Float>()
+var cascade_texels = List<Float>()
+var cascade_depths = List<Float>()
+var cascade_blend: Float = 0.1
+var caster_reach: Float = 200.0
+var probe = Math.Vector3()
 var floats = TypedMemory<Float>()
 var scalar = Math.Scalar()
 var depth_image: Long = 0
@@ -140,15 +148,69 @@ func record(
 }
 
 func aim_sun(view: Scene.Component.View) {
-    var distance: Float = 60.0
-    var eye_x = view.shadow_center_x + view.sun_toward_x * distance
-    var eye_y = view.shadow_center_y + view.sun_toward_y * distance
-    var eye_z = view.shadow_center_z + view.sun_toward_z * distance
+    cascade_projections.clear()
+    cascade_splits.clear()
+    cascade_texels.clear()
+    cascade_depths.clear()
+    var near = view.near
+    var reach = view.shadow_distance
+    var exponent = view.cascade_distribution_exponent
+    var whole: Float = 1.0
+    var cascade = 0
+    while cascade < cascade_count {
+        whole = whole * exponent
+        cascade = cascade + 1
+    }
+    var start = near
+    var power: Float = 1.0
+    cascade = 0
+    while cascade < cascade_count {
+        power = power * exponent
+        var end = near + (reach - near) * (power - 1.0) / (whole - 1.0)
+        aim_cascade(view, start, end)
+        cascade_splits.append(end)
+        start = end
+        cascade = cascade + 1
+    }
+}
+
+func aim_cascade(view: Scene.Component.View, start: Float, end: Float) {
+    var down_tangent = scalar.tangent(view.field_of_view * 0.5)
+    var across_tangent = down_tangent * view.aspect
+    var spread = down_tangent * down_tangent + across_tangent * across_tangent
+    var along = (start + end) * 0.5 * (1.0 + spread)
+    var radius: Float = 0.0
+    if along >= end {
+        along = end
+        radius = end * scalar.square_root(spread)
+    } else {
+        radius = scalar.square_root((end - along) * (end - along) + end * end * spread)
+    }
+    radius = scalar.floor(radius + 1.0)
+    var camera = view.view
+    var center_x = view.eye_x - camera.m2 * along
+    var center_y = view.eye_y - camera.m6 * along
+    var center_z = view.eye_z - camera.m10 * along
+    var back = radius + caster_reach
+    var eye_x = center_x + view.sun_toward_x * back
+    var eye_y = center_y + view.sun_toward_y * back
+    var eye_z = center_z + view.sun_toward_z * back
     var light_view = Math.Matrix4()
-    light_view.set_look_at(eye_x, eye_y, eye_z, view.shadow_center_x, view.shadow_center_y, view.shadow_center_z)
+    light_view.set_look_at(eye_x, eye_y, eye_z, center_x, center_y, center_z)
+    var far = back + radius
     var light_projection = Math.Matrix4()
-    light_projection.set_orthographic(view.shadow_radius, view.shadow_radius, 1.0, distance * 2.0)
-    light_view_projection = light_projection.multiplied(light_view)
+    light_projection.set_orthographic(radius, radius, 0.0, far)
+    var unsnapped = light_projection.multiplied(light_view)
+    unsnapped.transform_point(probe, 0.0, 0.0, 0.0)
+    var half: Float = cascade_size / 2
+    var texels_x = probe.x_value * half
+    var texels_y = probe.y_value * half
+    light_projection.m12 = light_projection.m12 + (scalar.floor(texels_x + 0.5) - texels_x) / half
+    light_projection.m13 = light_projection.m13 + (scalar.floor(texels_y + 0.5) - texels_y) / half
+    var snapped = light_projection.multiplied(light_view)
+    cascade_projections.append(snapped)
+    cascade_texels.append(radius * 2.0 / cascade_size)
+    cascade_depths.append(far)
 }
 
 func record_shadows(
@@ -188,27 +250,54 @@ func record_shadows(
     rendering.append_long(0)
     vulkan.vkCmdBeginRendering(frame.command_buffer, rendering.address)
     vulkan.vkCmdBindPipeline(frame.command_buffer, 0, shadow_pipeline)
-    set_viewport(renderer, shadow_size, shadow_size)
     var no_offsets: Long = 0
     vulkan.vkCmdBindDescriptorSets(frame.command_buffer, 0, pipeline_layout, 1, 1, storage.address, 0, no_offsets)
-    record_runs(renderer, view, light_view_projection)
+    var cascade = 0
+    while cascade < cascade_projections.count() {
+        record_cascade(renderer, view, cascade)
+        cascade = cascade + 1
+    }
+    vulkan.vkCmdEndRendering(frame.command_buffer)
+    image_barrier(renderer, shadow_image, 1024, 32, 3, 5, 512, 128, 2)
+}
+
+func record_cascade(renderer: RenderVulkan.Component.Renderer, view: Scene.Component.View, cascade: Integer) {
+    var left = cascade % 2 * cascade_size
+    var top = cascade / 2 * cascade_size
+    set_viewport_at(renderer, left, top, cascade_size, cascade_size)
+    var projection = cascade_projections.get_at(cascade)
+    record_runs(renderer, view, projection)
     var first_terrain = view.draws.count()
     var index = 0
     while index < view.terrain_draws.count() {
         var cell = view.terrain_draws.get_at(index)
-        record_mesh(
-            renderer,
-            cell.mesh_slot,
-            cell.first_index,
-            cell.index_count,
-            0,
-            first_terrain + index,
-            light_view_projection,
-        )
+        record_mesh(renderer, cell.mesh_slot, cell.first_index, cell.index_count, 0, first_terrain + index, projection)
         index = index + 1
     }
-    vulkan.vkCmdEndRendering(frame.command_buffer)
-    image_barrier(renderer, shadow_image, 1024, 32, 3, 5, 512, 128, 2)
+}
+
+func set_viewport_at(
+    renderer: RenderVulkan.Component.Renderer,
+    left: Integer,
+    top: Integer,
+    width: Integer,
+    height: Integer,
+) {
+    var command_buffer = renderer.frame.command_buffer
+    var viewport = RenderVulkan.Structure(24)
+    viewport.append_float(left)
+    viewport.append_float(top)
+    viewport.append_float(width)
+    viewport.append_float(height)
+    viewport.append_float(0.0)
+    viewport.append_float(1.0)
+    vulkan.vkCmdSetViewport(command_buffer, 0, 1, viewport.address)
+    var scissor = RenderVulkan.Structure(16)
+    scissor.append_integer(left)
+    scissor.append_integer(top)
+    scissor.append_integer(width)
+    scissor.append_integer(height)
+    vulkan.vkCmdSetScissor(command_buffer, 0, 1, scissor.address)
 }
 
 func image_barrier(
@@ -522,11 +611,29 @@ func write_lighting(view: Scene.Component.View, slot: Integer) {
     put(at, 16, view.fog_density, view.fog_falloff, view.fog_base_height, 0.0)
     put(at, 20, view.eye_x, view.eye_y, view.eye_z, 0.0)
     put(at, 24, view.roughness, view.specular, view.metallic, exposure)
-    var matrix_at = at + 112
-    light_view_projection.write_to(matrix_at)
-    var view_at = at + 176
+    var cascade = 0
+    while cascade < cascade_count {
+        var matrix_at = at + 112 + cascade * 64
+        var projection = cascade_projections.get_at(cascade)
+        projection.write_to(matrix_at)
+        cascade = cascade + 1
+    }
+    var view_at = at + 368
     view.view.write_to(view_at)
-    put(at, 60, clusters.near, clusters.slice_scale, clusters.across_scale, clusters.down_scale)
+    put(at, 108, clusters.near, clusters.slice_scale, clusters.across_scale, clusters.down_scale)
+    put_four(at, 112, cascade_splits)
+    put_four(at, 116, cascade_texels)
+    put_four(at, 120, cascade_depths)
+    var reach = view.shadow_distance
+    put(at, 124, reach * 0.9, reach, cascade_blend, 0.0)
+}
+
+func put_four(at: Long, index: Integer, values: List<Float>) {
+    var first = values.get_at(0)
+    var second = values.get_at(1)
+    var third = values.get_at(2)
+    var fourth = values.get_at(3)
+    put(at, index, first, second, third, fourth)
 }
 
 func write_local_lights(renderer: RenderVulkan.Component.Renderer, view: Scene.Component.View, slot: Integer) {

@@ -14,10 +14,19 @@ layout(std430, set = 1, binding = 2) readonly buffer Lighting {
     vec4 fog;
     vec4 eye;
     vec4 material;
-    mat4 light_view_projection;
+    // one orthographic sun view per cascade, each drawn into a quarter of the shadow atlas
+    mat4 cascade_view_projections[4];
     mat4 view;
     // near, slices per doubling of depth, and the two projection scales
     vec4 clusters;
+    // each cascade's far distance from the eye, along the view
+    vec4 cascade_splits;
+    // each cascade's texel size in metres
+    vec4 cascade_texels;
+    // each cascade's depth range in metres
+    vec4 cascade_depths;
+    // fade start, fade end (the shadow distance), and the share of a cascade blended into the next
+    vec4 shadow_fade;
 } lighting;
 
 layout(set = 1, binding = 3) uniform sampler2DShadow shadow_map;
@@ -98,23 +107,50 @@ float fog_optical_depth(vec3 start, vec3 finish) {
     return density_at_start * distance_travelled * shape;
 }
 
-float sun_visibility(vec3 position, vec3 normal) {
-    vec3 offset_position = position + normal * 0.02;
-    vec4 light_clip = lighting.light_view_projection * vec4(offset_position, 1.0);
+float cascade_visibility(int cascade, vec3 position, vec3 normal) {
+    float texel = lighting.cascade_texels[cascade];
+    vec3 offset_position = position + normal * texel * 1.5;
+    vec4 light_clip = lighting.cascade_view_projections[cascade] * vec4(offset_position, 1.0);
     vec3 light_coordinate = light_clip.xyz / light_clip.w;
-    vec2 texel_coordinate = light_coordinate.xy * 0.5 + 0.5;
-    if (texel_coordinate.x <= 0.0 || texel_coordinate.x >= 1.0 || texel_coordinate.y <= 0.0 || texel_coordinate.y >= 1.0 || light_coordinate.z >= 1.0) {
+    vec2 cascade_coordinate = light_coordinate.xy * 0.5 + 0.5;
+    if (cascade_coordinate.x <= 0.0 || cascade_coordinate.x >= 1.0 || cascade_coordinate.y <= 0.0 || cascade_coordinate.y >= 1.0 || light_coordinate.z >= 1.0) {
         return 1.0;
     }
-    vec2 texel_size = 1.0 / vec2(textureSize(shadow_map, 0));
+    vec2 atlas_texel = 1.0 / vec2(textureSize(shadow_map, 0));
+    vec2 corner = vec2(float(cascade & 1), float(cascade >> 1)) * 0.5;
+    vec2 low = corner + atlas_texel * 1.5;
+    vec2 high = corner + 0.5 - atlas_texel * 1.5;
+    vec2 atlas_coordinate = corner + cascade_coordinate * 0.5;
+    float depth_bias = texel * 1.5 / lighting.cascade_depths[cascade];
     float lit = 0.0;
     for (int row = -1; row <= 1; row++) {
         for (int column = -1; column <= 1; column++) {
-            vec2 step_offset = vec2(float(column), float(row)) * texel_size;
-            lit += texture(shadow_map, vec3(texel_coordinate + step_offset, light_coordinate.z - 0.0015));
+            vec2 sample_at = clamp(atlas_coordinate + vec2(float(column), float(row)) * atlas_texel, low, high);
+            lit += texture(shadow_map, vec3(sample_at, light_coordinate.z - depth_bias));
         }
     }
     return lit / 9.0;
+}
+
+float sun_visibility(vec3 position, vec3 normal) {
+    float depth = -(lighting.view * vec4(position, 1.0)).z;
+    float fade_end = lighting.shadow_fade.y;
+    if (depth >= fade_end) {
+        return 1.0;
+    }
+    int cascade = 0;
+    while (cascade < 3 && depth > lighting.cascade_splits[cascade]) {
+        cascade++;
+    }
+    float visibility = cascade_visibility(cascade, position, normal);
+    float start = cascade == 0 ? 0.0 : lighting.cascade_splits[cascade - 1];
+    float end = lighting.cascade_splits[cascade];
+    float blend_start = end - (end - start) * lighting.shadow_fade.z;
+    if (cascade < 3 && depth > blend_start) {
+        float next = cascade_visibility(cascade + 1, position, normal);
+        visibility = mix(visibility, next, (depth - blend_start) / (end - blend_start));
+    }
+    return mix(visibility, 1.0, smoothstep(lighting.shadow_fade.x, fade_end, depth));
 }
 
 struct Surface {

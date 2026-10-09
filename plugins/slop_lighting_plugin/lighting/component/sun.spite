@@ -5,3 +5,5 @@ var red: Float = 1.0
 var green: Float = 0.96
 var blue: Float = 0.9
 var illuminance: Float = 120000.0
+var shadow_distance: Float = 200.0
+var cascade_distribution_exponent: Float = 3.0

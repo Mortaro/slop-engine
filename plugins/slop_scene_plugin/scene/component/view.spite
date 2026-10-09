@@ -31,10 +31,8 @@ var fog_falloff: Float = 0.004
 var fog_base_height: Float = 150.0
 var exposure_value: Float = 15.0
 var roughness: Float = 0.7
-var shadow_center_x: Float = 0.0
-var shadow_center_y: Float = 1.0
-var shadow_center_z: Float = 0.0
-var shadow_radius: Float = 6.0
+var shadow_distance: Float = 200.0
+var cascade_distribution_exponent: Float = 3.0
 var specular: Float = 0.5
 var metallic: Float = 0.0
 
