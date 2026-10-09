@@ -323,7 +323,6 @@ plugins/                  each loaded on its own: plugins/slop_<feature>_plugin/
   transform/, camera/, scene/, scene_vulkan/, animation/, scene_animation/, lighting/, foliage/, water/, post_process/   3D (docs/scene.md)
   physics/                colliders, raycasts and sweeps, the character controller, triggers (docs/physics.md)
   navigation/             walkability bake, grid A*, line of sight, path following (docs/navigation.md)
-  mongodb/                the ECS side of MongoDB; the driver is its own package, spite_mongodb_driver
   png/                    PNG decoding
   texture_compression/    block compression and mips for cooked textures (docs/assets-and-recipes.md)
   psd/, zstd/, blend/     the source-format loaders, loaded by whoever has a recipe that reads them

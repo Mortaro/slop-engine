@@ -1,3 +1,0 @@
-func Mongo() {
-    load "../../../../spite_mongodb_driver@fbb6653/mongodb"
-}
