@@ -12,9 +12,11 @@ func read(): Asset.Bytes {
     var bytes = Asset.Bytes()
     var wanted: Integer = length
     bytes.reserve(wanted + 1)
-    var got = file.read_bytes(offset, length, bytes.address)
+    var got = file.read_bytes_at(offset, wanted)
     crash got
-    crash got == length
+    var got_count: Long = got.count()
+    crash got_count == length
+    ForeignBytes(bytes.address, got_count).write_bytes(0, got)
     bytes.length = wanted
     return bytes
 }
@@ -24,10 +26,13 @@ func check_header(file: File) {
     var header_size: Long = 4 + key_size + 8
     var header_at = offset - header_size
     var header = heap.allocate(header_size)
-    var got = file.read_bytes(header_at, header_size, header)
+    var header_count: Integer = header_size
+    var got = file.read_bytes_at(header_at, header_count)
     var whole = false
     if got {
-        whole = got == header_size
+        var got_count: Long = got.count()
+        ForeignBytes(header, got_count).write_bytes(0, got)
+        whole = got_count == header_size
     }
     var stored_key_size = -1
     var stored_key = ""

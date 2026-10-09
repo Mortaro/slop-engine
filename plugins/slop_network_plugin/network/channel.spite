@@ -18,7 +18,6 @@ var ping_wait = 0
 var datagrams_in = Asset.Bytes()
 var datagrams_read = 0
 var stale_datagrams = 0
-var chunk = 4096
 var inbound_limit = 1048576
 var frame_limit = 65536
 
@@ -29,9 +28,13 @@ func adopt(opened: Socket) {
 func receive_all() {
     var reading = true
     while reading and inbound.length < inbound_limit {
-        inbound.reserve(inbound.length + chunk)
-        var free_at = inbound.address + inbound.length
-        var received = socket.read_bytes_now(free_at, chunk)
+        var received_bytes = socket.read_bytes_now()
+        var received = received_bytes.count()
+        inbound.reserve(inbound.length + received)
+        if received > 0 {
+            var free_at = inbound.address + inbound.length
+            ForeignBytes(free_at, received).write_bytes(0, received_bytes)
+        }
         inbound.length = inbound.length + received
         reading = received > 0
     }
@@ -107,7 +110,9 @@ func flush() {
     var left = outbound.remaining()
     assert left != 0
     var start = outbound.address + outbound.position
-    var sent = socket.write_bytes_now(start, left)
+    var pending = ForeignBytes(start, left).read_bytes(0, left)
+    crash pending
+    var sent = socket.write_bytes_now(pending)
     outbound.position = outbound.position + sent
     sent_bytes = sent_bytes + sent
     if outbound.remaining() == 0 {

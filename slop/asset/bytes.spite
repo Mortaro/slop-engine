@@ -251,18 +251,22 @@ func read_file(path: String): Boolean {
     var wanted: Integer = size
     reserve(wanted + 1)
     var start: Long = 0
-    var read = file.read_bytes(start, size, address)
+    var read = file.read_bytes_at(start, wanted)
     if not read {
         return false
     }
+    var got: Long = read.count()
+    ForeignBytes(address, got).write_bytes(0, read)
     length = wanted
-    return read == size
+    return got == size
 }
 
 func save(path: String): Boolean {
     var file = File(path)
     var count: Long = length
-    return file.write_bytes(address, count)
+    var bytes = ForeignBytes(address, count).read_bytes(0, length)
+    crash bytes
+    return file.write_bytes(bytes)
 }
 
 func drop() {
