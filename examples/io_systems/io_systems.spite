@@ -1,11 +1,21 @@
 var world = World()
+var build = Build()
+var names = ["first", "third"]
 
 func IoSystems() {
     load "../../slop"
-    load "../../plugins/slop_mongodb_plugin"
+    var folder = "{build.program}/.test"
+    var made = Directory(folder).create()
+    crash made
+    names.each(write_record)
     var app = App()
-    var database = Mongo.Component.Database()
-    database.name = "spite_kal"
-    world.as_entity().add_component(database)
+    var records = Component.Records()
+    records.folder = folder
+    world.as_entity().add_component(records)
     app.run()
+}
+
+func write_record(name: String) {
+    var written = File("{build.program}/.test/{name}.txt").write(name)
+    crash written
 }

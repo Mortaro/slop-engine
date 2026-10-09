@@ -600,14 +600,17 @@ entity is matched once while the list is built, so a list system allocates its l
 
 ## IO systems
 
-A system whose phase function can reach a wait (a socket or file read, a sleep, a database call) is an **IO system**,
+A system whose phase function can reach a wait (a socket or file read, a sleep, a call into a database package) is an **IO system**,
 found at compile time (`$system_type.function_waits`). Nothing marks it; writing straight-line code is enough:
 
 ```gdscript
 func update_each(pending: Pending, store: Store) {
-    var accounts = store.client.collection("accounts")
-    var found = accounts.find_one(filter)
-    ...
+    program.sleep(200)
+    var file = File("{store.records.folder}/{pending.request.value.name}.txt")
+    if file.exists() {
+        var text = file.read()
+        ...
+    }
 }
 ```
 
@@ -623,7 +626,9 @@ func update_each(pending: Pending, store: Store) {
 
 Because the compiler finds every function that can wait, it also catches file reads on the frame path, which the
 no-stutter rule forbids: asset lookups go through `Recipes.Catalog`, which loads the cache index on the pool, and
-shaders through `Recipes.Blobs`. `examples/io_systems` runs three MongoDB lookups with a 200 ms wait each.
+shaders through `Recipes.Blobs`. `examples/io_systems` runs three lookups of record files written beforehand, each after a 200 ms
+wait. The engine ships no database: a game that keeps its data in one loads that database's package itself and
+queries it from IO systems the same way.
 
 ---
 

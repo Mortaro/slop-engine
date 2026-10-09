@@ -4,7 +4,7 @@ type Pending {
 }
 
 type Store {
-    client: Mongo.Component.Connection
+    records: Component.Records
 }
 
 var program = Program()
@@ -13,12 +13,13 @@ var world = World()
 
 func update_each(pending: Pending, store: Store) {
     program.sleep(200)
-    var accounts = store.client.collection("accounts")
-    var filter = Mongo.Document()
-    var found = accounts.find_one(filter)
+    var name = pending.request.value.name
+    var file = File("{store.records.folder}/{name}.txt")
     var reply = Component.LookupReply()
-    reply.name = pending.request.value.name
-    if found {
+    reply.name = name
+    if file.exists() {
+        var text = file.read()
+        crash text == name
         var marker = Component.Found()
         pending.entity.add_component(marker)
     }
