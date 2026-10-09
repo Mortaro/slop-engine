@@ -28,8 +28,7 @@ with `spite kal_character --kal-assets=<folder>`.
 - `Recipes.AssetSlots<T>`, which loads any cooked asset on the thread pool;
 - `Recipes.DetailLevels`, which gives a cooked mesh its [levels of detail](#levels-of-detail);
 - the maths the standard library leaves out: `Math.Pose` (a position, a rotation and a scale, which `compose`s
-  into a `Matrix4` and `decompose`s one), and `Matrix4` reopened with `set_product(left, right)` and
-  `copy_from(other)` (in place, so a stored matrix is set without a new object), `set_reversed_perspective`
+  into a `Matrix4` and `decompose`s one), and `Matrix4` reopened with `set_reversed_perspective`
   (depth 1 at `near` and 0 at `far`), `value_at(index)`/`set_value(index, value)` in column-major order, and
   `write_to(floats, address)`, which writes the 16 floats where a GPU buffer takes them.
   Vectors, matrices, quaternions and the number functions (`square_root()`, `sine()`, `Float.pi`) are the

@@ -53,10 +53,9 @@ An engine plugin lives in `plugins/slop_<feature>_plugin/<feature>/`, so loading
 
 ## Memory
 
-Program code never reads raw addresses (only the standard library may). SlopEngine's raw-memory structures
-(the draw list, Vulkan structs, the cache files) go through `Raw` (`raw.read_long(address, offset)` and
-friends, built on `TypedMemory<T>`), and allocate with `var heap = Memory.Heap()` (`allocate`, `resize`, `free`).
-A class that allocates frees in its `drop()`, and never reads a byte it didn't write: `resize` doesn't clear.
+Bytes are a `List<Byte>`, read and written by position (`Asset.Bytes` wraps one), and tables are plain lists. Only
+the memory a C library hands out or takes (Vulkan structs, the draw list's GPU records, the software canvas) is
+touched through `Raw`, `Memory.Heap()` or `ForeignBytes`, and a class that allocates frees in its `drop()`.
 
 ## Rules the design follows
 
