@@ -324,3 +324,36 @@ list), `596b4c7` (plain columns), `8f952d8` (IO drain), `379fa26` (dials), `205e
 (format), `7399f59` (physics objects), `13767c1` (checks), `dbaaf4d` (decoder fix), `9f2b87a` (textures),
 `7e10761` (docs), and this report (`50e8d79`); then stage 1b: `48f81d0` (one plain loop per system),
 `0c2c278` (every column a `List<T>`) and its report.
+
+## 2026-10-09: first measurements on the new compiler (provisional)
+
+Provisional: measured while the machine was in other use, so single runs swung by up to 25%; a quiet re-timing
+will replace these numbers. Compiler: Spite at `f5fdd667`, the first that requires `Dictionary<Key, Value>` and reads
+files and sockets through a `List<Byte>`. Hand: `main` at `346efda`; naive: `naive` at `b53451c`. Both branches
+changed only what that compiler needs to build them: every dictionary names the key the old compiler inferred, and
+`Asset.Bytes`, the recipe store and records, and the network channel copy through `ForeignBytes` at the file and
+socket edge. `--optimized --build`, 5 rounds run interleaved hand/naive, medians (lowest to highest in brackets),
+microseconds.
+
+| Benchmark | Hand | Naive | Naive / hand |
+|---|---|---|---|
+| `stress` tick | 8,312 (6,811 to 8,909) | 32,278 (29,297 to 38,104) | 3.9x slower |
+| `stress` `Move` / `Regenerate` | 7,792 / 7,555 | 16,142 / 16,108 | 2.1x slower each |
+| `stress` despawn: sixty ticks | 27,371 | 25,067 | same |
+| `physics_bench` tick | 8,301 (7,117 to 9,935) | 12,064 (11,181 to 14,321) | 1.5x slower |
+| `physics_bench` `SortColliders` / `MoveCharacters` / `ReadCharacters` | 355 / 7,049 / 278 | 1,369 / 9,276 / 714 | |
+
+Naive `stress` went from 112.1 ms a tick (`0c2c278` on the stage 1b compiler) to 32.3 ms, and its despawn from 143.4
+to 25.1 ms, with no change to the engine's code beyond the two migrations: the gain is the compiler's (the loop bands
+and the other optimisations since `a3459207`), to be confirmed by the quiet re-timing.
+
+Every headless check listed above builds and passes on both branches. Against the same programs built with the
+compiler before the change (`8dbdd4e5`), the outputs are the same except for counts that depend on timing
+(`animation_check`'s skipped throttle ticks and unseen time, `clock_check`'s game times, `unreliable_check`'s
+datagrams, `replication_check`'s busy count, `navigation_check`'s arrival tick on `main`, and the timings that
+`relations_check`, `stream_bench` and `timers_check` print) and one printed float: `navigation_check` on `naive`
+prints the gentle ramp's height as `1.746` where the old build printed `1.7460002`. `texture_compression_check` and
+`interest_check` compile again. Every example that loads `spite_truetype` (`4963d04`: the UI plugin, and through it
+every windowed example) or `spite_mongodb_driver` (`fd2aa14`: `io_systems`, `mongodb_check`) still does not compile:
+those packages read files and sockets through addresses and trip the "declared only to be returned" rule, and they
+live in their own repositories.
