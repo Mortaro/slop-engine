@@ -367,3 +367,12 @@ again. `mongodb_check` prints `accounts 1 passed true` on both branches. `io_sys
 while waiting) and fails its own check on `naive` (3 frames): the naive runner drains an IO system's rows between
 frames with a plain call (`8f952d8`), so frames no longer advance while the lookups wait, and the example's
 `frames > 10` check predates that.
+
+The engine no longer carries a database (2026-10-09, Mortaro: storage is the game's): `slop_mongodb_plugin` and
+`mongodb_check` are removed, and `io_systems` waits on record files the program writes before the app starts (a
+200 ms sleep, then a file read, per lookup) instead of MongoDB queries. It passes on `main` (29 frames while waiting,
+balanced) and still fails its `frames > 10` check on `naive` (3 frames, every lookup finished at frame 2), for the
+reason above: the naive runner drains IO systems with a plain call, and the check passes again once the compiler
+arranges the wait (the language's W1). Every other example builds on both branches with Spite master `8ba6a9fa`, the
+two refusals excepted, and the headless checks pass on `naive` balanced under `--debug-memory`, including
+`list_component_refused/test.sh` once its expected text names `Dictionary<String, Integer>`.
