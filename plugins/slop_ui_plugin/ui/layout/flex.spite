@@ -1,11 +1,11 @@
 var world = World()
-var children = Dictionary<List<Integer>>()
-var created_layouts = Dictionary<Ui.Component.ComputedLayout>()
-var created_clips = Dictionary<Ui.Component.ComputedClip>()
-var created_ranges = Dictionary<Ui.Component.ScrollRange>()
-var created_scrollbars = Dictionary<Ui.Component.ComputedScrollbars>()
+var children = Dictionary<Integer, List<Integer>>()
+var created_layouts = Dictionary<Integer, Ui.Component.ComputedLayout>()
+var created_clips = Dictionary<Integer, Ui.Component.ComputedClip>()
+var created_ranges = Dictionary<Integer, Ui.Component.ScrollRange>()
+var created_scrollbars = Dictionary<Integer, Ui.Component.ComputedScrollbars>()
 var paint_order = 0
-var laid_out = Dictionary<Boolean>()
+var laid_out = Dictionary<Integer, Boolean>()
 var viewport_width: Float = 0.0
 var viewport_height: Float = 0.0
 var root_font_size: Float = 16.0

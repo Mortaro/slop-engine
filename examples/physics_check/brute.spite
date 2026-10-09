@@ -16,10 +16,7 @@ func segment_distance(
     var share: Float = 0.0
     if length > 0.0 {
         var share_unclamped = ((point_x - start_x) * along_x + (point_y - start_y) * along_y + (point_z - start_z) * along_z) / length
-        share = share_unclamped.clamp(
-            0.0,
-            1.0,
-        )
+        share = share_unclamped.clamp(0.0, 1.0)
     }
     var across_x = point_x - start_x - along_x * share
     var across_y = point_y - start_y - along_y * share

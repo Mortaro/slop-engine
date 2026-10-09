@@ -1,6 +1,6 @@
 var folder = ""
 var index_file = ""
-var fingerprints = Dictionary<String>()
+var fingerprints = Dictionary<String, String>()
 var store: Recipes.Store? = null
 
 func CacheReader(cache_folder: String, index_path: String) {
@@ -15,7 +15,7 @@ func read_index() {
     var index = File(index_file)
     var text = index.read()
     assert text
-    var json = JsonReader<Dictionary<String>>()
+    var json = JsonReader<Dictionary<String, String>>()
     var parsed = json.read(text)
     assert parsed
     fingerprints = parsed

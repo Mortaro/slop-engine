@@ -2,7 +2,7 @@ singleton
 
 var report_console = Console()
 var world = World()
-var known_slots = Dictionary<Integer>()
+var known_slots = Dictionary<String, Integer>()
 var entities = List<Integer>()
 var loads = List<Parallel<Scene.LoadedMesh>>()
 var load_slots = List<Integer>()

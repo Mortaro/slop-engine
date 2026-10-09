@@ -1,1 +1,1 @@
-var names = Dictionary<Integer>()
+var names = Dictionary<String, Integer>()

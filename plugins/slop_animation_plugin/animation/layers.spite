@@ -1,6 +1,6 @@
 singleton
 
-var of_animated = Dictionary<List<Integer>>()
+var of_animated = Dictionary<Integer, List<Integer>>()
 var no_layers = List<Integer>()
 
 func of(animated: Integer): List<Integer> {
@@ -27,6 +27,6 @@ func gather(animated: Integer, layer: Integer) {
 
 func forget_every() {
     if of_animated.count() > 0 {
-        of_animated = Dictionary<List<Integer>>()
+        of_animated = Dictionary<Integer, List<Integer>>()
     }
 }

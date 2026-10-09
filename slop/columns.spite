@@ -11,12 +11,12 @@ type AnyLink {
     unlink()
 }
 
-var headers = Dictionary<Long>()
-var releasers = Dictionary<AnyColumn>()
+var headers = Dictionary<String, Long>()
+var releasers = Dictionary<String, AnyColumn>()
 var raw = Raw()
 var heap = Memory.Heap()
 var stage_counter = 0
-var removals = Dictionary<Removals>()
+var removals = Dictionary<String, Removals>()
 var links = List<AnyLink>()
 var dead = List<Long>()
 

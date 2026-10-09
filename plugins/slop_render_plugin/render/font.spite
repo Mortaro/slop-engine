@@ -1,4 +1,4 @@
-var glyphs = Dictionary<String>()
+var glyphs = Dictionary<String, String>()
 var missing = "#####...##...##...##...##...######"
 
 func Font() {

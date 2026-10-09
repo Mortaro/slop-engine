@@ -1,11 +1,11 @@
 var entities = List<Integer>()
 var heads = List<Asset.Bytes>()
 var tails = List<Asset.Bytes>()
-var places = Dictionary<Integer>()
+var places = Dictionary<String, Integer>()
 
 func begin() {
     entities.clear()
-    places = Dictionary<Integer>()
+    places = Dictionary<String, Integer>()
 }
 
 func buffer_for(entity: Integer, link: Boolean): Asset.Bytes {
