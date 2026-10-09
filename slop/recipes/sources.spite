@@ -3,6 +3,21 @@ var build = Build()
 var kernel = DynamicLibrary("kernel32.dll", 'identity', "")
 var heap = Memory.Heap()
 var raw = Raw()
+var resolved_cache = ""
+var resolved_index = ""
+
+func Sources() {
+    var shared = shared_base()
+    resolved_cache = "{shared}/.slop-cache"
+    var folder = "{resolved_cache}/index"
+    var name = executable_name()
+    var place = executable_place()
+    resolved_index = "{folder}/{name}-{place}.json"
+    var cache_directory = Directory(resolved_cache)
+    cache_directory.create()
+    var index_directory = Directory(folder)
+    index_directory.create()
+}
 
 func relative_path(id: String, extension: String): String {
     var folders = id.replace(".", "/")
@@ -23,15 +38,94 @@ func base_folder(): String {
 }
 
 func cache_folder(): String {
-    return "{base()}/.slop-cache"
+    return resolved_cache
+}
+
+func shared_base(): String {
+    var own = base().replace("\\", "/")
+    var root = checkout_root(own)
+    if root.is_empty() {
+        return own
+    }
+    var main = main_checkout(root)
+    if main.is_empty() or main == root {
+        return own
+    }
+    var root_length = root.length()
+    var own_length = own.length()
+    var inside = own.slice(root_length, own_length)
+    var shared = "{main}{inside}"
+    var shared_directory = Directory(shared)
+    if not shared_directory.exists() {
+        return own
+    }
+    return shared
+}
+
+func checkout_root(start: String): String {
+    var folder = start
+    while not folder.is_empty() {
+        var marker = File("{folder}/.git")
+        var marker_folder = Directory("{folder}/.git")
+        if marker.exists() or marker_folder.exists() {
+            return folder
+        }
+        folder = parent_of(folder)
+    }
+    return ""
+}
+
+func main_checkout(root: String): String {
+    var marker_folder = Directory("{root}/.git")
+    if marker_folder.exists() {
+        return root
+    }
+    var marker = File("{root}/.git")
+    var text = marker.read()
+    if not text {
+        return ""
+    }
+    var line = text.trim().replace("\\", "/")
+    var cut = line.index_of("/.git/worktrees/")
+    var pointer = line.starts_with("gitdir: ")
+    if not pointer or cut <= 8 {
+        return ""
+    }
+    return line.slice(8, cut)
+}
+
+func parent_of(folder: String): String {
+    var cut = folder.length() - 1
+    while cut > 0 and folder.code_at(cut) != 47 {
+        cut = cut - 1
+    }
+    if cut <= 0 {
+        return ""
+    }
+    return folder.slice(0, cut)
 }
 
 func index_path(): String {
-    var name = executable_name()
-    return "{build.program}/.slop-index-{name}.json"
+    return resolved_index
 }
 
-func executable_name(): String {
+func index_folder(): String {
+    return "{resolved_cache}/index"
+}
+
+func executable_place(): Long {
+    var full = executable_path()
+    var hash: Long = 1469598103
+    var index = 0
+    while index < full.length() {
+        var code: Long = full.code_at(index)
+        hash = (hash * 31 + code) % 2147483647
+        index = index + 1
+    }
+    return hash
+}
+
+func executable_path(): String {
     var buffer = heap.allocate(1024)
     var no_module: Long = 0
     var size = kernel.GetModuleFileNameA(no_module, buffer, 1024)
@@ -39,16 +133,20 @@ func executable_name(): String {
     crash named
     var full = raw.text(buffer, size)
     heap.free(buffer)
-    var normalized = full.replace("\\", "/")
-    var start = normalized.length()
-    while start > 0 and normalized.code_at(start - 1) != 47 {
+    return full.replace("\\", "/")
+}
+
+func executable_name(): String {
+    var full = executable_path()
+    var start = full.length()
+    while start > 0 and full.code_at(start - 1) != 47 {
         start = start - 1
     }
-    var stop = normalized.length()
-    if normalized.ends_with(".exe") {
+    var stop = full.length()
+    if full.ends_with(".exe") {
         stop = stop - 4
     }
-    return normalized.slice(start, stop)
+    return full.slice(start, stop)
 }
 
 func path_of(id: String, extension: String): String {

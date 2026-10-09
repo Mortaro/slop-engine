@@ -68,7 +68,8 @@ func subscribe() {
     var folders = List<String>()
     var cache_folder = sources.cache_folder()
     folders.append(cache_folder)
-    folders.append(build.program)
+    var index_folder = sources.index_folder()
+    folders.append(index_folder)
     var started = Recipes.Watcher()
     started.start(folders)
     watcher = started

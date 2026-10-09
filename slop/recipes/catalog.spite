@@ -1,7 +1,6 @@
 singleton
 
 var sources = Recipes.Sources()
-var build = Build()
 var reader: Recipes.CacheReader? = null
 var loading: Parallel<Recipes.CacheReader>? = null
 var watcher: Recipes.Watcher? = null
@@ -43,7 +42,8 @@ func refresh() {
     assert reader
     if not watcher {
         var cache_folder = sources.cache_folder()
-        var folders = [cache_folder, build.program]
+        var index_folder = sources.index_folder()
+        var folders = [cache_folder, index_folder]
         var started = Recipes.Watcher()
         started.start(folders)
         watcher = started
