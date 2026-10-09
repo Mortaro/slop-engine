@@ -18,7 +18,7 @@ var occluder: Float = 0.0
 
 func begin(camera: Scene.Component.ViewCamera, width: Integer, height: Integer, texel_block: Integer) {
     ready = false
-    view.copy_from(camera.view)
+    view = camera.view * Matrix4<Float>()
     eye_x = camera.eye_x
     eye_y = camera.eye_y
     eye_z = camera.eye_z

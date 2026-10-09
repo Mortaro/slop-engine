@@ -140,19 +140,29 @@ func place_bone(skeleton: Asset.Skeleton, bone: Integer, palette: List<Matrix4<F
     crash skeleton.parents[bone]
     var parent = skeleton.parents[bone]
     crash globals[bone]
-    var global = globals[bone]
+    var global = local
     if parent >= 0 {
         var parent_comes_first = parent < bone
         crash parent_comes_first
         crash globals[parent]
         var parent_global = globals[parent]
-        global.set_product(parent_global, local)
+        global = parent_global * local
     } else {
-        global.copy_from(local)
+        global = Matrix4<Float>() * local
     }
-    crash palette[bone]
-    var skinning = palette[bone]
-    set_product_with_values(skinning, global, skeleton.inverse_binds, bone * 16)
+    globals[bone] = global
+    var fits = bone * 16 + 16 <= skeleton.inverse_binds.count()
+    crash fits
+    var inverse_bind = Matrix4<Float>()
+    var value = 0
+    while value < 16 {
+        var stored = skeleton.inverse_binds[bone * 16 + value]
+        crash stored
+        inverse_bind.set_value(value, stored)
+        value = value + 1
+    }
+    var skinning = global * inverse_bind
+    palette[bone] = skinning
     var bone_matrix_is_finite = is_finite(skinning)
     crash skeleton.names[bone]
     var bone_name = skeleton.names[bone]
@@ -276,59 +286,6 @@ func normalize_rotation() {
     first.rotation_y = first.rotation_y / length
     first.rotation_z = first.rotation_z / length
     first.rotation_w = first.rotation_w / length
-}
-
-func set_product_with_values(target: Matrix4<Float>, left: Matrix4<Float>, right: List<Float>, start: Integer) {
-    var fits = start >= 0 and start + 16 <= right.count()
-    crash fits
-    crash right[start + 0]
-    crash right[start + 1]
-    crash right[start + 2]
-    crash right[start + 3]
-    var product_0 = left.column_0_row_0 * right[start + 0] + left.column_1_row_0 * right[start + 1] + left.column_2_row_0 * right[start + 2] + left.column_3_row_0 * right[start + 3]
-    var product_1 = left.column_0_row_1 * right[start + 0] + left.column_1_row_1 * right[start + 1] + left.column_2_row_1 * right[start + 2] + left.column_3_row_1 * right[start + 3]
-    var product_2 = left.column_0_row_2 * right[start + 0] + left.column_1_row_2 * right[start + 1] + left.column_2_row_2 * right[start + 2] + left.column_3_row_2 * right[start + 3]
-    var product_3 = left.column_0_row_3 * right[start + 0] + left.column_1_row_3 * right[start + 1] + left.column_2_row_3 * right[start + 2] + left.column_3_row_3 * right[start + 3]
-    crash right[start + 4]
-    crash right[start + 5]
-    crash right[start + 6]
-    crash right[start + 7]
-    var product_4 = left.column_0_row_0 * right[start + 4] + left.column_1_row_0 * right[start + 5] + left.column_2_row_0 * right[start + 6] + left.column_3_row_0 * right[start + 7]
-    var product_5 = left.column_0_row_1 * right[start + 4] + left.column_1_row_1 * right[start + 5] + left.column_2_row_1 * right[start + 6] + left.column_3_row_1 * right[start + 7]
-    var product_6 = left.column_0_row_2 * right[start + 4] + left.column_1_row_2 * right[start + 5] + left.column_2_row_2 * right[start + 6] + left.column_3_row_2 * right[start + 7]
-    var product_7 = left.column_0_row_3 * right[start + 4] + left.column_1_row_3 * right[start + 5] + left.column_2_row_3 * right[start + 6] + left.column_3_row_3 * right[start + 7]
-    crash right[start + 10]
-    crash right[start + 11]
-    crash right[start + 8]
-    crash right[start + 9]
-    var product_8 = left.column_0_row_0 * right[start + 8] + left.column_1_row_0 * right[start + 9] + left.column_2_row_0 * right[start + 10] + left.column_3_row_0 * right[start + 11]
-    var product_9 = left.column_0_row_1 * right[start + 8] + left.column_1_row_1 * right[start + 9] + left.column_2_row_1 * right[start + 10] + left.column_3_row_1 * right[start + 11]
-    var product_10 = left.column_0_row_2 * right[start + 8] + left.column_1_row_2 * right[start + 9] + left.column_2_row_2 * right[start + 10] + left.column_3_row_2 * right[start + 11]
-    var product_11 = left.column_0_row_3 * right[start + 8] + left.column_1_row_3 * right[start + 9] + left.column_2_row_3 * right[start + 10] + left.column_3_row_3 * right[start + 11]
-    crash right[start + 12]
-    crash right[start + 13]
-    crash right[start + 14]
-    crash right[start + 15]
-    var product_12 = left.column_0_row_0 * right[start + 12] + left.column_1_row_0 * right[start + 13] + left.column_2_row_0 * right[start + 14] + left.column_3_row_0 * right[start + 15]
-    var product_13 = left.column_0_row_1 * right[start + 12] + left.column_1_row_1 * right[start + 13] + left.column_2_row_1 * right[start + 14] + left.column_3_row_1 * right[start + 15]
-    var product_14 = left.column_0_row_2 * right[start + 12] + left.column_1_row_2 * right[start + 13] + left.column_2_row_2 * right[start + 14] + left.column_3_row_2 * right[start + 15]
-    var product_15 = left.column_0_row_3 * right[start + 12] + left.column_1_row_3 * right[start + 13] + left.column_2_row_3 * right[start + 14] + left.column_3_row_3 * right[start + 15]
-    target.column_0_row_0 = product_0
-    target.column_0_row_1 = product_1
-    target.column_0_row_2 = product_2
-    target.column_0_row_3 = product_3
-    target.column_1_row_0 = product_4
-    target.column_1_row_1 = product_5
-    target.column_1_row_2 = product_6
-    target.column_1_row_3 = product_7
-    target.column_2_row_0 = product_8
-    target.column_2_row_1 = product_9
-    target.column_2_row_2 = product_10
-    target.column_2_row_3 = product_11
-    target.column_3_row_0 = product_12
-    target.column_3_row_1 = product_13
-    target.column_3_row_2 = product_14
-    target.column_3_row_3 = product_15
 }
 
 func is_finite(matrix: Matrix4<Float>): Boolean {

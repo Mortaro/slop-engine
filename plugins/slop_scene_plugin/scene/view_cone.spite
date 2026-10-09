@@ -12,7 +12,7 @@ var placed = Vector3(0.0, 0.0, 0.0)
 var spread: Float = 0.0
 
 func prepare(source: Scene.Component.ViewCamera) {
-    view.copy_from(source.view)
+    view = source.view * Matrix4<Float>()
     near = source.near
     far = source.far
     eye_x = source.eye_x

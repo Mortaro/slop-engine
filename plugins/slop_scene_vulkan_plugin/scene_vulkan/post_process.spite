@@ -534,8 +534,7 @@ func halton(index: Integer, base: Integer): Float {
 }
 
 func jittered(projection: Matrix4<Float>): Matrix4<Float> {
-    var result = Matrix4<Float>()
-    result.copy_from(projection)
+    var result = projection * Matrix4<Float>()
     var width: Float = render_width
     var height: Float = render_height
     result.column_2_row_0 = result.column_2_row_0 - 2.0 * jitter_x / width
@@ -823,7 +822,7 @@ func record(
     var tone_timing = timings.begin("tone map")
     record_tone_map(renderer, view, metered)
     timings.end(tone_timing)
-    previous_view_projection.copy_from(view_projection)
+    previous_view_projection = view_projection * Matrix4<Float>()
     history_frames = history_frames + 1
     parity = 1 - parity
 }
@@ -878,7 +877,7 @@ func record_temporal(renderer: RenderVulkan.Renderer, view_projection: Matrix4<F
     crash history_views[parity]
     crash temporal_sets[parity]
     if history_frames == 0 {
-        previous_view_projection.copy_from(view_projection)
+        previous_view_projection = view_projection * Matrix4<Float>()
     }
     var inverse = view_projection.inverse()
     crash inverse

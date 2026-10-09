@@ -227,8 +227,7 @@ func copy_pose(source: List<Matrix4<Float>>, target: List<Matrix4<Float>>) {
     while index < count {
         var from = source[index]
         crash target[index]
-        var into = target[index]
-        into.copy_from(from)
+        target[index] = from * Matrix4<Float>()
         index = index + 1
     }
 }

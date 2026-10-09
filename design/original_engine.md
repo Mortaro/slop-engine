@@ -21,6 +21,7 @@ compiler, never from the engine's code (decisions D506, D550 and D557 in the lan
 | Physics | colliders as slots in parallel float arrays, tombstones and stamps | colliders as objects |
 | Texture compression | bands per level | one plain call per level |
 | Network dials | a `Parallel` per connection | a plain call |
+| Matrix products | `set_product`, `copy_from` and a flat-float `set_product_with_values` reopened into the library's `Matrix4`, to multiply in place | `a * b` of the library, a fresh matrix each time; a copy is `a * Matrix4<Float>()` |
 
 The full history, gap by gap with the measurements of each step, is in [naive_baseline.md](naive_baseline.md).
 
